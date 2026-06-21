@@ -42,3 +42,11 @@ ndi/bin/
 # Local screenshot scratch (the website copy lives in docs/screenshots/).
 /screenshots/
 
+# Vidéo de présentation : médias lourds régénérables (scripts versionnés).
+# Le MP4 final est plutôt joint comme asset à une GitHub Release.
+docs/Project-On_presentation.mp4
+docs/music.wav
+docs/_render_raw/
+docs/_frames/
+docs/_thumb_2x.png
+

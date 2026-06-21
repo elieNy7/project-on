@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Project-On — Vidéo de présentation</title>
+<link rel="icon" href="app-icon.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+<style>
+/* ============================================================
+   Project-On — vidéo de présentation (autoplay, 1920×1080)
+   Conçue pour être enregistrée en MP4 (OBS, plein écran F11).
+   ============================================================ */
+:root{
+  --bg:#0b0d12; --bg-2:#0e1118; --surface:#141925; --surface-2:#1a2030;
+  --border:rgba(245,241,232,.10); --border-strong:rgba(245,241,232,.18);
+  --text:#f5f1e8; --text-2:#c7c0b4; --muted:#8b8478;
+  --gold:#d8aa5a; --gold-light:#f0ce82; --blue:#74a7f8; --green:#56d681;
+  --font-head:"Space Grotesk","Segoe UI",system-ui,sans-serif;
+  --font-body:"Inter","Segoe UI",system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;background:#000;overflow:hidden;font-family:var(--font-body);color:var(--text);}
+
+/* Scène fixe 1920×1080 mise à l'échelle pour remplir l'écran (letterbox) */
+#viewport{position:fixed;inset:0;display:grid;place-items:center;background:#000;}
+#stage{
+  position:absolute;top:50%;left:50%;width:1920px;height:1080px;
+  transform-origin:center center;background:var(--bg);overflow:hidden;
+}
+#stage::before{
+  content:"";position:absolute;inset:0;z-index:0;
+  background:
+    radial-gradient(1100px 700px at 80% -8%, rgba(216,170,90,.16), transparent 60%),
+    radial-gradient(900px 700px at 6% 6%, rgba(116,167,248,.10), transparent 55%),
+    linear-gradient(180deg,#0b0d12,#090b10 60%,#0b0d12);
+}
+
+/* ── Scènes ─────────────────────────────────────────────── */
+.scene{position:absolute;inset:0;z-index:1;opacity:0;visibility:hidden;
+  transition:opacity .85s ease, visibility .85s ease;display:grid;}
+.scene.active{opacity:1;visibility:visible;z-index:2;}
+body.paused .scene.active *{animation-play-state:paused !important;}
+
+/* éléments animés : démarrent quand la scène devient active */
+.scene .anim{opacity:0;}
+.scene.active .anim{animation-fill-mode:both;}
+
+/* utilitaires d'animation */
+@keyframes fadeUp{from{opacity:0;transform:translateY(46px)}to{opacity:1;transform:none}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes fadeDown{from{opacity:0;transform:translateY(-30px)}to{opacity:1;transform:none}}
+@keyframes pop{0%{opacity:0;transform:scale(.82)}60%{opacity:1;transform:scale(1.04)}100%{opacity:1;transform:scale(1)}}
+@keyframes lineGrow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-14px)}}
+
+/* ── Marque ─────────────────────────────────────────────── */
+.kicker{font-family:var(--font-body);font-weight:700;font-size:20px;letter-spacing:.22em;
+  text-transform:uppercase;color:var(--gold);}
+.grad{background:linear-gradient(120deg,var(--gold-light),var(--gold));
+  -webkit-background-clip:text;background-clip:text;color:transparent;}
+
+/* ============================================================
+   Scène 1 — INTRO logo
+   ============================================================ */
+#scene-intro{place-items:center;text-align:center;}
+.intro-wrap{position:relative;display:grid;place-items:center;}
+.logo-orbit{position:absolute;width:560px;height:560px;border-radius:50%;
+  border:2px solid rgba(216,170,90,.22);}
+.scene.active .logo-orbit{animation:pop 1.1s cubic-bezier(.2,.8,.2,1) .15s, spin 26s linear 1.2s infinite;}
+.logo-orbit::after{content:"";position:absolute;top:-7px;left:50%;width:12px;height:12px;
+  margin-left:-6px;border-radius:50%;background:var(--gold-light);
+  box-shadow:0 0 22px 6px rgba(240,206,130,.7);}
+@keyframes spin{to{transform:rotate(360deg)}}
+.intro-logo{width:240px;height:240px;border-radius:54px;
+  box-shadow:0 40px 120px -30px rgba(216,170,90,.55);}
+.scene.active .intro-logo{animation:pop 1.2s cubic-bezier(.2,.8,.2,1) both;}
+.intro-word{font-family:var(--font-head);font-weight:700;font-size:112px;letter-spacing:-.02em;
+  margin-top:54px;}
+.scene.active .intro-word{animation:fadeUp 1s ease .55s both;}
+.intro-sub{font-size:30px;color:var(--text-2);margin-top:10px;letter-spacing:.01em;}
+.scene.active .intro-sub{animation:fadeUp 1s ease .85s both;}
+.intro-badge{margin-top:30px;display:inline-flex;gap:12px;align-items:center;
+  font-size:21px;font-weight:600;color:var(--gold-light);
+  background:rgba(216,170,90,.10);border:1px solid rgba(216,170,90,.24);
+  padding:12px 26px;border-radius:999px;}
+.scene.active .intro-badge{animation:fadeUp 1s ease 1.15s both;}
+
+/* ============================================================
+   Scène 2 — HOOK
+   ============================================================ */
+#scene-hook{place-items:center;text-align:center;padding:0 160px;}
+.hook-k{margin-bottom:34px;}
+.scene.active .hook-k{animation:fadeDown 1s ease .1s both;}
+.hook-title{font-family:var(--font-head);font-weight:700;font-size:108px;line-height:1.05;
+  letter-spacing:-.02em;max-width:1400px;}
+.scene.active .hook-title .l1{display:block;animation:fadeUp 1s ease .35s both;}
+.scene.active .hook-title .l2{display:block;animation:fadeUp 1s ease .7s both;}
+.hook-sub{font-size:30px;color:var(--text-2);margin-top:36px;max-width:1000px;}
+.scene.active .hook-sub{animation:fadeUp 1s ease 1.1s both;}
+
+/* ============================================================
+   Scène 3 — VALEURS (stats)
+   ============================================================ */
+#scene-value{place-items:center;align-content:center;text-align:center;}
+.value-head{font-family:var(--font-head);font-weight:700;font-size:62px;margin-bottom:56px;}
+.scene.active .value-head{animation:fadeUp .9s ease .1s both;}
+.value-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:30px;width:1500px;}
+.value-tile{background:linear-gradient(180deg,var(--surface),var(--bg-2));
+  border:1px solid var(--border);border-radius:24px;padding:46px 26px;}
+.value-tile b{display:block;font-family:var(--font-head);font-size:64px;color:var(--gold-light);
+  line-height:1;}
+.value-tile span{display:block;margin-top:16px;font-size:23px;color:var(--text-2);}
+.scene.active .value-tile{animation:fadeUp .9s cubic-bezier(.2,.8,.2,1) both;}
+.scene.active .value-tile:nth-child(1){animation-delay:.3s}
+.scene.active .value-tile:nth-child(2){animation-delay:.5s}
+.scene.active .value-tile:nth-child(3){animation-delay:.7s}
+.scene.active .value-tile:nth-child(4){animation-delay:.9s}
+
+/* ============================================================
+   Scènes captures — fenêtre + Ken Burns + carte légende
+   ============================================================ */
+.shot{position:relative;width:100%;height:100%;overflow:hidden;}
+.shot-bg{position:absolute;inset:0;}
+.shot-bg img{width:100%;height:100%;object-fit:cover;}
+
+/* fond plein écran flouté pour les UI (remplit les bords) */
+.shot-blur{position:absolute;inset:-60px;filter:blur(40px) brightness(.45);transform:scale(1.1);}
+.shot-blur img{width:100%;height:100%;object-fit:cover;}
+
+/* fenêtre style app */
+.window{position:absolute;border:1px solid var(--border-strong);border-radius:22px;overflow:hidden;
+  background:var(--surface);box-shadow:0 60px 150px -40px rgba(0,0,0,.85);}
+.window-bar{display:flex;gap:9px;padding:16px 20px;background:#0d1019;border-bottom:1px solid var(--border);}
+.window-bar i{width:14px;height:14px;border-radius:50%;background:#2a3140;display:block;}
+.window-bar i:first-child{background:#e0a044;}
+.window .ph{overflow:hidden;}
+.window .ph img{width:100%;display:block;}
+
+/* carte légende */
+.cap{position:absolute;max-width:760px;background:rgba(13,16,23,.82);
+  backdrop-filter:blur(14px) saturate(140%);border:1px solid var(--border-strong);
+  border-radius:22px;padding:38px 40px;box-shadow:0 40px 100px -30px rgba(0,0,0,.8);}
+.cap .kicker{font-size:18px;}
+.cap h3{font-family:var(--font-head);font-weight:700;font-size:50px;line-height:1.08;
+  letter-spacing:-.01em;margin:16px 0 16px;}
+.cap p{font-size:25px;line-height:1.5;color:var(--text-2);}
+.scene.active .cap{animation:fadeUp 1s cubic-bezier(.2,.8,.2,1) .4s both;}
+
+/* légende basse centrée (pour projections plein écran) */
+.cap-low{position:absolute;left:50%;bottom:80px;transform:translateX(-50%);text-align:center;
+  max-width:1300px;}
+.cap-low .kicker{font-size:19px;}
+.cap-low h3{font-family:var(--font-head);font-weight:700;font-size:54px;margin:14px 0 0;
+  text-shadow:0 4px 30px rgba(0,0,0,.7);}
+.scene.active .cap-low{animation:fadeUp 1s ease .5s both;}
+.cap-low.anim{transform:translateX(-50%);}            /* base pour anim */
+.scene.active .cap-low{animation:capLow 1s ease .5s both;}
+@keyframes capLow{from{opacity:0;transform:translate(-50%,40px)}to{opacity:1;transform:translate(-50%,0)}}
+
+/* voile de lisibilité sur projections */
+.scrim{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.15),rgba(0,0,0,.55));}
+
+/* ── Scène 4 : Bible (interface) ── */
+#scene-bible-ui .window{top:120px;left:90px;width:1180px;}
+.scene.active #scene-bible-ui .window img{animation:kb-bibleui 15s ease both;}
+@keyframes kb-bibleui{0%{transform:scale(1.06) translate(0,0)}100%{transform:scale(1.16) translate(-4%,-3%)}}
+#scene-bible-ui .cap{right:90px;top:50%;transform:translateY(-50%);}
+.scene.active #scene-bible-ui .cap{animation:capRight 1s cubic-bezier(.2,.8,.2,1) .4s both;}
+@keyframes capRight{from{opacity:0;transform:translate(40px,-50%)}to{opacity:1;transform:translate(0,-50%)}}
+
+/* ── Scène 5 : Bible projection ── */
+.scene.active #scene-bible-proj .shot-bg img{animation:kb-zoomin 11s ease both;}
+@keyframes kb-zoomin{0%{transform:scale(1.02)}100%{transform:scale(1.14)}}
+
+/* ── Scène 6 : Cantiques projection ── */
+.scene.active #scene-cantiques .shot-bg img{animation:kb-zoompan 11s ease both;}
+@keyframes kb-zoompan{0%{transform:scale(1.04) translate(2%,0)}100%{transform:scale(1.16) translate(-2%,-2%)}}
+
+/* ── Scène 7 : Prédications (interface, autre cadrage) ── */
+#scene-pred .window{top:120px;right:90px;left:auto;width:1180px;}
+.scene.active #scene-pred .window img{animation:kb-pred 12s ease both;}
+@keyframes kb-pred{0%{transform:scale(1.12) translate(-6%,-2%)}100%{transform:scale(1.22) translate(-14%,-6%)}}
+#scene-pred .cap{left:90px;top:50%;transform:translateY(-50%);}
+.scene.active #scene-pred .cap{animation:capLeft 1s cubic-bezier(.2,.8,.2,1) .4s both;}
+@keyframes capLeft{from{opacity:0;transform:translate(-40px,-50%)}to{opacity:1;transform:translate(0,-50%)}}
+
+/* ── Scène 8 : OBS ── */
+#scene-obs .window{top:130px;left:90px;width:1180px;}
+.scene.active #scene-obs .window img{animation:kb-obs 16s ease both;}
+@keyframes kb-obs{0%{transform:scale(1.04) translate(0,0)}100%{transform:scale(1.18) translate(-8%,-2%)}}
+#scene-obs .cap{right:90px;top:50%;transform:translateY(-50%);}
+.scene.active #scene-obs .cap{animation:capRight 1s cubic-bezier(.2,.8,.2,1) .4s both;}
+
+/* ── Scène 9 : Transitions ── */
+#scene-trans .window{top:130px;left:90px;width:1080px;}
+.scene.active #scene-trans .window img{animation:kb-trans 14s ease both;}
+@keyframes kb-trans{0%{transform:scale(1.05) translate(0,-2%)}100%{transform:scale(1.16) translate(-4%,-10%)}}
+#scene-trans .cap{right:90px;top:120px;width:700px;}
+.scene.active #scene-trans .cap{animation:capRight 1s cubic-bezier(.2,.8,.2,1) .4s both;}
+.chips{position:absolute;right:90px;bottom:150px;width:700px;display:flex;flex-wrap:wrap;gap:16px;}
+.chip{font-family:var(--font-head);font-weight:600;font-size:26px;color:var(--gold-light);
+  background:rgba(216,170,90,.10);border:1px solid rgba(216,170,90,.26);
+  padding:14px 26px;border-radius:999px;}
+.scene.active .chip{animation:pop .7s cubic-bezier(.2,.8,.2,1) both;}
+.scene.active .chip:nth-child(1){animation-delay:1.0s}
+.scene.active .chip:nth-child(2){animation-delay:1.2s}
+.scene.active .chip:nth-child(3){animation-delay:1.4s}
+.scene.active .chip:nth-child(4){animation-delay:1.6s}
+.scene.active .chip:nth-child(5){animation-delay:1.8s}
+
+/* ── Scène 10 : Arrière-plans / Message ── */
+#scene-bg{place-items:center;align-content:center;}
+.bg-split{position:absolute;inset:0;display:grid;grid-template-columns:1fr 1fr;}
+.bg-split .half{overflow:hidden;}
+.bg-split .half img{width:100%;height:100%;object-fit:cover;}
+.scene.active #scene-bg .half:nth-child(1) img{animation:kb-zoomin 10s ease both;}
+.scene.active #scene-bg .half:nth-child(2) img{animation:kb-zoompan 10s ease both;}
+.bg-overlay{position:absolute;inset:0;background:radial-gradient(900px 600px at 50% 50%,rgba(11,13,18,.30),rgba(11,13,18,.86) 70%);}
+.bg-center{position:relative;z-index:3;text-align:center;max-width:1200px;padding:0 60px;}
+.bg-center .kicker{font-size:19px;}
+.bg-center h3{font-family:var(--font-head);font-weight:700;font-size:62px;margin:18px 0 18px;}
+.bg-center p{font-size:28px;line-height:1.5;color:var(--text-2);}
+.scene.active .bg-center .kicker{animation:fadeUp .9s ease .4s both;}
+.scene.active .bg-center h3{animation:fadeUp .9s ease .6s both;}
+.scene.active .bg-center p{animation:fadeUp .9s ease .8s both;}
+
+/* ============================================================
+   Scène 11 — OUTRO / CTA
+   ============================================================ */
+#scene-outro{place-items:center;align-content:center;text-align:center;}
+.outro-logo{width:150px;height:150px;border-radius:36px;
+  box-shadow:0 30px 90px -24px rgba(216,170,90,.55);}
+.scene.active .outro-logo{animation:pop 1s cubic-bezier(.2,.8,.2,1) .1s both, floaty 6s ease-in-out 1.1s infinite;}
+.outro-title{font-family:var(--font-head);font-weight:700;font-size:84px;margin:34px 0 10px;letter-spacing:-.02em;}
+.scene.active .outro-title{animation:fadeUp 1s ease .4s both;}
+.outro-sub{font-size:30px;color:var(--text-2);}
+.scene.active .outro-sub{animation:fadeUp 1s ease .65s both;}
+.outro-url{margin-top:40px;display:inline-flex;align-items:center;gap:16px;
+  font-family:var(--font-head);font-weight:600;font-size:40px;color:#1a1206;
+  background:linear-gradient(180deg,var(--gold-light),var(--gold));
+  padding:22px 46px;border-radius:18px;box-shadow:0 24px 60px -18px rgba(216,170,90,.6);}
+.scene.active .outro-url{animation:fadeUp 1s ease .9s both;}
+.outro-meta{margin-top:34px;font-size:24px;color:var(--muted);}
+.scene.active .outro-meta{animation:fadeUp 1s ease 1.15s both;}
+.outro-meta b{color:var(--text-2);font-weight:600;}
+
+/* ── Barre de progression (discrète) ── */
+#bar{position:absolute;left:0;bottom:0;height:5px;width:0;z-index:9;
+  background:linear-gradient(90deg,var(--gold),var(--gold-light));box-shadow:0 0 16px rgba(216,170,90,.6);}
+body.clean #bar{display:none;}
+
+/* ── Overlays démarrage / fin ── */
+.overlay{position:absolute;inset:0;z-index:20;display:grid;place-items:center;text-align:center;
+  background:rgba(7,9,13,.92);backdrop-filter:blur(6px);}
+.overlay.hidden{display:none;}
+.ov-logo{width:130px;height:130px;border-radius:30px;margin-bottom:30px;}
+.overlay h2{font-family:var(--font-head);font-weight:700;font-size:56px;margin-bottom:14px;}
+.overlay p{font-size:24px;color:var(--text-2);max-width:760px;margin:0 auto 36px;line-height:1.5;}
+.play-btn{display:inline-flex;align-items:center;gap:16px;cursor:pointer;
+  font-family:var(--font-head);font-weight:600;font-size:30px;color:#1a1206;
+  background:linear-gradient(180deg,var(--gold-light),var(--gold));
+  border:none;padding:22px 48px;border-radius:16px;box-shadow:0 24px 60px -18px rgba(216,170,90,.6);
+  transition:transform .15s ease;}
+.play-btn:hover{transform:translateY(-3px);}
+.play-btn svg{width:30px;height:30px;fill:#1a1206;}
+.ov-hint{margin-top:30px;font-size:17px;color:var(--muted);}
+.ov-hint kbd{background:rgba(255,255,255,.08);border:1px solid var(--border);border-radius:6px;
+  padding:2px 9px;font-family:var(--font-body);font-size:15px;}
+</style>
+</head>
+<body class="clean">
+<div id="viewport">
+  <div id="stage">
+
+    <!-- ── 1 · INTRO ─────────────────────────────────────── -->
+    <section class="scene" id="scene-intro">
+      <div class="intro-wrap">
+        <div class="logo-orbit anim"></div>
+        <img class="intro-logo anim" src="app-icon.png" alt="Project-On" />
+      </div>
+      <div class="intro-word anim grad">Project-On</div>
+      <div class="intro-sub anim">Logiciel de projection pour églises</div>
+      <div class="intro-badge anim">✦ Bible · Cantiques · Prédications · Exposés</div>
+    </section>
+
+    <!-- ── 2 · HOOK ──────────────────────────────────────── -->
+    <section class="scene" id="scene-hook">
+      <div class="hook-k kicker anim">Pour le culte</div>
+      <h1 class="hook-title">
+        <span class="l1 anim">Projetez la Parole</span>
+        <span class="l2 anim grad">avec excellence.</span>
+      </h1>
+      <p class="hook-sub anim">Un seul logiciel, clair et rapide — sortie OBS professionnelle et projection plein écran cinématique.</p>
+    </section>
+
+    <!-- ── 3 · VALEURS ───────────────────────────────────── -->
+    <section class="scene" id="scene-value">
+      <h2 class="value-head anim">Tout le culte, dans un seul outil</h2>
+      <div class="value-grid">
+        <div class="value-tile anim"><b>4</b><span>modules intégrés</span></div>
+        <div class="value-tile anim"><b>OBS</b><span>sortie lower-third</span></div>
+        <div class="value-tile anim"><b>100 %</b><span>hors-ligne</span></div>
+        <div class="value-tile anim"><b>0 €</b><span>gratuit, sans pub</span></div>
+      </div>
+    </section>
+
+    <!-- ── 4 · BIBLE (interface) ─────────────────────────── -->
+    <section class="scene" id="scene-bible-ui">
+      <div class="shot">
+        <div class="shot-blur"><img src="screenshots/01-app-main.png" alt="" /></div>
+        <div class="window">
+          <div class="window-bar"><i></i><i></i><i></i></div>
+          <div class="ph"><img src="screenshots/01-app-main.png" alt="Interface principale de Project-On" /></div>
+        </div>
+        <div class="cap">
+          <span class="kicker">Bible</span>
+          <h3>Cherchez, ajoutez, projetez.</h3>
+          <p>Naviguez livre par livre, recherchez un passage et envoyez le verset à l'écran en un clic — avec sa référence.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 5 · BIBLE (projection) ────────────────────────── -->
+    <section class="scene" id="scene-bible-proj">
+      <div class="shot">
+        <div class="shot-bg"><img src="screenshots/04-projection-bible.png" alt="Projection d'un verset" /></div>
+        <div class="scrim"></div>
+        <div class="cap-low anim">
+          <span class="kicker">Projection cinématique</span>
+          <h3>Une projection digne d'une diffusion TV.</h3>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 6 · CANTIQUES ─────────────────────────────────── -->
+    <section class="scene" id="scene-cantiques">
+      <div class="shot">
+        <div class="shot-bg"><img src="screenshots/05-projection-hymn.png" alt="Projection d'un cantique" /></div>
+        <div class="scrim"></div>
+        <div class="cap-low anim">
+          <span class="kicker">Cantiques</span>
+          <h3>Organisés par strophes, prêts pour la louange.</h3>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 7 · PRÉDICATIONS & EXPOSÉS ────────────────────── -->
+    <section class="scene" id="scene-pred">
+      <div class="shot">
+        <div class="shot-blur"><img src="screenshots/01-app-main.png" alt="" /></div>
+        <div class="window">
+          <div class="window-bar"><i></i><i></i><i></i></div>
+          <div class="ph"><img src="screenshots/01-app-main.png" alt="Playlist et aperçu" /></div>
+        </div>
+        <div class="cap">
+          <span class="kicker">Prédications &amp; Exposés</span>
+          <h3>Vos sermons, structurés pour l'écran.</h3>
+          <p>Importez et présentez vos prédications et exposés. Tout s'ajoute à la playlist du culte pour un suivi fluide.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 8 · SORTIE OBS ────────────────────────────────── -->
+    <section class="scene" id="scene-obs">
+      <div class="shot">
+        <div class="shot-blur"><img src="screenshots/03-obs-settings.png" alt="" /></div>
+        <div class="window">
+          <div class="window-bar"><i></i><i></i><i></i></div>
+          <div class="ph"><img src="screenshots/03-obs-settings.png" alt="Réglages de la sortie OBS" /></div>
+        </div>
+        <div class="cap">
+          <span class="kicker">Sortie OBS · Lower Third</span>
+          <h3>Un bandeau broadcast pour vos diffusions.</h3>
+          <p>YouTube, Facebook… Position, police, couleurs, dégradé, flou, ombres, préréglages — avec aperçu en direct.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 9 · TRANSITIONS ───────────────────────────────── -->
+    <section class="scene" id="scene-trans">
+      <div class="shot">
+        <div class="shot-blur"><img src="screenshots/02b-transitions.png" alt="" /></div>
+        <div class="window">
+          <div class="window-bar"><i></i><i></i><i></i></div>
+          <div class="ph"><img src="screenshots/02b-transitions.png" alt="Réglages Transitions & Effets" /></div>
+        </div>
+        <div class="cap">
+          <span class="kicker">Transitions &amp; Effets</span>
+          <h3>Réglées au pixel près.</h3>
+          <p>Choisissez le style, la direction et la durée — et activez le zoom lent Ken Burns sur les fonds.</p>
+        </div>
+        <div class="chips">
+          <span class="chip anim">Fondu</span>
+          <span class="chip anim">Glissement</span>
+          <span class="chip anim">Zoom</span>
+          <span class="chip anim">Flou</span>
+          <span class="chip anim">Reveal</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 10 · ARRIÈRE-PLANS / MESSAGE ──────────────────── -->
+    <section class="scene" id="scene-bg">
+      <div class="bg-split">
+        <div class="half"><img src="screenshots/04-projection-bible.png" alt="" /></div>
+        <div class="half"><img src="screenshots/05-projection-hymn.png" alt="" /></div>
+      </div>
+      <div class="bg-overlay"></div>
+      <div class="bg-center">
+        <span class="kicker">Arrière-plans chrétiens</span>
+        <h3>Sobres, lisibles, au service de la Parole.</h3>
+        <p>La croix et les figures des quatre êtres vivants — l'aigle, le lion, l'agneau — pensés pour le Message de l'heure, sans distraction.</p>
+      </div>
+    </section>
+
+    <!-- ── 11 · OUTRO / CTA ──────────────────────────────── -->
+    <section class="scene" id="scene-outro">
+      <img class="outro-logo anim" src="app-icon.png" alt="Project-On" />
+      <div class="outro-title anim">Téléchargez <span class="grad">gratuitement</span>.</div>
+      <div class="outro-sub anim">Installeur Windows guidé en français · 100 % hors-ligne</div>
+      <div class="outro-url anim">🌐 elieny7.github.io/project-on</div>
+      <div class="outro-meta anim"><b>Windows 10 / 11</b> · ~197 Mo · © 2026 Onzième Heure Tab · Publié par Elie Nyembo</div>
+    </section>
+
+    <div id="bar"></div>
+
+    <!-- ── Overlay de démarrage ──────────────────────────── -->
+    <div class="overlay" id="ov-start">
+      <div>
+        <img class="ov-logo" src="app-icon.png" alt="Project-On" />
+        <h2>Project-On — Présentation</h2>
+        <p>Passez en plein écran (<kbd>F11</kbd>) pour l'enregistrement, puis lancez la lecture.</p>
+        <button class="play-btn" id="btn-play">
+          <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+          Lancer la présentation
+        </button>
+        <div class="ov-hint">
+          <kbd>Espace</kbd> pause/lecture · <kbd>R</kbd> recommencer · <kbd>B</kbd> barre de progression
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Overlay de fin ────────────────────────────────── -->
+    <div class="overlay hidden" id="ov-end">
+      <div>
+        <img class="ov-logo" src="app-icon.png" alt="Project-On" />
+        <h2>Merci d'avoir regardé.</h2>
+        <p>elieny7.github.io/project-on</p>
+        <button class="play-btn" id="btn-replay">
+          <svg viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7a6 6 0 1 1-6 6H4a8 8 0 1 0 8-8z"/></svg>
+          Revoir
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Musique de fond optionnelle : déposez un fichier "music.mp3" à côté de ce
+     fichier HTML et il sera joué en boucle. Sinon la vidéo reste silencieuse. -->
+<audio id="bgm" src="music.mp3" loop preload="auto"></audio>
+
+<script>
+(function(){
+  "use strict";
+  var stage  = document.getElementById('stage');
+  var scenes = Array.prototype.slice.call(document.querySelectorAll('.scene'));
+  var bar    = document.getElementById('bar');
+  var ovStart= document.getElementById('ov-start');
+  var ovEnd  = document.getElementById('ov-end');
+  var bgm    = document.getElementById('bgm');
+
+  // Durée (secondes) de chaque scène, dans l'ordre du DOM.
+  var DUR = [8, 7, 8, 15, 11, 11, 12, 16, 14, 10, 13];
+  var starts = [], acc = 0;
+  for (var i=0;i<DUR.length;i++){ starts.push(acc); acc += DUR[i]; }
+  var TOTAL = acc;                                   // ≈ 125 s (2:05)
+
+  // Mise à l'échelle de la scène 1920×1080 pour remplir l'écran.
+  function fit(){
+    var s = Math.min(window.innerWidth/1920, window.innerHeight/1080);
+    stage.style.transform = 'translate(-50%,-50%) scale(' + s + ')';
+  }
+  window.addEventListener('resize', fit); fit();
+
+  var elapsed = 0, last = null, paused = false, running = false, raf = null, curr = -1;
+
+  function setActive(idx){
+    if (idx === curr) return;
+    curr = idx;
+    for (var k=0;k<scenes.length;k++) scenes[k].classList.toggle('active', k===idx);
+  }
+
+  function frame(now){
+    if (last === null) last = now;
+    var dt = (now - last)/1000; last = now;
+    if (!paused) elapsed += dt;
+
+    if (elapsed >= TOTAL){ setActive(scenes.length-1); bar.style.width='100%'; finish(); return; }
+
+    var idx = 0;
+    for (var k=0;k<starts.length;k++){ if (elapsed >= starts[k]) idx = k; }
+    setActive(idx);
+    bar.style.width = (elapsed/TOTAL*100) + '%';
+    raf = requestAnimationFrame(frame);
+  }
+
+  function start(){
+    ovStart.classList.add('hidden');
+    ovEnd.classList.add('hidden');
+    elapsed = 0; last = null; curr = -1; paused = false; running = true;
+    document.body.classList.remove('paused');
+    try { bgm.currentTime = 0; var p = bgm.play(); if (p && p.catch) p.catch(function(){}); } catch(e){}
+    cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(frame);
+  }
+
+  function finish(){
+    running = false;
+    cancelAnimationFrame(raf);
+    try { bgm.pause(); } catch(e){}
+    ovEnd.classList.remove('hidden');
+  }
+
+  function togglePause(){
+    if (!running) return;
+    paused = !paused;
+    document.body.classList.toggle('paused', paused);
+    if (paused){ try{ bgm.pause(); }catch(e){} }
+    else { last = null; try{ var p=bgm.play(); if(p&&p.catch)p.catch(function(){}); }catch(e){} }
+  }
+
+  document.getElementById('btn-play').addEventListener('click', start);
+  document.getElementById('btn-replay').addEventListener('click', start);
+
+  // Lecture automatique (utilisée par le moteur de rendu vidéo) : ?autoplay=1
+  // Expose aussi window.__done pour que le moteur sache quand la vidéo est finie.
+  window.__total = TOTAL;
+  window.__done = false;
+  var _finish = finish;
+  finish = function(){ _finish(); window.__done = true; };
+  if (/[?&]autoplay=1/.test(location.search)){
+    var go = function(){
+      var fonts = (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve();
+      fonts.then(function(){ setTimeout(start, 250); });
+    };
+    if (document.readyState === 'complete') go();
+    else window.addEventListener('load', go);
+  }
+
+  document.addEventListener('keydown', function(e){
+    if (e.code === 'Space'){ e.preventDefault(); togglePause(); }
+    else if (e.key === 'r' || e.key === 'R'){ start(); }
+    else if (e.key === 'b' || e.key === 'B'){ document.body.classList.toggle('clean'); }
+  });
+})();
+</script>
+</body>
+</html>
