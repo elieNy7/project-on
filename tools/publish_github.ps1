@@ -10,11 +10,11 @@
     powershell -ExecutionPolicy Bypass -File tools\publish_github.ps1
 
   Options :
-    -Repo elienyembo/project-on   (par défaut)
+    -Repo elieNy7/project-on   (par défaut)
     -Private                      (dépôt privé au lieu de public)
 #>
 param(
-  [string]$Repo = "elienyembo/project-on",
+  [string]$Repo = "elieNy7/project-on",
   [string]$Version = "1.3.0",
   [switch]$Private
 )

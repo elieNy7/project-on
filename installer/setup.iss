@@ -5,7 +5,7 @@
 #define MyAppName "Project-On"
 #define MyAppVersion "1.3.0"
 #define MyAppPublisher "Elie Nyembo"
-#define MyAppURL "https://github.com/elienyembo/project-on"
+#define MyAppURL "https://github.com/elieNy7/project-on"
 #define MyAppExeName "Project-On.exe"
 #define MyAppDescription "Logiciel de projection pour églises — Bible, Cantiques, Sermons, Exposés"
 
