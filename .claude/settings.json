@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(py -3 -c ' *)",
+      "Bash(ls -la data/project_on.db)",
+      "Bash(py -3 tools/import_cantiques.py)",
+      "Bash(py -3 tools/import_cantiques.py --apply)",
+      "PowerShell(Get-Process python,ISCC,pyinstaller -ErrorAction SilentlyContinue | Select-Object Name,Id,CPU | Format-Table -Auto | Out-String; Write-Output \"--- pyinstaller.log tail ---\"; if\\(Test-Path build_logs\\\\pyinstaller.log\\){ Get-Content build_logs\\\\pyinstaller.log -Tail 12 } else { Write-Output \"no pyinstaller.log\" }; Write-Output \"--- dist ---\"; if\\(Test-Path dist\\\\Project-On\\){ \\(Get-ChildItem dist\\\\Project-On -Recurse | Measure-Object\\).Count; \"exe exists: \" + \\(Test-Path dist\\\\Project-On\\\\Project-On.exe\\) } else { Write-Output \"dist not yet\" })",
+      "PowerShell(Write-Output \"--- inno_setup.log tail ---\"; if\\(Test-Path build_logs\\\\inno_setup.log\\){ Get-Content build_logs\\\\inno_setup.log -Tail 20 } else { Write-Output \"no inno log yet\" }; Write-Output \"--- Output dir ---\"; if\\(Test-Path installer\\\\Output\\){ Get-ChildItem installer\\\\Output | Select-Object Name,@{n='MB';e={[math]::Round\\($_.Length/1MB,1\\)}} | Format-Table -Auto | Out-String } else { Write-Output \"no Output yet\" })"
+    ]
+  }
+}

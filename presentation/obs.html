@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="fr">
+
+<head>
+    <meta charset="utf-8">
+    <title>Project-On OBS</title>
+    <link rel="stylesheet" href="fonts.css">
+    <link rel="stylesheet" href="obs-style.css">
+</head>
+
+<body>
+    <div id="root">
+        <!-- Full-screen image overlay -->
+        <div id="image-container" class="image-container"></div>
+
+        <div id="lower-third" class="lower-third">
+            <div class="lt-body">
+                <!-- Background image fills the lower-third band (app settings) -->
+                <div class="lt-bg-image" id="lt-bg-image"></div>
+                <div class="lt-sheen"></div>
+                <div class="lt-orb"></div>
+                <!-- Accent strip -->
+                <div class="lt-accent-strip" id="accent-strip"></div>
+
+                <div id="inner-wrapper" class="lt-inner">
+                    <div class="lt-kicker hidden" id="source-kicker">
+                        <div class="lt-kicker-icon" id="source-kicker-icon"></div>
+                        <div class="lt-kicker-label" id="source-kicker-label"></div>
+                    </div>
+                    <div class="lt-text" id="text"></div>
+
+                    <div class="lt-divider" id="divider">
+                        <div class="lt-divider-line"></div>
+                    </div>
+
+                    <div class="lt-ref-badge" id="ref-box">
+                        <div class="lt-ref-icon" id="ref-icon">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M4 19.5A2.5 2.5 0 016.5 17H20"/>
+                                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/>
+                            </svg>
+                        </div>
+                        <div class="lt-ref-text" id="ref"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="obs-script.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,570 @@
+/* ================================================================
+   Project-On — OBS Lower Third
+   Premium broadcast design — clean, cinematic, professional
+   ================================================================ */
+
+:root {
+    /* Typography */
+    --font-family: 'Poppins', 'Segoe UI', Roboto, system-ui, sans-serif;
+    --font-weight: 700;
+    --text-size: 48px;
+    --ref-size: 19px;
+    --letter-spacing: 0px;
+    --line-height: 1.16;
+    --text-transform: none;
+
+    /* Colors */
+    --text-color: #fbfcff;
+    --ref-color: rgba(255, 247, 226, 0.86);
+    --accent-color: #74a7f8;
+    --accent-color-2: #cfe0ff;
+    --bg-color: rgba(10, 16, 27, 0.88);
+    --bg-color-2: rgba(21, 28, 42, 0.86);
+    --bg-blur: 20px;
+    --bg-saturate: 145%;
+    --kicker-bg: rgba(255, 255, 255, 0.075);
+    --kicker-border: rgba(255, 255, 255, 0.12);
+    --source-accent: var(--accent-color);
+    --source-accent-2: var(--accent-color-2);
+    --source-glow: rgba(255, 255, 255, 0.18);
+    --source-kicker-bg: var(--kicker-bg);
+    --source-kicker-border: var(--kicker-border);
+    --source-ref-bg: rgba(255, 255, 255, 0.055);
+    --source-ref-border: rgba(255, 255, 255, 0.08);
+    --source-body-tint: transparent;
+
+    /* Layout */
+    --padding-h: 48px;
+    --padding-v: 26px;
+    --max-width: 82%;
+    --border-radius: 22px;
+
+    /* Effects */
+    --text-shadow: 0 3px 14px rgba(0, 0, 0, 0.54), 0 14px 34px rgba(0, 0, 0, 0.22);
+    --container-shadow: 0 26px 70px -24px rgba(0, 0, 0, 0.72);
+    --overall-opacity: 1.0;
+}
+
+/* ── Reset ──────────────────────────────────────────────────── */
+html,
+body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    background: transparent !important;
+    overflow: hidden;
+    font-family: var(--font-family);
+    opacity: var(--overall-opacity);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Root layout ────────────────────────────────────────────── */
+#root {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: center;
+    pointer-events: none;
+    padding: 64px;
+    box-sizing: border-box;
+}
+
+#root.position-top    { justify-content: flex-start; }
+#root.position-center { justify-content: center; }
+#root.align-left      { align-items: flex-start; }
+
+#root.background-disabled .lower-third {
+    filter: none;
+}
+
+#root.background-disabled .lt-kicker,
+#root.background-disabled .lt-accent-strip,
+#root.background-disabled .lt-sheen,
+#root.background-disabled .lt-divider {
+    display: none !important;
+}
+
+#root.background-disabled .lt-ref-badge {
+    padding: 0;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+}
+
+/* ================================================================
+   LOWER THIRD
+   ================================================================ */
+.lower-third {
+    width: var(--max-width);
+    max-width: calc(100vw - 128px);
+    position: relative;
+    z-index: 2;
+    filter: drop-shadow(var(--container-shadow));
+    display: none;
+    transform-origin: center bottom;
+}
+
+.lower-third.visible {
+    display: block;
+}
+
+/* ── Body ───────────────────────────────────────────────────── */
+.lt-body {
+    position: relative;
+    width: 100%;
+    box-sizing: border-box;
+    background:
+        linear-gradient(
+            90deg,
+            rgba(255, 255, 255, 0.095),
+            rgba(255, 255, 255, 0.028) 34%,
+            rgba(94, 234, 212, 0.06) 100%
+        ),
+        linear-gradient(
+            var(--gradient-direction, 135deg),
+            var(--bg-color),
+            var(--bg-color-2)
+        );
+    padding: var(--padding-v) var(--padding-h);
+    text-align: var(--align, center);
+    border-radius: var(--border-radius);
+    backdrop-filter: blur(var(--bg-blur)) saturate(var(--bg-saturate));
+    -webkit-backdrop-filter: blur(var(--bg-blur)) saturate(var(--bg-saturate));
+
+    border: 1px solid rgba(255, 255, 255, 0.115);
+
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    gap: 0;
+    min-width: 390px;
+    max-width: calc(100vw - 128px);
+    max-height: calc(100vh - 128px);
+
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.11),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.035),
+        0 18px 44px rgba(0, 0, 0, 0.28);
+    overflow: hidden;
+    isolation: isolate;
+}
+
+.lt-body::before {
+    content: "";
+    position: absolute;
+    left: var(--padding-h);
+    right: var(--padding-h);
+    bottom: 0;
+    height: 4px;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        var(--source-accent),
+        var(--source-accent-2),
+        transparent
+    );
+    opacity: 0.88;
+    pointer-events: none;
+    z-index: 2;
+    filter: drop-shadow(0 -3px 14px var(--source-glow));
+}
+
+.lt-sheen {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    height: 44%;
+    background:
+        linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0)),
+        linear-gradient(105deg, transparent 0 25%, rgba(255,255,255,0.12) 45%, transparent 65%);
+    pointer-events: none;
+    opacity: 0.62;
+    z-index: 1;
+}
+
+.lt-orb {
+    display: none;
+}
+
+.lt-body::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(circle at 12% 0%, rgba(255,255,255,0.12), transparent 26%),
+        linear-gradient(135deg, var(--source-body-tint), transparent 46%);
+    pointer-events: none;
+    z-index: 0;
+}
+
+.lt-body.bg-hidden {
+    background: transparent !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.lt-body.bg-hidden::before,
+.lt-body.bg-hidden::after {
+    display: none;
+}
+
+.lt-body.bg-hidden .lt-sheen,
+.lt-body.bg-hidden .lt-orb,
+.lt-body.bg-hidden .lt-accent-strip {
+    display: none !important;
+}
+
+/* ── Accent strip ───────────────────────────────────────────── */
+.lt-accent-strip {
+    position: absolute;
+    left: var(--padding-h);
+    right: var(--padding-h);
+    bottom: 8px;
+    height: 2px;
+    width: auto;
+    min-height: 0;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        var(--source-accent),
+        var(--source-accent-2),
+        transparent
+    );
+    border-radius: 999px;
+    flex-shrink: 1;
+    margin-right: 0;
+    opacity: 0.56;
+    box-shadow: 0 0 16px var(--source-glow);
+    pointer-events: none;
+    z-index: 2;
+}
+
+/* ── Inner content ──────────────────────────────────────────── */
+.lt-inner {
+    flex: 1;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: var(--align-flex, center);
+    gap: 12px;
+    padding: 2px 0;
+    position: relative;
+    z-index: 3;
+}
+
+.lt-kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    padding: 6px 13px 6px 7px;
+    border-radius: 999px;
+    background:
+        linear-gradient(135deg, rgba(255, 255, 255, 0.09), var(--source-kicker-bg));
+    border: 1px solid var(--source-kicker-border);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.88);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.12), 0 8px 18px rgba(0, 0, 0, 0.15);
+}
+
+.lt-kicker-icon {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255,255,255,0.95);
+    background: linear-gradient(180deg, var(--source-accent), var(--source-accent-2));
+    box-shadow:
+        0 0 16px var(--source-glow),
+        0 2px 6px rgba(0, 0, 0, 0.25);
+    flex-shrink: 0;
+}
+
+.lt-kicker-icon svg {
+    width: 13px;
+    height: 13px;
+}
+
+.lt-kicker-label {
+    white-space: nowrap;
+}
+
+/* ── Text ───────────────────────────────────────────────────── */
+.lt-text {
+    font-size: var(--text-size);
+    font-weight: var(--font-weight);
+    line-height: var(--line-height);
+    letter-spacing: var(--letter-spacing);
+    text-transform: var(--text-transform);
+    color: var(--text-color);
+    text-shadow: var(--text-shadow);
+    -webkit-text-stroke-width: var(--stroke-width, 0px);
+    -webkit-text-stroke-color: var(--stroke-color, transparent);
+    paint-order: stroke fill;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow-wrap: anywhere;
+    max-width: 100%;
+    text-wrap: balance;
+}
+
+/* ── Divider ────────────────────────────────────────────────── */
+.lt-divider {
+    width: 100%;
+    height: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: var(--align-flex, center);
+}
+
+.lt-divider-line {
+    width: min(100%, 620px);
+    height: 1px;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.12),
+        var(--source-accent),
+        rgba(255, 255, 255, 0.12),
+        transparent
+    );
+    opacity: 0.52;
+}
+
+/* Decorative glow element */
+.lt-divider-glow { display: none; }
+
+/* ── Reference badge ────────────────────────────────────────── */
+.lt-ref-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    padding: 6px 14px 6px 11px;
+    background: var(--source-ref-bg);
+    border: 1px solid var(--source-ref-border);
+    border-radius: 999px;
+    max-width: fit-content;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.10), 0 8px 18px rgba(0, 0, 0, 0.12);
+}
+
+.lt-ref-badge.hidden { display: none; }
+
+.lt-ref-icon {
+    color: var(--source-accent);
+    display: flex;
+    align-items: center;
+    opacity: 0.85;
+}
+
+.lt-ref-text {
+    font-size: var(--ref-size);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.4px;
+    color: var(--ref-color);
+    white-space: pre-wrap;
+    line-height: 1.22;
+    overflow-wrap: anywhere;
+}
+
+/* ── Source-specific accents (aligned with app theme.Colors.SRC_*) ── */
+.source-bible {
+    --source-accent: #56d681;
+    --source-accent-2: #b5f3ca;
+    --source-glow: rgba(86, 214, 129, 0.24);
+    --source-kicker-bg: rgba(34, 92, 60, 0.20);
+    --source-kicker-border: rgba(120, 255, 171, 0.22);
+    --source-ref-bg: rgba(20, 56, 37, 0.18);
+    --source-ref-border: rgba(120, 255, 171, 0.18);
+    --source-body-tint: rgba(86, 214, 129, 0.08);
+}
+
+.source-hymn {
+    --source-accent: #b997ff;
+    --source-accent-2: #e8dcff;
+    --source-glow: rgba(185, 151, 255, 0.26);
+    --source-kicker-bg: rgba(72, 41, 114, 0.20);
+    --source-kicker-border: rgba(185, 151, 255, 0.24);
+    --source-ref-bg: rgba(45, 24, 69, 0.18);
+    --source-ref-border: rgba(185, 151, 255, 0.18);
+    --source-body-tint: rgba(185, 151, 255, 0.09);
+}
+
+.source-hymn .lt-body {
+    flex-direction: row;
+    align-items: stretch;
+    background:
+        linear-gradient(90deg, rgba(185, 151, 255, 0.14), rgba(255, 255, 255, 0.035) 36%, rgba(232, 220, 255, 0.10) 100%),
+        linear-gradient(135deg, rgba(13, 18, 29, 0.91), rgba(31, 36, 46, 0.88));
+}
+
+.source-hymn .lt-body,
+.source-hymn .lt-inner,
+.source-hymn .lt-kicker,
+.source-hymn .lt-text,
+.source-hymn .lt-reference,
+.source-hymn .lt-ref-text {
+    writing-mode: horizontal-tb;
+    text-orientation: mixed;
+    transform: none;
+}
+
+.source-hymn .lt-inner {
+    flex-direction: column;
+    min-width: 0;
+}
+
+.source-hymn .lt-text {
+    max-width: min(100%, 88vw);
+    white-space: normal;
+    text-align: var(--align, center);
+}
+
+.source-hymn .lt-ref-text {
+    white-space: normal;
+    text-align: var(--align, center);
+}
+
+.source-sermon {
+    --source-accent: #e0a044;
+    --source-accent-2: #ffd9a0;
+    --source-glow: rgba(224, 160, 68, 0.24);
+    --source-kicker-bg: rgba(94, 64, 20, 0.22);
+    --source-kicker-border: rgba(224, 160, 68, 0.24);
+    --source-ref-bg: rgba(56, 40, 16, 0.20);
+    --source-ref-border: rgba(224, 160, 68, 0.18);
+    --source-body-tint: rgba(224, 160, 68, 0.09);
+}
+
+.source-expose {
+    --source-accent: #00acc1;
+    --source-accent-2: #7fe4ef;
+    --source-glow: rgba(0, 172, 193, 0.24);
+    --source-kicker-bg: rgba(8, 70, 80, 0.22);
+    --source-kicker-border: rgba(0, 172, 193, 0.24);
+    --source-ref-bg: rgba(8, 50, 58, 0.20);
+    --source-ref-border: rgba(0, 172, 193, 0.18);
+    --source-body-tint: rgba(0, 172, 193, 0.08);
+}
+
+.source-custom {
+    --source-accent: #74a7f8;
+    --source-accent-2: #cfe0ff;
+    --source-glow: rgba(116, 167, 248, 0.24);
+    --source-kicker-bg: rgba(42, 66, 110, 0.20);
+    --source-kicker-border: rgba(145, 182, 255, 0.22);
+    --source-ref-bg: rgba(23, 36, 61, 0.18);
+    --source-ref-border: rgba(145, 182, 255, 0.18);
+    --source-body-tint: rgba(116, 167, 248, 0.08);
+}
+
+.source-image {
+    --source-accent: #b6ada0;
+    --source-accent-2: #e4ded4;
+    --source-glow: rgba(130, 123, 112, 0.22);
+    --source-kicker-bg: rgba(58, 54, 48, 0.22);
+    --source-kicker-border: rgba(182, 173, 160, 0.22);
+    --source-ref-bg: rgba(40, 37, 33, 0.20);
+    --source-ref-border: rgba(182, 173, 160, 0.18);
+    --source-body-tint: rgba(130, 123, 112, 0.08);
+}
+
+/* ── Image container (full-screen overlay) ─────────────────── */
+/* Background image confined to the lower-third band (OBS) */
+.lt-bg-image {
+    position: absolute;
+    inset: 0;
+    /* background-size is set from JS per bg_image_fit (cover | contain) */
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    border-radius: inherit;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 0;
+    transition: opacity 420ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.lt-bg-image.visible { opacity: 1; }
+
+/* When an image fills the band, darken slightly for text legibility and
+   drop the colored gradient so the image reads cleanly. */
+.lt-body.has-bg-image {
+    background: rgba(6, 12, 22, 0.35) !important;
+}
+
+.image-container {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 0;
+    transition: opacity 420ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.image-container.visible { opacity: 1; }
+
+.image-container::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+        linear-gradient(180deg, rgba(2, 8, 18, 0.26), rgba(2, 8, 18, 0.52)),
+        radial-gradient(circle at 50% 24%, rgba(255,255,255,0.08), transparent 40%);
+}
+
+.image-container.image-only::after {
+    display: none;
+}
+
+.lt-inner.content-hidden {
+    opacity: 0;
+}
+
+/* ── Utilities ──────────────────────────────────────────────── */
+.hidden { display: none !important; }
+
+/* Legacy decorative elements neutralised */
+.lt-border-glow,
+.lt-shimmer { display: none; }
+
+/* ── Responsive ─────────────────────────────────────────────── */
+@media (max-width: 1280px) {
+    :root {
+        --text-size: 42px;
+        --ref-size: 18px;
+        --padding-h: 40px;
+        --padding-v: 26px;
+    }
+}
+
+@media (max-width: 960px) {
+    :root {
+        --text-size: 34px;
+        --ref-size: 16px;
+        --padding-h: 30px;
+        --padding-v: 22px;
+    }
+
+    .lt-body {
+        min-width: 0;
+    }
+}

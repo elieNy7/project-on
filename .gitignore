@@ -1,0 +1,44 @@
+__pycache__/
+*.py[cod]
+*.pyo
+
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+build/
+dist/
+
+installer/Output/
+
+data/logs/
+data/settings.json
+data/*.bak*
+data/project_on.sqlite
+*.db-wal
+*.db-shm
+
+*.log
+build_logs_*.txt
+
+# ── Excluded from the public GitHub repo ─────────────────────────────
+# Bundled databases are too large for git (>100 MB) — shipped via the
+# installer / GitHub Release instead.
+data/*.db
+data/*.sqlite
+
+# Heavy import SOURCES and sample content (not part of the app source code).
+shp/
+vgr/
+expose/
+bible_json/
+cantiques/
+CANTIQUE D'ADORATION/
+*.pdf
+
+# NDI runtime binaries — distributed with the installer, not via git.
+ndi/bin/
+
+# Local screenshot scratch (the website copy lives in docs/screenshots/).
+/screenshots/
+

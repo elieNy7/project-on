@@ -1,0 +1,15 @@
+Arrière-plans « symboles » — crédits des silhouettes
+=====================================================
+
+Les figures de l'aigle, du lion et de l'agneau sont dérivées de silhouettes
+de game-icons.net, redessinées en filigrane discret :
+
+  - Aigle (eagle emblem) — Lorc
+  - Lion                  — Lorc
+  - Agneau (sheep)        — Delapouite
+
+Licence : Creative Commons Attribution 3.0 (CC BY 3.0)
+          https://creativecommons.org/licenses/by/3.0/
+Source  : https://game-icons.net/
+
+La croix est dessinée par Project-On (aucune attribution requise).

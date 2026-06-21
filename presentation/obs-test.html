@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <title>OBS v9 Test — Broadcast Pro</title>
+  <link rel="stylesheet" href="fonts.css" />
+  <link rel="stylesheet" href="obs-style.css" />
+  <style>
+    body { background: #1a1a2e !important; }
+    #controls {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      background: rgba(0,0,0,0.85);
+      color: #e0e0e0;
+      padding: 16px;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-size: 13px;
+      max-width: 380px;
+      z-index: 9999;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.1);
+      backdrop-filter: blur(10px);
+    }
+    #controls h3 { margin: 0 0 12px; color: #38bdf8; font-size: 15px; }
+    #controls label { display: block; margin: 8px 0 4px; color: #999; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
+    #controls select, #controls button {
+      width: 100%;
+      padding: 8px 12px;
+      margin-bottom: 6px;
+      background: #1e1e2e;
+      border: 1px solid #333;
+      border-radius: 6px;
+      color: #fff;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    #controls button {
+      background: linear-gradient(135deg, #38bdf8, #818cf8);
+      border: none;
+      font-weight: 600;
+      margin-top: 12px;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    #controls button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(56, 189, 248, 0.3);
+    }
+    #controls button.danger {
+      background: linear-gradient(135deg, #f43f5e, #e11d48);
+    }
+    #debug {
+      margin-top: 12px;
+      padding: 8px;
+      background: rgba(0,0,0,0.5);
+      border-radius: 6px;
+      font-family: monospace;
+      font-size: 11px;
+      color: #22c55e;
+      max-height: 150px;
+      overflow: auto;
+    }
+  </style>
+</head>
+<body>
+  <div id="controls">
+    <h3>🎬 OBS v9 — Test Panel</h3>
+
+    <label>Transition Type</label>
+    <select id="anim-type">
+      <option value="fade">Fade</option>
+      <option value="slide">Slide</option>
+      <option value="scale">Scale</option>
+      <option value="blur" selected>Blur (CNN/BBC)</option>
+      <option value="reveal">Reveal (Wipe)</option>
+      <option value="typewriter">Typewriter</option>
+      <option value="glitch">Glitch</option>
+      <option value="cinematic">Cinematic</option>
+      <option value="elastic">Elastic</option>
+      <option value="flip">Flip 3D</option>
+    </select>
+
+    <label>Direction (slide/reveal)</label>
+    <select id="anim-dir">
+      <option value="up">Up</option>
+      <option value="down">Down</option>
+      <option value="left" selected>Left</option>
+      <option value="right">Right</option>
+    </select>
+
+    <label>Duration</label>
+    <select id="anim-duration">
+      <option value="300">300ms (Fast)</option>
+      <option value="600" selected>600ms (Normal)</option>
+      <option value="900">900ms (Slow)</option>
+      <option value="1200">1200ms (Cinematic)</option>
+    </select>
+
+    <button id="btn-show" onclick="showLowerThird()">▶ Show Lower Third</button>
+    <button id="btn-change" onclick="changeContent()">🔄 Change Content</button>
+    <button id="btn-hide" class="danger" onclick="hideLowerThird()">⏹ Hide</button>
+
+    <div id="debug">Ready...</div>
+  </div>
+
+  <div id="root">
+    <div id="lower-third" class="lower-third anim-blur">
+      <div class="lt-border-glow"></div>
+      <div class="lt-body">
+        <div class="lt-accent-strip" id="accent-strip"></div>
+        <div id="inner-wrapper" class="lt-inner">
+          <div class="lt-text" id="text"></div>
+          <div class="lt-divider" id="divider">
+            <div class="lt-divider-line"></div>
+            <div class="lt-divider-glow"></div>
+          </div>
+          <div class="lt-ref-badge" id="ref-box">
+            <div class="lt-ref-icon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 19.5A2.5 2.5 0 016.5 17H20"/>
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/>
+              </svg>
+            </div>
+            <div class="lt-ref-text" id="ref"></div>
+          </div>
+        </div>
+      </div>
+      <div class="lt-shimmer"></div>
+    </div>
+  </div>
+
+  <script>
+    const debugEl = document.getElementById('debug');
+    const lowerThird = document.getElementById('lower-third');
+    const textEl = document.getElementById('text');
+    const refEl = document.getElementById('ref');
+    let contentIndex = 0;
+
+    const sampleContent = [
+      { text: "Car Dieu a tant aimé le monde\nqu'il a donné son Fils unique", ref: "Jean 3:16" },
+      { text: "Mon Dieu, plus près de toi,\nPlus près de toi !\nC’est le mot de ma foi,\nPlus près de toi !", ref: "Chant de Grâce\n123 - Mon Dieu plus près de toi" },
+      { text: "Je suis le chemin, la vérité\net la vie.", ref: "Jean 14:6" },
+      { text: "L'obscurité s'enfuit\nLa Lumière a jailli\nChassé de cœurs troublés\nToute incrédulité", ref: "CI-1. Le Grand Jour — Strophe 2" },
+    ];
+
+    function log(msg) {
+      debugEl.innerHTML += `\n${msg}`;
+      debugEl.scrollTop = debugEl.scrollHeight;
+    }
+
+    function applyAnimSettings() {
+      const type = document.getElementById('anim-type').value;
+      const dir = document.getElementById('anim-dir').value;
+      const dur = document.getElementById('anim-duration').value;
+
+      // Remove old classes
+      lowerThird.classList.remove(
+        'anim-fade', 'anim-slide', 'anim-scale', 'anim-blur',
+        'anim-reveal', 'anim-cinematic', 'anim-elastic', 'anim-flip',
+        'anim-glitch', 'anim-typewriter', 'anim-none',
+        'dir-up', 'dir-down', 'dir-left', 'dir-right',
+        'glitching'
+      );
+
+      lowerThird.classList.add(`anim-${type}`);
+      if (type === 'slide' || type === 'reveal') {
+        lowerThird.classList.add(`dir-${dir}`);
+      }
+
+      document.documentElement.style.setProperty('--anim-duration', `${dur}ms`);
+      log(`✓ Animation: ${type} | Dir: ${dir} | ${dur}ms`);
+    }
+
+    function showLowerThird() {
+      applyAnimSettings();
+      const content = sampleContent[contentIndex % sampleContent.length];
+      textEl.textContent = content.text;
+      refEl.textContent = content.ref;
+
+      const type = document.getElementById('anim-type').value;
+
+      lowerThird.classList.add('visible');
+
+      if (type === 'glitch') {
+        lowerThird.classList.add('glitching');
+        setTimeout(() => lowerThird.classList.remove('glitching'), 400);
+      }
+
+      log(`▶ Showing: "${content.text.substring(0, 30)}..."`);
+    }
+
+    function changeContent() {
+      contentIndex++;
+      const content = sampleContent[contentIndex % sampleContent.length];
+
+      // Inner cross-fade
+      const inner = document.getElementById('inner-wrapper');
+      inner.classList.add('hidden');
+
+      setTimeout(() => {
+        textEl.textContent = content.text;
+        refEl.textContent = content.ref;
+        inner.classList.remove('hidden');
+
+        const type = document.getElementById('anim-type').value;
+        if (type === 'glitch') {
+          lowerThird.classList.add('glitching');
+          setTimeout(() => lowerThird.classList.remove('glitching'), 400);
+        }
+      }, 280);
+
+      log(`🔄 Changed: "${content.text.substring(0, 30)}..."`);
+    }
+
+    function hideLowerThird() {
+      lowerThird.classList.remove('visible', 'glitching');
+      log('⏹ Hidden');
+    }
+
+    // Listen for changes
+    document.getElementById('anim-type').addEventListener('change', () => {
+      if (lowerThird.classList.contains('visible')) {
+        hideLowerThird();
+        setTimeout(showLowerThird, 800);
+      }
+    });
+
+    log('✓ v9 Broadcast Pro test ready');
+  </script>
+</body>
+</html>

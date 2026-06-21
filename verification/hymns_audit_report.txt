@@ -1,0 +1,488 @@
+AUDIT GLOBAL DES CANTIQUES
+================================================================================
+Total cantiques: 1013
+Total strophes/refrains: 5828
+Strophes par cantique: min=1, median=6, max=128, moyenne=5.75
+
+CANTIQUE CS-027 / ID 27
+--------------------------------------------------------------------------------
+27 | CS-027 | Plus Tard | sort=00027-CS-0027
+  01 Strophe 1  chorus=0 lines=6 chars=156 :: Tentés, éprouvés, nous nous demandons Pourquoi c'est ainsi le long du jour, Pendant qu'il y en a d'autres autour de nous, Quoique dans le ma
+  02 Refrain    chorus=1 lines=15 chars=330 :: Choeur: Plus tard nous saurons ce qu'il en est, Plus tard nous comprendrons le pourquoi, Courage, mon frère, vis dans la lumière, Nous compr
+  03 Strophe 2  chorus=0 lines=4 chars=147 :: Fidèles jusqu'à la mort, dit le Maître, Notre labeur est bientôt finie; Les peines du chemin seront oubliées Quand nous franchirons la belle
+  04 Refrain 2  chorus=1 lines=15 chars=330 :: Choeur: Plus tard nous saurons ce qu'il en est, Plus tard nous comprendrons le pourquoi, Courage, mon frère, vis dans la lumière, Nous compr
+  05 Strophe 3  chorus=0 lines=6 chars=157 :: Nous verrons Jésus venir dans la gloire, Quand Il vient de Sa maison céleste, Nous Le rencontrerons dans ce palais, Nous comprendrons tout d
+  06 Refrain 3  chorus=1 lines=15 chars=330 :: Choeur: Plus tard nous saurons ce qu'il en est, Plus tard nous comprendrons le pourquoi, Courage, mon frère, vis dans la lumière, Nous compr
+
+STROPHES MELANGEES AVEC REFRAIN/CHOEUR
+--------------------------------------------------------------------------------
+Total: 66
+  14 | CS-014 | Mont Sion | stanza 5 Strophe 3 :: mot refrain/choeur au milieu :: Un jour, je n'aurai plus de labeurs, Mes errances seront finies, Terrestres liens brisés, rétablis, Mes soupirs et pleurs cesseront. Les nuages sombre
+  109 | CS-109 | Quand Je M'En Irai En Vacances | stanza 3 Strophe 2 :: mot refrain/choeur au milieu :: Là-bas, il fera à jamais beau temps, Aucun nuage ne voilera le ciel; Séismes ni cyclones ne menaceront, Là, dans ce pays «Qui vient bientôt»; Très bie
+  111 | CS-111 | Et Alors ? | stanza 3 Strophe 2 :: mot refrain/choeur au milieu :: Quand sera dite la dernière prière du pasteur, le dernier choeur joué, Quand les gens auront entendu leur dernier sermon, et que tout se tait, Quand l
+  124 | CS-124 | Marcher Plus Pres De Toi | stanza 5 Strophe 3 :: mot refrain/choeur au milieu :: Quand ma faible vie expire Et mon temps ne sera plus; Guide-moi en sécurité Vers le rivage de Ton Royaume.
+  146 | CS-146 | A La Croix | stanza 5 Strophe 3 :: mot refrain/choeur au milieu :: Le soleil même dut s'obscurcir Et dut cacher sa gloire, Quand Christ, le Créateur, mourait Pour le péché de l'homme!
+  149 | CS-149 | Point De Deception | stanza 1 Strophe 1 :: mot refrain/choeur au milieu :: Il n'y a point de déception au Ciel, Ni fatigue, ni chagrin, ni peine; Ni non plus de coeurs saignants brisés, Ou de chants au choeur en mineur. Les n
+  156 | CS-156 | Grand Est Le Seigneur ! | stanza 1 Strophe 1 :: mot refrain/choeur au milieu :: Il y a un nom que j'aime entendre, c'est comme un choeur à mon oreille, C'est le Nom du Seigneur Jésus Christ; Il est venu du Père Céleste, Il est mor
+  198 | CS-198 | Il Vient Bientot | stanza 1 Strophe 1 :: mot refrain/choeur au milieu :: Pendant ces derniers jours du temps, Quelle joie l'espoir glorieux procure, Bientôt, ô vérité sublime! Roi des rois, Seigneur des seigneurs, Il règne.
+  207 | CS-207 | Je Vois Un Flot Cramoisi | stanza 7 Strophe 4 :: mot refrain/choeur au milieu :: Quand nous serons au portail Où vie règne toujours, Grande finale des rachetés Sera ce doux refrain.
+  226 | CS-226 | Ma Richesse, Ma Gloire | stanza 2 Strophe 2 :: mot refrain/choeur au milieu :: Rien n'ôte les souillures, Rien ne guérit le coeur, Sinon les meurtrissures Et le sang du Sauveur. Oui, Jésus seul nous lave De toute iniquité, Et pro
+  242 | CI-001 | Le Grand Jour | stanza 3 Strophe 2 :: mot refrain/choeur au milieu :: L'obscurité s'enfuit La Lumière a jailli Chassé de cœurs troublés Toute incrédulité Car Christ, le Roi des rois Répand l'Esprit de foi Le Saint Esprit
+  262 | CI-021 | Prends Le Nom De Jesus | stanza 1 Strophe 1 :: mot refrain/choeur au milieu :: Prends le nom de Jésus avec toi Enfant de tristesse et peine Il va te procurer la joie Prends-le partout où tu vas
+  300 | CI-059 | Marchant Plus Pres | stanza 5 Strophe 3 :: mot refrain/choeur au milieu :: Quand ma faible Vie expire Et mon temps ne sera plus Guide-moi en sécurité Vers les rivages de ton Royaume.
+  358 | CI-117 | Les Rayons De L'Amour Divin … | stanza 1 Strophe 1 :: mot refrain/choeur au milieu :: Les rayons de l'amour divin Ont brillé sur la route, Dès lors l'ennemi cherche en vain à mettre en moi le doute, De toutes mes obscurités, Il ne reste
+  360 | CI-119 | Ma Richesse, Ma Gloire … | stanza 2 Strophe 2 :: mot refrain/choeur au milieu :: Rien n'ôte les souillures, Rien ne guérit le cœur, Sinon les meurtrissures Et le sang du Sauveur. Oui, Jésus seul nous lave de toute iniquité, Et proc
+  417 | CI-172 | Priez Sans Cesse ! | stanza 4 Strophe 4 :: mot refrain/choeur au milieu :: Priez, priez lorsque le doute Obscurcira votre horizon ! Priez ! Jésus connaît la route, Il ouvrira votre prison.
+  474 | CI-226 | Nous Attendons Le Sauveur Glorieux ! | stanza 5 Strophe 3 :: mot refrain/choeur au milieu :: Là, le soleil chasse l'obscurité, un jour sans fin succède à la nuit sombre ; Plus d'ouragan dans ce port abrité, Oh ! le bonheur sera pur et sans omb
+  515 | CI-267 | Ecoute, Ô Ciel | stanza 7 Strophe 4 :: mot refrain/choeur au milieu :: Et comme une poule entoure ses poussins Jésus nous entoure et prend soin de nous D'où viendra l'orage qu'il ne saura calmer Oui, nous sommes plus qu'e
+  544 | CI-296 | J'Ai Soif De Ta Presence | stanza 5 Strophe 3 :: mot refrain/choeur au milieu :: Pendant les jours d'orage, D'obscurité, d'effroi. Quand faiblit mon courage, Que ferais-je sans Toi?
+  550 | AD-FOLDER-0005 | A la croix où j'ai vu la lumière | stanza 5 Strophe 3 :: mot refrain/choeur au milieu :: Le soleil même/ dut s’obscurcir Et dut cacher sa gloire, Quand Christ,/ le créateur,/ mourait Pour le péché de l’homme !
+  591 | AD-FOLDER-0046 | Combien Il est bon | stanza 9 Strophe 5 :: mot refrain/choeur au milieu :: Et comme une poule Entoure ses poussins Jésus nous entoure Et prend soin de nous D’où viendra l’orage Qu’il ne saura calmer Oui, nous sommes plus Qu’e
+  618 | AD-FOLDER-0073 | Dieu parla à Moïse | stanza 3 Strophe 2 :: mot refrain/choeur au milieu :: Le Doux Saint-Esprit Est le Signe aujourd’hui Ceux qui en sont marqués Vont être sauvés Si ce Signe n’est pas là La mort frappera Faisons entrer tous 
+  623 | AD-FOLDER-0078 | Ecoute ô Ciel (2) | stanza 9 Strophe 5 :: mot refrain/choeur au milieu :: * Et comme une poule Entoure ses poussins Jésus nous entoure Et prend soin de nous D’où viendra l’orage Qu’il ne saura calmer Oui, nous sommes plus Qu
+  664 | AD-FOLDER-0119 | J'ai résolu de ne plus chercher | stanza 1 Strophe 1 :: mot refrain/choeur au milieu :: 1. J’ai résolu de ne plus chercher les vanités de ce monde Car vivre avec Jésus me procure une joie plus grande et profonde.
+  702 | AD-FOLDER-0157 | Je suis faible Tu es fort | stanza 5 Strophe 3 :: mot refrain/choeur au milieu :: * Quand ma faible vie expire Et mon temps ne sera plus; Guide-moi en sécurité Vers le rivage de Ton royaume.
+  753 | AD-FOLDER-0208 | Là m'attend un joyeux lendemain | stanza 7 Strophe 4 :: mot refrain/choeur au milieu :: * Les nuages sombres se fondront, Et la nuit obscure passera; Tous les fardeaux de la vie ôtés, Et poindra le jour de repos.
+  760 | AD-FOLDER-0215 | 1. LE GRAND JOUR | stanza 3 Strophe 3 :: mot refrain/choeur au milieu :: Tahoma; ; L’obscurité s’enfuit, la lumière a jailli chassé de cœurs, troublés, toute incrédulité, car Christ le Roi des rois Repend l’Esprit de foi, l
+  761 | AD-FOLDER-0216 | Le grand jour s'est levé | stanza 3 Strophe 2 :: mot refrain/choeur au milieu :: * L’obscurité s’enfuit, La lumière a jailli, Chassé des cœurs troublés Toute incrédulité, Car Christ le Roi des rois, Répand l’Esprit de foi: Le Saint
+  773 | AD-FOLDER-0228 | Lorsqu'à la tombée du jour | stanza 3 Strophe 2 :: mot refrain/choeur au milieu :: Lorsque je verrai paraître L’obscurité pour la dernière fois Quelqu’un m’attendra là-bas Pour m’indiquer le chemin
+  774 | AD-FOLDER-0229 | Lorsqu'à la tombée du jour2 | stanza 3 Strophe 2 :: mot refrain/choeur au milieu :: Lorsque je verrai paraître L’obscurité pour la dernière fois Quelqu’un m’attendra là-bas Pour m’indiquer le chemin
+  779 | AD-FOLDER-0234 | Ma richesse et ma gloire | stanza 2 Strophe 2 :: mot refrain/choeur au milieu :: * Rien n’ôte les souillures, Rien ne guérit les cœurs, Sinon les meurtrissures Et le sang du Sauveur. Oui Jésus seul nous lave De toute iniquité, Et p
+  780 | AD-FOLDER-0235 | Ma richesse et ma gloire 1 | stanza 2 Strophe 2 :: mot refrain/choeur au milieu :: Rien n’ôte les souillures, Rien ne guérit les cœurs, Sinon les meurtrissures Et le sang du Sauveur. Oui Jésus seul nous lave De toute iniquité, Et pro
+  845 | AD-FOLDER-0300 | Njambe batelaka ngai | stanza 2 Refrain :: mot refrain/choeur au milieu :: Chœur: Choeur Sanjola ! Sanjola ! Mpo na ekulusu Kuna Ye akufeli Bato mabe yonso.
+  845 | AD-FOLDER-0300 | Njambe batelaka ngai | stanza 4 Refrain 2 :: mot refrain/choeur au milieu :: Chœur: Choeur Sanjola ! Sanjola ! Mpo na ekulusu Kuna Ye akufeli Bato mabe yonso.
+  845 | AD-FOLDER-0300 | Njambe batelaka ngai | stanza 6 Refrain 3 :: mot refrain/choeur au milieu :: Chœur: Choeur Sanjola ! Sanjola ! Mpo na ekulusu Kuna Ye akufeli Bato mabe yonso.
+  845 | AD-FOLDER-0300 | Njambe batelaka ngai | stanza 8 Refrain 4 :: mot refrain/choeur au milieu :: Chœur: Choeur Sanjola ! Sanjola ! Mpo na ekulusu Kuna Ye akufeli Bato mabe yonso.
+  846 | AD-FOLDER-0301 | Nkolo aboyaka moto te | stanza 2 Refrain :: mot refrain/choeur au milieu :: Chœur: Choeur Na zali koluka ba mpate na Yesu Babungaki kala na kati ya lopango Oh ! Bozonga epai na Yesu, Oh ! Bokota na kati ya lopango.
+  846 | AD-FOLDER-0301 | Nkolo aboyaka moto te | stanza 4 Refrain 2 :: mot refrain/choeur au milieu :: Chœur: Choeur Na zali koluka ba mpate na Yesu Babungaki kala na kati ya lopango Oh ! Bozonga epai na Yesu, Oh ! Bokota na kati ya lopango.
+  846 | AD-FOLDER-0301 | Nkolo aboyaka moto te | stanza 6 Refrain 4 :: mot refrain/choeur au milieu :: Chœur: Choeur Na zali koluka ba mpate na Yesu Babungaki kala na kati ya lopango Oh ! Bozonga epai na Yesu, Oh ! Bokota na kati ya lopango.
+  846 | AD-FOLDER-0301 | Nkolo aboyaka moto te | stanza 8 Refrain 5 :: mot refrain/choeur au milieu :: Chœur: Choeur Na zali koluka ba mpate na Yesu Babungaki kala na kati ya lopango Oh ! Bozonga epai na Yesu, Oh ! Bokota na kati ya lopango.
+  852 | AD-FOLDER-0307 | nous avons declaré | stanza 2 Refrain :: mot refrain/choeur au milieu :: Chœur: Nous avons déclaré choeur Nous marchons avec assurance, Nous qui devons porter l’espérance Vaine et toute résistance, Jésus-Christ sera vainque
+  852 | AD-FOLDER-0307 | nous avons declaré | stanza 4 Refrain 2 :: mot refrain/choeur au milieu :: Chœur: Nous avons déclaré choeur Nous marchons avec assurance, Nous qui devons porter l’espérance Vaine et toute résistance, Jésus-Christ sera vainque
+  852 | AD-FOLDER-0307 | nous avons declaré | stanza 6 Refrain 3 :: mot refrain/choeur au milieu :: Chœur: Nous avons déclaré choeur Nous marchons avec assurance, Nous qui devons porter l’espérance Vaine et toute résistance, Jésus-Christ sera vainque
+  852 | AD-FOLDER-0307 | nous avons declaré | stanza 8 Refrain 4 :: mot refrain/choeur au milieu :: Chœur: Nous avons déclaré choeur Nous marchons avec assurance, Nous qui devons porter l’espérance Vaine et toute résistance, Jésus-Christ sera vainque
+  853 | AD-FOLDER-0308 | nous avons declaré 1 | stanza 2 Refrain :: mot refrain/choeur au milieu :: Chœur: Nous avons déclaré choeur Nous marchons avec assurance, Nous qui devons porter l’espérance Vaine et toute résistance, Jésus-Christ sera vainque
+  853 | AD-FOLDER-0308 | nous avons declaré 1 | stanza 4 Refrain 2 :: mot refrain/choeur au milieu :: Chœur: Nous avons déclaré choeur Nous marchons avec assurance, Nous qui devons porter l’espérance Vaine et toute résistance, Jésus-Christ sera vainque
+  853 | AD-FOLDER-0308 | nous avons declaré 1 | stanza 6 Refrain 3 :: mot refrain/choeur au milieu :: Chœur: Nous avons déclaré choeur Nous marchons avec assurance, Nous qui devons porter l’espérance Vaine et toute résistance, Jésus-Christ sera vainque
+  853 | AD-FOLDER-0308 | nous avons declaré 1 | stanza 8 Refrain 4 :: mot refrain/choeur au milieu :: Chœur: Nous avons déclaré choeur Nous marchons avec assurance, Nous qui devons porter l’espérance Vaine et toute résistance, Jésus-Christ sera vainque
+  875 | AD-FOLDER-0330 | OH TOI SOLEIL | stanza 2 Refrain :: mot refrain/choeur au milieu :: Chœur: TOI SOLEIL Refrain Oh toi soleil qui apporte la victoire, viens éclairer toute mon âme
+  875 | AD-FOLDER-0330 | OH TOI SOLEIL | stanza 3 Strophe 2 :: mot refrain/choeur au milieu :: TOI SOLEIL Refrain Oh toi soleil qui sortit de Dieu vient éclairer toute mon âme (x2)
+  875 | AD-FOLDER-0330 | OH TOI SOLEIL | stanza 4 Refrain 2 :: mot refrain/choeur au milieu :: Chœur: TOI SOLEIL Refrain Oh toi soleil qui apporte la victoire, viens éclairer toute mon âme
+  875 | AD-FOLDER-0330 | OH TOI SOLEIL | stanza 6 Refrain 3 :: mot refrain/choeur au milieu :: Chœur: TOI SOLEIL Refrain Oh toi soleil qui apporte la victoire, viens éclairer toute mon âme
+  875 | AD-FOLDER-0330 | OH TOI SOLEIL | stanza 7 Strophe 4 :: mot refrain/choeur au milieu :: TOI SOLEIL Refrain Oh toi soleil qui visite, viens éclairer toute mon âme
+  875 | AD-FOLDER-0330 | OH TOI SOLEIL | stanza 8 Refrain 4 :: mot refrain/choeur au milieu :: Chœur: TOI SOLEIL Refrain Oh toi soleil qui apporte la victoire, viens éclairer toute mon âme
+  875 | AD-FOLDER-0330 | OH TOI SOLEIL | stanza 10 Refrain 5 :: mot refrain/choeur au milieu :: Chœur: TOI SOLEIL Refrain Oh toi soleil qui apporte la victoire, viens éclairer toute mon âme
+  875 | AD-FOLDER-0330 | OH TOI SOLEIL | stanza 11 Strophe 6 :: mot refrain/choeur au milieu :: TOI SOLEIL Refrain Oh toi soleil qui sortit de Dieu, viens éclairer toute mon âme
+  875 | AD-FOLDER-0330 | OH TOI SOLEIL | stanza 12 Refrain 6 :: mot refrain/choeur au milieu :: Chœur: TOI SOLEIL Refrain Oh toi soleil qui apporte la victoire, viens éclairer toute mon âme
+  875 | AD-FOLDER-0330 | OH TOI SOLEIL | stanza 14 Refrain 7 :: mot refrain/choeur au milieu :: Chœur: TOI SOLEIL Refrain Oh toi soleil qui apporte la victoire, viens éclairer toute mon âme
+  875 | AD-FOLDER-0330 | OH TOI SOLEIL | stanza 15 Strophe 8 :: mot refrain/choeur au milieu :: TOI SOLEIL Refrain Oh toi soleil qui sortit de Dieu, viens éclairer toute mon âme
+  875 | AD-FOLDER-0330 | OH TOI SOLEIL | stanza 16 Refrain 8 :: mot refrain/choeur au milieu :: Chœur: TOI SOLEIL Refrain Oh toi soleil qui apporte la victoire, viens éclairer toute mon âme
+  896 | AD-FOLDER-0351 | Pendant ces derniers jours du temps | stanza 1 Strophe 1 :: mot refrain/choeur au milieu :: 504.PENDANT CES DERNIERS JOURS DU TEMPS (Ab ) * Pendant ces derniers jours du temps, Quelle joie l’espoir glorieux procure, bientôt, ô vérité sublime 
+  901 | AD-FOLDER-0356 | POLE NA NKOLO YESU | stanza 3 Strophe 2 :: mot refrain/choeur au milieu :: cantique No 2 REFRAIN TOZALI NA KONDIMA NYONSO NDE TOMEMI ELIKYA NA BASUSU SATANA AKOSALA PAMBA YESU KLISTO AKOLONGA
+  901 | AD-FOLDER-0356 | POLE NA NKOLO YESU | stanza 11 Strophe 6 :: mot refrain/choeur au milieu :: Cantique No. 4 refrain J’ai décidé de donner ma vie à Jésus-Christ/ Conduis-moi, désormais dans cette nouvelle vie.
+  901 | AD-FOLDER-0356 | POLE NA NKOLO YESU | stanza 13 Strophe 7 :: mot refrain/choeur au milieu :: 1. J’ai résolu de ne plus chercher les vanités de ce monde Car vivre avec Jésus me procure une joie plus grande et profonde.
+  959 | AD-FOLDER-0414 | song we lift him higher | stanza 1 Strophe 1 :: mot refrain/choeur au milieu :: We lift him Higher –Higher – Higher When the praises go up His glory comes down Chorus When the praises go up His glory comes down
+  959 | AD-FOLDER-0414 | song we lift him higher | stanza 2 Strophe 2 :: mot refrain/choeur au milieu :: Nous l’ elevens Plus Haut Plus Haut Plus Haut Quand la louange monte Sa Gloire descend Chorus Elevé Plus Haut Plus Haut Plus Haut Sa louange S’éleve S
+
+LABELS INCOHERENTS
+--------------------------------------------------------------------------------
+Total: 965
+  549 | AD-FOLDER-0004 | A la croix aux pieds du Maître | stanza 2 Refrain :: label chorus mais texte sans marqueur :: Chœur: A la Croix, aux pieds du Maître A genoux, j’ai fait mon choix Son disciple je veux être Tout près de Lui, par la foi
+  549 | AD-FOLDER-0004 | A la croix aux pieds du Maître | stanza 4 Refrain 2 :: label chorus mais texte sans marqueur :: Chœur: A la Croix, aux pieds du Maître A genoux, j’ai fait mon choix Son disciple je veux être Tout près de Lui, par la foi
+  549 | AD-FOLDER-0004 | A la croix aux pieds du Maître | stanza 6 Refrain 3 :: label chorus mais texte sans marqueur :: Chœur: A la Croix, aux pieds du Maître A genoux, j’ai fait mon choix Son disciple je veux être Tout près de Lui, par la foi
+  550 | AD-FOLDER-0005 | A la croix où j'ai vu la lumière | stanza 2 Refrain :: label chorus mais texte sans marqueur :: Chœur: A la croix, à la croix où j’ai vu la Lumière Et le fardeau de mon cœur fut ôté, Là, par la foi/ j’ai reçu mon salut Et maintenant j’ai la joie 
+  550 | AD-FOLDER-0005 | A la croix où j'ai vu la lumière | stanza 4 Refrain 2 :: label chorus mais texte sans marqueur :: Chœur: A la croix, à la croix où j’ai vu la Lumière Et le fardeau de mon cœur fut ôté, Là, par la foi/ j’ai reçu mon salut Et maintenant j’ai la joie 
+  550 | AD-FOLDER-0005 | A la croix où j'ai vu la lumière | stanza 6 Refrain 3 :: label chorus mais texte sans marqueur :: Chœur: A la croix, à la croix où j’ai vu la Lumière Et le fardeau de mon cœur fut ôté, Là, par la foi/ j’ai reçu mon salut Et maintenant j’ai la joie 
+  550 | AD-FOLDER-0005 | A la croix où j'ai vu la lumière | stanza 8 Refrain 4 :: label chorus mais texte sans marqueur :: Chœur: A la croix, à la croix où j’ai vu la Lumière Et le fardeau de mon cœur fut ôté, Là, par la foi/ j’ai reçu mon salut Et maintenant j’ai la joie 
+  551 | AD-FOLDER-0006 | A la Croix où mourut mon Sauveur | stanza 2 Refrain :: label chorus mais texte sans marqueur :: Chœur: Gloire à Son Nom! Gloire à Son Nom! où, le sang fut appliqué à mon cœur; Gloire à Son Nom!
+  551 | AD-FOLDER-0006 | A la Croix où mourut mon Sauveur | stanza 4 Refrain 2 :: label chorus mais texte sans marqueur :: Chœur: Gloire à Son Nom! Gloire à Son Nom! où, le sang fut appliqué à mon cœur; Gloire à Son Nom!
+  551 | AD-FOLDER-0006 | A la Croix où mourut mon Sauveur | stanza 6 Refrain 3 :: label chorus mais texte sans marqueur :: Chœur: Gloire à Son Nom! Gloire à Son Nom! où, le sang fut appliqué à mon cœur; Gloire à Son Nom!
+  551 | AD-FOLDER-0006 | A la Croix où mourut mon Sauveur | stanza 8 Refrain 4 :: label chorus mais texte sans marqueur :: Chœur: Gloire à Son Nom! Gloire à Son Nom! où, le sang fut appliqué à mon cœur; Gloire à Son Nom!
+  554 | AD-FOLDER-0009 | Akobutwa | stanza 2 Refrain :: label chorus mais texte sans marqueur :: Chœur: Tokosepelana kuna, Na Yesu Masiya, Tokojala mpe malamu, Na Mboka na Ye.
+  554 | AD-FOLDER-0009 | Akobutwa | stanza 4 Refrain 2 :: label chorus mais texte sans marqueur :: Chœur: Tokosepelana kuna, Na Yesu Masiya, Tokojala mpe malamu, Na Mboka na Ye.
+  554 | AD-FOLDER-0009 | Akobutwa | stanza 6 Refrain 3 :: label chorus mais texte sans marqueur :: Chœur: Tokosepelana kuna, Na Yesu Masiya, Tokojala mpe malamu, Na Mboka na Ye.
+  555 | AD-FOLDER-0010 | akuna mungu | stanza 2 Refrain :: label chorus mais texte sans marqueur :: Chœur: Akuna mungu kama wewe(x2) Akuna mungu kama wewe(x2) Aku akuna wo!
+  556 | AD-FOLDER-0011 | Alléluia, Alléluia | stanza 2 Refrain :: label chorus mais texte sans marqueur :: Chœur: Alléluia, alléluia Alléluia, alléluia
+  556 | AD-FOLDER-0011 | Alléluia, Alléluia | stanza 4 Refrain 2 :: label chorus mais texte sans marqueur :: Chœur: Alléluia, alléluia Alléluia, alléluia
+  556 | AD-FOLDER-0011 | Alléluia, Alléluia | stanza 6 Refrain 3 :: label chorus mais texte sans marqueur :: Chœur: Alléluia, alléluia Alléluia, alléluia
+  556 | AD-FOLDER-0011 | Alléluia, Alléluia | stanza 8 Refrain 4 :: label chorus mais texte sans marqueur :: Chœur: Alléluia, alléluia Alléluia, alléluia
+  556 | AD-FOLDER-0011 | Alléluia, Alléluia | stanza 10 Refrain 5 :: label chorus mais texte sans marqueur :: Chœur: Alléluia, alléluia Alléluia, alléluia
+  558 | AD-FOLDER-0013 | Amen alleluia | stanza 2 Refrain :: label chorus mais texte sans marqueur :: Chœur: AMEN Réf/ Amen, amen (2X) Oh, Oh, oh amen alléluia.
+  558 | AD-FOLDER-0013 | Amen alleluia | stanza 4 Refrain 2 :: label chorus mais texte sans marqueur :: Chœur: AMEN Réf/ Amen, amen (2X) Oh, Oh, oh amen alléluia.
+  558 | AD-FOLDER-0013 | Amen alleluia | stanza 6 Refrain 3 :: label chorus mais texte sans marqueur :: Chœur: AMEN Réf/ Amen, amen (2X) Oh, Oh, oh amen alléluia.
+  558 | AD-FOLDER-0013 | Amen alleluia | stanza 8 Refrain 4 :: label chorus mais texte sans marqueur :: Chœur: AMEN Réf/ Amen, amen (2X) Oh, Oh, oh amen alléluia.
+  558 | AD-FOLDER-0013 | Amen alleluia | stanza 10 Refrain 5 :: label chorus mais texte sans marqueur :: Chœur: AMEN Réf/ Amen, amen (2X) Oh, Oh, oh amen alléluia.
+  562 | AD-FOLDER-0017 | Appartiens-tu à l'Epouse | stanza 2 Refrain :: label chorus mais texte sans marqueur :: Chœur: Maranatha, Alléluia ! Maranatha, Alléluia ! Maranatha, Alléluia ! Jésus vient Son festin est préparé.
+  562 | AD-FOLDER-0017 | Appartiens-tu à l'Epouse | stanza 4 Refrain 2 :: label chorus mais texte sans marqueur :: Chœur: Maranatha, Alléluia ! Maranatha, Alléluia ! Maranatha, Alléluia ! Jésus vient Son festin est préparé.
+  562 | AD-FOLDER-0017 | Appartiens-tu à l'Epouse | stanza 6 Refrain 3 :: label chorus mais texte sans marqueur :: Chœur: Maranatha, Alléluia ! Maranatha, Alléluia ! Maranatha, Alléluia ! Jésus vient Son festin est préparé.
+  562 | AD-FOLDER-0017 | Appartiens-tu à l'Epouse | stanza 8 Refrain 4 :: label chorus mais texte sans marqueur :: Chœur: Maranatha, Alléluia ! Maranatha, Alléluia ! Maranatha, Alléluia ! Jésus vient Son festin est préparé.
+  564 | AD-FOLDER-0019 | Au commencement, Dieu prononça | stanza 2 Refrain :: label chorus mais texte sans marqueur :: Chœur: La colonne de feu est toujours làQuand la parole est prononcéeLa colonne de feu est envoyéePour confirmer la parole de DieuLa parole de Dieu es
+  564 | AD-FOLDER-0019 | Au commencement, Dieu prononça | stanza 4 Refrain 2 :: label chorus mais texte sans marqueur :: Chœur: La colonne de feu est toujours làQuand la parole est prononcéeLa colonne de feu est envoyéePour confirmer la parole de DieuLa parole de Dieu es
+  564 | AD-FOLDER-0019 | Au commencement, Dieu prononça | stanza 6 Refrain 3 :: label chorus mais texte sans marqueur :: Chœur: La colonne de feu est toujours làQuand la parole est prononcéeLa colonne de feu est envoyéePour confirmer la parole de DieuLa parole de Dieu es
+  564 | AD-FOLDER-0019 | Au commencement, Dieu prononça | stanza 8 Refrain 4 :: label chorus mais texte sans marqueur :: Chœur: La colonne de feu est toujours làQuand la parole est prononcéeLa colonne de feu est envoyéePour confirmer la parole de DieuLa parole de Dieu es
+  564 | AD-FOLDER-0019 | Au commencement, Dieu prononça | stanza 10 Refrain 5 :: label chorus mais texte sans marqueur :: Chœur: La colonne de feu est toujours làQuand la parole est prononcéeLa colonne de feu est envoyéePour confirmer la parole de DieuLa parole de Dieu es
+  566 | AD-FOLDER-0021 | Au tribunal Jésus se tient | stanza 2 Refrain :: label chorus mais texte sans marqueur :: Chœur: Que feras-tu de Jésus ? Il se tient devant toi, Un jour, tu diras plein d’effroi, Que feras-t-il de moi ?
+  566 | AD-FOLDER-0021 | Au tribunal Jésus se tient | stanza 4 Refrain 2 :: label chorus mais texte sans marqueur :: Chœur: Que feras-tu de Jésus ? Il se tient devant toi, Un jour, tu diras plein d’effroi, Que feras-t-il de moi ?
+  566 | AD-FOLDER-0021 | Au tribunal Jésus se tient | stanza 6 Refrain 3 :: label chorus mais texte sans marqueur :: Chœur: Que feras-tu de Jésus ? Il se tient devant toi, Un jour, tu diras plein d’effroi, Que feras-t-il de moi ?
+  566 | AD-FOLDER-0021 | Au tribunal Jésus se tient | stanza 8 Refrain 4 :: label chorus mais texte sans marqueur :: Chœur: Que feras-tu de Jésus ? Il se tient devant toi, Un jour, tu diras plein d’effroi, Que feras-t-il de moi ?
+  570 | AD-FOLDER-0025 | Béni soit la fontaine de sang | stanza 2 Refrain :: label chorus mais texte sans marqueur :: Chœur: Blanc, plus blanc que neige, Blanc, plus blanc que neige, Lavé dans le sang de l’Agneau, Je serai plus blanc que la neige.
+  570 | AD-FOLDER-0025 | Béni soit la fontaine de sang | stanza 4 Refrain 2 :: label chorus mais texte sans marqueur :: Chœur: Blanc, plus blanc que neige, Blanc, plus blanc que neige, Lavé dans le sang de l’Agneau, Je serai plus blanc que la neige.
+  574 | AD-FOLDER-0029 | Bon sauveur berger fidèle | stanza 2 Refrain :: label chorus mais texte sans marqueur :: Chœur: Béni sois-Tu, tendre Maître, Jésus, nous sommes à Toi, A Toi seul nous voulons être, Béni sois-Tu, notre Roi.
+  574 | AD-FOLDER-0029 | Bon sauveur berger fidèle | stanza 4 Refrain 2 :: label chorus mais texte sans marqueur :: Chœur: Béni sois-Tu, tendre Maître, Jésus, nous sommes à Toi, A Toi seul nous voulons être, Béni sois-Tu, notre Roi.
+  574 | AD-FOLDER-0029 | Bon sauveur berger fidèle | stanza 6 Refrain 3 :: label chorus mais texte sans marqueur :: Chœur: Béni sois-Tu, tendre Maître, Jésus, nous sommes à Toi, A Toi seul nous voulons être, Béni sois-Tu, notre Roi.
+  574 | AD-FOLDER-0029 | Bon sauveur berger fidèle | stanza 8 Refrain 4 :: label chorus mais texte sans marqueur :: Chœur: Béni sois-Tu, tendre Maître, Jésus, nous sommes à Toi, A Toi seul nous voulons être, Béni sois-Tu, notre Roi.
+  574 | AD-FOLDER-0029 | Bon sauveur berger fidèle | stanza 10 Refrain 5 :: label chorus mais texte sans marqueur :: Chœur: Béni sois-Tu, tendre Maître, Jésus, nous sommes à Toi, A Toi seul nous voulons être, Béni sois-Tu, notre Roi.
+  577 | AD-FOLDER-0032 | C'est encore jour de grâce | stanza 2 Refrain :: label chorus mais texte sans marqueur :: Chœur: Sa grâce incomparable Voudrait t’ouvrir le Ciel Et donner au coupable Le bonheur éternel Viens donc à l’instant même T’enrôler sous la croix De
+  577 | AD-FOLDER-0032 | C'est encore jour de grâce | stanza 4 Refrain 2 :: label chorus mais texte sans marqueur :: Chœur: Sa grâce incomparable Voudrait t’ouvrir le Ciel Et donner au coupable Le bonheur éternel Viens donc à l’instant même T’enrôler sous la croix De
+  577 | AD-FOLDER-0032 | C'est encore jour de grâce | stanza 6 Refrain 3 :: label chorus mais texte sans marqueur :: Chœur: Sa grâce incomparable Voudrait t’ouvrir le Ciel Et donner au coupable Le bonheur éternel Viens donc à l’instant même T’enrôler sous la croix De
+  578 | AD-FOLDER-0033 | C'est la trace à pas sanglants | stanza 2 Refrain :: label chorus mais texte sans marqueur :: Chœur: C’est la trace à pas sanglant qui me conduit au ciel j’aimerais y marcher Jusqu’aux pieds de Jésus (2x)
+  578 | AD-FOLDER-0033 | C'est la trace à pas sanglants | stanza 4 Refrain 2 :: label chorus mais texte sans marqueur :: Chœur: C’est la trace à pas sanglant qui me conduit au ciel j’aimerais y marcher Jusqu’aux pieds de Jésus (2x)
+  578 | AD-FOLDER-0033 | C'est la trace à pas sanglants | stanza 6 Refrain 3 :: label chorus mais texte sans marqueur :: Chœur: C’est la trace à pas sanglant qui me conduit au ciel j’aimerais y marcher Jusqu’aux pieds de Jésus (2x)
+  578 | AD-FOLDER-0033 | C'est la trace à pas sanglants | stanza 8 Refrain 4 :: label chorus mais texte sans marqueur :: Chœur: C’est la trace à pas sanglant qui me conduit au ciel j’aimerais y marcher Jusqu’aux pieds de Jésus (2x)
+  578 | AD-FOLDER-0033 | C'est la trace à pas sanglants | stanza 10 Refrain 5 :: label chorus mais texte sans marqueur :: Chœur: C’est la trace à pas sanglant qui me conduit au ciel j’aimerais y marcher Jusqu’aux pieds de Jésus (2x)
+  579 | AD-FOLDER-0034 | C'est mon commandement | stanza 2 Refrain :: label chorus mais texte sans marqueur :: Chœur: Fondés sur Dieu même, Nos cœurs à jamais Ont pour bien suprême Sa parfaite paix.
+  579 | AD-FOLDER-0034 | C'est mon commandement | stanza 4 Refrain 2 :: label chorus mais texte sans marqueur :: Chœur: Fondés sur Dieu même, Nos cœurs à jamais Ont pour bien suprême Sa parfaite paix.
+  579 | AD-FOLDER-0034 | C'est mon commandement | stanza 6 Refrain 3 :: label chorus mais texte sans marqueur :: Chœur: Fondés sur Dieu même, Nos cœurs à jamais Ont pour bien suprême Sa parfaite paix.
+  579 | AD-FOLDER-0034 | C'est mon commandement | stanza 8 Refrain 4 :: label chorus mais texte sans marqueur :: Chœur: Fondés sur Dieu même, Nos cœurs à jamais Ont pour bien suprême Sa parfaite paix.
+  579 | AD-FOLDER-0034 | C'est mon commandement | stanza 10 Refrain 5 :: label chorus mais texte sans marqueur :: Chœur: Fondés sur Dieu même, Nos cœurs à jamais Ont pour bien suprême Sa parfaite paix.
+  581 | AD-FOLDER-0036 | Cantique LIBRES DE NOS CHAINES | stanza 2 Refrain :: label chorus mais texte sans marqueur :: Chœur: Alléluia Que ton, règne vienne Maranatha Viens Jésus règne en moi.
+  581 | AD-FOLDER-0036 | Cantique LIBRES DE NOS CHAINES | stanza 4 Refrain 2 :: label chorus mais texte sans marqueur :: Chœur: Alléluia Que ton, règne vienne Maranatha Viens Jésus règne en moi.
+  581 | AD-FOLDER-0036 | Cantique LIBRES DE NOS CHAINES | stanza 6 Refrain 3 :: label chorus mais texte sans marqueur :: Chœur: Alléluia Que ton, règne vienne Maranatha Viens Jésus règne en moi.
+  581 | AD-FOLDER-0036 | Cantique LIBRES DE NOS CHAINES | stanza 7 Refrain 4 :: label chorus mais texte sans marqueur :: ChœurAlleluya,Molimo na MzambeMaranathaFanda na motema
+  581 | AD-FOLDER-0036 | Cantique LIBRES DE NOS CHAINES | stanza 8 Refrain 5 :: label chorus mais texte sans marqueur :: Chœur: Alléluia Que ton, règne vienne Maranatha Viens Jésus règne en moi.
+  581 | AD-FOLDER-0036 | Cantique LIBRES DE NOS CHAINES | stanza 10 Refrain 6 :: label chorus mais texte sans marqueur :: Chœur: Alléluia Que ton, règne vienne Maranatha Viens Jésus règne en moi.
+  581 | AD-FOLDER-0036 | Cantique LIBRES DE NOS CHAINES | stanza 11 Refrain 7 :: label chorus mais texte sans marqueur :: ChœurAlleluya,Molimo na MzambeMaranathaFanda na motema
+  581 | AD-FOLDER-0036 | Cantique LIBRES DE NOS CHAINES | stanza 12 Refrain 8 :: label chorus mais texte sans marqueur :: Chœur: Alléluia Que ton, règne vienne Maranatha Viens Jésus règne en moi.
+  582 | AD-FOLDER-0037 | Ce monde n'est pas chez moi | stanza 2 Refrain :: label chorus mais texte sans marqueur :: Chœur: Seigneur Tu sais, N’y a point d’amis comme Toi Si le Ciel n’est pas chez-moi Alors que ferais-je ? Les anges me font signe Depuis la porte du C
+  582 | AD-FOLDER-0037 | Ce monde n'est pas chez moi | stanza 4 Refrain 2 :: label chorus mais texte sans marqueur :: Chœur: Seigneur Tu sais, N’y a point d’amis comme Toi Si le Ciel n’est pas chez-moi Alors que ferais-je ? Les anges me font signe Depuis la porte du C
+  582 | AD-FOLDER-0037 | Ce monde n'est pas chez moi | stanza 6 Refrain 3 :: label chorus mais texte sans marqueur :: Chœur: Seigneur Tu sais, N’y a point d’amis comme Toi Si le Ciel n’est pas chez-moi Alors que ferais-je ? Les anges me font signe Depuis la porte du C
+  582 | AD-FOLDER-0037 | Ce monde n'est pas chez moi | stanza 8 Refrain 4 :: label chorus mais texte sans marqueur :: Chœur: Seigneur Tu sais, N’y a point d’amis comme Toi Si le Ciel n’est pas chez-moi Alors que ferais-je ? Les anges me font signe Depuis la porte du C
+  583 | AD-FOLDER-0038 | Ce monde n'est pas chnez moi | stanza 2 Refrain :: label chorus mais texte sans marqueur :: Chœur: Seigneur Tu sais, N’y a point d’amis comme Toi Si le Ciel n’est pas chez-moi Alors que ferais-je ? Les anges me font signe Depuis la porte du C
+  583 | AD-FOLDER-0038 | Ce monde n'est pas chnez moi | stanza 4 Refrain 2 :: label chorus mais texte sans marqueur :: Chœur: Seigneur Tu sais, N’y a point d’amis comme Toi Si le Ciel n’est pas chez-moi Alors que ferais-je ? Les anges me font signe Depuis la porte du C
+  583 | AD-FOLDER-0038 | Ce monde n'est pas chnez moi | stanza 6 Refrain 3 :: label chorus mais texte sans marqueur :: Chœur: Seigneur Tu sais, N’y a point d’amis comme Toi Si le Ciel n’est pas chez-moi Alors que ferais-je ? Les anges me font signe Depuis la porte du C
+  588 | AD-FOLDER-0043 | Chaque fois que je m'arrête | stanza 2 Refrain :: label chorus mais texte sans marqueur :: Chœur: D’un moment à l’autre Le voilà qui vient Oh, Il revient pour vous et moi Oui, je surveille et je veille D’un moment à l’autre je le verrais
+  588 | AD-FOLDER-0043 | Chaque fois que je m'arrête | stanza 4 Refrain 2 :: label chorus mais texte sans marqueur :: Chœur: D’un moment à l’autre Le voilà qui vient Oh, Il revient pour vous et moi Oui, je surveille et je veille D’un moment à l’autre je le verrais
+  590 | AD-FOLDER-0045 | Combien de temps pensez-vous | stanza 2 Refrain :: label chorus mais texte sans marqueur :: Chœur: Combien de temps pensez-vous Nous reste encore mes frères ? Il est plus tard que vous ne le pensez Oui, le Seigneur revient bientôt
+  590 | AD-FOLDER-0045 | Combien de temps pensez-vous | stanza 4 Refrain 2 :: label chorus mais texte sans marqueur :: Chœur: Combien de temps pensez-vous Nous reste encore mes frères ? Il est plus tard que vous ne le pensez Oui, le Seigneur revient bientôt
+  590 | AD-FOLDER-0045 | Combien de temps pensez-vous | stanza 6 Refrain 3 :: label chorus mais texte sans marqueur :: Chœur: Combien de temps pensez-vous Nous reste encore mes frères ? Il est plus tard que vous ne le pensez Oui, le Seigneur revient bientôt
+  590 | AD-FOLDER-0045 | Combien de temps pensez-vous | stanza 8 Refrain 4 :: label chorus mais texte sans marqueur :: Chœur: Combien de temps pensez-vous Nous reste encore mes frères ? Il est plus tard que vous ne le pensez Oui, le Seigneur revient bientôt
+  590 | AD-FOLDER-0045 | Combien de temps pensez-vous | stanza 10 Refrain 5 :: label chorus mais texte sans marqueur :: Chœur: Combien de temps pensez-vous Nous reste encore mes frères ? Il est plus tard que vous ne le pensez Oui, le Seigneur revient bientôt
+  ... 885 autres
+
+STROPHES TRES LONGUES
+--------------------------------------------------------------------------------
+Total: 0
+
+MARQUEURS NUMERIQUES A L INTERIEUR
+--------------------------------------------------------------------------------
+Total: 89
+  524 | CI-276 | Car Ta Bonte | stanza 1 Strophe 1 :: marqueur numerique interne :: 1) Car ta bonté vaut mieux que la vie (x4)
+  563 | AD-FOLDER-0018 | armageddon presentation cameroon | stanza 1 Strophe 1 :: marqueur numerique interne :: DIMENSIONS LES 3 ETAPES DE LUCIFER ET LES 3 BATTAILLES L’ ESPRIT DU SEIGNEUR ESAïE 12 EZECHIEL 24 APOC 12 : 7 GEN 1 : 1 LA TERRE L’EAU ET LES TENEBRES
+  578 | AD-FOLDER-0033 | C'est la trace à pas sanglants | stanza 1 Strophe 1 :: marqueur numerique interne :: 9. C’EST LA TRACE A PAS SANGLANT. ( C ) * J’aimerais, m’en aller au Pays du bonheur Mais où est le chemin qui me conduit au ciel.(2x)
+  581 | AD-FOLDER-0036 | Cantique LIBRES DE NOS CHAINES | stanza 5 Strophe 3 :: marqueur numerique interne :: 1. Tolanda Mosikoli Akangoli biso Nguya na Yo Mzambe Elindisi biso Mapinga na pole Tatola Yesu Batidami na Ye Bipayi nyonso
+  581 | AD-FOLDER-0036 | Cantique LIBRES DE NOS CHAINES | stanza 9 Strophe 4 :: marqueur numerique interne :: 2. Totatola ngolu Kati na butu Toluka Ye Nkolo Bomoyi na biso Sanzola kembo na Ye Kobangaka te Yemba mpo n’elonga Ya Mobikisi
+  588 | AD-FOLDER-0043 | Chaque fois que je m'arrête | stanza 1 Strophe 1 :: marqueur numerique interne :: 11. CHAQUE FOIS QUE JE M’ARRETE ( A ) Chaque fois que je m’arrête Et regarde autour de moi Je vois les signes De son apparition partout Les choses qu’
+  590 | AD-FOLDER-0045 | Combien de temps pensez-vous | stanza 1 Strophe 1 :: marqueur numerique interne :: 13. COMBIEN DE TEMPS PENSEZ-VOUS ? ( E ) * Voyez comment toutes les prophéties S’accomplissent sous nos yeux, Annonçant la venue du Seigneur, Oh ! Bie
+  620 | AD-FOLDER-0075 | Doucement tendrement | stanza 1 Strophe 1 :: marqueur numerique interne :: 19. DOUCEMENT, TENDREMENT ( Eb ) Doucement et tendrement Jésus appelle Appel pour toi et pour moi Il est au portail Il attend et veille Veille pour to
+  631 | AD-FOLDER-0086 | Es-tu lassé, rempli de tristesse | stanza 1 Strophe 1 :: marqueur numerique interne :: 22. ES-TU LASSE, REMPLI DE TRISTESSE ( F ) * Es- tu lassé, rempli de tristesse ? Dis tout à Jésus! Dis tout à Jésus! Son Cœur est ouvert à ta voix san
+  648 | AD-FOLDER-0103 | il est un espoir | stanza 1 Strophe 1 :: marqueur numerique interne :: 25. IL EST UN ESPOIR ( F ) * Il est un espoir, qui toujours soulage Les cœurs fatigués et lassés du chemin Il est un repos au bout de voyage ! A toute
+  650 | AD-FOLDER-0105 | Il m'a sauvé, béni soit son nom | stanza 1 Strophe 1 :: marqueur numerique interne :: IL M’A SAUVE BENI SOIT SON NOM 1. Il m’a sauvé (il m’a sauvé) béni soit son nom (x3) (Mon Sauveur) soit loué à perpétuité 2. Je le suivrai (Je le suiv
+  650 | AD-FOLDER-0105 | Il m'a sauvé, béni soit son nom | stanza 2 Strophe 2 :: marqueur numerique interne :: 3. Dans son amour (dans son amour) Il m’a racheté (x3) (Mon Sauveur) soit loué à perpétuité 4. Alléluia (Alléluia) Bénis sois son nom (x3) (Mon Sauveu
+  654 | AD-FOLDER-0109 | Il y a un jour qui vient | stanza 1 Strophe 1 :: marqueur numerique interne :: 26. IL Y A UN JOUR QUI VIENT ( Ab ) * Il y a un jour qui vient Où les maux ne seront plus, Ni les nuages dans le ciel, Plus de larmes à jamais; Tout e
+  655 | AD-FOLDER-0110 | Il y a un nom que j'aime entendre | stanza 1 Strophe 1 :: marqueur numerique interne :: 72. IL Y A UN NOM QUE J’AIME ENTENDRE ( D ) * Il y’a un nom que j’aime entendre, J’aime chanter Ses mérites; C’est une musique à mes oreilles, Le plus
+  663 | AD-FOLDER-0118 | J'ai longtemps erré | stanza 1 Strophe 1 :: marqueur numerique interne :: 28. J’AI LONGTEMPS ERRE SANS GUIDE ( Em ) * J’ai longtemps erré sans guide, Altéré de vrai bonheur. Mais, hélas ! Mon cœur avide Ne trouvait que la do
+  664 | AD-FOLDER-0119 | J'ai résolu de ne plus chercher | stanza 1 Strophe 1 :: marqueur numerique interne :: 1. J’ai résolu de ne plus chercher les vanités de ce monde Car vivre avec Jésus me procure une joie plus grande et profonde.
+  664 | AD-FOLDER-0119 | J'ai résolu de ne plus chercher | stanza 3 Strophe 2 :: marqueur numerique interne :: 2. J’ai résolu de ne plus attendre pour fuir à Golgotha Où m’est offerte la vie éternelle par la sang qui y coula.
+  664 | AD-FOLDER-0119 | J'ai résolu de ne plus chercher | stanza 5 Strophe 3 :: marqueur numerique interne :: 3. Comme moi aussi tu peux décidé avant qu’il ne soit trop tard Laissez le monde donne-toi au Sauveur prend un nouveau départ.
+  671 | AD-FOLDER-0126 | J'entends le Sauveur dire | stanza 1 Strophe 1 :: marqueur numerique interne :: 41. JESUS PAYA TOUT ( D ) * J’entends le Sauveur dire: «Malgré ta moindre force, Faible enfant, veille et prie, Trouves en moi tout ton tout.»
+  673 | AD-FOLDER-0128 | J'étais érant plus loin de Dieu | stanza 1 Strophe 1 :: marqueur numerique interne :: 44. J’ETAIS ERRANT ( Ab ) * J’étais errant plus loin de Dieu, Maintenant je reviens, Le péché, longtemps, j’ai suivi Seigneur, je reviens.
+  674 | AD-FOLDER-0129 | J'étais errant | stanza 1 Strophe 1 :: marqueur numerique interne :: 44. J’ETAIS ERRANT ( Ab ) * J’étais errant plus loin de Dieu, Maintenant je reviens, Le péché, longtemps, j’ai suivi Seigneur, je reviens.
+  688 | AD-FOLDER-0143 | Je me presse sur la route du ciel | stanza 1 Strophe 1 :: marqueur numerique interne :: 58. JE ME PRESSE SUR LA ROUTE DU CIEL ( G ) * Je me presse sur la route du Ciel, Nouvelles hauteurs, chaque jour je gagne, Sur mon chemin, je prie tou
+  689 | AD-FOLDER-0144 | Je ne sais pourquoi dans sa grâce | stanza 1 Strophe 1 :: marqueur numerique interne :: 31. JE NE SAIS POURQUOI DANS SA GRACE ( F ) * Je ne sais pourquoi dans Sa grâce Jésus m’a tant aimé, Pourquoi par Son sang Il efface Ma dette, mon péc
+  692 | AD-FOLDER-0147 | Je sais ce qu'est le sang | stanza 1 Strophe 1 :: marqueur numerique interne :: 32. JE SAIS CE QU’EST LE SANG (F) Je sais ce qu’est le sang (2x) Pour moi (Lorsque j’étais perdu A la croix Il mourut Je sais ce qu’est le sang pour m
+  698 | AD-FOLDER-0153 | je sui | stanza 1 Strophe 1 :: marqueur numerique interne :: 4. A L’OUEST LE SOLEIL SE COUCHE. ( C ) *A l’Ouest le Soleil se couche Il arrive à la fin de sa course Et je vois combien ce temps est là Oh le temps 
+  699 | AD-FOLDER-0154 | je sui - Copie | stanza 1 Strophe 1 :: marqueur numerique interne :: 4. A L’OUEST LE SOLEIL SE COUCHE. ( C ) *A l’Ouest le Soleil se couche Il arrive à la fin de sa course Et je vois combien ce temps est là Oh le temps 
+  702 | AD-FOLDER-0157 | Je suis faible Tu es fort | stanza 1 Strophe 1 :: marqueur numerique interne :: 33. JE SUIS FAIBLE TU ES FORT (C) * Je suis faible, Tu es fort Jésus garde-moi du mal; Je serai satisfait, tous les jours Comme je marche, gardes-moi 
+  730 | AD-FOLDER-0185 | Jésus Jésus Jésus Jésus | stanza 1 Strophe 1 :: marqueur numerique interne :: 39. JESUS, JESUS, JESUS, JESUS ( Eb ) * Jésus, Jésus, Jésus, Jésus Seul Nom que mon cœur aime, Je voudrais ne prononcer plus Qu’un seul mot, ce nom mê
+  736 | AD-FOLDER-0191 | Jésus soit avec vous | stanza 1 Strophe 1 :: marqueur numerique interne :: 43. JESUS SOIT AVEC VOUS ( F) * Jésus soit avec vous à jamais, Vous guidant avec sagesse, Vous entourant de tendresse, Vous remplissant toujours de Sa
+  737 | AD-FOLDER-0192 | Jésus Tu es le centre de ma joie | stanza 1 Strophe 1 :: marqueur numerique interne :: 37. JESUS, TU ES LE CENTRE DE MA JOIE ( C ) Jésus, Tu es le centre de ma joie Ce qui est bon et parfait vient de Toi Tu es la source de mon bonheur To
+  737 | AD-FOLDER-0192 | Jésus Tu es le centre de ma joie | stanza 3 Strophe 2 :: marqueur numerique interne :: 1. Lorsque je me perds, Ta Parole me ramène Tu es la chaleur quand mes nuits Sont longues et froides Dans l’angoisse Tu es le Soutien Tu chasses mon i
+  737 | AD-FOLDER-0192 | Jésus Tu es le centre de ma joie | stanza 5 Strophe 3 :: marqueur numerique interne :: 2. En Toi les choses simples Deviennent tous si merveilleux Tu es la mélodie qui m’accompagne Tous les jours J’entends la voix des enfants, Des amis e
+  740 | AD-FOLDER-0195 | KOTEMA BILA YESU | stanza 1 Strophe 1 :: marqueur numerique interne :: KOTEMA BILA YESU 1. Kotema bila Yesu Kosala mpo na Ye Kobunda na makasi Satana mpe mabe Kobila nkolo Yesu Mobikisi na biso Ajali na makasi Ayoki nsomo
+  740 | AD-FOLDER-0195 | KOTEMA BILA YESU | stanza 2 Strophe 2 :: marqueur numerique interne :: 2. Mokonji na likolo Mokonji mpe na nse Apusi bato nyonso Ajali Njambe mpe Ye Njambe moko solo Mobikisi na bato Asali nde malamu Kotema bila Ye.
+  740 | AD-FOLDER-0195 | KOTEMA BILA YESU | stanza 3 Strophe 3 :: marqueur numerique interne :: 3. Kotema bila Yesu Kobila moto te Koyoka Ye Masiya Alobi mpo na yo Alingi bato nyonso Akufi mpo na bango Asali nde malamu Kotema bila Ye.
+  740 | AD-FOLDER-0195 | KOTEMA BILA YESU | stanza 4 Strophe 4 :: marqueur numerique interne :: 4. Ajali na likolo Ye mwana Njambe nde Aingeli mitema Na bato awa nse Apesi mpe makasi Kosala mpo malamu Alakisi na njela Kotema bila Ye.
+  741 | AD-FOLDER-0196 | KUNA NA EKULUSU cantique fr anicet 2009 | stanza 2 Strophe 2 :: marqueur numerique interne :: 2. NKOLO OYO AKELAKI LIKOLO NA NSE ATIKAKI LOKUMU MPE NKEMBO MPO NA NGAI MOTO NA MASUMU.
+  741 | AD-FOLDER-0196 | KUNA NA EKULUSU cantique fr anicet 2009 | stanza 3 Strophe 3 :: marqueur numerique interne :: 3. YESU MWANA NA MPATE ADIMAKI LIWA MAKILA NA YE EZALI MBEKA MPO NA NGAI MOTO NA MASUMU.
+  741 | AD-FOLDER-0196 | KUNA NA EKULUSU cantique fr anicet 2009 | stanza 4 Strophe 4 :: marqueur numerique interne :: 4. MOKOLO NA EYENGA NA TONGO MAKASI ASEKWAKI AZUAKI ELONGA MPO NA NGAI MOTO NA MASUMU.
+  741 | AD-FOLDER-0196 | KUNA NA EKULUSU cantique fr anicet 2009 | stanza 5 Strophe 5 :: marqueur numerique interne :: 5. KOYA NA YE NA NKEMBO SOLO EBELEMI ATINDI MOSAKOLI ELIYA MPO NGAI MOTO NA MASUMU.
+  753 | AD-FOLDER-0208 | Là m'attend un joyeux lendemain | stanza 1 Strophe 1 :: marqueur numerique interne :: 68. LA M’ATTEND UN JOYEUX LENDEMAIN ( Ab ) * Là m’attend un joyeux lendemain, Où portes perlées s’ouvrent large. La vallée de peines traversée, De l’a
+  761 | AD-FOLDER-0216 | Le grand jour s'est levé | stanza 1 Strophe 1 :: marqueur numerique interne :: 50. LE GRAND JOUR S’EST LEVE ( C ) * Le grand jour s’est levé Dieu nous a visité. Voici des temps nouveaux, Chantons gloire à l’Agneau. Nous recevons 
+  765 | AD-FOLDER-0220 | Le nom de Jésus est si doux | stanza 1 Strophe 1 :: marqueur numerique interne :: 53. LE NOM DE JESUS EST SI DOUX ( D ) Le nom de Jésus est si doux De Dieu désarmant le courroux Il nous appelle au rendez-vous Précieux nom de Jésus
+  772 | AD-FOLDER-0227 | LIBRES DE NOS CHAINES | stanza 5 Strophe 3 :: marqueur numerique interne :: 1. Tolanda Mosikoli Akangoli biso Nguya na Yo Nzambe Elendisi biso Mapinga na pole Tatola Yesu Batindami na Ye Bipayi nyonso
+  772 | AD-FOLDER-0227 | LIBRES DE NOS CHAINES | stanza 9 Strophe 4 :: marqueur numerique interne :: 2. Totatola ngolu Kati na butu Toluka Ye Nkolo Bomoyi na biso Sanzola kembo na Ye Kobangaka te Yemba mpo n’elonga Ya Mobikisi
+  779 | AD-FOLDER-0234 | Ma richesse et ma gloire | stanza 1 Strophe 1 :: marqueur numerique interne :: 60. MA RICHESSE ET MA GLOIRE * Ma richesse, ma gloire Et ma félicité, ô Jésus ! C’est de croire Que tu m’a racheté. Rempli de confiance En Toi, divin,
+  811 | AD-FOLDER-0266 | Mon vrai ami c'est Jésus | stanza 3 Strophe 2 :: marqueur numerique interne :: 1. Les amis de ce monde; Ils m’abandonneront Mais il y a un vrai ami qui ne peut m’abandonner
+  811 | AD-FOLDER-0266 | Mon vrai ami c'est Jésus | stanza 5 Strophe 3 :: marqueur numerique interne :: 2. Les amis de ce monde ; ils m’aimeront pour un temps Mais au moment des souffrances, ils me quitteront pour toujours
+  823 | AD-FOLDER-0278 | Na sepeli kosalela yo | stanza 1 Strophe 1 :: marqueur numerique interne :: 91. NA SEPELI KOSALELA YO ( D ) * Nasepeli kosalela Yo, Mobikisi, Na esengo namipesi mobimba na Yo.
+  830 | AD-FOLDER-0285 | Napata yote kwako | stanza 3 Strophe 2 :: marqueur numerique interne :: 2. Kwa damu nimetakasika, na mto wa uzima wako waniletea nguvu tele, napata yote kwako.
+  830 | AD-FOLDER-0285 | Napata yote kwako | stanza 5 Strophe 3 :: marqueur numerique interne :: 3. Nafungwa kwa Upendo wako, njiani unaniongoza, na katika hatari zote napata nguvu kwako.
+  830 | AD-FOLDER-0285 | Napata yote kwako | stanza 7 Strophe 4 :: marqueur numerique interne :: 4. Ninakupenda, Bwana Yesu, wanisikia niombappo, wanipa jibu la maombi, napata yote kwako.
+  831 | AD-FOLDER-0286 | NATONDI YO Kwete | stanza 2 Strophe 2 :: marqueur numerique interne :: 1. NZAMBE NA NGAI/ NKOLO NA BOLINGO MOBATELI YA SOLO/ KATI NA MANSO OBATELI NGAI MALAMU/ KATI NA MIBENBO OLINGAKI TE NGAI NA KUFA MPO NA MOSALA OPESI 
+  831 | AD-FOLDER-0286 | NATONDI YO Kwete | stanza 3 Strophe 3 :: marqueur numerique interne :: 2. NADIMI YA SOLO NZAMBE NA NGAI BOMOYI NA NGAI EZALI NA YO MOYINI AKOKI TE KOSIMBA NGAI SOKI YO OKANI TE.
+  835 | AD-FOLDER-0290 | Ne crains rien je t'aime | stanza 1 Strophe 1 :: marqueur numerique interne :: 70. NE CRAINS RIEN JE T’AIME ( G ) Ne crains rien je t’aime ! Je suis avec toi Promesse suprême Qui soutient ma foi La sombre vallée N’a plus de terre
+  836 | AD-FOLDER-0291 | Ne m'oublie pas o doux sauveur | stanza 1 Strophe 1 :: marqueur numerique interne :: 69. NE M’OUBLIE PAS O DOUX SAUVEUR ( Ab ) * Ne m’oublie pas, ô doux Sauveur, écoutes ma voix; Quand Tu répondras aux autres, Ne m’oublie pas.
+  839 | AD-FOLDER-0294 | Neema | stanza 1 Strophe 1 :: marqueur numerique interne :: 6. ATTIRE-MOI PLUS PRES ( Ab ) Je suis Tien, Seigneur, j’ai saisi Ta voix, Me parlant de Ton amour, Mon ardent désir : grandir dans la foi Et être plu
+  863 | AD-FOLDER-0318 | O prends mon âme | stanza 1 Strophe 1 :: marqueur numerique interne :: 73. OH ! PRENDS MON AME ( Em ) Oh ! Prend mon âme, prend-la Seigneur Et que Ta flamme brûle dans mon cœur Que tout mon être vibre pour toi. Sois seul 
+  866 | AD-FOLDER-0321 | O vous qui n'avez pas la paix | stanza 1 Strophe 1 :: marqueur numerique interne :: 76. Ô VOUS QUI N’AVEZ PAS LA PAIX ( Eb ) O vous qui n’avez pas la paix, Venez, Jésus la donne Pure, profonde et pour jamais, Venez, Jésus pardonne.
+  877 | AD-FOLDER-0332 | Où cherchez-vous le bonheur | stanza 1 Strophe 1 :: marqueur numerique interne :: 74. OU CHERCHEZ-VOUS LE BONHEUR ? ( F ) Où cherchez-vous le bonheur ? Dans ce monde où tout passe ? Avez-vous dans votre cœur Pour Jésus une place ? A
+  893 | AD-FOLDER-0348 | Pécheur je voudrais te guérir | stanza 1 Strophe 1 :: marqueur numerique interne :: 80. PECHEUR JE VOUDRAIS TE GUERIR ( Ab ) Pécheur, Je voudrais te guérir ; J’ai vu tes larmes, tes souffrances, Mais pour avoir la délivrance, Il faut 
+  900 | AD-FOLDER-0355 | Pluie de bénédictions | stanza 1 Strophe 1 :: marqueur numerique interne :: 82. PLUIE DE BENEDICTIONS ( Bb ) * Y aura pluie de bénédictions, C’est la promesse d’amour; Le Sauveur nous enverra du Ciel Le temps de rafraîchisseme
+  901 | AD-FOLDER-0356 | POLE NA NKOLO YESU | stanza 1 Strophe 1 :: marqueur numerique interne :: 3. POLELE NA NKOLO YESU MOYI KITOKO NA NZAMBE ETANISI BOMOYI NA NGAI EPELISI MOTEMA 2. MOYI NA LIKOLO ETANI EPELISI MOTEMA NA MOTO NA BOLINGO BE? NA N
+  901 | AD-FOLDER-0356 | POLE NA NKOLO YESU | stanza 5 Strophe 3 :: marqueur numerique interne :: 1. TOSILI KOSENGA ETUMBA NA SATANA MPE NA MASUMU TOLINGI KOTEYA LOBIKO NA MOKILI MOBINBA. 2. LOBIKO EKOTI NA BISO KODIMA NDE NGUBA NA BISO MABONDELI, 
+  901 | AD-FOLDER-0356 | POLE NA NKOLO YESU | stanza 7 Strophe 4 :: marqueur numerique interne :: 3. N’ETUMBA BASUMUKI MINGI BA MIPESI NA MOBIKISI MPE SIK’AWA KATI NA POLE BAKOBUMDA MPO NA YE. 4. NZAMBE APESI BISO ELONGA MPO NA MOLIMO MOSANTU TOPES
+  901 | AD-FOLDER-0356 | POLE NA NKOLO YESU | stanza 13 Strophe 7 :: marqueur numerique interne :: 1. J’ai résolu de ne plus chercher les vanités de ce monde Car vivre avec Jésus me procure une joie plus grande et profonde.
+  901 | AD-FOLDER-0356 | POLE NA NKOLO YESU | stanza 15 Strophe 8 :: marqueur numerique interne :: 2. J’ai résolu de ne plus attendre pour fuir à Golgotha Où m’est offerte la vie éternelle par la sang qui y coula.
+  901 | AD-FOLDER-0356 | POLE NA NKOLO YESU | stanza 17 Strophe 9 :: marqueur numerique interne :: 3. Comme moi aussi tu peux décidé avant qu’il ne soit trop tard Laissez le monde donne-toi au Sauveur prend un nouveau départ.
+  902 | AD-FOLDER-0357 | Portes éternelles | stanza 1 Strophe 1 :: marqueur numerique interne :: PORTES ETERNELLES 1. Portes Eternelles élevez vos linteaux Portes Eternelles élevez vos linteaux Que le Roi de Gloire fasse son entrée Qui est ce Roi 
+  902 | AD-FOLDER-0357 | Portes éternelles | stanza 2 Strophe 2 :: marqueur numerique interne :: 2. Nous sommes des fils ! Et des filles du Seigneur Et nous devons marcher ! Comme notre Rédempteur Car ses yeux, oui, sont fixés sur nous Son Epouse 
+  902 | AD-FOLDER-0357 | Portes éternelles | stanza 3 Strophe 3 :: marqueur numerique interne :: 3. L’Esprit du Seigneur est sur nous maintenant Le Dieu des prophètes veut agir puissamment Que le vrai Dieu puisse répondre par le feu aujourd’hui Et
+  902 | AD-FOLDER-0357 | Portes éternelles | stanza 4 Strophe 4 :: marqueur numerique interne :: 4. Oh ! Eglise avançons Nous sommes dans la saison Mettons nous debout ! Sur pieds et avançons Allons prêcher, oui, la Parole ! Proclamer le salut Dém
+  902 | AD-FOLDER-0357 | Portes éternelles | stanza 5 Strophe 5 :: marqueur numerique interne :: 5. Portes Eternelles élevez vos linteaux Portes Eternelles élevez vos linteaux Le Roi et sa Reine vont faire leur entrée Déjà j’entends chanter un can
+  903 | AD-FOLDER-0358 | Pour cet immense bonheur | stanza 1 Strophe 1 :: marqueur numerique interne :: 1.Pour cet immense bonheur (Alléluia) Que tu as mis dans mon cœur (Alléluia) 2. Je veux Te chanter Seigneur (Alléluia) Oui Jésus est mon Sauveur (Allé
+  903 | AD-FOLDER-0358 | Pour cet immense bonheur | stanza 2 Strophe 2 :: marqueur numerique interne :: 3. Je le redirai encore (Alléluia) Que pour moi Jésus est mort (Alléluia) 4. Voilà pourquoi je l’adore (Alléluia) Lui seul est tout mon trésor (Allélu
+  903 | AD-FOLDER-0358 | Pour cet immense bonheur | stanza 3 Strophe 3 :: marqueur numerique interne :: 5. Que chaque jour et à chaque heure (Alléluia) En moi tu aies ta demeure (Alléluia) 6. Que ma vie soit une fleur (Alléluia) Un parfum pour toi Seigne
+  904 | AD-FOLDER-0359 | Pour moi chrétien, la terre est un exil | stanza 1 Strophe 1 :: marqueur numerique interne :: 84. POUR MOI CHRETIEN ( G ) * Pour moi chrétien, la terre est un exil; Mais tout est bien. (bis.) Il faut marcher de péril en péril; Mais tout est bie
+  911 | AD-FOLDER-0366 | Qu'il fait bon à ton service1 | stanza 1 Strophe 1 :: marqueur numerique interne :: 90. QU’IL FAIT BON A TON SERVICE ( D ) * Qu’il fait bon à Ton service Jésus mon Sauveur! Qu’il est doux le sacrifice Que T’offre mon cœur
+  914 | AD-FOLDER-0369 | QUAND JE PENSE A TON AMOUR kwete | stanza 1 Strophe 1 :: marqueur numerique interne :: QUAND JE PENSE A TON AMOUR 1. Quand je pense à ton amour Et à tout ce que tu as fait pour moi, J’étais perdu comme une aiguille dans le sable, Tu m’as
+  914 | AD-FOLDER-0369 | QUAND JE PENSE A TON AMOUR kwete | stanza 3 Strophe 2 :: marqueur numerique interne :: 2. Quand je pense à ton amour, Tu n’as pas compté tous mes péchés Tu étais venu dans la chaire humaine Tu as payé le prix pour moi pécheur Tu as eu pi
+  ... 9 autres
+
+VIDES OU TROP COURTES
+--------------------------------------------------------------------------------
+Total: 2
+  119 | CS-119 | J'Ai Traverse Le Voile | stanza 1 Strophe 1 :: trop court chars=5 :: FENDU
+  747 | AD-FOLDER-0202 | L’ANNEE DE JUBILE,LE MYSTERE DE LA LIBERTE | stanza 52 Strophe 52 :: trop court chars=3 :: FIN
+
+DOUBLONS ADJACENTS NON-REFRAIN
+--------------------------------------------------------------------------------
+Total: 0
+
+TITRE REPETE AU DEBUT DU TEXTE
+--------------------------------------------------------------------------------
+Total: 340
+  3 | CS-003 | Ils Viennent | stanza 1 Strophe 1 :: titre repete dans le texte :: Ils viennent de l'Est et l'Ouest, Ils viennent de lointains pays, Fêter avec le Roi comme Ses convives; Oh! quels pèlerins bénis ! Contemplant Son sai
+  9 | CS-009 | Nous Nous Sentons Si Bien | stanza 1 Strophe 1 :: titre repete dans le texte :: Nous nous sentons si bien en parlant du bon vieux Chemin, Nous nous sentons si bien en parlant du Seigneur; Continuons, continuons à parler du bon vie
+  15 | CS-015 | Nous Marchons Vers Sion | stanza 2 Strophe 2 :: titre repete dans le texte :: Nous marchons vers Sion, Merveilleuse, merveilleuse Sion; Nous montons tout droit vers Sion, La merveilleuse Cité de Dieu.
+  17 | CS-017 | Mes Brebis Connaissent Ma Voix | stanza 1 Strophe 1 :: titre repete dans le texte :: Mes brebis connaissent Ma voix et Mon chemin, Elles Me suivent partout où Je vais; Elles connaissent Ma voix, Et viennent, quand J'appelle, Elles igno
+  17 | CS-017 | Mes Brebis Connaissent Ma Voix | stanza 3 Strophe 2 :: titre repete dans le texte :: Mes brebis connaissent Ma voix et le vert pré Où très souvent Je les mène paître; Elles connaissent Ma voix Et les cours d'eau fraîche, Je les conduis
+  21 | CS-021 | C'Est La Bataille | stanza 1 Strophe 1 :: titre repete dans le texte :: C'est la bataille, la trompette se fait entendre, Le cri «Aux armes!» est entendu partout; L'Eternel des armées marche vers la victoire, Le triomphe d
+  21 | CS-021 | C'Est La Bataille | stanza 3 Strophe 2 :: titre repete dans le texte :: C'est la bataille, levez-vous, fidèles braves soldats, Jéhovah mène, assure la victoire; Revêtez l'armure qui vous est donnée par Dieu, Et par Sa forc
+  31 | CS-031 | Debout Sur Les Promesses | stanza 1 Strophe 1 :: titre repete dans le texte :: Debout sur les promesses de Christ, mon Roi, Que Ses louanges résonnent dans l'éternité; Gloire dans les Lieux très-hauts je chanterai, Debout sur les
+  31 | CS-031 | Debout Sur Les Promesses | stanza 3 Strophe 3 :: titre repete dans le texte :: Debout sur les promesses infaillibles, Quand les tempêtes de doutes et de peurs assaillent, Par la Parole vivante de Dieu je vaincrai, Debout sur les 
+  31 | CS-031 | Debout Sur Les Promesses | stanza 4 Strophe 4 :: titre repete dans le texte :: Debout sur les promesses, maintenant je vois, Dans le sang, la purification pour moi; Debout dans la liberté qui vient de Christ, Debout sur les prome
+  31 | CS-031 | Debout Sur Les Promesses | stanza 5 Strophe 5 :: titre repete dans le texte :: Debout sur les promesses de Christ, Seigneur, Attaché à Lui par la corde d'amour, Toujours victorieux par l'épée de l'Esprit, Debout sur les promesses
+  34 | CS-034 | Quand Je Verrai Le Sang | stanza 2 Strophe 2 :: titre repete dans le texte :: Quand je verrai le sang, Quand je verrai le sang, Quand je verrai le sang, Et je passerai par dessus vous.
+  37 | CS-037 | Comme Tu Veux, Seigneur | stanza 1 Strophe 1 :: titre repete dans le texte :: Comme Tu veux, Seigneur! Comme Tu le veux! Tu es le Potier, Je suis l'argile. Taille-moi, façonne-moi, Selon Ton gré, Pendant que j'attends, Calme et 
+  37 | CS-037 | Comme Tu Veux, Seigneur | stanza 2 Strophe 2 :: titre repete dans le texte :: Comme Tu veux, Seigneur! Comme Tu le veux! Eprouve-moi, sonde-moi, Maître, aujourd'hui! Rends-moi maintenant Plus blanc que neige, Comme je me proster
+  37 | CS-037 | Comme Tu Veux, Seigneur | stanza 3 Strophe 3 :: titre repete dans le texte :: Comme Tu veux, Seigneur! Comme Tu le veux! Tiens tout mon être Sous Ta puissance. Remplis-moi d'Esprit Au point qu'on ne voie Que Christ seul, vivant 
+  54 | CS-054 | 'Y A Une Fontaine | stanza 1 Strophe 1 :: titre repete dans le texte :: 'Y a une fontaine remplie de sang Tiré des veines d'Emmanuel, Les pécheurs plongés dans ce flot Perdent toutes leurs souillures. Perdent toutes leurs 
+  66 | CS-066 | Eclaire-Moi | stanza 1 Strophe 1 :: titre repete dans le texte :: Eclaire-moi, Seigneur, éclaire-moi, Laisse la lumière du phare m'éclairer; Eclaire-moi, Seigneur, éclaire-moi, Laisse la lumière du phare m'éclairer.
+  69 | CS-069 | Ouvre Mes Yeux Pour Que Je Voie | stanza 1 Strophe 1 :: titre repete dans le texte :: Ouvre mes yeux pour que je voie Ta Vérité à mon sujet; Place dans mes mains la merveilleuse clé Qui va ouvrir et m'affranchir.
+  72 | CS-072 | Oh! Veux-Tu Veiller Avec Moi? | stanza 1 Strophe 1 :: titre repete dans le texte :: Oh! veux-tu veiller avec moi une heure, Comme je vais là-bas, comme je vais là-bas? Oh! veux-tu veiller avec moi une heure, Comme je vais là-bas prier
+  73 | CS-073 | Oh! Oui, Je Triomphe ! | stanza 1 Strophe 1 :: titre repete dans le texte :: Oh! oui, je triomphe! oh! oui, je triomphe! Oh! oui, je triomphe! oh! oui, je triomphe! Car j'aime bien Jésus, Il est mon Sauveur, Il m'aime et me sou
+  84 | CS-084 | Il Prend Soin De Toi | stanza 1 Strophe 1 :: titre repete dans le texte :: Il prend soin de toi, Il prend soin de toi; Tant le jour que la nuit, Il prend soin de toi.
+  93 | CS-093 | L'Amour De Dieu | stanza 1 Strophe 1 :: titre repete dans le texte :: L'amour de Dieu est de loin si grand Que langue ou plume ne peuvent le dire ; Il va plus loin que la plus haute étoile, Il atteint le plus bas enfer. 
+  96 | CS-096 | Saint, Saint, Saint | stanza 1 Strophe 1 :: titre repete dans le texte :: Saint, Saint, Saint ,le Seigneur Dieu des armées! Ciel et terre sont pleins de Toi, Ciel et terre Te glorifient, O Dieu Très-Haut!
+  114 | CS-114 | Je Peux Croire, Je Croirai Je Crois | stanza 1 Strophe 1 :: titre repete dans le texte :: Je peux croire, je croirai, je crois; Je peux croire, je croirai, je crois; Je peux croire, je croirai, je crois Que Jésus me guérit. (Je ne me confie
+  115 | CS-115 | N'Est-Il Pas Merveilleux ? | stanza 1 Strophe 1 :: titre repete dans le texte :: N'est-Il pas merveilleux, merveilleux, merveilleux ? Mon Seigneur, n'est-Il pas merveilleux ? J'ai vu et entendu ce que dit Sa Parole; Mon Jésus n'est
+  121 | CS-121 | Viens, Allons | stanza 1 Strophe 1 :: titre repete dans le texte :: Viens, allons à la Maison de mon Père, Maison de mon Père, Maison de mon Père. Viens, allons à la Maison de mon Père, Où 'y a paix, paix, paix. Jésus 
+  122 | CS-122 | Juste Un Autre Toucher, Seigneur | stanza 1 Strophe 1 :: titre repete dans le texte :: Juste un autre toucher, Seigneur, Qui m'aide en temps de dures épreuves; Bien que la nuit soit sombre, Tu envoies un rayon, Quand j'obtiens un autre t
+  132 | CS-132 | Un Merveilleux Temps | stanza 1 Strophe 1 :: titre repete dans le texte :: Un merveilleux temps est juste devant, Le Seigneur que nous aimons, Donnera accès à la terre de gloire, Révélant Son trône de gloire.
+  132 | CS-132 | Un Merveilleux Temps | stanza 3 Strophe 2 :: titre repete dans le texte :: Un merveilleux temps est juste devant, Nos luttes, épreuves sont passées; Le voyage du désert est fini, Enfin, au Ciel, sains et saufs.
+  132 | CS-132 | Un Merveilleux Temps | stanza 5 Strophe 3 :: titre repete dans le texte :: Un merveilleux temps est juste devant, Les gémissements cesseront; Et tous ceux qui sont esclaves maintenant, Le Seigneur les rendra libres.
+  154 | CS-154 | Tel Que Je Suis | stanza 1 Strophe 1 :: titre repete dans le texte :: Tel que je suis, sans rien à moi, Sinon Ton sang versé pour moi, Et comme Tu m'invites à venir, Agneau de Dieu, je viens! je viens!
+  154 | CS-154 | Tel Que Je Suis | stanza 2 Strophe 2 :: titre repete dans le texte :: Tel que je suis, je n'attends pas Que j'ôte de mon âme une seule tache, Ton sang lave chaque tache; à Toi, Agneau de Dieu, je viens! Je viens!
+  154 | CS-154 | Tel Que Je Suis | stanza 3 Strophe 3 :: titre repete dans le texte :: Tel que je suis, Tu me reçois, Tu me pardonnes, soulages et laves, Car je crois à Ta promesse, ô Agneau de Dieu, je viens! Je viens!
+  154 | CS-154 | Tel Que Je Suis | stanza 4 Strophe 4 :: titre repete dans le texte :: Tel que je suis, Ton grand amour A renversé chaque barrière; Maintenant pour être à Toi, Toi seul, Agneau de Dieu, je viens! Je viens!
+  163 | CS-163 | Un Jour ! | stanza 1 Strophe 1 :: titre repete dans le texte :: Un jour, quand le Ciel fut plein de Ses louanges, Un jour, quand le péché était tout noir, Alors vint Jésus pour naître d'une vierge, Vécut parmi les 
+  163 | CS-163 | Un Jour ! | stanza 3 Strophe 2 :: titre repete dans le texte :: Un jour, on Le conduisit au mont Calvaire, On Le cloua pour mourir sur le bois; Accablé des peines, méprisé, rejeté, Il prit nos péchés,Lui,mon Rédemp
+  163 | CS-163 | Un Jour ! | stanza 5 Strophe 3 :: titre repete dans le texte :: Un jour, on L'abandonna seul au Jardin, Après souffrances, Il fut enseveli; Les anges descendirent pour veiller à Sa tombe; Mon Sauveur, Espoir du dés
+  163 | CS-163 | Un Jour ! | stanza 7 Strophe 4 :: titre repete dans le texte :: Un jour, la tombe ne Le garda longtemps, Un jour, la pierre roula loin de la porte; Alors Il ressuscita, vainquit la mort; Maintenant Il est monté, mo
+  163 | CS-163 | Un Jour ! | stanza 9 Strophe 5 :: titre repete dans le texte :: Un jour, les cieux brilleront de Sa gloire; La trompette annoncera Sa venue; Jour merveilleux ramenant mes bien- aimés; Glorieux Sauveur, ce Jésus est
+  179 | CS-179 | Doucement Et Tendrement | stanza 1 Strophe 1 :: titre repete dans le texte :: Doucement et tendrement Jésus appelle, Il nous appelle toi et moi, Vois-Le aux portails, Il attend et Il veille, Veillant pour toi et pour moi.
+  183 | CS-183 | Elevez-Le | stanza 7 Strophe 4 :: titre repete dans le texte :: Elevez-Le en vivant comme un Chrétien, Qu'en vous le monde voie le Sauveur, Et joyeux, les hommes suivront Celui qui dit : «J'attirerai les hommes à M
+  199 | CS-199 | Quel Ami ! | stanza 1 Strophe 1 :: titre repete dans le texte :: Quel ami nous avons en Jésus, Portant nos péchés et peines! O quel privilège d'apporter Tout à Dieu dans la prière! Souvent nous perdons la paix, En v
+  206 | CS-206 | Ne M'Oublie Pas | stanza 1 Strophe 1 :: titre repete dans le texte :: Ne m'oublie pas, ô doux Sauveur, Ecoute ma voix; Quand Tu répondras aux autres, Ne m'oublie pas.
+  212 | CS-212 | Je Crois En Dieu | stanza 1 Strophe 1 :: titre repete dans le texte :: Je crois en Dieu! Je crois en Dieu! Il en sera tel qu'Il l'a dit; Crois, obéis, lève les yeux, dis : «Oui, je crois, oui, je crois en Dieu.»
+  217 | CS-217 | Ce N'Est Pas Secret | stanza 1 Strophe 1 :: titre repete dans le texte :: Ce n'est pas secret ce que Dieu peut faire, Il fera pour toi ce qu'Il fit pour d'autres. Il te pardonnera à bras large ouvert, Ce n'est pas secret ce 
+  217 | CS-217 | Ce N'Est Pas Secret | stanza 2 Strophe 2 :: titre repete dans le texte :: Ce n'est pas secret, je crois la Parole, Mes yeux sont ouverts, mon coeur est ému. Je l'ai reconnu dès que j'ai suivi La Parole Parlée par le prophète
+  217 | CS-217 | Ce N'Est Pas Secret | stanza 3 Strophe 3 :: titre repete dans le texte :: Ce n'est pas secret là où j'ai été, J'ai vu le prophète, Il m'a fait entrer. Dans mon coeur ouvert brilla la lumière Ce n'est pas secret, moi je le su
+  217 | CS-217 | Ce N'Est Pas Secret | stanza 4 Strophe 4 :: titre repete dans le texte :: Ce n'est pas secret quant à ce qu'il est, Bien plus qu'un prophète, j'en suis convaincu : C'est le septième ange, c'est un fils de l'homme, L'Elie pro
+  221 | CS-221 | Dieu Soit Avec Vous | stanza 1 Strophe 1 :: titre repete dans le texte :: Dieu soit avec vous jusqu'à nous revoir! Par Ses conseils, Il vous soutenant, Dans Sa bergerie vous gardant; Dieu soit avec vous jusqu'à nous revoir!
+  221 | CS-221 | Dieu Soit Avec Vous | stanza 3 Strophe 2 :: titre repete dans le texte :: Dieu soit avec vous jusqu'à nous revoir! Vous protégeant sous Ses ailes, Vous donnant la Manne quotidienne, Dieu soit avec vous jusqu'à nous revoir!
+  221 | CS-221 | Dieu Soit Avec Vous | stanza 5 Strophe 3 :: titre repete dans le texte :: Dieu soit avec vous jusqu'à nous revoir! Quand les périls vous confondent, Entourez-vous de Ses bras sûrs; Dieu soit avec vous jusqu'à nous revoir!
+  221 | CS-221 | Dieu Soit Avec Vous | stanza 7 Strophe 4 :: titre repete dans le texte :: Dieu soit avec vous jusqu'à nous revoir! Restez sous la bannière d'Amour, Brisez la vague de la mort; Dieu soit avec vous jusqu'à nous revoir!
+  226 | CS-226 | Ma Richesse, Ma Gloire | stanza 1 Strophe 1 :: titre repete dans le texte :: Ma richesse, ma gloire Et ma félicité, O Jésus! c'est de croire Que Tu m'as racheté. Rempli de confiance En Toi, divin Sauveur, Je vis dans l'espéranc
+  232 | CS-006-2 | Si Tu Demeures En Moi | stanza 1 Strophe 1 :: titre repete dans le texte :: Si tu demeures en Moi, et que Mes paroles demeurent en toi, Tu demanderas ce que tu veux, Et cela te sera accordé.
+  234 | CS-008-2 | J'Ai Trouvé La Voie | stanza 2 Strophe 2 :: titre repete dans le texte :: J'ai trouvé la voie, J'ai trouvé la voie ; Gloire alléluia, J'ai trouvé la voie.
+  235 | CS-009-2 | Namoni Nzela | stanza 1 Strophe 1 :: titre repete dans le texte :: Namoni nzela ekomema na lola, Kati na mboka'a nkembo ; Yesu Ye nde akongengela yango Azali kokamba ngai.
+  239 | CS-014-2 | Précieux Jésus | stanza 1 Strophe 1 :: titre repete dans le texte :: Précieux Jésus, combien je T'aime, Laisse-moi m'accrocher à Ta main ; Précieux Jésus, façonne-moi, Que Ta force me soutienne !
+  239 | CS-014-2 | Précieux Jésus | stanza 2 Strophe 2 :: titre repete dans le texte :: Précieux Jésus, je T'adore, Tu es tout ce que mon cœur peut voir ; Précieux Jésus, Dieu éternel, Tu représentes tout pour moi.
+  241 | CS-016-2 | Mon Jésus Je T'Aime | stanza 1 Strophe 1 :: titre repete dans le texte :: Mon Jésus, je t'aime Je Te sais à moi, Oh ! quel charme extrême, Me retient à toi ! Les plaisirs du monde Ne m'atterrent plus, Ton amour m'inonde, Je 
+  241 | CS-016-2 | Mon Jésus Je T'Aime | stanza 2 Strophe 2 :: titre repete dans le texte :: Mon Jésus, je T'aime, Car Tu m'as sauvé. En T'offrant toi-même, Ton Sang m'a lavé. Sur la croix bénie, Pour moi tu mourus. Ta mort est ma vie, Je T'ai
+  242 | CI-001 | Le Grand Jour | stanza 1 Strophe 1 :: titre repete dans le texte :: Le grand jour s'est levé Dieu nous a visités Voici le temps nouveau Chantons gloire à l'agneau Nous recevons de Christ Ce qu'il avait promis : Le Sain
+  248 | CI-007 | Tel Que Je Suis | stanza 1 Strophe 1 :: titre repete dans le texte :: Tel que je suis, sans rien à moi Sinon ton sang versé pour moi Et ton invitation à Toi, Agneau De Dieu, je viens, je viens !
+  248 | CI-007 | Tel Que Je Suis | stanza 2 Strophe 2 :: titre repete dans le texte :: Tel que je suis, sans rien trainer de Débarrasser mon âme de tout A Toi dont le sang, lave chaque Tâche, Agneau de Dieu, je viens, je viens
+  248 | CI-007 | Tel Que Je Suis | stanza 3 Strophe 3 :: titre repete dans le texte :: Tel que je suis, tu vas laver Pardonner, recevoir, aider Car à ta promesse je crois Agneau de Dieu, je viens, je viens !
+  248 | CI-007 | Tel Que Je Suis | stanza 4 Strophe 4 :: titre repete dans le texte :: Tel que je suis, ton grand amour A dû renverser chaque barrière Maintenant pour être à Toi, Toi seul Agneau de Dieu, je viens, je viens !
+  249 | CI-008 | Il Est Une Fontaine | stanza 1 Strophe 1 :: titre repete dans le texte :: Il est une fontaine pleine de sang Tiré des veines d'Emmanuel, Les pécheurs plongés dans ce flot Perdent toutes leurs souillures, Perdent toutes leurs
+  252 | CI-011 | Ils Viennent De L'Est | stanza 1 Strophe 1 :: titre repete dans le texte :: Ils viennent de l'Est et d'Ouest Ils viennent des lointains pays Fêter avec le Roi Comme ses invités Que ces pèlerins sont bénis Contemplant son saint
+  267 | CI-026 | Quel Sauveur | stanza 1 Strophe 1 :: titre repete dans le texte :: Quel sauveur merveilleux je possède. Il s'est sacrifié pour moi ; Et sa vie innocente il céda Pour mourir sur l'infâme bois.
+  269 | CI-028 | A L'Ouest Le Soleil Se Couche | stanza 1 Strophe 1 :: titre repete dans le texte :: A l'ouest le soleil se couche Il arrive à la fin de sa course Et je vois combien ce temps est là Oh ! le temps du coucher du soleil.
+  271 | CI-030 | Fils De Dieu En Avant | stanza 1 Strophe 1 :: titre repete dans le texte :: Fils de Dieu en avant, dans la puissance du Saint Esprit Fils de Dieu en avant car Jésus est toujours le même Fils de Dieu en avant, Nous avons la pui
+  272 | CI-031 | Si Riche, Si Profond | stanza 1 Strophe 1 :: titre repete dans le texte :: Si riche, si profond, insondable C'est l'amour divin L'Amour rédempteur.
+  275 | CI-034 | Souriant, Souriant | stanza 1 Strophe 1 :: titre repete dans le texte :: Souriant, souriant, Le chrétien croit tout Et accepte tout Souriant, souriant Le chrétien prend tout Par le bon bout.
+  276 | CI-035 | Emmanuel, Emmanuel | stanza 1 Strophe 1 :: titre repete dans le texte :: Emmanuel, Emmanuel. Et Il d'appelle, Emmanuel, Dieu Avec nous, c'est le Seigneur Et il s'appelle, Emmanuel.
+  277 | CI-036 | Dieu Soit Avec Vous | stanza 1 Strophe 1 :: titre repete dans le texte :: Dieu soit avec vous jusqu'au revoir, par ses conseils nous soutenant, Dans sa bergerie vous gardant, Dieu soit avec vous jusqu'au revoir !
+  277 | CI-036 | Dieu Soit Avec Vous | stanza 3 Strophe 2 :: titre repete dans le texte :: Dieu soit avec vous jusqu'au revoir. Vous protégeant sous ses ailes, vous donnant la manne quotidienne. Dieu soit avec vous jusqu'à nous revoir.
+  277 | CI-036 | Dieu Soit Avec Vous | stanza 5 Strophe 3 :: titre repete dans le texte :: Dieu soit avec vous jusqu'au revoir. Quand les périls vous confondent, Tenez ses bras infaillibles. Dieu soit avec vous jusqu'au revoir.
+  277 | CI-036 | Dieu Soit Avec Vous | stanza 7 Strophe 4 :: titre repete dans le texte :: Dieu soit avec vous jusqu'au revoir. Flottant sur vous sa bannière. Eloignant de vous la crainte. Dieu soit avec vous jusqu'au revoir !
+  286 | CI-045 | Veilleras-Tu Avec Moi ? | stanza 1 Strophe 1 :: titre repete dans le texte :: Veilleras-tu avec moi une heure ? Comme je vais là-bas Comme je vais là-bas Veilleras-tu avec moi une heure ? Pendant que je vais prier ?
+  287 | CI-046 | Je Suis Un Vainqueur | stanza 1 Strophe 1 :: titre repete dans le texte :: Je suis un vainqueur Je suis un vainqueur Je suis un vainqueur Je suis un vainqueur Car j'aime Jésus Il est mon sauveur Il me sourit et m'aime aussi.
+  302 | CI-061 | C'Est Le Vieux Bateau De Sion | stanza 1 Strophe 1 :: titre repete dans le texte :: C'est le vieux bateau de Sion, C'est le vieux bateau de Sion, C'est le vieux bateau de Sion, Embarquez, embarquez.
+  ... 260 autres
+
+SCAN DES PDF CANTIQUES
+--------------------------------------------------------------------------------
+cantiques\Cantiques Crois seulement.pdf: 124 cantiques parses
+  #27 CS-27. Plus Tard.                                       F stanzas=12
+    01 lines=4 chars=158 :: Tentés, éprouvés, nous nous demandons
+Pourquoi  c'est ainsi le long du jour,
+Pendant qu'il y en a d'autres autour de nous,
+Quoique dans le m
+    02 lines=6 chars=215 :: Chœur:
+Plus tard nous saurons ce qu'il en est,
+Plus tard nous comprendrons le pourquoi,
+Courage, mon frère, vis dans la lumière,
+Nous compre
+    03 lines=11 chars=421 :: Laissant notre maison solitaire;
+Alors nous nous demandons bien pourquoi
+Les méchants prospèrent jour après jour.
+Fidèles jusqu'à la mort, d
+    04 lines=6 chars=215 :: Chœur:
+Plus tard nous saurons ce qu'il en est,
+Plus tard nous comprendrons le pourquoi,
+Courage, mon frère, vis dans la lumière,
+Nous compre
+    05 lines=6 chars=199 :: REMPLIS-MOI D'AMOUR.                Ab
+Laisse-moi marcher, Seigneur, par où
+Tu es passé,
+Chemin conduisant vers le ciel,
+Partout donnant la 
+    06 lines=6 chars=215 :: Chœur:
+Plus tard nous saurons ce qu'il en est,
+Plus tard nous comprendrons le pourquoi,
+Courage, mon frère, vis dans la lumière,
+Nous compre
+    07 lines=4 chars=155 :: Garde-moi à côté de mon Sauveur et  Guide,
+Ne me laisse pas dans les ténèbres,
+Garde-moi du courroux et satisfais mon âme,
+Remplis-moi chaqu
+    08 lines=6 chars=215 :: Chœur:
+Plus tard nous saurons ce qu'il en est,
+Plus tard nous comprendrons le pourquoi,
+Courage, mon frère, vis dans la lumière,
+Nous compre
+    09 lines=5 chars=215 :: Bientôt finie la course, la fin de mon voyage,
+J'habiterai au Ciel chez moi;
+Que je chante, Roi béni, sur la route vers la rive,
+Remplis-moi
+    10 lines=6 chars=215 :: Chœur:
+Plus tard nous saurons ce qu'il en est,
+Plus tard nous comprendrons le pourquoi,
+Courage, mon frère, vis dans la lumière,
+Nous compre
+    11 lines=5 chars=133 :: J'ai résolu de ne plus m'attarder,
+Captivé par le monde;
+Choses qui sont plus hautes, choses
+qui sont plus nobles,
+Ont attiré ma vue.
+    12 lines=6 chars=215 :: Chœur:
+Plus tard nous saurons ce qu'il en est,
+Plus tard nous comprendrons le pourquoi,
+Courage, mon frère, vis dans la lumière,
+Nous compre
+cantiques\Cantiques-Ins.pdf: 272 cantiques parses
+  #270 CI-270. Amour Si Merveilleux stanzas=8
+    01 lines=5 chars=151 :: Que Dieu aima un pécheur tel que moi
+Au point de changer ma
+tristesse en joie
+Aucun repos jusqu'à ce qu'il m'ait ramené
+Quel merveilleux amo
+    02 lines=4 chars=103 :: Refrain:
+Amour si merveilleux (x2)
+Que Dieu aima un pécheur tel que moi
+Quel merveilleux amour est cela
+    03 lines=4 chars=148 :: Que Christ descende volontiers sur la terre
+Sachant qu'il devrait mourir au calvaire
+Pouvez-vous trouver un acte si bon
+Que cet amour divin 
+    04 lines=4 chars=103 :: Refrain:
+Amour si merveilleux (x2)
+Que Dieu aima un pécheur tel que moi
+Quel merveilleux amour est cela
+    05 lines=4 chars=148 :: Et pour un pauvre pécheur tel que moi
+Le Père sacrifia son fils sur la croix
+Rédemption pour un esclave coupable
+Qui longtemps défia toutes 
+    06 lines=4 chars=103 :: Refrain:
+Amour si merveilleux (x2)
+Que Dieu aima un pécheur tel que moi
+Quel merveilleux amour est cela
+    07 lines=4 chars=145 :: Et maintenant il me prend sur son cœur
+Me traitant en fils et non serviteur
+Tous mes anciens soucis sont loin déjà
+Tout grand il m'ouvre ses
+    08 lines=4 chars=103 :: Refrain:
+Amour si merveilleux (x2)
+Que Dieu aima un pécheur tel que moi
+Quel merveilleux amour est cela
+cantiques\Cantique Pene Na Yo.pdf: 142 cantiques parses
+  #27 PN-27. Kamata Nkombo Na Yesu stanzas=8
+    01 lines=4 chars=87 :: Kamata Nkombo na Yesu,
+Mwana'a mawa mpe mpasi;
+Ekopesa yo esengo,
+Bipai binso okokende.
+    02 lines=5 chars=107 :: Chœur:
+Nkombo oyo, kitoko,
+Elikya ya nse, esengo ya lola;
+Nkombo oyo kitoko,
+Elikya ya nse, esengo ya lola.
+    03 lines=4 chars=83 :: Kamata Nkombo na Yesu,
+Lokola nguba na yo;
+Na mimekano tangaka,
+Yango na mabondeli.
+    04 lines=5 chars=107 :: Chœur:
+Nkombo oyo, kitoko,
+Elikya ya nse, esengo ya lola;
+Nkombo oyo kitoko,
+Elikya ya nse, esengo ya lola.
+    05 lines=4 chars=79 :: Nkombo kitoko na Yesu,
+Epesi biso'esengo;
+Ekoyambaka Ye biso,
+Tokoyembelaka Ye.
+    06 lines=5 chars=107 :: Chœur:
+Nkombo oyo, kitoko,
+Elikya ya nse, esengo ya lola;
+Nkombo oyo kitoko,
+Elikya ya nse, esengo ya lola.
+    07 lines=4 chars=78 :: Tokongumbamela Yesu,
+Kopesa Ye motole,
+Ya Mokonzi na bakonzi,
+Ekosila mobembo.
+    08 lines=5 chars=107 :: Chœur:
+Nkombo oyo, kitoko,
+Elikya ya nse, esengo ya lola;
+Nkombo oyo kitoko,
+Elikya ya nse, esengo ya lola.

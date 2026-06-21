@@ -1,0 +1,36 @@
+AUDIT CANTIQUES - APRES NETTOYAGE
+Total cantiques: 1013
+Total strophes/refrains: 5838
+Index FTS strophes/refrains: 5838
+Cantiques AD-FOLDER: 468
+Entetes source restants probables AD-FOLDER: 0
+Blocs numerotes composes restants probables AD-FOLDER: 0
+Marqueurs internes au milieu du texte restants probables AD-FOLDER: 0
+
+CS-027:
+  01 | Strophe 1 | chorus=0 | Tentés, éprouvés, nous nous demandons Pourquoi c'est ainsi le long du jour, Pendant qu'il y en a d'autres autour de nous, Quoique dans le ma
+  02 | Refrain | chorus=1 | Chœur: Plus tard nous saurons ce qu'il en est, Plus tard nous comprendrons le pourquoi, Courage, mon frère, vis dans la lumière, Nous compre
+  03 | Strophe 2 | chorus=0 | Quand la mort vient et prend nos bien-aimés, Laissant notre maison solitaire; Alors nous nous demandons bien pourquoi Les méchants prospèren
+  04 | Refrain 2 | chorus=1 | Chœur: Plus tard nous saurons ce qu'il en est, Plus tard nous comprendrons le pourquoi, Courage, mon frère, vis dans la lumière, Nous compre
+  05 | Strophe 3 | chorus=0 | Fidèles jusqu'à la mort, dit le Maître, Notre labeur est bientôt finie; Les peines du chemin seront oubliées Quand nous franchirons la belle
+  06 | Refrain 3 | chorus=1 | Chœur: Plus tard nous saurons ce qu'il en est, Plus tard nous comprendrons le pourquoi, Courage, mon frère, vis dans la lumière, Nous compre
+  07 | Strophe 4 | chorus=0 | Nous verrons Jésus venir dans la gloire, Quand Il vient de Sa maison céleste, Nous Le rencontrerons dans ce palais, Nous comprendrons tout d
+  08 | Refrain 4 | chorus=1 | Chœur: Plus tard nous saurons ce qu'il en est, Plus tard nous comprendrons le pourquoi, Courage, mon frère, vis dans la lumière, Nous compre
+
+Exemples verifies:
+  AD-FOLDER-0001 #1 Strophe 1 chorus=0: A Golgotha, Tu meurs pour moi, Dans Ton immense amour Jésus mon Roi, Je viens à Toi, Pour T’aimer à mon tour.
+  AD-FOLDER-0003 #1 Strophe 1 chorus=0: A la croix, à la croix Où j’ai reçu le pardon Le fardeau de mon cœur est ôté Je ne crains rien Car je suis racheté Et je chante à celui Qui m’a sauvé
+  AD-FOLDER-0003 #2 Strophe 2 chorus=0: N’ekulusu, n’ekulusu Epayi na limbisami Mikumba na ngai elongwe Nasombami ngai nakobanga te Mpenakoyembela Mobikisi.
+  AD-FOLDER-0105 #1 Strophe 1 chorus=0: IL M’A SAUVE BENI SOIT SON NOM Il m’a sauvé (il m’a sauvé) béni soit son nom (x3) (Mon Sauveur) soit loué à perpétuité
+  AD-FOLDER-0105 #2 Strophe 2 chorus=0: Je le suivrai (Je le suivrai) toujours avec joie (x3) (Mon Sauveur) soit loué à perpétuité
+  AD-FOLDER-0105 #3 Strophe 3 chorus=0: Dans son amour (dans son amour) Il m’a racheté (x3) (Mon Sauveur) soit loué à perpétuité
+  AD-FOLDER-0105 #4 Strophe 4 chorus=0: Alléluia (Alléluia) Bénis sois son nom (x3) (Mon Sauveur) soit loué à perpétuité
+  AD-FOLDER-0424 #1 Strophe 1 chorus=0: A Dieu soit la gloire (x3) Pour les choses qu’Il a fait To God be the glory To God be the glory To God be the glory For the things He has done
+  CS-027 #1 Strophe 1 chorus=0: Tentés, éprouvés, nous nous demandons Pourquoi c'est ainsi le long du jour, Pendant qu'il y en a d'autres autour de nous, Quoique dans le mal, sont impunis.
+  CS-027 #2 Refrain chorus=1: Chœur: Plus tard nous saurons ce qu'il en est, Plus tard nous comprendrons le pourquoi, Courage, mon frère, vis dans la lumière, Nous comprendrons tout dans peu de temps.
+  CS-027 #3 Strophe 2 chorus=0: Quand la mort vient et prend nos bien-aimés, Laissant notre maison solitaire; Alors nous nous demandons bien pourquoi Les méchants prospèrent jour après jour.
+  CS-027 #4 Refrain 2 chorus=1: Chœur: Plus tard nous saurons ce qu'il en est, Plus tard nous comprendrons le pourquoi, Courage, mon frère, vis dans la lumière, Nous comprendrons tout dans peu de temps.
+  CS-027 #5 Strophe 3 chorus=0: Fidèles jusqu'à la mort, dit le Maître, Notre labeur est bientôt finie; Les peines du chemin seront oubliées Quand nous franchirons la belle porte.
+  CS-027 #6 Refrain 3 chorus=1: Chœur: Plus tard nous saurons ce qu'il en est, Plus tard nous comprendrons le pourquoi, Courage, mon frère, vis dans la lumière, Nous comprendrons tout dans peu de temps.
+  CS-027 #7 Strophe 4 chorus=0: Nous verrons Jésus venir dans la gloire, Quand Il vient de Sa maison céleste, Nous Le rencontrerons dans ce palais, Nous comprendrons tout dans peu de temps.
+  CS-027 #8 Refrain 4 chorus=1: Chœur: Plus tard nous saurons ce qu'il en est, Plus tard nous comprendrons le pourquoi, Courage, mon frère, vis dans la lumière, Nous comprendrons tout dans peu de temps.
