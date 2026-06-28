@@ -133,6 +133,25 @@ class TestPlaylistFeatures(unittest.TestCase):
             self.assertEqual(count, 0)
         print("Undo Check Passed")
 
+    def test_update_item_content_replaces_frozen_slide(self):
+        self.controller.add_to_playlist("custom", "Old Ref", "Old text")
+
+        model = self.controller.playlist_model
+        index = model.index(0, 0)
+        success = self.controller.update_item_content(index, "New Ref", "New text")
+
+        self.assertTrue(success)
+        self.assertEqual(index.data(PlaylistRoles.ReferenceRole), "New Ref")
+        self.assertEqual(index.data(PlaylistRoles.TextRole), "New text")
+        self.assertEqual(index.data(PlaylistRoles.SlideDataRole).reference, "New Ref")
+        self.assertIn("New Ref", model.itemFromIndex(index).text())
+
+        with self.db.connect() as conn:
+            row = conn.execute(
+                "SELECT reference, text FROM playlist_item LIMIT 1"
+            ).fetchone()
+            self.assertEqual(tuple(row), ("New Ref", "New text"))
+
     @unittest.skip("Export/Import deprecated in controller")
     def test_export_import(self):
         print("\n--- Testing Export/Import ---")

@@ -4,6 +4,7 @@ Première version publique 🎉 — logiciel de projection pour églises (Bible,
 
 ## Nouveautés de cette version
 
+- **Correctif 28 juin 2026** : l'édition rapide d'un élément de playlist ne plante plus avec `FrozenInstanceError: cannot assign to field 'reference'`.
 - **Projection cinématique** : nouvelles transitions configurables (Fondu, Glissement, Zoom, Flou, Reveal) avec direction et durée, plus un **zoom lent Ken Burns** sur les images de fond.
 - **Arrière-plans repensés** : symboles nets et clairement chrétiens — **croix, aigle, lion, agneau** — assez sombres pour garder le texte blanc parfaitement lisible.
 - **Sortie OBS** : l'image d'arrière-plan reste stable lors des réglages (correction du bug qui la faisait disparaître) et nouveau réglage de **cadrage** (Remplir / Contenir).

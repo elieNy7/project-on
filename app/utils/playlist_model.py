@@ -264,6 +264,7 @@ class PlaylistModel(QStandardItemModel):
         if not isinstance(item, PlaylistItem) or item.is_folder:
             return False
         item._slide = new_slide
+        item.setText(f"{new_slide.reference}\n{new_slide.text}")
         item.setData(new_slide, PlaylistRoles.SlideDataRole)
         item.setData(new_slide.reference, PlaylistRoles.ReferenceRole)
         item.setData(new_slide.text, PlaylistRoles.TextRole)

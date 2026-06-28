@@ -625,10 +625,14 @@ class ProjectOnController(QObject):
             if item is not None:
                 slide = index.data(PlaylistRoles.SlideDataRole)
                 if slide is not None:
-                    slide.reference = cleaned_ref
-                    slide.text = cleaned_tex
-                    # Refresh icon/text role cache
-                    self._playlist._mark_dirty()
+                    new_slide = Slide(
+                        source=slide.source,
+                        reference=cleaned_ref,
+                        text=cleaned_tex,
+                        background=slide.background,
+                        image_path=slide.image_path,
+                    )
+                    self._playlist.update_slide_data(index, new_slide)
                     
                     # Update live view if currently projecting
                     flat_row = self._playlist.flat_row_from_index(index)
