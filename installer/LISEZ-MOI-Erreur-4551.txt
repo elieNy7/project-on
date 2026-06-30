@@ -18,7 +18,7 @@ SOLUTION 1 — VERSION PORTABLE (la plus simple, recommandée)
 -----------------------------------------------------------
 Aucune installation, donc rien ne s'exécute depuis le dossier temporaire.
 
-  1. Décompressez « ProjectOn_1.2.9_Portable.zip » dans un dossier de
+  1. Décompressez « ProjectOn_1.3.1_Portable.zip » dans un dossier de
      votre choix (ex. C:\Project-On  ou  le Bureau).
   2. Ouvrez le dossier « Project-On » puis double-cliquez sur
      « Project-On.exe ».
