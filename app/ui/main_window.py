@@ -238,6 +238,33 @@ class MainWindow(QMainWindow):
             )
         if hasattr(self.playlist_panel, "undoRequested"):
             self.playlist_panel.undoRequested.connect(self._undo_playlist)
+        if hasattr(self.playlist_panel, "serviceKitRequested"):
+            self.playlist_panel.serviceKitRequested.connect(
+                self._on_service_kit_requested
+            )
+        if hasattr(self.playlist_panel, "exportRequested"):
+            self.playlist_panel.exportRequested.connect(
+                self._on_playlist_export_requested
+            )
+        if hasattr(self.playlist_panel, "importRequested"):
+            self.playlist_panel.importRequested.connect(
+                self._on_playlist_import_requested
+            )
+        if hasattr(self.playlist_panel, "countdownRequested"):
+            self.playlist_panel.countdownRequested.connect(self._start_countdown)
+
+        # Live countdown before the service (local + OBS + NDI outputs)
+        self._countdown_timer = QTimer(self)
+        self._countdown_timer.setInterval(500)
+        self._countdown_timer.timeout.connect(self._on_countdown_tick)
+        self._countdown_deadline: float = 0.0
+        self._countdown_message: str = ""
+        self._countdown_end_message: str = ""
+        self._countdown_last_shown: int = -1
+        # Selecting a playlist slide takes back control of the projection.
+        self._project_controller.currentSlideChanged.connect(
+            lambda _s: self._stop_countdown()
+        )
 
         self.preview_panel.projectToggled.connect(self._toggle_local_projection)
         self.preview_panel.nextRequested.connect(lambda: self._handle_navigation(1))
@@ -870,6 +897,73 @@ class MainWindow(QMainWindow):
         parent = self.playlist_panel.get_selected_folder_index()
         self._project_controller.add_custom_slide(title, text, parent)
 
+    def _on_service_kit_requested(self, folder_name: str, slides: list) -> None:
+        """Crée un dossier « Ordre du culte » avec une slide par élément."""
+        folder_index = self._project_controller.create_folder(folder_name, None)
+        entries = [(str(title), str(text)) for title, text in slides]
+        if entries:
+            # Les slides d'ordre du culte sont courtes et doivent rester entières.
+            self._project_controller.add_many_to_playlist(
+                "custom", entries, folder_index, split=False
+            )
+        self.playlist_panel.select_and_expand_folder(folder_index)
+
+    def _on_playlist_export_requested(self) -> None:
+        """Exporte la playlist courante vers un fichier JSON."""
+        from PyQt6.QtWidgets import QFileDialog
+
+        default_name = f"playlist-{time.strftime('%Y-%m-%d')}.json"
+        path_str, _ = QFileDialog.getSaveFileName(
+            self,
+            tr("playlist_export"),
+            str(Path.home() / default_name),
+            tr("playlist_json_filter"),
+        )
+        if not path_str:
+            return
+        try:
+            self._project_controller.export_playlist(Path(path_str))
+            QMessageBox.information(
+                self,
+                tr("playlist_export"),
+                tr("playlist_export_done", name=Path(path_str).name),
+            )
+        except Exception:
+            QMessageBox.warning(self, tr("playlist_export"), tr("playlist_import_error"))
+
+    def _on_playlist_import_requested(self) -> None:
+        """Importe une playlist JSON (remplace la playlist actuelle)."""
+        from PyQt6.QtWidgets import QFileDialog
+
+        if self._project_controller.playlist_model.flat_row_count() > 0:
+            answer = QMessageBox.question(
+                self,
+                tr("playlist_import_confirm_title"),
+                tr("playlist_import_confirm_msg"),
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                return
+
+        path_str, _ = QFileDialog.getOpenFileName(
+            self,
+            tr("playlist_import"),
+            str(Path.home()),
+            tr("playlist_json_filter"),
+        )
+        if not path_str:
+            return
+        try:
+            self._project_controller.import_playlist(Path(path_str))
+            QMessageBox.information(
+                self,
+                tr("playlist_import"),
+                tr("playlist_import_done", name=Path(path_str).name),
+            )
+        except Exception:
+            QMessageBox.warning(self, tr("playlist_import"), tr("playlist_import_error"))
+
     def _on_custom_slides_requested(
         self, title: str, texts: list, split: bool
     ) -> None:
@@ -879,8 +973,60 @@ class MainWindow(QMainWindow):
             title, list(texts), parent, split=split
         )
 
+    # ── Countdown before the service ─────────────────────────────────────
+
+    def _start_countdown(self, message: str, seconds: int, end_message: str) -> None:
+        """Diffuse un compte à rebours en direct sur toutes les sorties."""
+        self._countdown_message = str(message)
+        self._countdown_end_message = str(end_message)
+        self._countdown_deadline = time.monotonic() + max(1, int(seconds))
+        self._countdown_last_shown = -1
+
+        # Make sure the projection is not hidden, otherwise nothing shows.
+        writer = self._project_controller.slide_writer
+        if writer.is_hidden:
+            writer.set_hidden(False)
+            self.preview_panel.set_hidden(False)
+            self.status_bar.set_hidden(False)
+
+        self._countdown_timer.start()
+        self._on_countdown_tick()
+
+    def _stop_countdown(self) -> None:
+        if self._countdown_timer.isActive():
+            self._countdown_timer.stop()
+
+    def _is_countdown_running(self) -> bool:
+        return self._countdown_timer.isActive()
+
+    def _write_countdown_slide(self, text: str) -> None:
+        from app.utils.models import Slide
+
+        slide = Slide(source="custom", reference=tr("countdown"), text=text)
+        self._project_controller.slide_writer.write(slide)
+        self._obs.update_slide(slide.text, slide.reference, "custom", False, "")
+
+    def _on_countdown_tick(self) -> None:
+        remaining = int(round(self._countdown_deadline - time.monotonic()))
+        if remaining <= 0:
+            self._countdown_timer.stop()
+            self._write_countdown_slide(self._countdown_end_message)
+            return
+        # Only rewrite the slide when the displayed second changes.
+        if remaining == self._countdown_last_shown:
+            return
+        self._countdown_last_shown = remaining
+        hours, rest = divmod(remaining, 3600)
+        minutes, secs = divmod(rest, 60)
+        if hours > 0:
+            clock = f"{hours}:{minutes:02d}:{secs:02d}"
+        else:
+            clock = f"{minutes:02d}:{secs:02d}"
+        self._write_countdown_slide(f"{self._countdown_message}\n{clock}")
+
     def _on_hide_toggled(self, hidden: bool) -> None:
         """Toggle visibility of text on projection and OBS."""
+        self._stop_countdown()
         self._project_controller.slide_writer.set_hidden(hidden)
         self.status_bar.set_hidden(hidden)
         # Also update OBS
@@ -895,6 +1041,7 @@ class MainWindow(QMainWindow):
 
     def _toggle_hide(self) -> None:
         """Toggle hide state via keyboard shortcut."""
+        self._stop_countdown()
         hidden = self._project_controller.slide_writer.toggle_hidden()
         self.preview_panel.set_hidden(hidden)
         self.status_bar.set_hidden(hidden)

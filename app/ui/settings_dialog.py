@@ -362,6 +362,7 @@ class ProjectionSettingsDialog(QDialog):
         self._align = QComboBox()
         self._align.addItem("Centré", "center")
         self._align.addItem("Gauche", "left")
+        self._align.addItem("Droite", "right")
         current_align = (settings.align or "center").lower()
         idx = self._align.findData(current_align)
         self._align.setCurrentIndex(max(idx, 0))

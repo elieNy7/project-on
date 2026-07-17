@@ -1,19 +1,22 @@
-# Project-On 1.3.0
+# Project-On 1.4.0
 
-Première version publique 🎉 — logiciel de projection pour églises (Bible, cantiques, prédications, exposés), avec sortie OBS et projection plein écran.
+Une version pensée pour les églises : ordre du culte en un clic, compte à rebours en direct, lower-third totalement ajustable et sortie NDI optimisée.
 
 ## Nouveautés de cette version
 
-- **Correctif 28 juin 2026** : l'édition rapide d'un élément de playlist ne plante plus avec `FrozenInstanceError: cannot assign to field 'reference'`.
-- **Projection cinématique** : nouvelles transitions configurables (Fondu, Glissement, Zoom, Flou, Reveal) avec direction et durée, plus un **zoom lent Ken Burns** sur les images de fond.
-- **Arrière-plans repensés** : symboles nets et clairement chrétiens — **croix, aigle, lion, agneau** — assez sombres pour garder le texte blanc parfaitement lisible.
-- **Sortie OBS** : l'image d'arrière-plan reste stable lors des réglages (correction du bug qui la faisait disparaître) et nouveau réglage de **cadrage** (Remplir / Contenir).
-- Interface simplifiée : retrait de l'écran de confiance (Stage).
+- **Ordre du culte** : générez en un clic un dossier de playlist complet — accueil, louange, prière, lecture biblique, prédication, offrande & dîme, annonces (numérotées automatiquement), Sainte-Cène, baptême, présentation d'enfant, bénédiction — avec le thème, le prédicateur et le nom de l'église.
+- **Compte à rebours avant le culte** : décompte affiché en direct sur la projection locale, OBS et NDI (message, durée et message de fin configurables). S'arrête automatiquement à zéro sur le message d'accueil ; un clic sur une slide reprend la main.
+- **Lower-third totalement ajustable** : décalage horizontal/vertical au pixel près, placement du bandeau (gauche / centre / droite), marge des bords, alignement du texte à droite, badge de source et barre d'accent activables, couleur d'accent automatique par source ou personnalisée.
+- **Préréglages église** dans les réglages OBS : *Église — Culte*, *Sainte-Cène — Discret*, *Louange — Impact*.
+- **Sortie NDI améliorée** : consommation CPU fortement réduite (rendu uniquement au changement de slide), et prise en charge des mêmes réglages que l'OBS (position, dégradé, fond désactivé, majuscules, opacité, accents fidèles aux couleurs de l'application).
+- **Export / Import de playlist** au format JSON, pour préparer le culte sur un poste et le projeter sur un autre.
+- **Projection locale** : alignement du texte à droite désormais disponible.
 
 ## Installation
 
-Téléchargez **`ProjectOn_1.3.0_Setup.exe`** ci-dessous et lancez-le.
+Téléchargez **`ProjectOn_1.4.0_Setup.exe`** ci-dessous et lancez-le.
 Si Windows affiche **SmartScreen** : « Informations complémentaires » → « Exécuter quand même ».
+Si l'installeur est bloqué (erreur 4551), utilisez **`ProjectOn_1.4.0_Portable.zip`** : décompressez et lancez `Project-On.exe`.
 
 Windows 10 / 11 (64 bits) · ~500 Mo · fonctionne hors-ligne.
 

@@ -29,7 +29,9 @@ set "INNO_LOG=%LOG_DIR%\inno_setup.log"
 set "DO_CLEAN=1"
 set "RUN_PYINSTALLER=1"
 set "RUN_INNO=1"
+set "DO_SIGN=1"
 set "PYTHON_ARGS="
+set "SIGN_PS1=installer\sign.ps1"
 
 for %%A in (%*) do (
     if /I "%%~A"=="--help" goto :help
@@ -37,6 +39,7 @@ for %%A in (%*) do (
     if /I "%%~A"=="--no-clean" set "DO_CLEAN=0"
     if /I "%%~A"=="--skip-pyinstaller" set "RUN_PYINSTALLER=0"
     if /I "%%~A"=="--skip-installer" set "RUN_INNO=0"
+    if /I "%%~A"=="--no-sign" set "DO_SIGN=0"
 )
 
 pushd "%ROOT_DIR%" || (
@@ -124,6 +127,7 @@ if "%RUN_PYINSTALLER%%RUN_INNO%"=="00" (
     if errorlevel 1 goto :fail
     call :audit_dist
     if errorlevel 1 goto :fail
+    call :sign_file "%APP_EXE%" "Application Project-On.exe"
 )
 
 if "%RUN_INNO%"=="1" (
@@ -143,6 +147,8 @@ if "%RUN_INNO%"=="1" (
 call :find_installer
 if errorlevel 1 goto :fail
 
+if "%RUN_INNO%"=="1" call :sign_file "%INSTALLER_PATH%" "Installeur"
+
 echo.
 echo ================================================================
 echo   Build termine avec succes.
@@ -161,11 +167,14 @@ echo Options:
 echo   --no-clean           Ne supprime pas build\ et dist\
 echo   --skip-pyinstaller   Reutilise dist\Project-On deja genere
 echo   --skip-installer     Genere seulement dist\Project-On
+echo   --no-sign            Ne signe pas l'application ni l'installeur
 echo   --help               Affiche cette aide
 echo.
 echo Variables optionnelles:
 echo   PYTHON_EXE=chemin\python.exe
 echo   ISCC_EXE=chemin\ISCC.exe
+echo   SIGN_THUMBPRINT=empreinte du certificat de signature ^(sinon auto^)
+echo   SIGN_TIMESTAMP_URL=serveur d'horodatage ^(defaut DigiCert^)
 echo.
 exit /b 0
 
@@ -176,6 +185,37 @@ if not exist "%CHECK_PATH%" (
     echo [ERROR] %CHECK_LABEL% introuvable:
     echo         "%CHECK_PATH%"
     exit /b 1
+)
+exit /b 0
+
+rem ----------------------------------------------------------------
+rem  Signe un fichier avec le certificat de Project-On (non bloquant).
+rem  Une signature absente/echouee n'interrompt PAS le build : elle
+rem  ameliore la confiance (editeur + horodatage) mais n'est pas
+rem  indispensable pour produire l'installeur.
+rem  NOTE: un certificat auto-signe ne satisfait PAS Smart App Control
+rem  de Windows ; seul un certificat EV ou le Microsoft Store le font.
+rem ----------------------------------------------------------------
+:sign_file
+set "SIGN_TARGET=%~1"
+set "SIGN_LABEL=%~2"
+if "%DO_SIGN%"=="0" (
+    echo [SKIP] Signature ignoree ^(--no-sign^): %SIGN_LABEL%.
+    exit /b 0
+)
+if not exist "%SIGN_PS1%" (
+    echo [WARN] Script de signature introuvable: %SIGN_PS1% ^(signature ignoree^).
+    exit /b 0
+)
+echo [SIGN] !SIGN_LABEL! ...
+powershell -NoProfile -ExecutionPolicy Bypass -File "%SIGN_PS1%" "%SIGN_TARGET%"
+set "SIGN_RC=!errorlevel!"
+if "!SIGN_RC!"=="0" (
+    echo [SIGN] !SIGN_LABEL! : OK.
+) else if "!SIGN_RC!"=="2" (
+    echo [WARN] !SIGN_LABEL! : aucun certificat de signature, build poursuivi non signe.
+) else (
+    echo [WARN] !SIGN_LABEL! : signature non appliquee, rc=!SIGN_RC!, build poursuivi.
 )
 exit /b 0
 

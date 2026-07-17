@@ -38,6 +38,9 @@
     --padding-v: 26px;
     --max-width: 82%;
     --border-radius: 22px;
+    --edge-margin: 64px;
+    --offset-x: 0px;
+    --offset-y: 0px;
 
     /* Effects */
     --text-shadow: 0 3px 14px rgba(0, 0, 0, 0.54), 0 14px 34px rgba(0, 0, 0, 0.22);
@@ -70,13 +73,23 @@ body {
     justify-content: flex-end;
     align-items: center;
     pointer-events: none;
-    padding: 64px;
+    padding: var(--edge-margin, 64px);
     box-sizing: border-box;
 }
 
 #root.position-top    { justify-content: flex-start; }
 #root.position-center { justify-content: center; }
 #root.align-left      { align-items: flex-start; }
+
+/* Horizontal placement of the whole band (independent of text align) */
+#root.band-left   { align-items: flex-start; }
+#root.band-right  { align-items: flex-end; }
+#root.band-center { align-items: center; }
+
+/* Hide decorations on demand (fully adjustable lower third) */
+#root.kicker-hidden .lt-kicker { display: none !important; }
+#root.accent-hidden .lt-accent-strip,
+#root.accent-hidden .lt-body::before { display: none !important; }
 
 #root.background-disabled .lower-third {
     filter: none;
@@ -101,12 +114,15 @@ body {
    ================================================================ */
 .lower-third {
     width: var(--max-width);
-    max-width: calc(100vw - 128px);
+    max-width: calc(100vw - (var(--edge-margin, 64px) * 2));
     position: relative;
     z-index: 2;
     filter: drop-shadow(var(--container-shadow));
     display: none;
     transform-origin: center bottom;
+    /* transform (not `translate`) for older OBS/CEF compatibility; slide
+       animations run on the inner wrapper so there is no conflict. */
+    transform: translate(var(--offset-x, 0px), var(--offset-y, 0px));
 }
 
 .lower-third.visible {
@@ -143,8 +159,8 @@ body {
     align-items: stretch;
     gap: 0;
     min-width: 390px;
-    max-width: calc(100vw - 128px);
-    max-height: calc(100vh - 128px);
+    max-width: calc(100vw - (var(--edge-margin, 64px) * 2));
+    max-height: calc(100vh - (var(--edge-margin, 64px) * 2));
 
     box-shadow:
         inset 0 1px 0 rgba(255, 255, 255, 0.11),

@@ -132,6 +132,10 @@ class PlaylistPanel(QFrame):
     duplicateRequested = pyqtSignal(object)  # index
     editRequested = pyqtSignal(object)  # index
     undoRequested = pyqtSignal()
+    serviceKitRequested = pyqtSignal(str, list)  # folder name, [(title, text)]
+    exportRequested = pyqtSignal()
+    importRequested = pyqtSignal()
+    countdownRequested = pyqtSignal(str, int, str)  # message, seconds, end message
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -223,9 +227,25 @@ class PlaylistPanel(QFrame):
         self.folder_button = PlaylistToolButton(
             "folder-open.svg", tr("new_folder"), toolbar
         )
+        self.church_button = PlaylistToolButton(
+            "church.svg", tr("church_service_tooltip"), toolbar
+        )
+        self.countdown_button = PlaylistToolButton(
+            "clock.svg", tr("countdown_tooltip"), toolbar
+        )
+        self.export_button = PlaylistToolButton(
+            "download.svg", tr("playlist_export"), toolbar
+        )
+        self.import_button = PlaylistToolButton(
+            "upload.svg", tr("playlist_import"), toolbar
+        )
 
         toolbar_layout.addWidget(self.custom_slide_button)
         toolbar_layout.addWidget(self.folder_button)
+        toolbar_layout.addWidget(self.church_button)
+        toolbar_layout.addWidget(self.countdown_button)
+        toolbar_layout.addWidget(self.export_button)
+        toolbar_layout.addWidget(self.import_button)
 
         self._folder_combo = QComboBox(toolbar)
         self._folder_combo.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -317,6 +337,10 @@ class PlaylistPanel(QFrame):
         self.clear_button.clicked.connect(self._on_clear_clicked)
         self.folder_button.clicked.connect(self._on_folder_clicked)
         self.custom_slide_button.clicked.connect(self._on_custom_slide_clicked)
+        self.church_button.clicked.connect(self._on_church_service_clicked)
+        self.countdown_button.clicked.connect(self._on_countdown_clicked)
+        self.export_button.clicked.connect(self.exportRequested.emit)
+        self.import_button.clicked.connect(self.importRequested.emit)
 
         # Keyboard shortcuts
         self._delete_shortcut = QShortcut(QKeySequence.StandardKey.Delete, self)
@@ -697,6 +721,25 @@ class PlaylistPanel(QFrame):
                 self.customSlidesRequested.emit(
                     title.strip() or tr("custom_slide_default"), texts, split
                 )
+
+    def _on_church_service_clicked(self) -> None:
+        from app.ui.church_service_dialog import ChurchServiceDialog
+
+        dialog = ChurchServiceDialog(self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        slides = dialog.get_slides()
+        if slides:
+            self.serviceKitRequested.emit(dialog.get_folder_name(), slides)
+
+    def _on_countdown_clicked(self) -> None:
+        from app.ui.countdown_dialog import CountdownDialog
+
+        dialog = CountdownDialog(self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        message, seconds, end_message = dialog.get_config()
+        self.countdownRequested.emit(message, seconds, end_message)
 
     def _on_conference_slide_clicked(self) -> None:
         dialog = ConferenceSlideDialog(self)

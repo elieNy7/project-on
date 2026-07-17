@@ -487,6 +487,8 @@ class ProjectionWindow(QWidget):
         horizontal_align = (
             Qt.AlignmentFlag.AlignHCenter
             if align == "center"
+            else Qt.AlignmentFlag.AlignRight
+            if align == "right"
             else Qt.AlignmentFlag.AlignLeft
         )
         vertical_align = (
@@ -826,7 +828,7 @@ class ProjectionWindow(QWidget):
         text_html = escape(text).replace("\n", "<br>")
         ref_html = escape(ref).replace("\n", "<br>")
 
-        css_align = "center" if align == "center" else "left"
+        css_align = align if align in ("center", "right") else "left"
 
         # Simple presentation shadow only when enabled.
         shadow_css = ""

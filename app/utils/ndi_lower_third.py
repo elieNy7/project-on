@@ -257,7 +257,7 @@ class NdiLowerThirdConfig:
     font_family: str = "Google Sans"
     text_size: int = 48
     ref_size: int = 24
-    align: str = "center"  # center|left
+    align: str = "center"  # center|left|right
     show_reference: bool = True
     bg_color: str = "rgba(0, 0, 0, 0.75)"
     bg_opacity: float = 0.88
@@ -268,6 +268,21 @@ class NdiLowerThirdConfig:
     padding_vertical: int = 26
     border_radius: int = 22
     line_height: float = 1.16
+    # Parity with the OBS web overlay (fully adjustable lower third)
+    position: str = "bottom"  # bottom|top|center
+    band_align: str = "center"  # left|center|right
+    offset_x: int = 0
+    offset_y: int = 0
+    edge_margin: int = 64
+    bg_enabled: bool = True
+    bg_gradient_enabled: bool = False
+    bg_color_2: str = ""
+    text_transform: str = "none"  # none|uppercase
+    text_shadow: bool = True
+    show_accent_bar: bool = True
+    accent_mode: str = "auto"  # auto|custom
+    accent_color: str = "#74a7f8"
+    opacity: float = 1.0
 
 
 class NdiLowerThirdSender:
@@ -402,6 +417,42 @@ class NdiLowerThirdSender:
             out.line_height = float(cfg.get("line_height") or out.line_height)
         except Exception:
             pass
+        # Parity fields with the OBS web overlay
+        out.position = str(cfg.get("position") or out.position).lower()
+        out.band_align = str(cfg.get("band_align") or out.band_align).lower()
+        for attr in ("offset_x", "offset_y"):
+            try:
+                setattr(out, attr, int(cfg.get(attr) or 0))
+            except Exception:
+                pass
+        try:
+            if cfg.get("edge_margin") is not None:
+                out.edge_margin = max(0, int(cfg.get("edge_margin")))
+        except Exception:
+            pass
+        out.bg_enabled = bool(
+            cfg.get("bg_enabled") if "bg_enabled" in cfg else out.bg_enabled
+        )
+        out.bg_gradient_enabled = bool(cfg.get("bg_gradient_enabled"))
+        out.bg_color_2 = str(cfg.get("bg_color_2") or "")
+        out.text_transform = str(cfg.get("text_transform") or out.text_transform)
+        out.text_shadow = bool(
+            cfg.get("text_shadow") if "text_shadow" in cfg else out.text_shadow
+        )
+        out.show_accent_bar = bool(
+            cfg.get("show_accent_bar")
+            if "show_accent_bar" in cfg
+            else out.show_accent_bar
+        )
+        out.accent_mode = str(cfg.get("accent_mode") or out.accent_mode)
+        out.accent_color = str(cfg.get("accent_color") or out.accent_color)
+        try:
+            out.opacity = max(
+                0.0,
+                min(1.0, float(cfg.get("opacity") if "opacity" in cfg else out.opacity)),
+            )
+        except Exception:
+            pass
         return out
 
     def _render(self, slide: dict[str, Any] | None) -> Any:
@@ -418,6 +469,10 @@ class NdiLowerThirdSender:
         ref = str(slide.get("reference") or "")
         if not text.strip() and not ref.strip():
             return self._np.zeros((self._height, self._width, 4), dtype=self._np.uint8)
+
+        if str(cfg.text_transform).lower() == "uppercase":
+            text = text.upper()
+            ref = ref.upper()
 
         img = Image.new("RGBA", (self._width, self._height), (0, 0, 0, 0))
         draw = ImageDraw.Draw(img)
@@ -447,15 +502,20 @@ class NdiLowerThirdSender:
         text_fill = _parse_rgba_tuple(cfg.text_color, (255, 255, 255, 242))
         ref_fill = _parse_rgba_tuple(cfg.ref_color, (255, 255, 255, 178))
         source = str(slide.get("source") or "custom").lower()
+        # Canonical palette — mirrors theme.Colors.SRC_* and obs-style.css .source-*
         accents = {
             "bible": ((86, 214, 129, 245), (181, 243, 202, 220)),
-            "hymn": ((216, 170, 90, 245), (242, 210, 140, 220)),
-            "sermon": ((116, 167, 248, 245), (207, 224, 255, 220)),
-            "expose": ((116, 167, 248, 245), (207, 224, 255, 220)),
-            "custom": ((185, 151, 255, 245), (241, 221, 255, 220)),
-            "image": ((185, 151, 255, 245), (241, 221, 255, 220)),
+            "sermon": ((224, 160, 68, 245), (255, 217, 160, 220)),
+            "hymn": ((185, 151, 255, 245), (232, 220, 255, 220)),
+            "expose": ((0, 172, 193, 245), (127, 228, 239, 220)),
+            "custom": ((116, 167, 248, 245), (207, 224, 255, 220)),
+            "image": ((130, 123, 112, 245), (228, 222, 212, 220)),
         }
         accent, accent_2 = accents.get(source, accents["custom"])
+        if str(cfg.accent_mode).lower() == "custom":
+            custom = _parse_rgba_tuple(cfg.accent_color, accent)
+            accent = (custom[0], custom[1], custom[2], 245)
+            accent_2 = (custom[0], custom[1], custom[2], 220)
 
         line_spacing = max(4, int(cfg.text_size * (cfg.line_height - 1) * 0.72))
         bbox = draw.multiline_textbbox(
@@ -482,54 +542,118 @@ class NdiLowerThirdSender:
         box_h = text_h + ref_badge_h + divider_gap + pad_y * 2
         box_h = max(box_h, 136)
 
-        box_x = int((self._width - box_w) / 2)
-        box_y = self._height - box_h - 64
-        radius = max(16, min(48, int(cfg.border_radius or 22)))
+        # ── Band placement (position + band_align + fine offsets) ──────
+        margin = max(0, int(cfg.edge_margin))
+        band_align = str(cfg.band_align).lower()
+        if band_align == "left":
+            box_x = margin
+        elif band_align == "right":
+            box_x = self._width - box_w - margin
+        else:
+            box_x = int((self._width - box_w) / 2)
 
-        bg = _parse_rgba_tuple(cfg.bg_color, (8, 15, 28, int(0.82 * 255)))
-        bg = (bg[0], bg[1], bg[2], int(255 * max(0.0, min(1.0, cfg.bg_opacity))))
+        position = str(cfg.position).lower()
+        if position == "top":
+            box_y = margin
+        elif position == "center":
+            box_y = int((self._height - box_h) / 2)
+        else:
+            box_y = self._height - box_h - margin
 
-        for offset, alpha in ((18, 34), (8, 48)):
-            draw.rounded_rectangle(
-                [box_x, box_y + offset, box_x + box_w, box_y + box_h + offset],
-                radius=radius,
-                fill=(0, 0, 0, alpha),
-            )
-        draw.rounded_rectangle(
-            [box_x, box_y, box_x + box_w, box_y + box_h],
-            radius=radius,
-            fill=bg,
-        )
-        draw.rounded_rectangle(
-            [box_x + pad_x, box_y + box_h - 2, box_x + box_w - pad_x, box_y + box_h],
-            radius=2,
-            fill=accent_2,
-        )
+        box_x += int(cfg.offset_x)
+        box_y += int(cfg.offset_y)
+        box_x = max(-box_w, min(self._width, box_x))
+        box_y = max(-box_h, min(self._height, box_y))
+
+        radius = max(0, min(48, int(cfg.border_radius or 22)))
+
+        if cfg.bg_enabled:
+            bg = _parse_rgba_tuple(cfg.bg_color, (8, 15, 28, int(0.82 * 255)))
+            bg_alpha = int(255 * max(0.0, min(1.0, cfg.bg_opacity)))
+            bg = (bg[0], bg[1], bg[2], bg_alpha)
+
+            for offset, alpha in ((18, 34), (8, 48)):
+                draw.rounded_rectangle(
+                    [box_x, box_y + offset, box_x + box_w, box_y + box_h + offset],
+                    radius=radius,
+                    fill=(0, 0, 0, alpha),
+                )
+
+            if cfg.bg_gradient_enabled and cfg.bg_color_2.strip():
+                # Vertical two-colour gradient inside a rounded-corner mask.
+                bg2 = _parse_rgba_tuple(cfg.bg_color_2, bg)
+                bg2 = (bg2[0], bg2[1], bg2[2], bg_alpha)
+                grad = Image.new("RGBA", (1, max(2, box_h)))
+                for gy in range(grad.height):
+                    t = gy / (grad.height - 1)
+                    grad.putpixel(
+                        (0, gy),
+                        (
+                            int(bg[0] + (bg2[0] - bg[0]) * t),
+                            int(bg[1] + (bg2[1] - bg[1]) * t),
+                            int(bg[2] + (bg2[2] - bg[2]) * t),
+                            bg_alpha,
+                        ),
+                    )
+                grad = grad.resize((max(1, box_w), max(2, box_h)))
+                mask = Image.new("L", grad.size, 0)
+                ImageDraw.Draw(mask).rounded_rectangle(
+                    [0, 0, grad.width - 1, grad.height - 1], radius=radius, fill=255
+                )
+                img.paste(grad, (box_x, box_y), mask)
+            else:
+                draw.rounded_rectangle(
+                    [box_x, box_y, box_x + box_w, box_y + box_h],
+                    radius=radius,
+                    fill=bg,
+                )
+
+            if cfg.show_accent_bar:
+                draw.rounded_rectangle(
+                    [
+                        box_x + pad_x,
+                        box_y + box_h - 2,
+                        box_x + box_w - pad_x,
+                        box_y + box_h,
+                    ],
+                    radius=2,
+                    fill=accent_2,
+                )
 
         accent_x = box_x + pad_x
         accent_y = box_y + pad_y
-        draw.rounded_rectangle(
-            [accent_x, accent_y, accent_x + accent_w, box_y + box_h - pad_y],
-            radius=accent_w,
-            fill=accent,
-        )
+        if cfg.bg_enabled and cfg.show_accent_bar:
+            draw.rounded_rectangle(
+                [accent_x, accent_y, accent_x + accent_w, box_y + box_h - pad_y],
+                radius=accent_w,
+                fill=accent,
+            )
 
         content_x = accent_x + accent_w + accent_gap
         content_y = box_y + pad_y
-        align_mode = "left" if str(cfg.align).lower() == "left" else "center"
-        text_x = content_x if align_mode == "left" else content_x + content_w // 2
-        anchor = None if align_mode == "left" else "ma"
+        cfg_align = str(cfg.align).lower()
+        align_mode = cfg_align if cfg_align in ("left", "right") else "center"
+        if align_mode == "left":
+            text_x = content_x
+            anchor = None
+        elif align_mode == "right":
+            text_x = content_x + content_w
+            anchor = "ra"
+        else:
+            text_x = content_x + content_w // 2
+            anchor = "ma"
 
-        shadow_fill = (0, 0, 0, 132)
-        draw.multiline_text(
-            (text_x + (0 if align_mode == "center" else 2), content_y + 3),
-            wrapped_text,
-            font=font_text,
-            fill=shadow_fill,
-            spacing=line_spacing,
-            align=align_mode,
-            anchor=anchor,
-        )
+        if cfg.text_shadow:
+            shadow_fill = (0, 0, 0, 132)
+            draw.multiline_text(
+                (text_x + (2 if align_mode == "left" else 0), content_y + 3),
+                wrapped_text,
+                font=font_text,
+                fill=shadow_fill,
+                spacing=line_spacing,
+                align=align_mode,
+                anchor=anchor,
+            )
         draw.multiline_text(
             (text_x, content_y),
             wrapped_text,
@@ -549,13 +673,26 @@ class NdiLowerThirdSender:
             )
             badge_y = divider_y + 14
             badge_w = min(content_w, ref_w + 42)
-            badge_x = content_x if align_mode == "left" else content_x + (content_w - badge_w) // 2
+            if align_mode == "left":
+                badge_x = content_x
+            elif align_mode == "right":
+                badge_x = content_x + content_w - badge_w
+            else:
+                badge_x = content_x + (content_w - badge_w) // 2
             draw.rounded_rectangle(
                 [badge_x, badge_y, badge_x + badge_w, badge_y + ref_badge_h],
                 radius=ref_badge_h // 2,
                 fill=(255, 255, 255, 18),
             )
-            ref_x = badge_x + badge_w // 2 if align_mode == "center" else badge_x + 20
+            if align_mode == "center":
+                ref_x = badge_x + badge_w // 2
+                ref_anchor = "ma"
+            elif align_mode == "right":
+                ref_x = badge_x + badge_w - 20
+                ref_anchor = "ra"
+            else:
+                ref_x = badge_x + 20
+                ref_anchor = None
             draw.multiline_text(
                 (ref_x, badge_y + 7),
                 ref_block,
@@ -563,10 +700,15 @@ class NdiLowerThirdSender:
                 fill=ref_fill,
                 spacing=4,
                 align=align_mode,
-                anchor="ma" if align_mode == "center" else None,
+                anchor=ref_anchor,
             )
 
         rgba = self._np.array(img, dtype=self._np.uint8)
+        opacity = max(0.0, min(1.0, float(cfg.opacity)))
+        if opacity < 1.0:
+            rgba[:, :, 3] = (rgba[:, :, 3].astype(self._np.float32) * opacity).astype(
+                self._np.uint8
+            )
         bgra = rgba[:, :, [2, 1, 0, 3]].copy()
         return bgra
 
@@ -583,6 +725,7 @@ class NdiLowerThirdSender:
             (self._height, self._width, 4), dtype=self._np.uint8
         )
 
+        needs_render = True
         while not self._stop.is_set():
             try:
                 cfg_mtime = (
@@ -593,6 +736,7 @@ class NdiLowerThirdSender:
             if cfg_mtime != self._last_cfg_mtime:
                 self._last_cfg_mtime = cfg_mtime
                 self._last_cfg = self._read_json(self._cfg_path) or {}
+                needs_render = True
 
             try:
                 slide_mtime = (
@@ -605,10 +749,18 @@ class NdiLowerThirdSender:
             if slide_mtime != self._last_slide_mtime:
                 self._last_slide_mtime = slide_mtime
                 self._last_payload = self._read_json(self._slide_path)
+                needs_render = True
 
-            frame = self._render(self._last_payload)
-            if frame is not None:
-                last_frame = frame
+            # Only re-render (PIL raster) when the slide or config actually
+            # changed; the same cached frame is streamed at a steady rate.
+            if needs_render:
+                try:
+                    frame = self._render(self._last_payload)
+                except Exception:
+                    frame = None
+                if frame is not None:
+                    last_frame = frame
+                needs_render = False
 
             # Reuse frame object; swap underlying data
             self._video_frame.data = last_frame

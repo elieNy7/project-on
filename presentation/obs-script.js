@@ -132,14 +132,54 @@ function applyConfig(cfg) {
     }
 
     // Position & Align
-    rootEl.classList.remove('position-top', 'position-center', 'align-left', 'align-center');
+    rootEl.classList.remove(
+        'position-top', 'position-center',
+        'align-left', 'align-center', 'align-right',
+        'band-left', 'band-center', 'band-right'
+    );
     if (cfg.position === 'top') rootEl.classList.add('position-top');
     else if (cfg.position === 'center') rootEl.classList.add('position-center');
 
-    const isLeft = cfg.align === 'left';
-    rootEl.classList.add(isLeft ? 'align-left' : 'align-center');
-    root.style.setProperty('--align-flex', isLeft ? 'flex-start' : 'center');
-    root.style.setProperty('--align', isLeft ? 'left' : 'center');
+    const align = (cfg.align === 'left' || cfg.align === 'right') ? cfg.align : 'center';
+    rootEl.classList.add(`align-${align}`);
+    root.style.setProperty(
+        '--align-flex',
+        align === 'left' ? 'flex-start' : align === 'right' ? 'flex-end' : 'center'
+    );
+    root.style.setProperty('--align', align);
+
+    // Horizontal placement of the whole band (falls back to text alignment
+    // so existing configs keep their previous behaviour).
+    const bandAlign = (cfg.band_align === 'left' || cfg.band_align === 'right')
+        ? cfg.band_align
+        : (cfg.band_align === 'center' ? 'center' : align);
+    rootEl.classList.add(`band-${bandAlign}`);
+
+    // Fine offsets & edge margin
+    root.style.setProperty('--offset-x', `${Number(cfg.offset_x || 0)}px`);
+    root.style.setProperty('--offset-y', `${Number(cfg.offset_y || 0)}px`);
+    const edgeMargin = (cfg.edge_margin === undefined || cfg.edge_margin === null)
+        ? 64
+        : Math.max(0, Number(cfg.edge_margin));
+    root.style.setProperty('--edge-margin', `${edgeMargin}px`);
+
+    // Decorations
+    rootEl.classList.toggle('kicker-hidden', cfg.show_kicker === false);
+    rootEl.classList.toggle('accent-hidden', cfg.show_accent_bar === false);
+
+    // Accent colour: auto (per-source CSS classes) or custom override.
+    const lowerThirdEl = document.getElementById('lower-third');
+    if (lowerThirdEl) {
+        if (cfg.accent_mode === 'custom' && cfg.accent_color) {
+            lowerThirdEl.style.setProperty('--source-accent', cfg.accent_color);
+            lowerThirdEl.style.setProperty('--source-accent-2', cfg.accent_color);
+            lowerThirdEl.style.setProperty('--source-glow', applyAlpha(cfg.accent_color, 0.24));
+        } else {
+            lowerThirdEl.style.removeProperty('--source-accent');
+            lowerThirdEl.style.removeProperty('--source-accent-2');
+            lowerThirdEl.style.removeProperty('--source-glow');
+        }
+    }
 
     const backgroundEnabled = cfg.bg_enabled !== false;
     rootEl.classList.toggle('background-disabled', !backgroundEnabled);

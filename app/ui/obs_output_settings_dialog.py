@@ -797,12 +797,55 @@ class ObsOutputSettingsDialog(QDialog):
         self._align_combo = QComboBox()
         self._align_combo.addItem("Centré", "center")
         self._align_combo.addItem("Aligné à gauche", "left")
+        self._align_combo.addItem("Aligné à droite", "right")
         idx = self._align_combo.findData(settings.align)
         if idx >= 0:
             self._align_combo.setCurrentIndex(idx)
-        pos_section.addRow("Alignement horizontal", self._align_combo)
+        pos_section.addRow("Alignement du texte", self._align_combo)
+
+        self._band_align_combo = QComboBox()
+        self._band_align_combo.addItem("Centré", "center")
+        self._band_align_combo.addItem("À gauche", "left")
+        self._band_align_combo.addItem("À droite", "right")
+        idx = self._band_align_combo.findData(settings.band_align)
+        if idx >= 0:
+            self._band_align_combo.setCurrentIndex(idx)
+        pos_section.addRow(
+            "Placement du bandeau",
+            self._band_align_combo,
+            "Position horizontale du bloc sur l'écran",
+        )
 
         layout.addWidget(pos_section)
+
+        # Fine position section (fully adjustable)
+        fine_section = SettingSection("Position fine", "move.svg")
+
+        self._offset_x = QSpinBox()
+        self._offset_x.setRange(-960, 960)
+        self._offset_x.setSuffix(" px")
+        self._offset_x.setValue(settings.offset_x)
+        fine_section.addRow(
+            "Décalage horizontal", self._offset_x, "Négatif = vers la gauche"
+        )
+
+        self._offset_y = QSpinBox()
+        self._offset_y.setRange(-540, 540)
+        self._offset_y.setSuffix(" px")
+        self._offset_y.setValue(settings.offset_y)
+        fine_section.addRow(
+            "Décalage vertical", self._offset_y, "Négatif = vers le haut"
+        )
+
+        self._edge_margin = QSpinBox()
+        self._edge_margin.setRange(0, 300)
+        self._edge_margin.setSuffix(" px")
+        self._edge_margin.setValue(settings.edge_margin)
+        fine_section.addRow(
+            "Marge des bords", self._edge_margin, "Distance minimale avec les bords de l'écran"
+        )
+
+        layout.addWidget(fine_section)
 
         # Dimensions section
         dim_section = SettingSection("Dimensions", "maximize.svg")
@@ -1076,6 +1119,42 @@ class ObsOutputSettingsDialog(QDialog):
         )
 
         layout.addWidget(color_section)
+
+        # ── Branding / decorations ──────────────────────────────────────
+        deco_section = SettingSection("Habillage", "sparkles.svg")
+
+        self._show_kicker = QCheckBox("Afficher le badge de source (Bible, Cantique…)")
+        self._show_kicker.setChecked(settings.show_kicker)
+        deco_section.addWidget(self._show_kicker)
+
+        self._show_accent_bar = QCheckBox("Afficher la barre d'accent colorée")
+        self._show_accent_bar.setChecked(settings.show_accent_bar)
+        deco_section.addWidget(self._show_accent_bar)
+
+        self._accent_mode = QComboBox()
+        self._accent_mode.addItem("Automatique (couleur par source)", "auto")
+        self._accent_mode.addItem("Personnalisée", "custom")
+        idx = self._accent_mode.findData(settings.accent_mode)
+        if idx >= 0:
+            self._accent_mode.setCurrentIndex(idx)
+        deco_section.addRow(
+            "Couleur d'accent",
+            self._accent_mode,
+            "Automatique : vert Bible, violet Cantique, or Prédication…",
+        )
+
+        self._accent_color_btn = ColorPickerButton(settings.accent_color)
+        deco_section.addRow("Accent personnalisé", self._accent_color_btn)
+
+        def _on_accent_mode_changed(*_args) -> None:
+            self._accent_color_btn.setEnabled(
+                str(self._accent_mode.currentData() or "auto") == "custom"
+            )
+
+        self._accent_mode.currentIndexChanged.connect(_on_accent_mode_changed)
+        _on_accent_mode_changed()
+
+        layout.addWidget(deco_section)
         layout.addStretch()
 
         self._add_scroll_page(page)
@@ -1196,6 +1275,18 @@ class ObsOutputSettingsDialog(QDialog):
             self._position_combo.findData(defaults.position)
         )
         self._align_combo.setCurrentIndex(self._align_combo.findData(defaults.align))
+        self._band_align_combo.setCurrentIndex(
+            self._band_align_combo.findData(defaults.band_align)
+        )
+        self._offset_x.setValue(defaults.offset_x)
+        self._offset_y.setValue(defaults.offset_y)
+        self._edge_margin.setValue(defaults.edge_margin)
+        self._show_kicker.setChecked(defaults.show_kicker)
+        self._show_accent_bar.setChecked(defaults.show_accent_bar)
+        self._accent_mode.setCurrentIndex(
+            self._accent_mode.findData(defaults.accent_mode)
+        )
+        self._accent_color_btn.set_color(defaults.accent_color)
         self._max_width.setValue(defaults.max_width)
         self._padding_h.setValue(defaults.padding_horizontal)
         self._padding_v.setValue(defaults.padding_vertical)
@@ -1258,6 +1349,14 @@ class ObsOutputSettingsDialog(QDialog):
             align=self._align_combo.currentData() or "center",
             show_reference=self._show_ref.isChecked(),
             position=self._position_combo.currentData() or "bottom",
+            band_align=self._band_align_combo.currentData() or "center",
+            offset_x=self._offset_x.value(),
+            offset_y=self._offset_y.value(),
+            edge_margin=self._edge_margin.value(),
+            show_kicker=self._show_kicker.isChecked(),
+            show_accent_bar=self._show_accent_bar.isChecked(),
+            accent_mode=self._accent_mode.currentData() or "auto",
+            accent_color=self._accent_color_btn.color(),
             bg_enabled=self._bg_enabled.isChecked(),
             bg_color=self._bg_color_btn.color(),
             bg_gradient_enabled=self._bg_gradient_enabled.isChecked(),
@@ -1342,6 +1441,72 @@ class ObsOutputSettingsDialog(QDialog):
                     "text_color": "rgba(255, 255, 255, 0.96)",
                 },
             ),
+            (
+                "Église — Culte",
+                {
+                    "bg_enabled": True,
+                    "bg_color": "rgba(10, 18, 32, 0.80)",
+                    "bg_color_2": "rgba(4, 9, 18, 0.90)",
+                    "bg_gradient_enabled": True,
+                    "text_color": "rgba(255, 255, 255, 0.97)",
+                    "text_shadow": True,
+                    "shadow_blur": 12,
+                    "show_kicker": True,
+                    "show_accent_bar": True,
+                    "accent_mode": "auto",
+                    "position": "bottom",
+                    "band_align": "center",
+                    "max_width": 78,
+                    "font_weight": "bold",
+                    "text_transform": "none",
+                },
+            ),
+            (
+                "Sainte-Cène — Discret",
+                {
+                    "bg_enabled": True,
+                    "bg_color": "rgba(26, 16, 12, 0.55)",
+                    "bg_color_2": "rgba(12, 8, 6, 0.65)",
+                    "bg_gradient_enabled": True,
+                    "bg_opacity": 0.55,
+                    "bg_blur": True,
+                    "text_color": "rgba(255, 246, 232, 0.94)",
+                    "text_shadow": True,
+                    "shadow_blur": 10,
+                    "show_kicker": False,
+                    "show_accent_bar": False,
+                    "accent_mode": "custom",
+                    "accent_color": "rgba(201, 168, 76, 1.00)",
+                    "position": "bottom",
+                    "band_align": "center",
+                    "max_width": 60,
+                    "text_size": 40,
+                    "font_weight": "normal",
+                    "text_transform": "none",
+                },
+            ),
+            (
+                "Louange — Impact",
+                {
+                    "bg_enabled": True,
+                    "bg_color": "rgba(24, 14, 44, 0.82)",
+                    "bg_color_2": "rgba(8, 5, 20, 0.92)",
+                    "bg_gradient_enabled": True,
+                    "bg_opacity": 0.85,
+                    "text_color": "rgba(255, 255, 255, 0.98)",
+                    "text_shadow": True,
+                    "shadow_blur": 16,
+                    "show_kicker": True,
+                    "show_accent_bar": True,
+                    "accent_mode": "auto",
+                    "position": "bottom",
+                    "band_align": "center",
+                    "max_width": 88,
+                    "text_size": 56,
+                    "font_weight": "bold",
+                    "text_transform": "uppercase",
+                },
+            ),
         ]
 
         grid = QVBoxLayout()
@@ -1387,6 +1552,40 @@ class ObsOutputSettingsDialog(QDialog):
             self._text_shadow.setChecked(bool(params["text_shadow"]))
         if "shadow_blur" in params:
             self._shadow_blur.setValue(int(params["shadow_blur"]))
+        if "bg_opacity" in params:
+            self._bg_opacity.setValue(int(float(params["bg_opacity"]) * 100))
+        if "bg_blur" in params:
+            self._bg_blur.setChecked(bool(params["bg_blur"]))
+        if "show_kicker" in params:
+            self._show_kicker.setChecked(bool(params["show_kicker"]))
+        if "show_accent_bar" in params:
+            self._show_accent_bar.setChecked(bool(params["show_accent_bar"]))
+        if "accent_mode" in params:
+            idx = self._accent_mode.findData(params["accent_mode"])
+            if idx >= 0:
+                self._accent_mode.setCurrentIndex(idx)
+        if "accent_color" in params:
+            self._accent_color_btn.set_color(params["accent_color"])
+        if "position" in params:
+            idx = self._position_combo.findData(params["position"])
+            if idx >= 0:
+                self._position_combo.setCurrentIndex(idx)
+        if "band_align" in params:
+            idx = self._band_align_combo.findData(params["band_align"])
+            if idx >= 0:
+                self._band_align_combo.setCurrentIndex(idx)
+        if "max_width" in params:
+            self._max_width.setValue(int(params["max_width"]))
+        if "text_size" in params:
+            self._text_size.setValue(int(params["text_size"]))
+        if "font_weight" in params:
+            idx = self._font_weight.findData(params["font_weight"])
+            if idx >= 0:
+                self._font_weight.setCurrentIndex(idx)
+        if "text_transform" in params:
+            idx = self._text_transform.findData(params["text_transform"])
+            if idx >= 0:
+                self._text_transform.setCurrentIndex(idx)
         self._initializing = False
         self._on_change()
 

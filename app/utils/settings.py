@@ -12,9 +12,19 @@ class ObsOutputSettings:
     font_family: str = "Google Sans"
     text_size: int = 48  # pixels
     ref_size: int = 19  # pixels
-    align: str = "center"  # center|left
+    align: str = "center"  # center|left|right (text alignment)
     show_reference: bool = True
     position: str = "bottom"  # bottom|top|center
+    # Fine positioning (fully adjustable lower third)
+    band_align: str = "center"  # left|center|right — horizontal placement of the band
+    offset_x: int = 0  # px horizontal offset (negative = left)
+    offset_y: int = 0  # px vertical offset (negative = up)
+    edge_margin: int = 64  # px distance kept from the screen edges
+    # Branding / decorations
+    show_kicker: bool = True  # source badge above the text
+    show_accent_bar: bool = True  # coloured accent bar under the band
+    accent_mode: str = "auto"  # auto (per-source colour) | custom
+    accent_color: str = "#74a7f8"  # used when accent_mode == "custom"
     bg_enabled: bool = True  # show/hide background band
     bg_color: str = "rgba(8, 15, 28, 0.86)"
     bg_opacity: float = 0.82  # background-specific opacity 0.0-1.0
@@ -60,9 +70,23 @@ class ObsOutputSettings:
             "font_family": str(self.font_family or "Google Sans").strip(),
             "text_size": int(self.text_size or 48),
             "ref_size": int(self.ref_size or 19),
-            "align": self.align if self.align in ("center", "left") else "center",
+            "align": (
+                self.align if self.align in ("center", "left", "right") else "center"
+            ),
             "show_reference": bool(self.show_reference),
             "position": str(self.position or "bottom"),
+            "band_align": (
+                self.band_align
+                if self.band_align in ("left", "center", "right")
+                else "center"
+            ),
+            "offset_x": int(self.offset_x or 0),
+            "offset_y": int(self.offset_y or 0),
+            "edge_margin": max(0, int(self.edge_margin if self.edge_margin is not None else 64)),
+            "show_kicker": bool(self.show_kicker),
+            "show_accent_bar": bool(self.show_accent_bar),
+            "accent_mode": "custom" if self.accent_mode == "custom" else "auto",
+            "accent_color": str(self.accent_color or "#74a7f8"),
             "bg_enabled": bool(self.bg_enabled),
             "bg_color": str(self.bg_color or "rgba(8, 15, 28, 0.86)"),
             "bg_opacity": float(
@@ -148,7 +172,7 @@ class ProjectionSettings:
 
     def to_presentation_config(self) -> dict[str, Any]:
         align = (self.align or "center").lower()
-        if align not in ("center", "left"):
+        if align not in ("center", "left", "right"):
             align = "center"
         slide_style = (self.slide_style or "cinematic").lower()
         if slide_style not in ("cinematic", "clean", "split"):
@@ -346,6 +370,20 @@ class AppSettings:
                     out, "show_reference", obs.output.show_reference
                 )
                 obs.output.position = _gs(out, "position", obs.output.position)
+                obs.output.band_align = _gs(out, "band_align", obs.output.band_align)
+                obs.output.offset_x = _gi(out, "offset_x", obs.output.offset_x)
+                obs.output.offset_y = _gi(out, "offset_y", obs.output.offset_y)
+                obs.output.edge_margin = _gi(
+                    out, "edge_margin", obs.output.edge_margin
+                )
+                obs.output.show_kicker = _gb(out, "show_kicker", obs.output.show_kicker)
+                obs.output.show_accent_bar = _gb(
+                    out, "show_accent_bar", obs.output.show_accent_bar
+                )
+                obs.output.accent_mode = _gs(out, "accent_mode", obs.output.accent_mode)
+                obs.output.accent_color = _gs(
+                    out, "accent_color", obs.output.accent_color
+                )
                 obs.output.bg_enabled = _gb(out, "bg_enabled", obs.output.bg_enabled)
                 obs.output.bg_color = _gs(out, "bg_color", obs.output.bg_color)
                 obs.output.bg_opacity = _gf(out, "bg_opacity", obs.output.bg_opacity)
