@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QGuiApplication
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -109,6 +110,82 @@ class ProjectionSettingsDialog(QDialog):
         layout.setContentsMargins(24, 20, 24, 16)
         layout.setSpacing(16)
         layout.setSizeConstraint(QVBoxLayout.SizeConstraint.SetMinimumSize)
+
+        output_section = SettingSection("Sortie & mode de projection", "monitor.svg")
+
+        self._layout_mode = QComboBox()
+        for label, data in (
+            ("Plein écran", "fullscreen"),
+            ("Lower Third", "lower_third"),
+            ("Panneau latéral", "side_panel"),
+            ("Sous-titre", "subtitle"),
+            ("Carte focus", "focus_card"),
+        ):
+            self._layout_mode.addItem(label, data)
+        idx = self._layout_mode.findData(settings.layout_mode or "fullscreen")
+        self._layout_mode.setCurrentIndex(max(idx, 0))
+        output_section.addRow(
+            "Composition",
+            self._layout_mode,
+            "Change la mise en scène sans modifier la structure des onglets.",
+        )
+        _style_combo(self._layout_mode)
+
+        self._display_screen = QComboBox()
+        self._display_screen.addItem("Automatique (écran secondaire)", "auto")
+        for index, screen in enumerate(QGuiApplication.screens(), start=1):
+            geo = screen.geometry()
+            screen_name = str(screen.name() or f"Écran {index}")
+            self._display_screen.addItem(
+                f"{screen_name} — {geo.width()}×{geo.height()}", screen_name
+            )
+        idx = self._display_screen.findData(settings.display_screen or "auto")
+        self._display_screen.setCurrentIndex(max(idx, 0))
+        output_section.addRow(
+            "Écran cible",
+            self._display_screen,
+            "Le mode automatique privilégie le plus grand écran secondaire.",
+        )
+        _style_combo(self._display_screen)
+
+        self._safe_margin = QSpinBox()
+        self._safe_margin.setRange(0, 240)
+        self._safe_margin.setSuffix(" px")
+        self._safe_margin.setValue(int(settings.safe_margin or 0))
+        output_section.addRow(
+            "Zone de sécurité",
+            self._safe_margin,
+            "Marge protégée sur les quatre côtés.",
+        )
+
+        self._panel_side = QComboBox()
+        self._panel_side.addItem("Gauche", "left")
+        self._panel_side.addItem("Droite", "right")
+        idx = self._panel_side.findData(settings.panel_side or "left")
+        self._panel_side.setCurrentIndex(max(idx, 0))
+        output_section.addRow("Côté du panneau", self._panel_side)
+        _style_combo(self._panel_side)
+
+        self._auto_fit = QCheckBox("Ajuster automatiquement les textes longs")
+        self._auto_fit.setChecked(bool(settings.auto_fit))
+        output_section.addWidget(self._auto_fit)
+
+        self._min_text_size = QSpinBox()
+        self._min_text_size.setRange(10, 120)
+        self._min_text_size.setSuffix(" px")
+        self._min_text_size.setValue(int(settings.min_text_size or 18))
+        output_section.addRow("Taille minimale", self._min_text_size)
+
+        self._max_lines = QSpinBox()
+        self._max_lines.setRange(1, 20)
+        self._max_lines.setValue(int(settings.max_lines or 8))
+        output_section.addRow(
+            "Lignes de référence",
+            self._max_lines,
+            "Guide de l'ajustement automatique; le texte n'est jamais coupé.",
+        )
+
+        layout.addWidget(output_section)
 
         # ═══════ Section: Police & Typographie ═══════
         font_section = SettingSection("Police & Typographie", "type.svg")
@@ -356,6 +433,55 @@ class ProjectionSettingsDialog(QDialog):
 
         layout.addWidget(shadow_section)
 
+        readability_section = SettingSection(
+            "Lisibilité professionnelle", "sparkles.svg"
+        )
+
+        self._background_dimmer = QSpinBox()
+        self._background_dimmer.setRange(0, 85)
+        self._background_dimmer.setSuffix(" %")
+        self._background_dimmer.setValue(
+            int(round(float(settings.background_dimmer or 0.0) * 100))
+        )
+        readability_section.addRow(
+            "Assombrir l'arrière-plan",
+            self._background_dimmer,
+            "Améliore le contraste quand une image est projetée.",
+        )
+
+        self._panel_enabled = QCheckBox("Afficher un panneau derrière le texte")
+        self._panel_enabled.setChecked(bool(settings.panel_enabled))
+        readability_section.addWidget(self._panel_enabled)
+
+        self._panel_color_btn = ColorPickerButton(
+            settings.panel_color or "rgba(5,12,24,0.86)"
+        )
+        readability_section.addRow("Couleur du panneau", self._panel_color_btn)
+
+        self._panel_opacity = QSpinBox()
+        self._panel_opacity.setRange(0, 100)
+        self._panel_opacity.setSuffix(" %")
+        self._panel_opacity.setValue(
+            int(round(float(settings.panel_opacity or 0.86) * 100))
+        )
+        readability_section.addRow("Opacité du panneau", self._panel_opacity)
+
+        self._panel_radius = QSpinBox()
+        self._panel_radius.setRange(0, 96)
+        self._panel_radius.setSuffix(" px")
+        self._panel_radius.setValue(int(settings.panel_radius or 0))
+        readability_section.addRow("Arrondi du panneau", self._panel_radius)
+
+        def _update_panel_controls() -> None:
+            enabled = self._panel_enabled.isChecked()
+            self._panel_color_btn.setEnabled(enabled)
+            self._panel_opacity.setEnabled(enabled)
+            self._panel_radius.setEnabled(enabled)
+
+        self._panel_enabled.toggled.connect(_update_panel_controls)
+        _update_panel_controls()
+        layout.addWidget(readability_section)
+
         # ═══════ Section: Affichage ═══════
         display_section = SettingSection("Affichage", "monitor.svg")
 
@@ -465,6 +591,13 @@ class ProjectionSettingsDialog(QDialog):
         layout.addWidget(anim_section)
 
         # ── Connect signals for live preview ──
+        self._layout_mode.currentIndexChanged.connect(self._on_change)
+        self._display_screen.currentIndexChanged.connect(self._on_change)
+        self._safe_margin.valueChanged.connect(self._on_change)
+        self._panel_side.currentIndexChanged.connect(self._on_change)
+        self._auto_fit.toggled.connect(self._on_change)
+        self._min_text_size.valueChanged.connect(self._on_change)
+        self._max_lines.valueChanged.connect(self._on_change)
         self._font_combo.currentIndexChanged.connect(self._on_change)
         self._font_weight.currentIndexChanged.connect(self._on_change)
         self._line_height.valueChanged.connect(self._on_change)
@@ -486,6 +619,11 @@ class ProjectionSettingsDialog(QDialog):
         self._text_shadow.toggled.connect(self._on_change)
         self._shadow_color_btn.colorChanged.connect(self._on_change)
         self._shadow_blur.valueChanged.connect(self._on_change)
+        self._background_dimmer.valueChanged.connect(self._on_change)
+        self._panel_enabled.toggled.connect(self._on_change)
+        self._panel_color_btn.colorChanged.connect(self._on_change)
+        self._panel_opacity.valueChanged.connect(self._on_change)
+        self._panel_radius.valueChanged.connect(self._on_change)
         self._align.currentIndexChanged.connect(self._on_change)
         self._position.currentIndexChanged.connect(self._on_change)
         self._show_reference.toggled.connect(self._on_change)
@@ -601,6 +739,16 @@ class ProjectionSettingsDialog(QDialog):
 
     def _reset_defaults(self) -> None:
         d = ProjectionSettings()
+        idx = self._layout_mode.findData(d.layout_mode)
+        self._layout_mode.setCurrentIndex(max(idx, 0))
+        idx = self._display_screen.findData(d.display_screen)
+        self._display_screen.setCurrentIndex(max(idx, 0))
+        self._safe_margin.setValue(d.safe_margin)
+        idx = self._panel_side.findData(d.panel_side)
+        self._panel_side.setCurrentIndex(max(idx, 0))
+        self._auto_fit.setChecked(d.auto_fit)
+        self._min_text_size.setValue(d.min_text_size)
+        self._max_lines.setValue(d.max_lines)
         # Font
         idx = self._font_combo.findData(d.font_family)
         if idx >= 0:
@@ -637,6 +785,11 @@ class ProjectionSettingsDialog(QDialog):
         self._text_shadow.setChecked(d.text_shadow)
         self._shadow_color_btn.set_color(d.shadow_color)
         self._shadow_blur.setValue(d.shadow_blur)
+        self._background_dimmer.setValue(int(round(d.background_dimmer * 100)))
+        self._panel_enabled.setChecked(d.panel_enabled)
+        self._panel_color_btn.set_color(d.panel_color)
+        self._panel_opacity.setValue(int(round(d.panel_opacity * 100)))
+        self._panel_radius.setValue(d.panel_radius)
         # Display
         idx = self._align.findData(d.align)
         if idx >= 0:
@@ -664,6 +817,10 @@ class ProjectionSettingsDialog(QDialog):
     def read_settings(self) -> ProjectionSettings:
         font = self._font_combo.currentData() or self._font_combo.currentText()
         return ProjectionSettings(
+            layout_mode=str(self._layout_mode.currentData() or "fullscreen"),
+            display_screen=str(self._display_screen.currentData() or "auto"),
+            safe_margin=self._safe_margin.value(),
+            panel_side=str(self._panel_side.currentData() or "left"),
             font_family=str(font).strip() or "Google Sans",
             text_size=self._text_size.value(),
             ref_size=self._ref_size.value(),
@@ -694,6 +851,14 @@ class ProjectionSettingsDialog(QDialog):
             shadow_color=self._shadow_color_btn.color(),
             shadow_blur=self._shadow_blur.value(),
             max_width=self._max_width.value(),
+            auto_fit=self._auto_fit.isChecked(),
+            min_text_size=self._min_text_size.value(),
+            max_lines=self._max_lines.value(),
+            background_dimmer=self._background_dimmer.value() / 100.0,
+            panel_enabled=self._panel_enabled.isChecked(),
+            panel_color=self._panel_color_btn.color(),
+            panel_opacity=self._panel_opacity.value() / 100.0,
+            panel_radius=self._panel_radius.value(),
             animation_enabled=self._anim_enabled.isChecked(),
             animation_type=str(self._anim_type.currentData() or "fade"),
             animation_direction=str(self._anim_direction.currentData() or "up"),

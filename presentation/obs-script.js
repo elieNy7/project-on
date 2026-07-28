@@ -6,6 +6,20 @@
 let lastSlideStr = '';
 let currentConfig = {};
 let transitionToken = 0;
+const LAYOUT_MODES = new Set([
+    'lower_third',
+    'fullscreen',
+    'side_panel',
+    'subtitle',
+    'focus_card',
+]);
+const requestedLayout = new URLSearchParams(window.location.search).get('layout');
+const previewCanvas = ['1', 'true'].includes(
+    new URLSearchParams(window.location.search).get('preview')
+);
+const safeGuides = ['1', 'true'].includes(
+    new URLSearchParams(window.location.search).get('guides')
+);
 
 /* ── Color helpers ───────────────────────────────────────────── */
 function applyAlpha(colorStr, alpha) {
@@ -40,6 +54,15 @@ function applyAlpha(colorStr, alpha) {
 /* ── Config Application ──────────────────────────────────────── */
 function applyConfig(cfg) {
     if (!cfg) return;
+    const configuredLayout = LAYOUT_MODES.has(cfg.layout_mode)
+        ? cfg.layout_mode
+        : 'lower_third';
+    cfg = {
+        ...cfg,
+        layout_mode: LAYOUT_MODES.has(requestedLayout)
+            ? requestedLayout
+            : configuredLayout,
+    };
     currentConfig = { ...currentConfig, ...cfg };
     const root = document.documentElement;
     const rootEl = document.getElementById('root');
@@ -112,6 +135,10 @@ function applyConfig(cfg) {
     root.style.setProperty('--padding-v', `${cfg.padding_vertical || 30}px`);
     root.style.setProperty('--max-width', `${cfg.max_width || 85}%`);
     root.style.setProperty('--border-radius', `${cfg.border_radius || 14}px`);
+    root.style.setProperty(
+        '--background-dimmer',
+        Math.max(0, Math.min(0.85, Number(cfg.background_dimmer ?? 0.36)))
+    );
 
     // Stroke
     if (cfg.text_stroke) {
@@ -135,8 +162,18 @@ function applyConfig(cfg) {
     rootEl.classList.remove(
         'position-top', 'position-center',
         'align-left', 'align-center', 'align-right',
-        'band-left', 'band-center', 'band-right'
+        'band-left', 'band-center', 'band-right',
+        'layout-lower_third', 'layout-fullscreen', 'layout-side_panel',
+        'layout-subtitle', 'layout-focus_card',
+        'panel-left', 'panel-right',
+        'ref-style-badge', 'ref-style-plain', 'ref-style-inline'
     );
+    rootEl.classList.add(`layout-${cfg.layout_mode}`);
+    rootEl.classList.add(cfg.panel_side === 'right' ? 'panel-right' : 'panel-left');
+    const referenceStyle = ['badge', 'plain', 'inline'].includes(cfg.reference_style)
+        ? cfg.reference_style
+        : 'badge';
+    rootEl.classList.add(`ref-style-${referenceStyle}`);
     if (cfg.position === 'top') rootEl.classList.add('position-top');
     else if (cfg.position === 'center') rootEl.classList.add('position-center');
 
@@ -162,6 +199,9 @@ function applyConfig(cfg) {
         ? 64
         : Math.max(0, Number(cfg.edge_margin));
     root.style.setProperty('--edge-margin', `${edgeMargin}px`);
+    const safePercent = Math.max(0, Math.min(15, Number(cfg.safe_area_percent || 0)));
+    const safePixels = Math.round(Math.min(window.innerWidth, window.innerHeight) * safePercent / 100);
+    root.style.setProperty('--safe-inset', `${Math.max(edgeMargin, safePixels)}px`);
 
     // Decorations
     rootEl.classList.toggle('kicker-hidden', cfg.show_kicker === false);
@@ -195,6 +235,25 @@ function applyConfig(cfg) {
     if (accentStrip) {
         accentStrip.style.display = backgroundEnabled ? '' : 'none';
     }
+
+    // Re-fit the currently visible slide so live size/margin changes keep
+    // the band inside the viewport without waiting for the next slide.
+    const innerWrapperEl = document.getElementById('inner-wrapper');
+    if (
+        lowerThird.classList.contains('visible')
+        && innerWrapperEl
+        && !innerWrapperEl.classList.contains('content-hidden')
+    ) {
+        const baseSize = parseFloat(
+            getComputedStyle(root).getPropertyValue('--base-text-size')
+        ) || 52;
+        fitTextToViewport(
+            document.getElementById('text'),
+            document.getElementById('ref'),
+            lowerThird.querySelector('.lt-body'),
+            baseSize
+        );
+    }
 }
 
 function resetSourceTextLayout() {
@@ -209,16 +268,41 @@ function fitTextToViewport(textEl, refEl, bodyEl, baseTextSize) {
     if (!textEl || !bodyEl) return;
 
     const root = document.documentElement;
-    const minSize = 24;
-    const maxHeight = Math.max(220, window.innerHeight - 112);
-    const maxWidth = Math.max(360, window.innerWidth - 112);
+    if (currentConfig.auto_fit === false) {
+        root.style.setProperty('--text-size', `${Math.max(12, Math.round(baseTextSize))}px`);
+        return;
+    }
+    const minSize = Math.max(12, Number(currentConfig.min_text_size || 24));
+    const requestedMaxLines = Math.max(
+        1,
+        Math.min(12, Number(currentConfig.max_lines || 6))
+    );
+    const modeLineCaps = {
+        lower_third: 5,
+        fullscreen: 8,
+        side_panel: 10,
+        subtitle: 3,
+        focus_card: 7,
+    };
+    const maxLines = Math.min(
+        requestedMaxLines,
+        modeLineCaps[currentConfig.layout_mode] || requestedMaxLines
+    );
+    const edgeMargin = parseFloat(
+        getComputedStyle(root).getPropertyValue('--safe-inset')
+    ) || 64;
+    const maxHeight = Math.max(220, window.innerHeight - Math.max(0, edgeMargin * 2 - 16));
+    const maxWidth = Math.max(360, window.innerWidth - Math.max(0, edgeMargin * 2 - 16));
     let size = Math.max(minSize, Math.round(baseTextSize));
 
     root.style.setProperty('--text-size', `${size}px`);
     for (let i = 0; i < 24; i += 1) {
+        const styles = getComputedStyle(textEl);
+        const lineHeight = parseFloat(styles.lineHeight) || size * 1.2;
+        const lineCount = Math.max(1, Math.round(textEl.scrollHeight / lineHeight));
         const tooTall = bodyEl.scrollHeight > maxHeight;
         const tooWide = bodyEl.scrollWidth > maxWidth || textEl.scrollWidth > textEl.clientWidth + 2;
-        if ((!tooTall && !tooWide) || size <= minSize) break;
+        if ((!tooTall && !tooWide && lineCount <= maxLines) || size <= minSize) break;
         size = Math.max(minSize, size - 2);
         root.style.setProperty('--text-size', `${size}px`);
     }
@@ -492,26 +576,15 @@ async function setSlide(payload) {
 
     const text = payload.text || '';
     resetSourceTextLayout();
-    const textDensity = Math.max(text.length, (text.match(/\n/g) || []).length * 44);
+    // Always start from the user-configured size; fitTextToViewport below
+    // only shrinks when the text actually overflows the screen. (The old
+    // "density factor" pre-shrunk nearly every slide, so the text suddenly
+    // became smaller than the configured size while navigating.)
     const baseTextSize = parseFloat(
         getComputedStyle(document.documentElement).getPropertyValue('--base-text-size')
     ) || 52;
-    let densityFactor = 1;
-    if (payload.source === 'hymn') {
-        if (textDensity > 520) densityFactor = 0.66;
-        else if (textDensity > 380) densityFactor = 0.76;
-        else if (textDensity > 260) densityFactor = 0.86;
-        else if (textDensity > 180) densityFactor = 0.94;
-    } else {
-        if (textDensity > 420) densityFactor = 0.72;
-        else if (textDensity > 320) densityFactor = 0.8;
-        else if (textDensity > 220) densityFactor = 0.9;
-    }
-    document.documentElement.style.setProperty(
-        '--text-size',
-        `${Math.max(28, Math.round(baseTextSize * densityFactor))}px`
-    );
-    const fittedBaseSize = Math.max(28, Math.round(baseTextSize * densityFactor));
+    const fittedBaseSize = Math.max(24, Math.round(baseTextSize));
+    document.documentElement.style.setProperty('--text-size', `${fittedBaseSize}px`);
 
     if (textPanelVisible) {
         await animateElement(innerWrapper, 'out', transition, localToken);
@@ -644,6 +717,9 @@ function startRealtimeUpdates() {
 
 /* ── Init ────────────────────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', () => {
+    document.body.classList.toggle('preview-canvas', previewCanvas);
+    const initialRoot = document.getElementById('root');
+    if (initialRoot) initialRoot.classList.toggle('safe-guides', safeGuides);
     if (window.initialData) {
         if (window.initialData.config) applyConfig(window.initialData.config);
         if (window.initialData.slide) {
@@ -653,4 +729,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // Use SSE for real-time push when served over HTTP; this automatically
     // falls back to polling on error or when opened via file://.
     startRealtimeUpdates();
+});
+
+let resizeTimer = null;
+window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+        if (Object.keys(currentConfig).length) {
+            applyConfig(currentConfig);
+        }
+    }, 120);
 });

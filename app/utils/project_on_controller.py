@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 from PyQt6.QtCore import QModelIndex, QObject, pyqtSignal
@@ -245,20 +244,6 @@ class ProjectOnController(QObject):
 
         if self._current_row - 1 >= 0:
             self.set_current_row(self._current_row - 1)
-
-    def clear_playlist(self) -> None:
-        # Save snapshot for undo
-        snapshot = self._snapshot_playlist()
-        if snapshot["items"]:
-            self._push_undo({"action": "clear", "snapshot": snapshot})
-
-        self._playlist_dao.clear_all_items()
-        self._playlist.clear()
-        self._item_id_map.clear()
-        self._current_row = -1
-        self.currentRowChanged.emit(-1)
-        self.currentSlideChanged.emit(None)
-        self._load_playlist()
 
     def _load_playlist(self) -> None:
         """Charge les dossiers et les slides depuis la base de données."""
@@ -522,74 +507,9 @@ class ProjectOnController(QObject):
                     self._item_id_map[item_id] = idx
             return True
 
-        if action == "clear":
-            # Restore snapshot
-            snapshot = entry.get("snapshot", {})
-            self._restore_snapshot(snapshot)
-            return True
-
         return False
 
-    def _snapshot_playlist(self) -> dict:
-        """Create a JSON-serializable snapshot of the current playlist."""
-        folders = []
-        items = []
-        for folder in self._playlist_dao.list_folders():
-            folders.append({"id": folder["id"], "name": folder["name"]})
-        for item in self._playlist_dao.list_all_items():
-            items.append(
-                {
-                    "source": item["source"],
-                    "reference": item["reference"],
-                    "text": item["text"],
-                    "folder_id": item["folder_id"],
-                }
-            )
-        return {"folders": folders, "items": items}
-
-    def _restore_snapshot(self, snapshot: dict) -> None:
-        """Restore playlist from a snapshot dict."""
-        self._playlist_dao.clear_all_items()
-        self._playlist.clear()
-        self._folder_index_map.clear()
-        self._item_id_map.clear()
-
-        folder_id_map: dict[int, int] = {}  # old_id -> new_id
-        for f in snapshot.get("folders", []):
-            new_id = self._playlist_dao.create_folder(f["name"])
-            folder_id_map[f["id"]] = new_id
-
-        for item in snapshot.get("items", []):
-            fid = item.get("folder_id")
-            new_fid = folder_id_map.get(fid) if fid is not None else None
-            self._playlist_dao.add_item(
-                item["source"],
-                item["reference"],
-                item["text"],
-                new_fid,
-            )
-
-        self._load_playlist()
-        if self._playlist.flat_row_count() > 0:
-            self.set_current_row(0)
-        else:
-            self._current_row = -1
-            self.currentRowChanged.emit(-1)
-            self.currentSlideChanged.emit(None)
-
     # ── Export / Import ───────────────────────────────────────────────────
-
-    def export_playlist(self, path: Path) -> None:
-        """Export the current playlist to a JSON file."""
-        data = self._snapshot_playlist()
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-
-    def import_playlist(self, path: Path) -> None:
-        """Import a playlist from a JSON file, replacing the current one."""
-        with open(path, encoding="utf-8") as f:
-            data = json.load(f)
-        self._restore_snapshot(data)
 
     # ── Rename Folder ─────────────────────────────────────────────────────
 

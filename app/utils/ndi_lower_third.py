@@ -254,6 +254,9 @@ def _wrap_text(draw, text: str, font, max_width: int) -> str:
 
 @dataclass
 class NdiLowerThirdConfig:
+    layout_mode: str = "lower_third"
+    panel_side: str = "left"
+    safe_area_percent: int = 5
     font_family: str = "Google Sans"
     text_size: int = 48
     ref_size: int = 24
@@ -381,6 +384,14 @@ class NdiLowerThirdSender:
     def _get_config(self) -> NdiLowerThirdConfig:
         cfg = self._last_cfg or {}
         out = NdiLowerThirdConfig()
+        out.layout_mode = str(cfg.get("layout_mode") or out.layout_mode).lower()
+        out.panel_side = str(cfg.get("panel_side") or out.panel_side).lower()
+        try:
+            out.safe_area_percent = max(
+                0, min(15, int(cfg.get("safe_area_percent") or 0))
+            )
+        except Exception:
+            pass
         out.font_family = str(cfg.get("font_family") or out.font_family)
         try:
             out.text_size = int(cfg.get("text_size") or out.text_size)
@@ -490,7 +501,16 @@ class NdiLowerThirdSender:
         font_text = _load_font(int(cfg.text_size))
         font_ref = _load_font(int(cfg.ref_size))
 
+        layout_mode = str(cfg.layout_mode or "lower_third").lower()
         max_width_pct = max(45, min(100, int(cfg.max_width or 82)))
+        if layout_mode == "fullscreen":
+            max_width_pct = 100
+        elif layout_mode == "side_panel":
+            max_width_pct = min(max_width_pct, 44)
+        elif layout_mode == "subtitle":
+            max_width_pct = min(92, max(max_width_pct, 72))
+        elif layout_mode == "focus_card":
+            max_width_pct = min(max_width_pct, 68)
         box_max_w = int(self._width * max_width_pct / 100)
         pad_x = max(28, min(110, int(cfg.padding_horizontal or 48)))
         pad_y = max(16, min(80, int(cfg.padding_vertical or 26)))
@@ -543,9 +563,30 @@ class NdiLowerThirdSender:
         box_h = max(box_h, 136)
 
         # ── Band placement (position + band_align + fine offsets) ──────
-        margin = max(0, int(cfg.edge_margin))
+        safe_margin = int(
+            min(self._width, self._height) * cfg.safe_area_percent / 100
+        )
+        margin = max(0, int(cfg.edge_margin), safe_margin)
+        if layout_mode == "fullscreen":
+            box_w = self._width - (margin * 2)
+            box_h = self._height - (margin * 2)
+        elif layout_mode == "side_panel":
+            box_w = min(box_w, int(self._width * 0.44))
+            box_h = self._height - (margin * 2)
+        elif layout_mode == "subtitle":
+            box_w = min(int(self._width * 0.92), self._width - (margin * 2))
+        elif layout_mode == "focus_card":
+            box_w = min(int(self._width * 0.68), self._width - (margin * 2))
+            box_h = max(box_h, int(self._height * 0.48))
+
         band_align = str(cfg.band_align).lower()
-        if band_align == "left":
+        if layout_mode == "side_panel":
+            box_x = (
+                self._width - box_w - margin
+                if cfg.panel_side == "right"
+                else margin
+            )
+        elif band_align == "left":
             box_x = margin
         elif band_align == "right":
             box_x = self._width - box_w - margin
@@ -553,7 +594,9 @@ class NdiLowerThirdSender:
             box_x = int((self._width - box_w) / 2)
 
         position = str(cfg.position).lower()
-        if position == "top":
+        if layout_mode in ("fullscreen", "side_panel", "focus_card"):
+            box_y = int((self._height - box_h) / 2)
+        elif position == "top":
             box_y = margin
         elif position == "center":
             box_y = int((self._height - box_h) / 2)
@@ -630,7 +673,13 @@ class NdiLowerThirdSender:
             )
 
         content_x = accent_x + accent_w + accent_gap
-        content_y = box_y + pad_y
+        content_block_h = text_h + ref_badge_h + divider_gap
+        content_y = box_y + max(
+            pad_y,
+            int((box_h - content_block_h) / 2)
+            if layout_mode in ("fullscreen", "side_panel", "focus_card")
+            else pad_y,
+        )
         cfg_align = str(cfg.align).lower()
         align_mode = cfg_align if cfg_align in ("left", "right") else "center"
         if align_mode == "left":

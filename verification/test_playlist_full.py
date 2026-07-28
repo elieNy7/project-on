@@ -152,32 +152,6 @@ class TestPlaylistFeatures(unittest.TestCase):
             ).fetchone()
             self.assertEqual(tuple(row), ("New Ref", "New text"))
 
-    @unittest.skip("Export/Import deprecated in controller")
-    def test_export_import(self):
-        print("\n--- Testing Export/Import ---")
-        self.controller.create_folder("My Folder")
-        self.controller.add_to_playlist("custom", "Slide", "Text")
-
-        export_path = Path(self.test_dir) / "playlist.json"
-
-        # Export
-        self.controller.export_playlist(export_path)
-        self.assertTrue(export_path.exists())
-
-        # Clear
-        self.controller.clear_playlist()
-        self.assertEqual(self.controller.playlist_model.flat_row_count(), 0)
-
-        # Import
-        self.controller.import_playlist(export_path)
-
-        # Verify restored
-        items = self.controller.playlist_model.flat_row_count()
-        folders = len(self.controller.playlist_model.get_folders())
-        self.assertEqual(items, 1)
-        self.assertEqual(folders, 1)
-        print("Export/Import Check Passed")
-
     def test_folder_boundary_navigation(self):
         print("\n--- Testing Folder Boundary Navigation ---")
         

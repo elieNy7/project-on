@@ -39,7 +39,6 @@ from app.ui.theme import (
     get_panel_style,
     get_tree_style,
 )
-from app.utils.flow_layout import FlowLayout
 from app.utils.playlist_model import PlaylistRoles
 from app.utils.translations import tr
 
@@ -82,7 +81,7 @@ class PlaylistToolButton(QPushButton):
         text: str = "",
     ) -> None:
         super().__init__(parent)
-        self.setIcon(app_icon(icon_name, "#a0aabe"))
+        self.setIcon(app_icon(icon_name, Colors.TEXT_SECONDARY))
         self.setIconSize(QSize(16, 16))
         self.setToolTip(tooltip)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -96,20 +95,37 @@ class PlaylistToolButton(QPushButton):
         self.setStyleSheet(f"""
             QPushButton {{
                 background: {Colors.BG_TERTIARY};
-                border: none;
+                border: 1px solid {Colors.BORDER_SUBTLE};
                 border-radius: {Radius.SM}px;
                 min-width: 32px; max-width: 32px;
                 min-height: 32px; max-height: 32px;
             }}
             QPushButton:hover {{
                 background: {Colors.SURFACE_HOVER};
+                border-color: {Colors.BORDER_HOVER};
             }}
             QPushButton:pressed {{
                 background: {Colors.SURFACE_ACTIVE};
             }}
             QPushButton:checked {{
                 background: {Colors.ACCENT_GLOW};
-                border: none;
+                border: 1px solid {Colors.ACCENT_GLOW_STRONG};
+            }}
+            QPushButton#PrimaryToolButton {{
+                background: {Colors.ACCENT_GLOW};
+                border-color: {Colors.ACCENT_GLOW_STRONG};
+            }}
+            QPushButton#PrimaryToolButton:hover {{
+                background: {Colors.SURFACE_ACTIVE};
+                border-color: {Colors.ACCENT_PRIMARY};
+            }}
+            QPushButton#DangerToolButton {{
+                background: rgba(239, 68, 68, 0.10);
+                border-color: rgba(239, 68, 68, 0.26);
+            }}
+            QPushButton#DangerToolButton:hover {{
+                background: rgba(239, 68, 68, 0.20);
+                border-color: {Colors.ACCENT_DANGER};
             }}
             QPushButton:disabled {{
                 background: transparent;
@@ -122,28 +138,20 @@ class PlaylistPanel(QFrame):
     slideSelected = pyqtSignal(int)
     removeRequested = pyqtSignal(int)
     removeIndexRequested = pyqtSignal(object)
-    clearRequested = pyqtSignal()
     folderCreateRequested = pyqtSignal(str)
     folderDeleteRequested = pyqtSignal(object)
     folderRenameRequested = pyqtSignal(object, str)  # (index, new_name)
-    customSlideRequested = pyqtSignal(str, str)  # title, text
     customSlidesRequested = pyqtSignal(str, list, bool)  # title, texts, split
     moveRequested = pyqtSignal(object, bool)  # (index, is_up)
     duplicateRequested = pyqtSignal(object)  # index
     editRequested = pyqtSignal(object)  # index
     undoRequested = pyqtSignal()
-    serviceKitRequested = pyqtSignal(str, list)  # folder name, [(title, text)]
-    exportRequested = pyqtSignal()
-    importRequested = pyqtSignal()
-    countdownRequested = pyqtSignal(str, int, str)  # message, seconds, end message
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.setObjectName("PlaylistPanel")
         self._model = None
         self._proxy_model = None
-        self._selected_folder_id: int | None = None
-        self._folder_index_by_id: dict[int, QModelIndex] = {}
         # Accordion folders: opening one folder collapses its siblings.
         self._suppress_accordion = False
 
@@ -157,7 +165,7 @@ class PlaylistPanel(QFrame):
         header.setStyleSheet(f"""
             QFrame#TopBar {{
                 background: {Colors.BG_TERTIARY};
-                border: none;
+                border: 1px solid {Colors.BORDER_SUBTLE};
                 border-radius: {Radius.MD}px;
             }}
         """)
@@ -175,7 +183,7 @@ class PlaylistPanel(QFrame):
         self._count_label.setStyleSheet(f"""
             color: {Colors.ACCENT_PRIMARY};
             background: {Colors.ACCENT_GLOW};
-            border: none;
+            border: 1px solid {Colors.ACCENT_GLOW_STRONG};
             border-radius: 8px;
             padding: 3px 8px;
             font-size: {Typography.SIZE_XS}px;
@@ -191,8 +199,8 @@ class PlaylistPanel(QFrame):
         self._search_edit.setFixedHeight(36)
         self._search_edit.setStyleSheet(f"""
             QLineEdit {{
-                background: {Colors.BG_TERTIARY};
-                border: 1px solid {Colors.BORDER_SUBTLE};
+                background: {Colors.BG_SECONDARY};
+                border: 1px solid {Colors.BORDER_DEFAULT};
                 border-radius: {Radius.MD}px;
                 padding: 7px 12px;
                 font-size: {Typography.SIZE_MD}px;
@@ -210,61 +218,34 @@ class PlaylistPanel(QFrame):
         """)
         self._search_edit.textChanged.connect(self._on_search_changed)
 
-        # ── Toolbar: add / folder / combo / delete ────────────────────────
+        # ── Toolbar: custom text / folder / delete ───────────────────────
         toolbar = QFrame(self)
         toolbar.setStyleSheet(f"""
-            background: transparent;
-            border: none;
+            background: {Colors.GLASS_LIGHT};
+            border: 1px solid {Colors.BORDER_SUBTLE};
+            border-radius: {Radius.MD}px;
         """)
-        toolbar_layout = FlowLayout(
-            toolbar, margin=0, hSpacing=Spacing.SM, vSpacing=Spacing.SM
-        )
-        toolbar.setContentsMargins(10, 8, 10, 8)
+        toolbar_layout = QHBoxLayout(toolbar)
+        toolbar_layout.setContentsMargins(10, 8, 10, 8)
+        toolbar_layout.setSpacing(Spacing.SM)
 
         self.custom_slide_button = PlaylistToolButton(
             "plus.svg", tr("add_custom_slide"), toolbar
         )
+        self.custom_slide_button.setObjectName("PrimaryToolButton")
         self.folder_button = PlaylistToolButton(
             "folder-open.svg", tr("new_folder"), toolbar
         )
-        self.church_button = PlaylistToolButton(
-            "church.svg", tr("church_service_tooltip"), toolbar
-        )
-        self.countdown_button = PlaylistToolButton(
-            "clock.svg", tr("countdown_tooltip"), toolbar
-        )
-        self.export_button = PlaylistToolButton(
-            "download.svg", tr("playlist_export"), toolbar
-        )
-        self.import_button = PlaylistToolButton(
-            "upload.svg", tr("playlist_import"), toolbar
-        )
-
-        toolbar_layout.addWidget(self.custom_slide_button)
-        toolbar_layout.addWidget(self.folder_button)
-        toolbar_layout.addWidget(self.church_button)
-        toolbar_layout.addWidget(self.countdown_button)
-        toolbar_layout.addWidget(self.export_button)
-        toolbar_layout.addWidget(self.import_button)
-
-        self._folder_combo = QComboBox(toolbar)
-        self._folder_combo.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._folder_combo.setMinimumWidth(100)
-        self._folder_combo.setFixedHeight(32)
-        self._folder_combo.setStyleSheet(get_combo_style())
-        self._folder_combo.currentIndexChanged.connect(self._on_folder_combo_changed)
-        toolbar_layout.addWidget(self._folder_combo)
-
         self.remove_button = PlaylistToolButton(
             "trash.svg", tr("playlist_remove"), toolbar
         )
+        self.remove_button.setObjectName("DangerToolButton")
         self.remove_button.setEnabled(False)
-        self.clear_button = PlaylistToolButton(
-            "trash-all.svg", tr("playlist_clear"), toolbar
-        )
 
+        toolbar_layout.addWidget(self.custom_slide_button)
+        toolbar_layout.addWidget(self.folder_button)
+        toolbar_layout.addStretch(1)
         toolbar_layout.addWidget(self.remove_button)
-        toolbar_layout.addWidget(self.clear_button)
 
         # ── Tree view ─────────────────────────────────────────────────
         self.tree_view = QTreeView(self)
@@ -292,8 +273,8 @@ class PlaylistPanel(QFrame):
         # ── Empty state ───────────────────────────────────────────────────
         self._empty_state = QFrame(self)
         self._empty_state.setStyleSheet(f"""
-            background: {Colors.BG_TERTIARY};
-            border: none;
+            background: {Colors.BG_SECONDARY};
+            border: 1px dashed {Colors.BORDER_DEFAULT};
             border-radius: {Radius.LG}px;
         """)
         empty_layout = QVBoxLayout(self._empty_state)
@@ -334,13 +315,8 @@ class PlaylistPanel(QFrame):
         self.tree_view.clicked.connect(self._on_item_clicked)
         self.tree_view.doubleClicked.connect(self._on_item_double_clicked)
         self.remove_button.clicked.connect(self._on_remove_clicked)
-        self.clear_button.clicked.connect(self._on_clear_clicked)
         self.folder_button.clicked.connect(self._on_folder_clicked)
         self.custom_slide_button.clicked.connect(self._on_custom_slide_clicked)
-        self.church_button.clicked.connect(self._on_church_service_clicked)
-        self.countdown_button.clicked.connect(self._on_countdown_clicked)
-        self.export_button.clicked.connect(self.exportRequested.emit)
-        self.import_button.clicked.connect(self.importRequested.emit)
 
         # Keyboard shortcuts
         self._delete_shortcut = QShortcut(QKeySequence.StandardKey.Delete, self)
@@ -369,16 +345,13 @@ class PlaylistPanel(QFrame):
         self.tree_view.setModel(self._proxy_model)
         self.tree_view.expanded.connect(self._on_folder_expanded)
 
-        self._refresh_folder_combo()
         self._update_remove_state()
         self._update_count()
         self._update_empty_state()
-        self._update_action_state()
 
         sel = self.tree_view.selectionModel()
         if sel is not None:
             sel.currentChanged.connect(lambda _c, _p: self._update_remove_state())
-            sel.currentChanged.connect(self._on_tree_current_changed)
 
         # Connect to model changes to update count and grid
         if model is not None:
@@ -389,10 +362,8 @@ class PlaylistPanel(QFrame):
     def _on_model_changed(self) -> None:
         if self._proxy_model is not None:
             self._proxy_model.invalidateFilter()
-        self._refresh_folder_combo()
         self._update_count()
         self._update_empty_state()
-        self._update_action_state()
 
     def _update_count(self) -> None:
         if self._model is None:
@@ -414,12 +385,6 @@ class PlaylistPanel(QFrame):
             is_empty = self._model.rowCount() == 0
         self._empty_state.setVisible(is_empty)
         self.tree_view.setVisible(not is_empty)
-
-    def _update_action_state(self) -> None:
-        has_items = False
-        if self._model is not None:
-            has_items = self._model.rowCount() > 0
-        self.clear_button.setEnabled(has_items)
 
     def set_current_row(self, row: int) -> None:
         if self._model is None:
@@ -581,18 +546,6 @@ class PlaylistPanel(QFrame):
 
         menu.exec(self.tree_view.viewport().mapToGlobal(pos))
 
-    def _on_clear_clicked(self) -> None:
-        if self._model is None or self._model.rowCount() == 0:
-            return
-        dialog = ConfirmDialog(
-            tr("confirm_clear_playlist"),
-            tr("confirm_clear_playlist_msg"),
-            self,
-        )
-        if dialog.exec() != QDialog.DialogCode.Accepted:
-            return
-        self.clearRequested.emit()
-
     def _on_folder_clicked(self) -> None:
         dialog = InputDialog(tr("new_folder"), tr("folder_name"), parent=self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
@@ -627,91 +580,6 @@ class PlaylistPanel(QFrame):
             self.tree_view.scrollTo(
                 proxy_index, QAbstractItemView.ScrollHint.EnsureVisible
             )
-        if self._model is not None and hasattr(self._model, "get_folder_id"):
-            self._set_selected_folder_id(self._model.get_folder_id(source_index))
-
-    def _refresh_folder_combo(self) -> None:
-        if not hasattr(self, "_folder_combo"):
-            return
-        self._folder_index_by_id.clear()
-        self._folder_combo.blockSignals(True)
-        self._folder_combo.clear()
-        self._folder_combo.addItem(tr("playlist_root"), None)
-
-        if (
-            self._model is not None
-            and hasattr(self._model, "get_folders")
-            and hasattr(self._model, "get_folder_id")
-        ):
-            for name, idx in self._model.get_folders():
-                folder_id = self._model.get_folder_id(idx)
-                if folder_id is None:
-                    continue
-                self._folder_index_by_id[folder_id] = idx
-                self._folder_combo.addItem(name, folder_id)
-
-        self._folder_combo.blockSignals(False)
-        self._set_selected_folder_id(self._selected_folder_id)
-
-    def _set_selected_folder_id(self, folder_id: int | None) -> None:
-        self._selected_folder_id = folder_id
-        if not hasattr(self, "_folder_combo"):
-            return
-        for i in range(self._folder_combo.count()):
-            if self._folder_combo.itemData(i, Qt.ItemDataRole.UserRole) == folder_id:
-                if self._folder_combo.currentIndex() != i:
-                    self._folder_combo.blockSignals(True)
-                    self._folder_combo.setCurrentIndex(i)
-                    self._folder_combo.blockSignals(False)
-                return
-        if self._folder_combo.currentIndex() != 0:
-            self._folder_combo.blockSignals(True)
-            self._folder_combo.setCurrentIndex(0)
-            self._folder_combo.blockSignals(False)
-
-    def _on_folder_combo_changed(self, _index: int) -> None:
-        folder_id = self._folder_combo.currentData(Qt.ItemDataRole.UserRole)
-        self._selected_folder_id = folder_id
-        if self._proxy_model is not None and folder_id is not None:
-            source_idx = self._folder_index_by_id.get(folder_id)
-            if source_idx is not None:
-                proxy_idx = self._proxy_model.mapFromSource(source_idx)
-                if proxy_idx.isValid():
-                    self.tree_view.setCurrentIndex(proxy_idx)
-                    self.tree_view.expand(proxy_idx)
-
-    def _on_tree_current_changed(
-        self, current: QModelIndex, _previous: QModelIndex
-    ) -> None:
-        if self._model is None or self._proxy_model is None:
-            return
-        if not current.isValid():
-            self._set_selected_folder_id(None)
-            return
-        source_idx = self._proxy_model.mapToSource(current)
-        if not source_idx.isValid():
-            self._set_selected_folder_id(None)
-            return
-        is_folder = self._model.data(source_idx, PlaylistRoles.IsFolderRole)
-        if is_folder is True:
-            folder_id = (
-                self._model.get_folder_id(source_idx)
-                if hasattr(self._model, "get_folder_id")
-                else None
-            )
-            self._set_selected_folder_id(folder_id)
-            return
-        p = source_idx.parent()
-        if p.isValid() and (self._model.data(p, PlaylistRoles.IsFolderRole) is True):
-            folder_id = (
-                self._model.get_folder_id(p)
-                if hasattr(self._model, "get_folder_id")
-                else None
-            )
-            self._set_selected_folder_id(folder_id)
-            return
-        self._set_selected_folder_id(None)
-
     def _on_custom_slide_clicked(self) -> None:
         dialog = CustomSlideDialog(self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
@@ -721,33 +589,6 @@ class PlaylistPanel(QFrame):
                 self.customSlidesRequested.emit(
                     title.strip() or tr("custom_slide_default"), texts, split
                 )
-
-    def _on_church_service_clicked(self) -> None:
-        from app.ui.church_service_dialog import ChurchServiceDialog
-
-        dialog = ChurchServiceDialog(self)
-        if dialog.exec() != QDialog.DialogCode.Accepted:
-            return
-        slides = dialog.get_slides()
-        if slides:
-            self.serviceKitRequested.emit(dialog.get_folder_name(), slides)
-
-    def _on_countdown_clicked(self) -> None:
-        from app.ui.countdown_dialog import CountdownDialog
-
-        dialog = CountdownDialog(self)
-        if dialog.exec() != QDialog.DialogCode.Accepted:
-            return
-        message, seconds, end_message = dialog.get_config()
-        self.countdownRequested.emit(message, seconds, end_message)
-
-    def _on_conference_slide_clicked(self) -> None:
-        dialog = ConferenceSlideDialog(self)
-        if dialog.exec() != QDialog.DialogCode.Accepted:
-            return
-        for title, text in dialog.get_slides():
-            if text.strip():
-                self.customSlideRequested.emit(title.strip(), text.strip())
 
     def _on_search_changed(self, text: str) -> None:
         """Filter playlist items based on search text (reference + content)."""

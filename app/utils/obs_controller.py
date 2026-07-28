@@ -10,6 +10,7 @@ import logging
 import threading
 import webbrowser
 from typing import Any
+from urllib.parse import urlencode
 
 from app.utils.app_paths import ensure_presentation_workdir
 from app.utils.obs_web_server import ObsWebServer
@@ -144,13 +145,36 @@ class ObsController:
         """Check if the web server is running."""
         return self._web_server.is_running()
 
-    def get_web_server_url(self) -> str:
+    def get_web_server_url(self, layout_mode: str | None = None) -> str:
         """Get the URL for OBS Browser Source."""
-        return self._web_server.get_url()
+        url = self._web_server.get_url()
+        valid_modes = {
+            "lower_third",
+            "fullscreen",
+            "side_panel",
+            "subtitle",
+            "focus_card",
+        }
+        if layout_mode in valid_modes:
+            return f"{url}?{urlencode({'layout': layout_mode})}"
+        return url
 
-    def open_in_browser(self) -> None:
+    def get_layout_urls(self) -> dict[str, str]:
+        """Return stable OBS URLs for scenes that force a composition mode."""
+        return {
+            mode: self.get_web_server_url(mode)
+            for mode in (
+                "lower_third",
+                "fullscreen",
+                "side_panel",
+                "subtitle",
+                "focus_card",
+            )
+        }
+
+    def open_in_browser(self, layout_mode: str | None = None) -> None:
         """Open the OBS page in the default browser for testing."""
-        url = self.get_web_server_url()
+        url = self.get_web_server_url(layout_mode)
         if url:
             webbrowser.open_new_tab(url)
 

@@ -58,6 +58,8 @@ class StatusBar(QFrame):
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
+        self._project_active = False
+        self._hidden = False
         self.setObjectName("StatusBar")
         self.setFixedHeight(30)
         self.setStyleSheet(f"""
@@ -72,9 +74,9 @@ class StatusBar(QFrame):
         layout.setContentsMargins(Spacing.SM, 0, Spacing.SM, 0)
         layout.setSpacing(Spacing.SM)
 
-        # Live / Hidden indicator
-        self._live_pill = _StatusPill("eye.svg", "LIVE", self)
-        self._live_pill.set_accent(Colors.ACCENT_SUCCESS)
+        # Projection state: ready / live / hidden.
+        self._live_pill = _StatusPill("monitor.svg", "PRÊT", self)
+        self._live_pill.set_accent(Colors.ACCENT_SECONDARY)
         layout.addWidget(self._live_pill)
 
         # Current source type
@@ -149,14 +151,23 @@ class StatusBar(QFrame):
             self._counter_label.setText("")
 
     def set_hidden(self, hidden: bool) -> None:
+        self._hidden = hidden
         if hidden:
             self._live_pill.set_icon("eye-off.svg")
             self._live_pill.set_text("MASQU\u00c9")
             self._live_pill.set_accent(Colors.ACCENT_DANGER)
-        else:
-            self._live_pill.set_icon("eye.svg")
+        elif self._project_active:
+            self._live_pill.set_icon("cast.svg")
             self._live_pill.set_text("LIVE")
             self._live_pill.set_accent(Colors.ACCENT_SUCCESS)
+        else:
+            self._live_pill.set_icon("monitor.svg")
+            self._live_pill.set_text("PRÊT")
+            self._live_pill.set_accent(Colors.ACCENT_SECONDARY)
+
+    def set_project_active(self, active: bool) -> None:
+        self._project_active = active
+        self.set_hidden(self._hidden)
 
     def set_obs_connected(self, connected: bool) -> None:
         if connected:

@@ -3,6 +3,7 @@ from __future__ import annotations
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import (
     QApplication,
+    QComboBox,
     QDialog,
     QFrame,
     QHBoxLayout,
@@ -415,6 +416,42 @@ class ObsSettingsDialog(QDialog):
 
         web_settings_layout.addWidget(url_frame)
 
+        self._url_mode_combo = QComboBox()
+        for label, data in (
+            ("Mode configuré", ""),
+            ("Lower Third", "lower_third"),
+            ("Plein écran", "fullscreen"),
+            ("Panneau latéral", "side_panel"),
+            ("Sous-titre", "subtitle"),
+            ("Carte focus", "focus_card"),
+        ):
+            self._url_mode_combo.addItem(label, data)
+        web_settings_layout.addWidget(
+            SettingRow(
+                "URL par scène OBS",
+                self._url_mode_combo,
+                "Créez plusieurs sources Navigateur avec des compositions différentes.",
+            )
+        )
+
+        obs_pro_tip = QLabel(
+            "Réglage OBS recommandé : source Navigateur 1920 × 1080, 60 FPS, "
+            "fond transparent. Dupliquez la source et affectez un mode à chaque scène."
+        )
+        obs_pro_tip.setWordWrap(True)
+        obs_pro_tip.setStyleSheet(f"""
+            QLabel {{
+                color: {Colors.TEXT_SECONDARY};
+                background: {Colors.BG_ELEVATED};
+                border: 1px solid {Colors.BORDER_DEFAULT};
+                border-left: 3px solid {Colors.ACCENT_PRIMARY};
+                border-radius: 8px;
+                padding: 10px 12px;
+                font-size: 11px;
+            }}
+        """)
+        web_settings_layout.addWidget(obs_pro_tip)
+
         self._web_settings_frame.setLayout(web_settings_layout)  # Ensure layout is set
         content_layout.addWidget(self._web_settings_frame)
 
@@ -532,6 +569,7 @@ class ObsSettingsDialog(QDialog):
         self._refresh_ndi_status()
 
         self._port_spin.valueChanged.connect(self._update_url)
+        self._url_mode_combo.currentIndexChanged.connect(self._update_url)
 
         # Status update timer
         self._status_timer = QTimer(self)
@@ -546,19 +584,25 @@ class ObsSettingsDialog(QDialog):
     def _update_url(self) -> None:
         port = int(self._port_spin.value())
         url = f"http://localhost:{port}/obs"
+        layout_mode = str(self._url_mode_combo.currentData() or "")
         if (
             self._obs_controller is not None
             and self._obs_controller.is_web_server_running()
         ):
-            running_url = self._obs_controller.get_web_server_url()
+            running_url = self._obs_controller.get_web_server_url(
+                layout_mode or None
+            )
             if running_url:
                 url = running_url
+        elif layout_mode:
+            url = f"{url}?layout={layout_mode}"
         self._web_url_label.setText(url)
         self._web_url_label.setToolTip(url)
 
     def _open_in_browser(self) -> None:
         if self._obs_controller:
-            self._obs_controller.open_in_browser()
+            layout_mode = str(self._url_mode_combo.currentData() or "")
+            self._obs_controller.open_in_browser(layout_mode or None)
 
     def _select_mode(self, mode: str) -> None:
         self._current_mode = mode

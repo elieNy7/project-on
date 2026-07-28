@@ -3,7 +3,7 @@ from __future__ import annotations
 import ctypes
 import sys
 
-from PyQt6.QtCore import QEvent, QObject, Qt
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QPalette
 from PyQt6.QtWidgets import QApplication, QLabel, QMainWindow, QToolTip
 
@@ -80,16 +80,6 @@ def _qt_message_handler(mode, context, message):
         sys.stderr.write(f"{message}\n")
 
 
-class _TooltipBlocker(QObject):
-    """Application-wide filter that disables every tooltip popup."""
-
-    def eventFilter(self, watched, event) -> bool:
-        if event.type() == QEvent.Type.ToolTip:
-            QToolTip.hideText()
-            return True
-        return super().eventFilter(watched, event)
-
-
 def main() -> int:
     # Enable High DPI scaling (must be called before creating QApplication)
     QApplication.setHighDpiScaleFactorRoundingPolicy(
@@ -148,9 +138,6 @@ def main() -> int:
         palette.setColor(QPalette.ColorRole.ToolTipText, QColor("#f5f1e8"))
     app.setPalette(palette)
     QToolTip.setPalette(palette)
-    tooltip_blocker = _TooltipBlocker(app)
-    app.installEventFilter(tooltip_blocker)
-    app._tooltip_blocker = tooltip_blocker  # keep the filter alive
     app.setWindowIcon(app_logo_icon())
 
     # Show splash screen
