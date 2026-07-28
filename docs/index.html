@@ -3,289 +3,363 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Project-On — Logiciel de projection pour églises</title>
-  <meta name="description" content="Project-On est un logiciel gratuit de projection pour églises : Bible, cantiques, prédications et exposés, sortie OBS lower-third et projection plein écran cinématique. Pour Windows." />
-  <meta name="theme-color" content="#0b0d12" />
+  <meta name="theme-color" content="#08111f" />
+  <meta name="description" content="Project-On est un logiciel Windows gratuit de projection pour églises, avec Bible, cantiques, playlist, projection locale et cinq compositions professionnelles pour OBS." />
+  <title>Project-On — Projection d’église & diffusion OBS</title>
   <link rel="icon" href="app-icon.png" />
-  <meta property="og:title" content="Project-On — Projetez la Parole avec excellence" />
-  <meta property="og:description" content="Bible, cantiques, prédications, sortie OBS et projection plein écran. Logiciel gratuit pour Windows." />
-  <meta property="og:image" content="screenshots/04-projection-bible.png" />
-  <meta property="og:type" content="website" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <a class="skip-link" href="#contenu">Aller au contenu</a>
 
-  <!-- ── Header ─────────────────────────────────────────────── -->
   <header class="site-header" id="top">
     <div class="container nav">
       <a class="brand" href="#top" aria-label="Project-On, accueil">
-        <img src="app-icon.png" alt="" width="34" height="34" />
+        <img src="app-icon.png" alt="" width="32" height="32" />
         <span>Project-On</span>
       </a>
       <nav class="nav-links" aria-label="Navigation principale">
         <a href="#fonctionnalites">Fonctionnalités</a>
+        <a href="#obs">OBS Pro</a>
         <a href="#apercu">Aperçu</a>
-        <a href="#message">Le Message</a>
-        <a href="https://github.com/elieNy7/project-on/releases/download/v1.4.0/ProjectOn_1.4.0_Setup.exe" download>Télécharger</a>
       </nav>
-      <a class="btn btn-primary btn-sm" href="https://github.com/elieNy7/project-on/releases/download/v1.4.0/ProjectOn_1.4.0_Setup.exe" download>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14"/></svg>
+      <a class="btn btn-primary btn-sm" href="https://github.com/elieNy7/project-on/releases/download/v1.4.1/ProjectOn_1.4.1_Setup.exe" download>
         Télécharger
       </a>
     </div>
   </header>
 
   <main id="contenu">
-    <!-- ── Hero ─────────────────────────────────────────────── -->
     <section class="hero">
       <div class="container hero-grid">
         <div class="hero-copy">
-          <span class="eyebrow">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9 6.8 19.6l1-5.8L3.5 9.7l5.9-.9z"/></svg>
-            Gratuit · Windows 10 / 11
-          </span>
-          <h1>Projetez la Parole<br />avec <span class="grad">excellence</span>.</h1>
+          <p class="eyebrow">Version 1.4.1 · Windows 10 / 11</p>
+          <h1>La régie de projection conçue pour le <span>direct.</span></h1>
           <p class="lede">
-            Project-On réunit la Bible, les cantiques, les prédications et les exposés
-            dans un seul logiciel clair et rapide — avec une sortie OBS professionnelle
-            et une projection plein écran cinématique.
+            Bible, cantiques, prédications et exposés dans un seul espace de travail.
+            Projetez localement ou composez une sortie OBS précise, lisible et prête à diffuser.
           </p>
-          <div class="hero-cta">
-            <a class="btn btn-primary" href="https://github.com/elieNy7/project-on/releases/download/v1.4.0/ProjectOn_1.4.0_Setup.exe" download>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14"/></svg>
+          <div class="hero-actions">
+            <a class="btn btn-primary btn-lg" href="https://github.com/elieNy7/project-on/releases/download/v1.4.1/ProjectOn_1.4.1_Setup.exe" download>
               Télécharger pour Windows
             </a>
-            <a class="btn btn-ghost" href="#fonctionnalites">Découvrir les fonctionnalités</a>
+            <a class="btn btn-secondary btn-lg" href="#obs">Voir les modes OBS</a>
           </div>
-          <p class="hero-meta">Version 1.4.0 · ~200 Mo · Installation guidée en français</p>
-          <p class="update-note">Nouveau (17 juillet 2026) : <strong>Ordre du culte</strong> en un clic, <strong>compte à rebours</strong> avant le culte, lower-third <strong>totalement ajustable</strong> (position, accents, préréglages église) et sortie <strong>NDI</strong> optimisée.</p>
+          <div class="hero-proof" aria-label="Points forts">
+            <span>Gratuit</span>
+            <span>Hors-ligne</span>
+            <span>Sans publicité</span>
+          </div>
         </div>
 
-        <div class="hero-shot">
-          <div class="window">
-            <div class="window-bar"><span></span><span></span><span></span></div>
-            <img src="screenshots/01-app-main.png" width="1720" height="1040"
-                 alt="Interface de Project-On : bibliothèque biblique, playlist du culte et aperçu d'un verset." />
-          </div>
-          <div class="hero-glow" aria-hidden="true"></div>
-        </div>
+        <figure class="app-window hero-window">
+          <figcaption>
+            <strong>Interface opérateur actuelle</strong>
+          </figcaption>
+          <img
+            src="screenshots/01-app-main.png"
+            alt="Interface actuelle de Project-On avec bibliothèque biblique, playlist du culte et aperçu de projection."
+            width="1402"
+            height="852"
+            fetchpriority="high"
+          />
+        </figure>
       </div>
     </section>
 
-    <!-- ── Stats / trust ────────────────────────────────────── -->
-    <section class="strip">
-      <div class="container strip-grid">
-        <div><strong>4</strong><span>modules intégrés</span></div>
-        <div><strong>OBS · NDI</strong><span>sortie lower-third</span></div>
-        <div><strong>100 %</strong><span>hors-ligne</span></div>
-        <div><strong>0 €</strong><span>gratuit, sans pub</span></div>
+    <section class="proof-strip" aria-label="Chiffres clés">
+      <div class="container proof-grid">
+        <div><strong>5</strong><span>compositions OBS</span></div>
+        <div><strong>4</strong><span>bibliothèques intégrées</span></div>
+        <div><strong>100 %</strong><span>opérationnel hors-ligne</span></div>
+        <div><strong>0 €</strong><span>gratuit, sans publicité</span></div>
       </div>
     </section>
 
-    <!-- ── Features ─────────────────────────────────────────── -->
     <section class="section" id="fonctionnalites">
       <div class="container">
-        <div class="section-head">
-          <span class="kicker">Fonctionnalités</span>
-          <h2>Tout le culte, dans un seul outil</h2>
-          <p>Pensé pour les opérateurs : on cherche, on ajoute à la playlist, on projette. Rien de superflu.</p>
+        <div class="section-heading">
+          <p class="kicker">Un seul poste de contrôle</p>
+          <h2>Préparez le culte. Pilotez le direct. Gardez le rythme.</h2>
+          <p>Une interface cohérente, pensée pour réduire les manipulations pendant la réunion.</p>
         </div>
 
-        <div class="cards">
-          <article class="card">
-            <div class="card-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div>
-            <h3>Bible</h3>
-            <p>Naviguez livre par livre, recherchez un passage et projetez le verset en un clic, avec sa référence.</p>
+        <div class="bento">
+          <article class="feature-card feature-main">
+            <p class="card-index">01 · Diffusion</p>
+            <h3>Une scène adaptée à chaque moment</h3>
+            <p>
+              Lower Third, verset plein écran, panneau latéral, sous-titres et carte focus.
+              Chaque mode dispose de sa propre URL pour vos scènes OBS.
+            </p>
+            <ul class="chip-list" aria-label="Modes OBS">
+              <li>Lower Third</li>
+              <li>Plein écran</li>
+              <li>Panneau</li>
+              <li>Sous-titre</li>
+              <li>Focus</li>
+            </ul>
           </article>
-          <article class="card">
-            <div class="card-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div>
-            <h3>Cantiques</h3>
-            <p>Bibliothèque de cantiques organisée par strophes, prête à défiler pendant la louange.</p>
+
+          <article class="feature-card">
+            <p class="card-index">02 · Bibliothèque</p>
+            <h3>La Parole à portée de clic</h3>
+            <p>Recherche, navigation par livre et chapitre, cantiques par strophe et contenus personnalisés.</p>
           </article>
-          <article class="card">
-            <div class="card-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg></div>
-            <h3>Prédications &amp; Exposés</h3>
-            <p>Importez et présentez vos sermons et exposés, structurés pour un suivi fluide à l'écran.</p>
+
+          <article class="feature-card">
+            <p class="card-index">03 · Playlist</p>
+            <h3>Un ordre de culte clair</h3>
+            <p>Dossiers, glisser-déposer, édition rapide, import/export JSON et navigation au clavier.</p>
           </article>
-          <article class="card">
-            <div class="card-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="14" rx="2"/><path d="M8 21h8M12 18v3"/></svg></div>
-            <h3>Sortie OBS &amp; NDI · Lower Third</h3>
-            <p>Un bandeau « broadcast » totalement ajustable : position au pixel près, placement gauche/droite, couleurs d'accent, badge de source — sur OBS comme en NDI.</p>
-          </article>
-          <article class="card">
-            <div class="card-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><line x1="12" y1="2" x2="12" y2="6"/><line x1="10" y1="4" x2="14" y2="4"/><path d="M6 21v-8l6-4 6 4v8"/><path d="M2 21h20"/><path d="M10 21v-4a2 2 0 0 1 4 0v4"/></svg></div>
-            <h3>Ordre du culte</h3>
-            <p>Générez en un clic un dossier complet : accueil, louange, lecture, prédication, offrande, annonces, Sainte-Cène, bénédiction — prêt à projeter.</p>
-          </article>
-          <article class="card">
-            <div class="card-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
-            <h3>Compte à rebours</h3>
-            <p>Avant le culte, affichez un décompte en direct sur la projection et la diffusion, avec message d'accueil automatique à zéro.</p>
-          </article>
-          <article class="card">
-            <div class="card-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9 6.8 19.6l1-5.8L3.5 9.7l5.9-.9z"/></svg></div>
-            <h3>Projection cinématique</h3>
-            <p>Transitions Fondu, Glissement, Zoom, Flou et Reveal, plus un zoom lent (Ken Burns) sur les images de fond.</p>
-          </article>
-          <article class="card">
-            <div class="card-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v20M2 12h20"/><circle cx="12" cy="12" r="9"/></svg></div>
-            <h3>Arrière-plans chrétiens</h3>
-            <p>Fonds sobres et lisibles — croix, aigle, lion, agneau — pensés pour garder le texte parfaitement net.</p>
-          </article>
-          <article class="card">
-            <div class="card-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><path d="M12 11v6m0 0 2.5-2.5M12 17l-2.5-2.5"/></svg></div>
-            <h3>Playlist professionnelle</h3>
-            <p>Dossiers, recherche, glisser-déposer, édition rapide, annulation — et export/import JSON pour préparer le culte sur un autre poste.</p>
+
+          <article class="feature-card feature-wide">
+            <div>
+              <p class="card-index">04 · Projection locale</p>
+              <h3>Lisibilité protégée sur chaque écran</h3>
+              <p>
+                Écran cible, zones de sécurité, texte auto-ajusté, panneaux de contraste,
+                transitions et arrière-plans sobres.
+              </p>
+            </div>
+            <div class="mini-specs">
+              <span>Auto-fit</span>
+              <span>Écran secondaire</span>
+              <span>Ken Burns</span>
+              <span>5 compositions</span>
+            </div>
           </article>
         </div>
       </div>
     </section>
 
-    <!-- ── Showcase ─────────────────────────────────────────── -->
+    <section class="broadcast" id="obs">
+      <div class="container">
+        <figure class="broadcast-scene">
+          <img
+            src="assets/hero-broadcast.png"
+            alt="Régie vidéo dans une église moderne, avec caméra et scène éclairée."
+            width="1536"
+            height="1024"
+            loading="lazy"
+          />
+          <figcaption>
+            <p class="kicker">OBS Pro</p>
+            <h2>Votre contenu entre dans la réalisation.</h2>
+            <p>
+              Configurez une source Navigateur 1920 × 1080, dupliquez-la par scène,
+              puis choisissez la composition adaptée. La transparence, les zones sûres
+              et l’auto-ajustement sont déjà gérés.
+            </p>
+            <div class="broadcast-meta">
+              <span>1920 × 1080</span>
+              <span>60 FPS</span>
+              <span>Fond transparent</span>
+            </div>
+          </figcaption>
+        </figure>
+
+        <div class="mode-lab">
+          <div class="mode-copy">
+            <p class="kicker">Cinq façons de projeter</p>
+            <h2 id="mode-title">Lower Third TV</h2>
+            <p id="mode-description">
+              Un bandeau broadcast lisible qui laisse l’image principale respirer.
+            </p>
+            <div class="mode-tabs" role="tablist" aria-label="Compositions OBS">
+              <button type="button" role="tab" aria-selected="true" data-mode="lower_third">Lower Third</button>
+              <button type="button" role="tab" aria-selected="false" data-mode="fullscreen">Plein écran</button>
+              <button type="button" role="tab" aria-selected="false" data-mode="side_panel">Panneau</button>
+              <button type="button" role="tab" aria-selected="false" data-mode="subtitle">Sous-titre</button>
+              <button type="button" role="tab" aria-selected="false" data-mode="focus_card">Focus</button>
+            </div>
+          </div>
+          <figure class="mode-preview">
+            <img
+              id="mode-image"
+              src="screenshots/obs-lower_third.png"
+              alt="Aperçu du mode OBS Lower Third TV."
+              width="1920"
+              height="1080"
+              loading="lazy"
+            />
+          </figure>
+        </div>
+      </div>
+    </section>
+
     <section class="section showcase" id="apercu">
       <div class="container">
-        <div class="section-head">
-          <span class="kicker">Aperçu</span>
-          <h2>De vraies captures de l'application</h2>
-          <p>Une interface sombre et soignée, identique sur l'écran de contrôle et à la projection.</p>
+        <div class="section-heading">
+          <p class="kicker">Captures actuelles</p>
+          <h2>Les réglages visibles sont ceux de l’application.</h2>
+          <p>Les captures ont été reprises depuis l’état actuel de Project-On.</p>
         </div>
 
-        <div class="show-row">
-          <div class="show-text">
-            <h3>Une projection digne d'une diffusion TV</h3>
-            <p>Texte centré, ombres maîtrisées, fond discret : le verset reste l'élément principal. Les couleurs d'accent s'adaptent à la source (Bible, cantique, prédication).</p>
-          </div>
-          <figure class="show-media wide">
-            <img src="screenshots/04-projection-bible.png" width="1600" height="900"
-                 alt="Projection plein écran d'un psaume sur un fond avec une croix discrète." loading="lazy" />
+        <div class="capture-grid">
+          <figure class="capture-card capture-large">
+            <img
+              src="screenshots/01-app-main.png"
+              alt="Écran principal actuel de Project-On."
+              width="1402"
+              height="852"
+              loading="lazy"
+            />
+            <figcaption>
+              <strong>Poste opérateur</strong>
+              <span>Bibliothèque, playlist et retour de projection dans une même vue.</span>
+            </figcaption>
           </figure>
-        </div>
 
-        <div class="show-row reverse">
-          <div class="show-text">
-            <h3>Des transitions réglables au pixel près</h3>
-            <p>Choisissez le style de transition, la direction et la durée — et activez le zoom lent Ken Burns. La même richesse que la sortie OBS, désormais sur la projection locale.</p>
-          </div>
-          <figure class="show-media">
-            <img src="screenshots/02b-transitions.png" width="900" height="760"
-                 alt="Panneau de réglages Transitions & Effets de Project-On." loading="lazy" />
+          <figure class="capture-card">
+            <img
+              src="screenshots/03-obs-settings.png"
+              alt="Paramètres actuels des compositions OBS dans Project-On."
+              width="902"
+              height="922"
+              loading="lazy"
+            />
+            <figcaption>
+              <strong>Studio OBS</strong>
+              <span>Préréglages par composition, zone sûre et aperçu en direct.</span>
+            </figcaption>
           </figure>
-        </div>
 
-        <div class="show-row">
-          <div class="show-text">
-            <h3>Un lower-third OBS prêt à diffuser</h3>
-            <p>Position fine, placement du bandeau, police, couleurs, dégradé, flou, ombres, contour… avec un aperçu en direct et des préréglages pensés pour l'église : Culte, Sainte-Cène discrète, Louange. Branchez la source navigateur dans OBS et c'est prêt.</p>
-          </div>
-          <figure class="show-media">
-            <img src="screenshots/03-obs-settings.png" width="960" height="720"
-                 alt="Dialogue de réglages de la sortie OBS avec aperçu en direct." loading="lazy" />
+          <figure class="capture-card">
+            <img
+              src="screenshots/02-projection-settings.png"
+              alt="Paramètres actuels de projection locale dans Project-On."
+              width="682"
+              height="752"
+              loading="lazy"
+            />
+            <figcaption>
+              <strong>Projection locale</strong>
+              <span>Écran cible, auto-fit et réglages de lisibilité.</span>
+            </figcaption>
           </figure>
-        </div>
-
-        <div class="gallery">
-          <figure><img src="screenshots/05-projection-hymn.png" width="1600" height="900" alt="Projection d'un cantique sur un fond avec un aigle." loading="lazy" /></figure>
-          <figure><img src="screenshots/02-projection-settings.png" width="900" height="760" alt="Réglages de la projection locale." loading="lazy" /></figure>
         </div>
       </div>
     </section>
 
-    <!-- ── Message context ──────────────────────────────────── -->
-    <section class="section message" id="message">
-      <div class="container message-box">
-        <span class="kicker">Pour l'assemblée</span>
-        <h2>Conçu pour le Message de l'heure</h2>
+    <section class="section message-section" id="message">
+      <div class="container message-card">
+        <p class="kicker">Au service de l’assemblée</p>
+        <h2>La technique s’efface. Le Message reste au centre.</h2>
         <p>
-          Project-On a été pensé pour les assemblées du Message de Wm. Branham :
-          des arrière-plans sobres et clairement chrétiens — la croix, et les figures
-          des quatre êtres vivants (l'aigle, le lion, l'agneau) — au service de la
-          lisibilité de la Parole, sans distraction.
+          Project-On a été conçu pour les assemblées du Message de Wm. Branham,
+          avec des choix visuels sobres, une lecture nette et un fonctionnement fiable hors-ligne.
         </p>
       </div>
     </section>
 
-    <!-- ── Download ─────────────────────────────────────────── -->
-    <section class="section download" id="telecharger">
+    <section class="section download-section" id="telecharger">
       <div class="container download-card">
-        <div class="download-main">
-          <span class="kicker">Téléchargement</span>
-          <h2>Installez Project-On gratuitement</h2>
-          <p>Installeur Windows guidé en français. Une fois installé, tout fonctionne hors-ligne.</p>
-          <div class="hero-cta">
-            <a class="btn btn-primary btn-lg" href="https://github.com/elieNy7/project-on/releases/download/v1.4.0/ProjectOn_1.4.0_Setup.exe" download>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14"/></svg>
+        <div>
+          <p class="kicker">Project-On 1.4.1</p>
+          <h2>Prêt pour votre prochain culte.</h2>
+          <p>
+            L’installeur Windows guide la mise en place. La version portable permet
+            aussi de démarrer sans installation.
+          </p>
+          <div class="download-actions">
+            <a class="btn btn-primary btn-lg" href="https://github.com/elieNy7/project-on/releases/download/v1.4.1/ProjectOn_1.4.1_Setup.exe" download>
               Installeur Windows
             </a>
-            <a class="btn btn-ghost btn-lg" href="https://github.com/elieNy7/project-on/releases/download/v1.4.0/ProjectOn_1.4.0_Portable.zip" download>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14"/></svg>
-              Version portable (.zip)
+            <a class="btn btn-secondary btn-lg" href="https://github.com/elieNy7/project-on/releases/download/v1.4.1/ProjectOn_1.4.1_Portable.zip" download>
+              Version portable
             </a>
           </div>
-          <p class="hero-meta">Version 1.4.0 · <code>ProjectOn_1.4.0_Setup.exe</code> ou <code>ProjectOn_1.4.0_Portable.zip</code></p>
-          <p class="update-note">Nouveau dans la 1.4.0 : ordre du culte en un clic, compte à rebours en direct, lower-third totalement ajustable avec préréglages église, export/import de playlist et sortie NDI plus légère.</p>
+          <p class="file-note">Windows 10 / 11 · 64 bits · environ 220 Mo</p>
         </div>
-        <div class="req">
-          <h3>Configuration requise</h3>
-          <ul class="req-list">
-            <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m20 6-11 11-5-5"/></svg> Windows 10 ou 11 (64 bits)</li>
-            <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m20 6-11 11-5-5"/></svg> ~500 Mo d'espace disque</li>
-            <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m20 6-11 11-5-5"/></svg> Un second écran ou un projecteur</li>
-            <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m20 6-11 11-5-5"/></svg> OBS (facultatif, pour la diffusion)</li>
+        <aside>
+          <h3>Nouveau dans la 1.4.1</h3>
+          <ul>
+            <li>Cinq compositions OBS et locales</li>
+            <li>URLs OBS dédiées par scène</li>
+            <li>Zones de sécurité broadcast</li>
+            <li>Auto-fit et limite de lignes</li>
+            <li>Nouveaux préréglages professionnels</li>
           </ul>
-          <p class="note">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
-            Windows peut afficher « SmartScreen » à la première ouverture (éditeur non vérifié) :
-            cliquez sur « Informations complémentaires » puis « Exécuter quand même ».
-          </p>
-          <p class="note">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
-            Si l'installeur est bloqué par Windows (« Erreur 4551 : une stratégie de contrôle
-            d'application a bloqué ce fichier »), utilisez la <strong>version portable</strong> :
-            décompressez le .zip et lancez <code>Project-On.exe</code> — aucune installation,
-            donc rien ne s'exécute depuis le dossier temporaire.
-          </p>
-        </div>
+        </aside>
       </div>
     </section>
   </main>
 
-  <!-- ── Footer ───────────────────────────────────────────── -->
   <footer class="site-footer">
     <div class="container footer-grid">
       <div>
-        <a class="brand" href="#top"><img src="app-icon.png" alt="" width="28" height="28" /><span>Project-On</span></a>
-        <p class="muted">Logiciel de projection pour églises — Bible, cantiques, prédications, exposés.</p>
+        <a class="brand" href="#top">
+          <img src="app-icon.png" alt="" width="28" height="28" />
+          <span>Project-On</span>
+        </a>
+        <p>Logiciel de projection pour églises, publié par Elie Nyembo.</p>
       </div>
       <nav aria-label="Liens de pied de page">
         <a href="#fonctionnalites">Fonctionnalités</a>
-        <a href="#apercu">Aperçu</a>
-        <a href="https://github.com/elieNy7/project-on/releases/download/v1.4.0/ProjectOn_1.4.0_Setup.exe" download>Télécharger</a>
+        <a href="#obs">OBS Pro</a>
+        <a href="#telecharger">Télécharger</a>
       </nav>
     </div>
     <div class="container footer-bottom">
-      <p class="muted">© 2026 Onzième Heure Tab · Publié par Elie Nyembo</p>
-      <p class="muted small">Silhouettes aigle/lion/agneau : game-icons.net (Lorc, Delapouite) — CC BY 3.0</p>
+      <span>© 2026 Onzième Heure Tab</span>
+      <span>Project-On 1.4.1</span>
     </div>
   </footer>
 
   <script>
-    // Progressive enhancement: reveal sections on scroll.
-    // No-JS users see everything; reduced-motion users skip the animation.
     (function () {
-      var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      if (reduce || !('IntersectionObserver' in window)) return;
-      var targets = document.querySelectorAll('.card, .show-row, .gallery figure, .message-box, .download-card, .strip-grid > div');
-      targets.forEach(function (el) { el.classList.add('reveal'); });
-      var io = new IntersectionObserver(function (entries) {
-        entries.forEach(function (e) {
-          if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+      var modes = {
+        lower_third: {
+          title: "Lower Third TV",
+          description: "Un bandeau broadcast lisible qui laisse l’image principale respirer.",
+          image: "screenshots/obs-lower_third.png",
+          alt: "Aperçu du mode OBS Lower Third TV."
+        },
+        fullscreen: {
+          title: "Verset plein écran",
+          description: "Une composition immersive avec vignette, référence et marge de sécurité.",
+          image: "screenshots/obs-fullscreen.png",
+          alt: "Aperçu du mode OBS verset plein écran."
+        },
+        side_panel: {
+          title: "Panneau sermon",
+          description: "Un panneau vertical pour garder la caméra ou le prédicateur visible.",
+          image: "screenshots/obs-side_panel.png",
+          alt: "Aperçu du mode OBS panneau latéral."
+        },
+        subtitle: {
+          title: "Sous-titres live",
+          description: "Une bande compacte, limitée à trois lignes, pour les lectures et traductions.",
+          image: "screenshots/obs-subtitle.png",
+          alt: "Aperçu du mode OBS sous-titres live."
+        },
+        focus_card: {
+          title: "Carte focus",
+          description: "Une carte centrale premium pour les versets clés, titres et moments forts.",
+          image: "screenshots/obs-focus_card.png",
+          alt: "Aperçu du mode OBS carte focus."
+        }
+      };
+
+      var buttons = document.querySelectorAll("[data-mode]");
+      var image = document.getElementById("mode-image");
+      var title = document.getElementById("mode-title");
+      var description = document.getElementById("mode-description");
+
+      buttons.forEach(function (button) {
+        button.addEventListener("click", function () {
+          var mode = modes[button.getAttribute("data-mode")];
+          if (!mode) return;
+          buttons.forEach(function (item) {
+            item.setAttribute("aria-selected", String(item === button));
+          });
+          title.textContent = mode.title;
+          description.textContent = mode.description;
+          image.src = mode.image;
+          image.alt = mode.alt;
         });
-      }, { threshold: 0.12, rootMargin: '0px 0px -8% 0px' });
-      targets.forEach(function (el) { io.observe(el); });
+      });
     })();
   </script>
 </body>

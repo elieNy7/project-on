@@ -78,25 +78,46 @@ class ObsPreviewWidget(QFrame):
         super().paintEvent(event)
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-
-        # Apply global opacity
         painter.setOpacity(self._settings.opacity)
-
-        # Scale factor (preview is smaller than actual 1080p)
         rect = self.contentsRect()
         W, H = rect.width(), rect.height()
+        safe = max(8, int(min(W, H) * self._settings.safe_area_percent / 100))
+        mode = self._settings.layout_mode or "lower_third"
 
-        # 1. Background (if enabled)
+        if mode == "fullscreen":
+            text_rect = QRect(safe, safe, W - (safe * 2), H - (safe * 2))
+        elif mode == "side_panel":
+            panel_w = max(150, int(W * 0.44))
+            x = W - safe - panel_w if self._settings.panel_side == "right" else safe
+            text_rect = QRect(x, safe, panel_w, H - (safe * 2))
+        elif mode == "subtitle":
+            panel_h = max(64, int(H * 0.24))
+            text_rect = QRect(safe, H - safe - panel_h, W - (safe * 2), panel_h)
+        elif mode == "focus_card":
+            panel_w, panel_h = int(W * 0.68), int(H * 0.56)
+            text_rect = QRect(
+                (W - panel_w) // 2, (H - panel_h) // 2, panel_w, panel_h
+            )
+        else:
+            panel_w, panel_h = int(W * 0.82), max(80, int(H * 0.34))
+            x = (
+                safe
+                if self._settings.band_align == "left"
+                else W - safe - panel_w
+                if self._settings.band_align == "right"
+                else (W - panel_w) // 2
+            )
+            y = (
+                safe
+                if self._settings.position == "top"
+                else (H - panel_h) // 2
+                if self._settings.position == "center"
+                else H - safe - panel_h
+            )
+            text_rect = QRect(x, y, panel_w, panel_h)
+
         if self._settings.bg_enabled:
-            # Layout
-            p_h = self._settings.padding_horizontal // 2
-            p_v = self._settings.padding_vertical // 2
             radius = self._settings.border_radius // 2
-
-            # Text bounding box (simulated)
-            text_rect = QRect(40, H - 100, W - 80, 60)  # Simulated position
-
-            # Gradient or Solid - Use bg_opacity
             bg_color = self._parse_color(
                 self._settings.bg_color, self._settings.bg_opacity
             )
@@ -104,7 +125,6 @@ class ObsPreviewWidget(QFrame):
                 bg_color_2 = self._parse_color(
                     self._settings.bg_color_2, self._settings.bg_opacity
                 )
-                # Quick approximation of angle
                 angle = self._settings.bg_gradient_angle
                 rad = math.radians(angle)
                 x1 = W / 2 - math.sin(rad) * 100
@@ -119,25 +139,63 @@ class ObsPreviewWidget(QFrame):
                 painter.setBrush(QBrush(bg_color))
 
             painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawRoundedRect(text_rect, radius, radius)
+
+        inner = text_rect.adjusted(18, 14, -18, -14)
+        if self._settings.show_accent_bar and mode != "fullscreen":
+            painter.setBrush(QBrush(self._parse_color(self._settings.accent_color)))
+            painter.setPen(Qt.PenStyle.NoPen)
             painter.drawRoundedRect(
-                text_rect.adjusted(-p_h, -p_v, p_h, p_v), radius, radius
+                QRect(text_rect.x(), text_rect.y(), 5, text_rect.height()), 2, 2
             )
 
-        # 2. Text (Simulated)
         text_color = self._parse_color(self._settings.text_color)
         painter.setPen(QPen(text_color))
-        # Saturate font size to at least 1px to avoid QFont::setPointSize: Point size <= 0 (-1)
-        font_size = max(4, int(self._settings.text_size // 4))
+        # Scale the configured 1920x1080 text size to this compact canvas.
+        # Reserving a separate reference lane prevents the two texts from
+        # colliding in lower-third and subtitle previews.
+        font_size = max(7, min(16, int(self._settings.text_size * W / 1400)))
         font = QFont(self._settings.font_family or Typography.FAMILY)
-        font.setPointSize(max(1, int(font_size * 0.75)))
+        font.setPixelSize(font_size)
         if self._settings.font_weight == "bold":
             font.setBold(True)
         painter.setFont(font)
-        painter.drawText(
-            QRect(0, 0, W, H),
-            Qt.AlignmentFlag.AlignCenter,
-            "Ceci est un aperçu\n(Texte de démonstration)",
+        align = (
+            Qt.AlignmentFlag.AlignLeft
+            if self._settings.align == "left" or mode == "side_panel"
+            else Qt.AlignmentFlag.AlignRight
+            if self._settings.align == "right"
+            else Qt.AlignmentFlag.AlignHCenter
         )
+        ref_height = (
+            max(12, int(font_size * 1.6))
+            if self._settings.show_reference
+            else 0
+        )
+        body_rect = inner.adjusted(0, 0, 0, -(ref_height + 3))
+        painter.drawText(
+            body_rect,
+            align | Qt.AlignmentFlag.AlignVCenter | Qt.TextFlag.TextWordWrap,
+            "La foi transforme notre manière de voir et d'avancer.",
+        )
+
+        if self._settings.show_reference:
+            ref_font = QFont(font)
+            ref_font.setPixelSize(max(6, font_size - 2))
+            ref_font.setBold(False)
+            painter.setFont(ref_font)
+            painter.setPen(QPen(self._parse_color(self._settings.ref_color)))
+            ref_rect = QRect(
+                inner.x(),
+                inner.bottom() - ref_height + 1,
+                inner.width(),
+                ref_height,
+            )
+            painter.drawText(
+                ref_rect,
+                align | Qt.AlignmentFlag.AlignVCenter,
+                "Hébreux 11:1",
+            )
 
 
 # Modern styles
@@ -432,7 +490,7 @@ class ObsOutputSettingsDialog(QDialog):
         self, settings: ObsOutputSettings, parent: QWidget | None = None
     ) -> None:
         super().__init__(parent)
-        self.setWindowTitle(tr("obs_lower_third_title"))
+        self.setWindowTitle("Paramètres de diffusion OBS")
         self.setMinimumSize(820, 600)
         self.resize(900, 680)
         self.setStyleSheet(DIALOG_STYLE)
@@ -485,7 +543,7 @@ class ObsOutputSettingsDialog(QDialog):
         logo.setStyleSheet("background: transparent;")
         title_layout.addWidget(logo)
 
-        title = QLabel("OBS Settings")
+        title = QLabel("Projection OBS")
         title.setStyleSheet(
             f"font-size: 17px; font-weight: 700; color: {Colors.TEXT_PRIMARY}; background: transparent;"
         )
@@ -780,6 +838,56 @@ class ObsOutputSettingsDialog(QDialog):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(16)
 
+        mode_section = SettingSection("Mode de composition", "monitor.svg")
+
+        self._layout_mode = QComboBox()
+        for label, data in (
+            ("Lower Third", "lower_third"),
+            ("Plein écran", "fullscreen"),
+            ("Panneau latéral", "side_panel"),
+            ("Sous-titre", "subtitle"),
+            ("Carte focus", "focus_card"),
+        ):
+            self._layout_mode.addItem(label, data)
+        idx = self._layout_mode.findData(settings.layout_mode or "lower_third")
+        self._layout_mode.setCurrentIndex(max(idx, 0))
+        mode_section.addRow(
+            "Composition",
+            self._layout_mode,
+            "Chaque mode peut aussi être forcé dans l'URL OBS avec ?layout=nom_du_mode.",
+        )
+
+        self._panel_side = QComboBox()
+        self._panel_side.addItem("Gauche", "left")
+        self._panel_side.addItem("Droite", "right")
+        idx = self._panel_side.findData(settings.panel_side or "left")
+        self._panel_side.setCurrentIndex(max(idx, 0))
+        mode_section.addRow("Côté du panneau", self._panel_side)
+
+        self._safe_area = QSpinBox()
+        self._safe_area.setRange(0, 15)
+        self._safe_area.setSuffix(" %")
+        self._safe_area.setValue(int(settings.safe_area_percent or 0))
+        mode_section.addRow(
+            "Zone de sécurité",
+            self._safe_area,
+            "Inset broadcast protégé, indépendant de la résolution OBS.",
+        )
+
+        self._background_dimmer = QSpinBox()
+        self._background_dimmer.setRange(0, 85)
+        self._background_dimmer.setSuffix(" %")
+        self._background_dimmer.setValue(
+            int(round(float(settings.background_dimmer or 0.0) * 100))
+        )
+        mode_section.addRow(
+            "Assombrissement",
+            self._background_dimmer,
+            "Contraste du fond pour les compositions plein écran.",
+        )
+
+        layout.addWidget(mode_section)
+
         # Position section
         pos_section = SettingSection("Position", "move.svg")
 
@@ -875,6 +983,33 @@ class ObsOutputSettingsDialog(QDialog):
         self._border_radius.setSuffix(" px")
         self._border_radius.setValue(settings.border_radius)
         dim_section.addRow("Coins arrondis", self._border_radius)
+
+        self._auto_fit = QCheckBox("Ajuster automatiquement les textes longs")
+        self._auto_fit.setChecked(bool(settings.auto_fit))
+        dim_section.addWidget(self._auto_fit)
+
+        self._min_text_size = QSpinBox()
+        self._min_text_size.setRange(12, 72)
+        self._min_text_size.setSuffix(" px")
+        self._min_text_size.setValue(int(settings.min_text_size or 24))
+        dim_section.addRow("Taille minimale", self._min_text_size)
+
+        self._max_lines = QSpinBox()
+        self._max_lines.setRange(1, 12)
+        self._max_lines.setValue(int(settings.max_lines or 6))
+        dim_section.addRow(
+            "Nombre de lignes max.",
+            self._max_lines,
+            "Le moteur réduit la police avant d'atteindre cette limite.",
+        )
+
+        self._reference_style = QComboBox()
+        self._reference_style.addItem("Badge", "badge")
+        self._reference_style.addItem("Texte simple", "plain")
+        self._reference_style.addItem("En ligne", "inline")
+        idx = self._reference_style.findData(settings.reference_style or "badge")
+        self._reference_style.setCurrentIndex(max(idx, 0))
+        dim_section.addRow("Style de référence", self._reference_style)
 
         layout.addWidget(dim_section)
         layout.addStretch()
@@ -1271,6 +1406,16 @@ class ObsOutputSettingsDialog(QDialog):
         """Reset all fields to default values."""
         defaults = ObsOutputSettings()
         # Position & Layout
+        self._layout_mode.setCurrentIndex(
+            self._layout_mode.findData(defaults.layout_mode)
+        )
+        self._panel_side.setCurrentIndex(
+            self._panel_side.findData(defaults.panel_side)
+        )
+        self._safe_area.setValue(defaults.safe_area_percent)
+        self._background_dimmer.setValue(
+            int(round(defaults.background_dimmer * 100))
+        )
         self._position_combo.setCurrentIndex(
             self._position_combo.findData(defaults.position)
         )
@@ -1291,6 +1436,12 @@ class ObsOutputSettingsDialog(QDialog):
         self._padding_h.setValue(defaults.padding_horizontal)
         self._padding_v.setValue(defaults.padding_vertical)
         self._border_radius.setValue(defaults.border_radius)
+        self._auto_fit.setChecked(defaults.auto_fit)
+        self._min_text_size.setValue(defaults.min_text_size)
+        self._max_lines.setValue(defaults.max_lines)
+        self._reference_style.setCurrentIndex(
+            self._reference_style.findData(defaults.reference_style)
+        )
         # Text
         idx = self._font_combo.findData(defaults.font_family)
         if idx >= 0:
@@ -1343,6 +1494,7 @@ class ObsOutputSettingsDialog(QDialog):
         except Exception:
             font = "Google Sans"
         return ObsOutputSettings(
+            layout_mode=self._layout_mode.currentData() or "lower_third",
             font_family=str(font).strip() or "Google Sans",
             text_size=self._text_size.value(),
             ref_size=self._ref_size.value(),
@@ -1353,6 +1505,8 @@ class ObsOutputSettingsDialog(QDialog):
             offset_x=self._offset_x.value(),
             offset_y=self._offset_y.value(),
             edge_margin=self._edge_margin.value(),
+            safe_area_percent=self._safe_area.value(),
+            panel_side=self._panel_side.currentData() or "left",
             show_kicker=self._show_kicker.isChecked(),
             show_accent_bar=self._show_accent_bar.isChecked(),
             accent_mode=self._accent_mode.currentData() or "auto",
@@ -1378,6 +1532,11 @@ class ObsOutputSettingsDialog(QDialog):
             padding_horizontal=self._padding_h.value(),
             padding_vertical=self._padding_v.value(),
             max_width=self._max_width.value(),
+            auto_fit=self._auto_fit.isChecked(),
+            min_text_size=self._min_text_size.value(),
+            max_lines=self._max_lines.value(),
+            reference_style=self._reference_style.currentData() or "badge",
+            background_dimmer=self._background_dimmer.value() / 100.0,
             border_radius=self._border_radius.value(),
             animation_enabled=self._animation_enabled.isChecked(),
             animation_type=self._animation_type.currentData() or "blur",
@@ -1397,39 +1556,140 @@ class ObsOutputSettingsDialog(QDialog):
         """Create a grid of preset style buttons."""
         presets = [
             (
-                "Broadcast",
+                "Lower Third TV",
                 {
+                    "layout_mode": "lower_third",
+                    "safe_area_percent": 5,
+                    "position": "bottom",
+                    "band_align": "center",
+                    "align": "center",
+                    "max_width": 78,
+                    "text_size": 46,
+                    "ref_size": 18,
+                    "padding_horizontal": 48,
+                    "padding_vertical": 24,
+                    "max_lines": 4,
+                    "reference_style": "badge",
+                    "border_radius": 22,
+                    "show_kicker": True,
+                    "show_accent_bar": True,
                     "bg_color": "rgba(8, 15, 28, 0.82)",
                     "bg_color_2": "rgba(3, 8, 18, 0.90)",
                     "bg_gradient_enabled": True,
                     "text_color": "rgba(255, 255, 255, 0.96)",
+                    "text_transform": "none",
+                    "animation_type": "auto",
                 },
             ),
             (
-                "Navy Pro",
+                "Verset plein écran",
                 {
-                    "bg_color": "rgba(10, 25, 47, 0.82)",
-                    "bg_color_2": "rgba(2, 12, 27, 0.90)",
+                    "layout_mode": "fullscreen",
+                    "safe_area_percent": 7,
+                    "position": "center",
+                    "band_align": "center",
+                    "align": "center",
+                    "max_width": 100,
+                    "text_size": 64,
+                    "ref_size": 22,
+                    "padding_horizontal": 92,
+                    "padding_vertical": 54,
+                    "min_text_size": 30,
+                    "max_lines": 7,
+                    "reference_style": "plain",
+                    "background_dimmer": 0.44,
+                    "border_radius": 0,
+                    "show_kicker": True,
+                    "show_accent_bar": True,
+                    "bg_color": "rgba(5, 12, 24, 0.78)",
+                    "bg_color_2": "rgba(2, 7, 16, 0.92)",
                     "bg_gradient_enabled": True,
-                    "text_color": "#E6F1FF",
+                    "text_color": "rgba(255, 255, 255, 0.98)",
+                    "text_transform": "none",
+                    "animation_type": "reveal",
                 },
             ),
             (
-                "Or Doux",
+                "Panneau sermon",
                 {
-                    "bg_color": "rgba(38, 29, 14, 0.82)",
-                    "bg_color_2": "rgba(10, 10, 14, 0.92)",
+                    "layout_mode": "side_panel",
+                    "panel_side": "left",
+                    "safe_area_percent": 5,
+                    "position": "center",
+                    "band_align": "left",
+                    "align": "left",
+                    "max_width": 44,
+                    "text_size": 40,
+                    "ref_size": 18,
+                    "padding_horizontal": 44,
+                    "padding_vertical": 38,
+                    "min_text_size": 22,
+                    "max_lines": 9,
+                    "reference_style": "badge",
+                    "border_radius": 26,
+                    "show_kicker": True,
+                    "show_accent_bar": True,
+                    "bg_color": "rgba(8, 18, 34, 0.88)",
+                    "bg_color_2": "rgba(3, 8, 18, 0.94)",
                     "bg_gradient_enabled": True,
-                    "text_color": "#FFF3D4",
+                    "text_color": "rgba(255, 255, 255, 0.97)",
+                    "text_transform": "none",
+                    "animation_type": "slide",
                 },
             ),
             (
-                "Gris Moderne",
+                "Sous-titres live",
                 {
-                    "bg_color": "rgba(34, 39, 49, 0.82)",
-                    "bg_color_2": "rgba(16, 20, 28, 0.92)",
+                    "layout_mode": "subtitle",
+                    "safe_area_percent": 4,
+                    "position": "bottom",
+                    "band_align": "center",
+                    "align": "center",
+                    "max_width": 92,
+                    "text_size": 34,
+                    "ref_size": 15,
+                    "padding_horizontal": 42,
+                    "padding_vertical": 18,
+                    "min_text_size": 22,
+                    "max_lines": 3,
+                    "reference_style": "inline",
+                    "border_radius": 18,
+                    "show_kicker": False,
+                    "show_accent_bar": True,
+                    "bg_color": "rgba(5, 9, 16, 0.88)",
+                    "bg_color_2": "rgba(12, 20, 34, 0.88)",
                     "bg_gradient_enabled": True,
-                    "text_color": "#F4F1EA",
+                    "text_color": "rgba(255, 255, 255, 0.98)",
+                    "text_transform": "none",
+                    "animation_type": "fade",
+                },
+            ),
+            (
+                "Carte focus",
+                {
+                    "layout_mode": "focus_card",
+                    "safe_area_percent": 6,
+                    "position": "center",
+                    "band_align": "center",
+                    "align": "center",
+                    "max_width": 68,
+                    "text_size": 52,
+                    "ref_size": 19,
+                    "padding_horizontal": 64,
+                    "padding_vertical": 46,
+                    "min_text_size": 26,
+                    "max_lines": 7,
+                    "reference_style": "badge",
+                    "background_dimmer": 0.38,
+                    "border_radius": 28,
+                    "show_kicker": True,
+                    "show_accent_bar": True,
+                    "bg_color": "rgba(11, 18, 31, 0.86)",
+                    "bg_color_2": "rgba(3, 8, 18, 0.94)",
+                    "bg_gradient_enabled": True,
+                    "text_color": "rgba(255, 255, 255, 0.98)",
+                    "text_transform": "none",
+                    "animation_type": "scale",
                 },
             ),
             (
@@ -1538,6 +1798,36 @@ class ObsOutputSettingsDialog(QDialog):
     def _apply_preset(self, params: dict):
         """Apply a set of parameters to the UI."""
         self._initializing = True  # Block signals temporarily
+        for key, combo in (
+            ("layout_mode", self._layout_mode),
+            ("panel_side", self._panel_side),
+            ("position", self._position_combo),
+            ("band_align", self._band_align_combo),
+            ("align", self._align_combo),
+            ("reference_style", self._reference_style),
+            ("animation_type", self._animation_type),
+        ):
+            if key in params:
+                idx = combo.findData(params[key])
+                if idx >= 0:
+                    combo.setCurrentIndex(idx)
+        for key, spin in (
+            ("safe_area_percent", self._safe_area),
+            ("max_width", self._max_width),
+            ("text_size", self._text_size),
+            ("ref_size", self._ref_size),
+            ("padding_horizontal", self._padding_h),
+            ("padding_vertical", self._padding_v),
+            ("min_text_size", self._min_text_size),
+            ("max_lines", self._max_lines),
+            ("border_radius", self._border_radius),
+        ):
+            if key in params:
+                spin.setValue(int(params[key]))
+        if "background_dimmer" in params:
+            self._background_dimmer.setValue(
+                int(round(float(params["background_dimmer"]) * 100))
+            )
         if "bg_enabled" in params:
             self._bg_enabled.setChecked(bool(params["bg_enabled"]))
         if "bg_color" in params:
@@ -1566,18 +1856,6 @@ class ObsOutputSettingsDialog(QDialog):
                 self._accent_mode.setCurrentIndex(idx)
         if "accent_color" in params:
             self._accent_color_btn.set_color(params["accent_color"])
-        if "position" in params:
-            idx = self._position_combo.findData(params["position"])
-            if idx >= 0:
-                self._position_combo.setCurrentIndex(idx)
-        if "band_align" in params:
-            idx = self._band_align_combo.findData(params["band_align"])
-            if idx >= 0:
-                self._band_align_combo.setCurrentIndex(idx)
-        if "max_width" in params:
-            self._max_width.setValue(int(params["max_width"]))
-        if "text_size" in params:
-            self._text_size.setValue(int(params["text_size"]))
         if "font_weight" in params:
             idx = self._font_weight.findData(params["font_weight"])
             if idx >= 0:

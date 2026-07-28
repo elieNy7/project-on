@@ -13,3 +13,11 @@ Licence : Creative Commons Attribution 3.0 (CC BY 3.0)
 Source  : https://game-icons.net/
 
 La croix est dessinée par Project-On (aucune attribution requise).
+
+Arrière-plans photo
+===================
+
+Les cinq arrière-plans photo (montagnes, lac, forêt, ciel étoilé et croix à
+l'aube) ont été générés spécialement pour Project-On avec l'outil intégré de
+génération d'images d'OpenAI le 26 juillet 2026. Ils ne dépendent d'aucune
+photographie externe et ne nécessitent aucune attribution supplémentaire.

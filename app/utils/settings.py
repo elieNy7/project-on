@@ -9,6 +9,7 @@ from typing import Any
 
 @dataclass
 class ObsOutputSettings:
+    layout_mode: str = "lower_third"  # lower_third|fullscreen|side_panel|subtitle|focus_card
     font_family: str = "Google Sans"
     text_size: int = 48  # pixels
     ref_size: int = 19  # pixels
@@ -20,6 +21,8 @@ class ObsOutputSettings:
     offset_x: int = 0  # px horizontal offset (negative = left)
     offset_y: int = 0  # px vertical offset (negative = up)
     edge_margin: int = 64  # px distance kept from the screen edges
+    safe_area_percent: int = 5  # broadcast-safe inset as percentage of viewport
+    panel_side: str = "left"  # left|right, used by side_panel
     # Branding / decorations
     show_kicker: bool = True  # source badge above the text
     show_accent_bar: bool = True  # coloured accent bar under the band
@@ -42,6 +45,11 @@ class ObsOutputSettings:
     padding_horizontal: int = 48  # pixels
     padding_vertical: int = 26  # pixels
     max_width: int = 82  # percentage of screen width
+    auto_fit: bool = True
+    min_text_size: int = 24
+    max_lines: int = 6
+    reference_style: str = "badge"  # badge|plain|inline
+    background_dimmer: float = 0.36  # full-canvas readability overlay
     border_radius: int = 22  # pixels
     # Animation
     animation_enabled: bool = True
@@ -65,8 +73,18 @@ class ObsOutputSettings:
     animation_direction: str = "up"  # up|down|left|right
 
     def to_obs_config(self) -> dict[str, Any]:
+        layout_mode = str(self.layout_mode or "lower_third").lower()
+        if layout_mode not in (
+            "lower_third",
+            "fullscreen",
+            "side_panel",
+            "subtitle",
+            "focus_card",
+        ):
+            layout_mode = "lower_third"
         return {
             "version": int(time.time() * 1000),
+            "layout_mode": layout_mode,
             "font_family": str(self.font_family or "Google Sans").strip(),
             "text_size": int(self.text_size or 48),
             "ref_size": int(self.ref_size or 19),
@@ -83,6 +101,8 @@ class ObsOutputSettings:
             "offset_x": int(self.offset_x or 0),
             "offset_y": int(self.offset_y or 0),
             "edge_margin": max(0, int(self.edge_margin if self.edge_margin is not None else 64)),
+            "safe_area_percent": max(0, min(15, int(self.safe_area_percent or 0))),
+            "panel_side": "right" if self.panel_side == "right" else "left",
             "show_kicker": bool(self.show_kicker),
             "show_accent_bar": bool(self.show_accent_bar),
             "accent_mode": "custom" if self.accent_mode == "custom" else "auto",
@@ -106,6 +126,25 @@ class ObsOutputSettings:
             "padding_horizontal": int(self.padding_horizontal or 48),
             "padding_vertical": int(self.padding_vertical or 26),
             "max_width": int(self.max_width or 82),
+            "auto_fit": bool(self.auto_fit),
+            "min_text_size": max(12, int(self.min_text_size or 24)),
+            "max_lines": max(1, min(12, int(self.max_lines or 6))),
+            "reference_style": (
+                self.reference_style
+                if self.reference_style in ("badge", "plain", "inline")
+                else "badge"
+            ),
+            "background_dimmer": max(
+                0.0,
+                min(
+                    0.85,
+                    float(
+                        self.background_dimmer
+                        if self.background_dimmer is not None
+                        else 0.36
+                    ),
+                ),
+            ),
             "border_radius": int(self.border_radius or 22),
             "animation_enabled": bool(self.animation_enabled),
             "animation_type": str(self.animation_type or "auto"),
@@ -135,6 +174,10 @@ class ObsSettings:
 
 @dataclass
 class ProjectionSettings:
+    layout_mode: str = "fullscreen"  # fullscreen|lower_third|side_panel|subtitle|focus_card
+    display_screen: str = "auto"  # auto or QScreen.name()
+    safe_margin: int = 32  # pixels
+    panel_side: str = "left"  # left|right, used by side_panel
     font_family: str = "Google Sans"
     text_size: int = 48  # pixels
     ref_size: int = 24  # pixels
@@ -157,6 +200,14 @@ class ProjectionSettings:
     shadow_color: str = "rgba(0,0,0,0.88)"  # shadow color
     shadow_blur: int = 18  # shadow blur in pixels
     max_width: int = 100  # percentage of screen width
+    auto_fit: bool = True
+    min_text_size: int = 18
+    max_lines: int = 8
+    background_dimmer: float = 0.34
+    panel_enabled: bool = False
+    panel_color: str = "rgba(5,12,24,0.86)"
+    panel_opacity: float = 0.86
+    panel_radius: int = 24
     bg_gradient_enabled: bool = True
     bg_color_2: str = "#0f2744"
     bg_gradient_angle: int = 160
@@ -171,6 +222,15 @@ class ProjectionSettings:
     ken_burns: bool = True  # slow zoom on background images
 
     def to_presentation_config(self) -> dict[str, Any]:
+        layout_mode = str(self.layout_mode or "fullscreen").lower()
+        if layout_mode not in (
+            "fullscreen",
+            "lower_third",
+            "side_panel",
+            "subtitle",
+            "focus_card",
+        ):
+            layout_mode = "fullscreen"
         align = (self.align or "center").lower()
         if align not in ("center", "left", "right"):
             align = "center"
@@ -179,6 +239,10 @@ class ProjectionSettings:
             slide_style = "cinematic"
 
         return {
+            "layout_mode": layout_mode,
+            "display_screen": str(self.display_screen or "auto"),
+            "safe_margin": max(0, min(240, int(self.safe_margin or 0))),
+            "panel_side": "right" if self.panel_side == "right" else "left",
             "font_family": str(self.font_family or "Google Sans").strip(),
             "text_size": int(self.text_size or 48),
             "ref_size": int(self.ref_size or 24),
@@ -209,6 +273,34 @@ class ProjectionSettings:
             "shadow_color": str(self.shadow_color or "rgba(0,0,0,0.88)"),
             "shadow_blur": int(self.shadow_blur or 18),
             "max_width": int(self.max_width or 100),
+            "auto_fit": bool(self.auto_fit),
+            "min_text_size": max(10, int(self.min_text_size or 18)),
+            "max_lines": max(1, min(20, int(self.max_lines or 8))),
+            "background_dimmer": max(
+                0.0,
+                min(
+                    0.85,
+                    float(
+                        self.background_dimmer
+                        if self.background_dimmer is not None
+                        else 0.34
+                    ),
+                ),
+            ),
+            "panel_enabled": bool(self.panel_enabled),
+            "panel_color": str(self.panel_color or "rgba(5,12,24,0.86)"),
+            "panel_opacity": max(
+                0.0,
+                min(
+                    1.0,
+                    float(
+                        self.panel_opacity
+                        if self.panel_opacity is not None
+                        else 0.86
+                    ),
+                ),
+            ),
+            "panel_radius": max(0, min(96, int(self.panel_radius or 0))),
             "bg_gradient_enabled": bool(self.bg_gradient_enabled),
             "bg_color_2": str(self.bg_color_2 or "#0f2744"),
             "bg_gradient_angle": int(self.bg_gradient_angle or 160),
@@ -293,6 +385,14 @@ class AppSettings:
         projection = ProjectionSettings()
         p = payload.get("projection")
         if isinstance(p, dict):
+            projection.layout_mode = _gs(
+                p, "layout_mode", projection.layout_mode
+            )
+            projection.display_screen = _gs(
+                p, "display_screen", projection.display_screen
+            )
+            projection.safe_margin = _gi(p, "safe_margin", projection.safe_margin)
+            projection.panel_side = _gs(p, "panel_side", projection.panel_side)
             projection.font_family = _gs(p, "font_family", projection.font_family)
             projection.text_size = _gi(p, "text_size", projection.text_size)
             projection.ref_size = _gi(p, "ref_size", projection.ref_size)
@@ -325,6 +425,26 @@ class AppSettings:
             projection.shadow_color = _gs(p, "shadow_color", projection.shadow_color)
             projection.shadow_blur = _gi(p, "shadow_blur", projection.shadow_blur)
             projection.max_width = _gi(p, "max_width", projection.max_width)
+            projection.auto_fit = _gb(p, "auto_fit", projection.auto_fit)
+            projection.min_text_size = _gi(
+                p, "min_text_size", projection.min_text_size
+            )
+            projection.max_lines = _gi(p, "max_lines", projection.max_lines)
+            projection.background_dimmer = _gf(
+                p, "background_dimmer", projection.background_dimmer
+            )
+            projection.panel_enabled = _gb(
+                p, "panel_enabled", projection.panel_enabled
+            )
+            projection.panel_color = _gs(
+                p, "panel_color", projection.panel_color
+            )
+            projection.panel_opacity = _gf(
+                p, "panel_opacity", projection.panel_opacity
+            )
+            projection.panel_radius = _gi(
+                p, "panel_radius", projection.panel_radius
+            )
             projection.bg_gradient_enabled = _gb(
                 p, "bg_gradient_enabled", projection.bg_gradient_enabled
             )
@@ -362,6 +482,9 @@ class AppSettings:
 
             out = o.get("output")
             if isinstance(out, dict):
+                obs.output.layout_mode = _gs(
+                    out, "layout_mode", obs.output.layout_mode
+                )
                 obs.output.font_family = _gs(out, "font_family", obs.output.font_family)
                 obs.output.text_size = _gi(out, "text_size", obs.output.text_size)
                 obs.output.ref_size = _gi(out, "ref_size", obs.output.ref_size)
@@ -375,6 +498,12 @@ class AppSettings:
                 obs.output.offset_y = _gi(out, "offset_y", obs.output.offset_y)
                 obs.output.edge_margin = _gi(
                     out, "edge_margin", obs.output.edge_margin
+                )
+                obs.output.safe_area_percent = _gi(
+                    out, "safe_area_percent", obs.output.safe_area_percent
+                )
+                obs.output.panel_side = _gs(
+                    out, "panel_side", obs.output.panel_side
                 )
                 obs.output.show_kicker = _gb(out, "show_kicker", obs.output.show_kicker)
                 obs.output.show_accent_bar = _gb(
@@ -412,6 +541,19 @@ class AppSettings:
                     out, "padding_vertical", obs.output.padding_vertical
                 )
                 obs.output.max_width = _gi(out, "max_width", obs.output.max_width)
+                obs.output.auto_fit = _gb(out, "auto_fit", obs.output.auto_fit)
+                obs.output.min_text_size = _gi(
+                    out, "min_text_size", obs.output.min_text_size
+                )
+                obs.output.max_lines = _gi(
+                    out, "max_lines", obs.output.max_lines
+                )
+                obs.output.reference_style = _gs(
+                    out, "reference_style", obs.output.reference_style
+                )
+                obs.output.background_dimmer = _gf(
+                    out, "background_dimmer", obs.output.background_dimmer
+                )
                 obs.output.border_radius = _gi(
                     out, "border_radius", obs.output.border_radius
                 )

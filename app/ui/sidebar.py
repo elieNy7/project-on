@@ -24,7 +24,7 @@ class SidebarButton(QPushButton):
             QPushButton {{
                 text-align: left;
                 padding: 9px 12px 9px 14px;
-                border: none;
+                border: 1px solid transparent;
                 border-radius: {Radius.SM}px;
                 background: transparent;
                 color: {Colors.TEXT_SECONDARY};
@@ -37,6 +37,10 @@ class SidebarButton(QPushButton):
             QPushButton:hover {{
                 background: {Colors.GLASS_MEDIUM};
                 color: {Colors.TEXT_PRIMARY};
+                border-color: {Colors.BORDER_SUBTLE};
+            }}
+            QPushButton:focus {{
+                border-color: {Colors.ACCENT_SECONDARY};
             }}
         """
 
@@ -48,18 +52,23 @@ class SidebarButton(QPushButton):
                 border-radius: {Radius.SM}px;
                 background: qlineargradient(
                     x1:0, y1:0, x2:1, y2:0,
-                    stop:0 rgba(216, 170, 90, 0.20),
-                    stop:1 rgba(216, 170, 90, 0.07)
+                    stop:0 {Colors.ACCENT_GLOW_STRONG},
+                    stop:1 {Colors.ACCENT_GLOW}
                 );
-                color: {Colors.TEXT_PRIMARY};
+                color: {Colors.ACCENT_LIGHT};
                 font-family: {Typography.PRIMARY_FAMILY};
                 font-size: {Typography.SIZE_MD}px;
                 font-weight: {Typography.WEIGHT_SEMIBOLD};
                 margin: 0 0 2px 0;
                 letter-spacing: 0;
+                border: 1px solid {Colors.ACCENT_GLOW_STRONG};
             }}
             QPushButton:hover {{
-                background: rgba(216, 170, 90, 0.18);
+                background: {Colors.ACCENT_GLOW_STRONG};
+                border-color: {Colors.ACCENT_PRIMARY};
+            }}
+            QPushButton:focus {{
+                border-color: {Colors.ACCENT_SECONDARY};
             }}
         """
 
@@ -93,7 +102,9 @@ class Sidebar(QFrame):
                     stop:0 {Colors.SIDEBAR_GRADIENT_START},
                     stop:1 {Colors.BG_SECONDARY}
                 );
-                border: none;
+                border: 1px solid {Colors.BORDER_SUBTLE};
+                border-right: 1px solid {Colors.BORDER_DEFAULT};
+                border-radius: {Radius.LG}px;
             }}
             """
         )
@@ -130,11 +141,16 @@ class Sidebar(QFrame):
 
     def _build_header(self) -> None:
         header = QFrame(self)
+        header.setObjectName("SidebarHeader")
         header.setStyleSheet(
             f"""
-            QFrame {{
-                background: {Colors.BG_TERTIARY};
-                border: none;
+            QFrame#SidebarHeader {{
+                background: qlineargradient(
+                    x1:0, y1:0, x2:1, y2:1,
+                    stop:0 {Colors.BG_ELEVATED},
+                    stop:1 {Colors.BG_TERTIARY}
+                );
+                border: 1px solid {Colors.BORDER_DEFAULT};
                 border-radius: {Radius.MD}px;
             }}
             """
@@ -172,7 +188,7 @@ class Sidebar(QFrame):
         subtitle.setStyleSheet(
             f"""
             QLabel {{
-                color: {Colors.TEXT_MUTED};
+                color: {Colors.TEXT_SECONDARY};
                 font-size: {Typography.SIZE_XS}px;
             }}
             """

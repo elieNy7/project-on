@@ -81,8 +81,8 @@ class SettingsCard(QFrame):
         self.setStyleSheet(f"""
             SettingsCard {{
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                    stop:0 {Colors.BG_SECONDARY},
-                    stop:1 {Colors.BG_TERTIARY});
+                    stop:0 {Colors.BG_TERTIARY},
+                    stop:1 {Colors.BG_SECONDARY});
                 border: 1px solid {Colors.BORDER_DEFAULT};
                 border-radius: {Radius.XL}px;
             }}
@@ -153,7 +153,7 @@ class SettingsItem(QWidget):
         icon_frame.setStyleSheet(f"""
             background: {Colors.BG_ELEVATED};
             border-radius: 12px;
-            border: none;
+            border: 1px solid {Colors.BORDER_SUBTLE};
         """)
         il = QVBoxLayout(icon_frame)
         il.setContentsMargins(0, 0, 0, 0)
@@ -192,7 +192,7 @@ class SettingsItem(QWidget):
             color: {Colors.TEXT_SECONDARY};
             background: {Colors.GLASS_MEDIUM};
             padding: 4px 12px;
-            border-radius: 99px; border: none;
+            border-radius: 99px; border: 1px solid {Colors.BORDER_SUBTLE};
         """)
         self._detail_label.hide()
         layout.addWidget(self._detail_label)
@@ -342,8 +342,8 @@ class SettingsHeader(QFrame):
             font-size: 10px;
             font-weight: {Typography.WEIGHT_SEMIBOLD};
             color: {Colors.ACCENT_LIGHT};
-            background: rgba(230, 180, 76, 0.10);
-            border: 1px solid rgba(230, 180, 76, 0.16);
+            background: {Colors.ACCENT_GLOW};
+            border: 1px solid {Colors.ACCENT_GLOW_STRONG};
             border-radius: 999px;
             padding: 5px 12px;
         """)

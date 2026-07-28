@@ -33,16 +33,17 @@ class _NavArrowButton(QPushButton):
         self.setStyleSheet(f"""
             QPushButton {{
                 background: {Colors.BG_TERTIARY};
-                border: none;
+                border: 1px solid {Colors.BORDER_SUBTLE};
                 border-radius: 20px;
                 color: {Colors.TEXT_PRIMARY};
             }}
             QPushButton:hover {{
                 background: {Colors.ACCENT_GLOW};
                 color: {Colors.ACCENT_LIGHT};
+                border-color: {Colors.ACCENT_GLOW_STRONG};
             }}
             QPushButton:pressed {{
-                background: rgba(216,170,90,0.22);
+                background: {Colors.ACCENT_GLOW_STRONG};
             }}
         """)
 
@@ -76,14 +77,14 @@ class PreviewControlButton(QPushButton):
     def _build_style(
         self,
         *,
-        checked_bg: str = "rgba(216,170,90,0.18)",
-        checked_border: str = "rgba(216,170,90,0.42)",
+        checked_bg: str = Colors.ACCENT_GLOW_STRONG,
+        checked_border: str = Colors.ACCENT_PRIMARY,
         checked_text: str = Colors.ACCENT_LIGHT,
     ) -> str:
         return f"""
             QPushButton {{
                 background: {Colors.BG_TERTIARY};
-                border: none;
+                border: 1px solid {Colors.BORDER_SUBTLE};
                 border-radius: 20px;
                 color: {Colors.TEXT_PRIMARY};
                 font-size: 11px;
@@ -95,13 +96,14 @@ class PreviewControlButton(QPushButton):
             QPushButton:hover {{
                 background: {Colors.SURFACE_HOVER};
                 color: {Colors.TEXT_PRIMARY};
+                border-color: {Colors.BORDER_HOVER};
             }}
             QPushButton:pressed {{
                 background: {Colors.SURFACE_ACTIVE};
             }}
             QPushButton:checked {{
                 background: {checked_bg};
-                border: none;
+                border: 1px solid {checked_border};
                 color: {checked_text};
             }}
         """
@@ -138,13 +140,13 @@ class PreviewPanel(QFrame):
             self._stage_counter_bg = "rgba(255, 255, 255, 0.72)"
             self._stage_border = f"1px solid {Colors.BORDER_DEFAULT}"
         else:
-            self._stage_text_rgb = (245, 241, 232)
-            self._stage_ref_rgb = (216, 170, 90)
-            self._stage_empty_color = "rgba(120, 120, 138, 0.30)"
-            self._stage_meta_color = "rgba(245, 241, 232, 0.38)"
-            self._stage_chip_bg = "rgba(245, 241, 232, 0.07)"
+            self._stage_text_rgb = (248, 250, 252)
+            self._stage_ref_rgb = (240, 184, 91)
+            self._stage_empty_color = "rgba(145, 162, 184, 0.42)"
+            self._stage_meta_color = "rgba(203, 213, 225, 0.54)"
+            self._stage_chip_bg = "rgba(203, 213, 225, 0.09)"
             self._stage_counter_bg = "rgba(0, 0, 0, 0.24)"
-            self._stage_border = "none"
+            self._stage_border = f"1px solid {Colors.BORDER_DEFAULT}"
 
         self.setStyleSheet("")
 
@@ -155,7 +157,7 @@ class PreviewPanel(QFrame):
         self.header.setStyleSheet(f"""
             QFrame#TopBar {{
                 background: {Colors.BG_TERTIARY};
-                border: none;
+                border: 1px solid {Colors.BORDER_SUBTLE};
                 border-radius: 14px;
             }}
         """)
@@ -169,7 +171,7 @@ class PreviewPanel(QFrame):
         icon_chip.setFixedSize(30, 30)
         icon_chip.setStyleSheet(f"""
             background: {Colors.ACCENT_GLOW};
-            border: none;
+            border: 1px solid {Colors.ACCENT_GLOW_STRONG};
             border-radius: 11px;
         """)
         icon_chip_layout = QHBoxLayout(icon_chip)
@@ -229,13 +231,13 @@ class PreviewPanel(QFrame):
             " stop:0 #ffffff, stop:0.48 #f2f5fa, stop:1 #e6edf6)"
             if self._is_light_theme
             else "qlineargradient(x1:0, y1:0, x2:0, y2:1,"
-            " stop:0 #101521, stop:0.45 #0b0d12, stop:1 #06070a)"
+            " stop:0 #10233a, stop:0.48 #091523, stop:1 #050b13)"
         )
         self._bg_hidden = (
             "qlineargradient(x1:0, y1:0, x2:0, y2:1,"
             " stop:0 #fff1f2, stop:1 #f8d7da)"
             if self._is_light_theme
-            else "qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #221a1c, stop:1 #100d10)"
+            else "qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #321722, stop:1 #110a10)"
         )
 
         self._slide_frame = QFrame()
@@ -363,7 +365,7 @@ class PreviewPanel(QFrame):
         self.controls = QFrame(self)
         self.controls.setStyleSheet(f"""
             background: {Colors.BG_TERTIARY};
-            border: none;
+            border: 1px solid {Colors.BORDER_SUBTLE};
             border-radius: 14px;
         """)
         controls_layout = QHBoxLayout(self.controls)
@@ -381,7 +383,7 @@ class PreviewPanel(QFrame):
         self.console_frame = QFrame(self.controls)
         self.console_frame.setStyleSheet(f"""
             background: {Colors.BG_SECONDARY};
-            border: none;
+            border: 1px solid {Colors.BORDER_DEFAULT};
             border-radius: 22px;
         """)
         console_layout = QHBoxLayout(self.console_frame)

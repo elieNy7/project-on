@@ -256,13 +256,13 @@ if defined ISCC_EXE (
     exit /b 1
 )
 
-set "ISCC_CANDIDATE=%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"
+set "ISCC_CANDIDATE=%ProgramFiles(x86)%\Inno Setup 7\ISCC.exe"
 if exist "%ISCC_CANDIDATE%" (
     set "ISCC_EXE=%ISCC_CANDIDATE%"
     exit /b 0
 )
 
-set "ISCC_CANDIDATE=%ProgramFiles%\Inno Setup 6\ISCC.exe"
+set "ISCC_CANDIDATE=%ProgramFiles%\Inno Setup 7\ISCC.exe"
 if exist "%ISCC_CANDIDATE%" (
     set "ISCC_EXE=%ISCC_CANDIDATE%"
     exit /b 0
@@ -274,9 +274,9 @@ if not errorlevel 1 (
     exit /b 0
 )
 
-echo [ERROR] Inno Setup 6 introuvable.
-echo         Installe Inno Setup 6 ou lance avec:
-echo         set "ISCC_EXE=C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+echo [ERROR] Inno Setup 7 introuvable.
+echo         Installe Inno Setup 7 ou lance avec:
+echo         set "ISCC_EXE=C:\Program Files (x86)\Inno Setup 7\ISCC.exe"
 exit /b 1
 
 :clean_dir

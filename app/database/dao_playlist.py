@@ -191,14 +191,6 @@ class PlaylistDao:
             )
             return cursor.rowcount > 0
 
-    def clear_all_items(self) -> int:
-        """Supprime tous les slides et dossiers de la playlist. Retourne le nombre de slides supprimés."""
-        with self._db.connect() as conn:
-            cursor = conn.execute("DELETE FROM playlist_item")
-            count = cursor.rowcount
-            conn.execute("DELETE FROM playlist_folder")
-            return count
-
     def update_item_sort_order(
         self, item_id: int, sort_order: int, folder_id: int | None = None
     ) -> bool:

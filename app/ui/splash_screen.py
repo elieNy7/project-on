@@ -13,15 +13,16 @@ from PyQt6.QtWidgets import (
 
 from app.ui.theme import Radius, Typography
 from app.utils.translations import tr
+from app.version import __version__
 
 
 class SplashColors:
-    BG_PRIMARY = "#0b0d12"
-    BG_SECONDARY = "#11151d"
-    TEXT_MUTED = "#827b70"
-    TEXT_DISABLED = "#514d47"
-    ACCENT_PRIMARY = "#d8aa5a"
-    ACCENT_LIGHT = "#f0ce82"
+    BG_PRIMARY = "#07111f"
+    BG_SECONDARY = "#0c1828"
+    TEXT_MUTED = "#91a2b8"
+    TEXT_DISABLED = "#5f7086"
+    ACCENT_PRIMARY = "#f0b85b"
+    ACCENT_LIGHT = "#ffd58a"
 
 
 class SplashScreen(QWidget):
@@ -49,9 +50,9 @@ class SplashScreen(QWidget):
         self.container.setStyleSheet(f"""
             QFrame#Container {{
                 background: qlineargradient(x1:0, y1:0, x2:0.3, y2:1,
-                    stop:0 #0c0c10, stop:0.5 {SplashColors.BG_SECONDARY}, stop:1 {SplashColors.BG_PRIMARY});
+                    stop:0 #11243b, stop:0.5 {SplashColors.BG_SECONDARY}, stop:1 {SplashColors.BG_PRIMARY});
                 border-radius: {Radius.LG}px;
-                border: 1px solid rgba(255, 255, 255, 0.06);
+                border: 1px solid rgba(148, 163, 184, 0.18);
             }}
         """)
 
@@ -170,7 +171,7 @@ class SplashScreen(QWidget):
         footer_layout = QVBoxLayout()
         footer_layout.setSpacing(2)
 
-        self.version_label = QLabel("v1.0.0", self.container)
+        self.version_label = QLabel(f"v{__version__}", self.container)
         self.version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.version_label.setStyleSheet(f"""
             QLabel {{
