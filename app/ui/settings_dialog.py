@@ -90,7 +90,7 @@ class ProjectionSettingsDialog(QDialog):
             f"font-size: 17px; font-weight: 700; color: {Colors.TEXT_PRIMARY}; background: transparent; border: none;"
         )
         title_col.addWidget(title)
-        subtitle = QLabel("Personnaliser l'affichage du texte projeté")
+        subtitle = QLabel("Projection plein écran, lisible et stable")
         subtitle.setStyleSheet(
             f"font-size: 12px; color: {Colors.TEXT_SECONDARY}; background: transparent; border: none;"
         )
@@ -114,22 +114,8 @@ class ProjectionSettingsDialog(QDialog):
         output_section = SettingSection("Sortie & mode de projection", "monitor.svg")
 
         self._layout_mode = QComboBox()
-        for label, data in (
-            ("Plein écran", "fullscreen"),
-            ("Lower Third", "lower_third"),
-            ("Panneau latéral", "side_panel"),
-            ("Sous-titre", "subtitle"),
-            ("Carte focus", "focus_card"),
-        ):
-            self._layout_mode.addItem(label, data)
-        idx = self._layout_mode.findData(settings.layout_mode or "fullscreen")
-        self._layout_mode.setCurrentIndex(max(idx, 0))
-        output_section.addRow(
-            "Composition",
-            self._layout_mode,
-            "Change la mise en scène sans modifier la structure des onglets.",
-        )
-        _style_combo(self._layout_mode)
+        self._layout_mode.addItem("Plein écran", "fullscreen")
+        self._layout_mode.setCurrentIndex(0)
 
         self._display_screen = QComboBox()
         self._display_screen.addItem("Automatique (écran secondaire)", "auto")
@@ -163,27 +149,24 @@ class ProjectionSettingsDialog(QDialog):
         self._panel_side.addItem("Droite", "right")
         idx = self._panel_side.findData(settings.panel_side or "left")
         self._panel_side.setCurrentIndex(max(idx, 0))
-        output_section.addRow("Côté du panneau", self._panel_side)
-        _style_combo(self._panel_side)
+        self._uniform_text_size = QCheckBox(
+            "Conserver la même taille de texte sur toutes les slides"
+        )
+        self._uniform_text_size.setChecked(True)
 
-        self._auto_fit = QCheckBox("Ajuster automatiquement les textes longs")
-        self._auto_fit.setChecked(bool(settings.auto_fit))
-        output_section.addWidget(self._auto_fit)
+        self._auto_fit = QCheckBox(
+            "Ajuster automatiquement seulement si le texte déborde"
+        )
+        self._auto_fit.setChecked(False)
 
         self._min_text_size = QSpinBox()
         self._min_text_size.setRange(10, 120)
         self._min_text_size.setSuffix(" px")
         self._min_text_size.setValue(int(settings.min_text_size or 18))
-        output_section.addRow("Taille minimale", self._min_text_size)
 
         self._max_lines = QSpinBox()
         self._max_lines.setRange(1, 20)
         self._max_lines.setValue(int(settings.max_lines or 8))
-        output_section.addRow(
-            "Lignes de référence",
-            self._max_lines,
-            "Guide de l'ajustement automatique; le texte n'est jamais coupé.",
-        )
 
         layout.addWidget(output_section)
 
@@ -214,17 +197,15 @@ class ProjectionSettingsDialog(QDialog):
         _style_combo(self._font_weight)
 
         self._line_height = QDoubleSpinBox()
-        self._line_height.setRange(0.8, 3.0)
+        self._line_height.setRange(1.0, 1.8)
         self._line_height.setSingleStep(0.05)
         self._line_height.setDecimals(2)
         self._line_height.setValue(settings.line_height or 1.15)
-        font_section.addRow("Interligne", self._line_height)
 
         self._letter_spacing = QSpinBox()
         self._letter_spacing.setRange(-5, 20)
         self._letter_spacing.setSuffix(" px")
         self._letter_spacing.setValue(settings.letter_spacing)
-        font_section.addRow("Espacement des lettres", self._letter_spacing)
 
         layout.addWidget(font_section)
 
@@ -232,13 +213,17 @@ class ProjectionSettingsDialog(QDialog):
         size_section = SettingSection("Dimensions", "text.svg")
 
         self._text_size = QSpinBox()
-        self._text_size.setRange(16, 800)
+        self._text_size.setRange(20, 240)
         self._text_size.setSuffix(" px")
         self._text_size.setValue(settings.text_size)
-        size_section.addRow("Taille du texte", self._text_size)
+        size_section.addRow(
+            "Taille du texte principal",
+            self._text_size,
+            "Cette taille reste identique sur toutes les slides.",
+        )
 
         self._ref_size = QSpinBox()
-        self._ref_size.setRange(10, 400)
+        self._ref_size.setRange(10, 120)
         self._ref_size.setSuffix(" px")
         self._ref_size.setValue(settings.ref_size)
         size_section.addRow("Taille de la référence", self._ref_size)
@@ -247,13 +232,11 @@ class ProjectionSettingsDialog(QDialog):
         self._padding.setRange(0, 500)
         self._padding.setSuffix(" px")
         self._padding.setValue(settings.padding)
-        size_section.addRow("Marges intérieures", self._padding)
 
         self._max_width = QSpinBox()
         self._max_width.setRange(40, 100)
         self._max_width.setSuffix(" %")
         self._max_width.setValue(settings.max_width)
-        size_section.addRow("Largeur max.", self._max_width, "Pourcentage de l'écran")
 
         layout.addWidget(size_section)
 
@@ -265,22 +248,21 @@ class ProjectionSettingsDialog(QDialog):
         self._slide_style.addItem("Split (texte à gauche)", "split")
         idx = self._slide_style.findData(settings.slide_style or "cinematic")
         self._slide_style.setCurrentIndex(max(idx, 0))
-        composition_section.addRow("Style visuel", self._slide_style)
-        _style_combo(self._slide_style)
 
         self._content_width = QSpinBox()
-        self._content_width.setRange(40, 100)
+        self._content_width.setRange(60, 94)
         self._content_width.setSuffix(" %")
         self._content_width.setValue(settings.content_width)
-        composition_section.addRow("Largeur du texte", self._content_width)
+        size_section.addRow(
+            "Largeur du bloc de texte",
+            self._content_width,
+            "Une largeur de 80 à 88 % évite les lignes trop longues.",
+        )
 
         self._content_height = QSpinBox()
         self._content_height.setRange(35, 100)
         self._content_height.setSuffix(" %")
         self._content_height.setValue(settings.content_height)
-        composition_section.addRow("Hauteur du texte", self._content_height)
-
-        layout.addWidget(composition_section)
 
         # ═══════ Section: Couleurs ═══════
         color_section = SettingSection("Couleurs", "palette.svg")
@@ -431,6 +413,10 @@ class ProjectionSettingsDialog(QDialog):
         self._text_shadow.toggled.connect(_on_shadow_toggled)
         _on_shadow_toggled(settings.text_shadow)
 
+        # Local projection draws text directly: Qt's multiline shadow effect can
+        # crop complete words on Windows. Keep the legacy controls instantiated
+        # for settings compatibility, but do not expose a setting that is unsafe.
+        shadow_section.setVisible(False)
         layout.addWidget(shadow_section)
 
         readability_section = SettingSection(
@@ -451,26 +437,31 @@ class ProjectionSettingsDialog(QDialog):
 
         self._panel_enabled = QCheckBox("Afficher un panneau derrière le texte")
         self._panel_enabled.setChecked(bool(settings.panel_enabled))
-        readability_section.addWidget(self._panel_enabled)
 
         self._panel_color_btn = ColorPickerButton(
             settings.panel_color or "rgba(5,12,24,0.86)"
         )
-        readability_section.addRow("Couleur du panneau", self._panel_color_btn)
 
         self._panel_opacity = QSpinBox()
         self._panel_opacity.setRange(0, 100)
         self._panel_opacity.setSuffix(" %")
         self._panel_opacity.setValue(
-            int(round(float(settings.panel_opacity or 0.86) * 100))
+            int(
+                round(
+                    float(
+                        settings.panel_opacity
+                        if settings.panel_opacity is not None
+                        else 0.86
+                    )
+                    * 100
+                )
+            )
         )
-        readability_section.addRow("Opacité du panneau", self._panel_opacity)
 
         self._panel_radius = QSpinBox()
         self._panel_radius.setRange(0, 96)
         self._panel_radius.setSuffix(" px")
         self._panel_radius.setValue(int(settings.panel_radius or 0))
-        readability_section.addRow("Arrondi du panneau", self._panel_radius)
 
         def _update_panel_controls() -> None:
             enabled = self._panel_enabled.isChecked()
@@ -502,8 +493,6 @@ class ProjectionSettingsDialog(QDialog):
         position = (settings.position or "center").lower()
         idx = self._position.findData(position)
         self._position.setCurrentIndex(max(idx, 1))
-        display_section.addRow("Placement du bloc", self._position)
-        _style_combo(self._position)
 
         self._show_reference = QCheckBox(tr("show_reference"))
         self._show_reference.setChecked(bool(settings.show_reference))
@@ -515,8 +504,6 @@ class ProjectionSettingsDialog(QDialog):
         ref_pos = (settings.reference_position or "bottom").lower()
         idx = self._reference_position.findData(ref_pos)
         self._reference_position.setCurrentIndex(max(idx, 0))
-        display_section.addRow("Position de la référence", self._reference_position)
-        _style_combo(self._reference_position)
 
         self._uppercase = QCheckBox("Texte en MAJUSCULES")
         self._uppercase.setChecked(bool(settings.uppercase))
@@ -537,8 +524,6 @@ class ProjectionSettingsDialog(QDialog):
             ("Fondu", "fade"),
             ("Glissement", "slide"),
             ("Zoom doux", "scale"),
-            ("Flou", "blur"),
-            ("Reveal cinématique", "reveal"),
         ):
             self._anim_type.addItem(label, data)
         idx = self._anim_type.findData(settings.animation_type or "fade")
@@ -556,17 +541,18 @@ class ProjectionSettingsDialog(QDialog):
             self._anim_direction.addItem(label, data)
         idx = self._anim_direction.findData(settings.animation_direction or "up")
         self._anim_direction.setCurrentIndex(max(idx, 0))
-        anim_section.addRow(
-            "Direction", self._anim_direction,
-            "Utilisée pour Glissement et Reveal",
-        )
-        _style_combo(self._anim_direction)
 
         self._anim_duration = QSpinBox()
-        self._anim_duration.setRange(0, 2000)
+        self._anim_duration.setRange(0, 800)
         self._anim_duration.setSingleStep(50)
         self._anim_duration.setSuffix(" ms")
-        self._anim_duration.setValue(int(settings.animation_duration or 420))
+        self._anim_duration.setValue(
+            int(
+                settings.animation_duration
+                if settings.animation_duration is not None
+                else 420
+            )
+        )
         anim_section.addRow(
             "Durée", self._anim_duration, "420 ms donne un rendu fluide"
         )
@@ -590,11 +576,27 @@ class ProjectionSettingsDialog(QDialog):
 
         layout.addWidget(anim_section)
 
+        def _update_auto_fit_controls() -> None:
+            uniform = self._uniform_text_size.isChecked()
+            self._auto_fit.setEnabled(not uniform)
+            enabled = not uniform and self._auto_fit.isChecked()
+            self._min_text_size.setEnabled(enabled)
+            self._max_lines.setEnabled(enabled)
+            self._min_text_size.setMaximum(max(10, self._text_size.value()))
+            if self._min_text_size.value() > self._text_size.value():
+                self._min_text_size.setValue(self._text_size.value())
+
+        self._uniform_text_size.toggled.connect(_update_auto_fit_controls)
+        self._auto_fit.toggled.connect(_update_auto_fit_controls)
+        self._text_size.valueChanged.connect(_update_auto_fit_controls)
+        _update_auto_fit_controls()
+
         # ── Connect signals for live preview ──
         self._layout_mode.currentIndexChanged.connect(self._on_change)
         self._display_screen.currentIndexChanged.connect(self._on_change)
         self._safe_margin.valueChanged.connect(self._on_change)
         self._panel_side.currentIndexChanged.connect(self._on_change)
+        self._uniform_text_size.toggled.connect(self._on_change)
         self._auto_fit.toggled.connect(self._on_change)
         self._min_text_size.valueChanged.connect(self._on_change)
         self._max_lines.valueChanged.connect(self._on_change)
@@ -746,6 +748,7 @@ class ProjectionSettingsDialog(QDialog):
         self._safe_margin.setValue(d.safe_margin)
         idx = self._panel_side.findData(d.panel_side)
         self._panel_side.setCurrentIndex(max(idx, 0))
+        self._uniform_text_size.setChecked(d.uniform_text_size)
         self._auto_fit.setChecked(d.auto_fit)
         self._min_text_size.setValue(d.min_text_size)
         self._max_lines.setValue(d.max_lines)
@@ -817,23 +820,21 @@ class ProjectionSettingsDialog(QDialog):
     def read_settings(self) -> ProjectionSettings:
         font = self._font_combo.currentData() or self._font_combo.currentText()
         return ProjectionSettings(
-            layout_mode=str(self._layout_mode.currentData() or "fullscreen"),
+            layout_mode="fullscreen",
             display_screen=str(self._display_screen.currentData() or "auto"),
             safe_margin=self._safe_margin.value(),
-            panel_side=str(self._panel_side.currentData() or "left"),
+            panel_side="left",
             font_family=str(font).strip() or "Google Sans",
             text_size=self._text_size.value(),
             ref_size=self._ref_size.value(),
-            padding=self._padding.value(),
+            padding=0,
             align=str(self._align.currentData() or "center"),
-            position=str(self._position.currentData() or "center"),
-            slide_style=str(self._slide_style.currentData() or "cinematic"),
+            position="center",
+            slide_style="cinematic",
             content_width=self._content_width.value(),
-            content_height=self._content_height.value(),
+            content_height=86,
             show_reference=self._show_reference.isChecked(),
-            reference_position=str(
-                self._reference_position.currentData() or "bottom"
-            ),
+            reference_position="bottom",
             uppercase=self._uppercase.isChecked(),
             text_color=self._text_color_btn.color(),
             ref_color=self._ref_color_btn.color(),
@@ -845,23 +846,24 @@ class ProjectionSettingsDialog(QDialog):
             bg_image=self._bg_image_path,
             bg_image_fit=str(self._bg_image_fit_combo.currentData() or "cover"),
             font_weight=str(self._font_weight.currentData() or "normal"),
-            line_height=self._line_height.value(),
-            letter_spacing=self._letter_spacing.value(),
-            text_shadow=self._text_shadow.isChecked(),
+            line_height=1.18,
+            letter_spacing=0,
+            text_shadow=False,
             shadow_color=self._shadow_color_btn.color(),
             shadow_blur=self._shadow_blur.value(),
-            max_width=self._max_width.value(),
-            auto_fit=self._auto_fit.isChecked(),
+            max_width=self._content_width.value(),
+            auto_fit=False,
+            uniform_text_size=True,
             min_text_size=self._min_text_size.value(),
             max_lines=self._max_lines.value(),
             background_dimmer=self._background_dimmer.value() / 100.0,
-            panel_enabled=self._panel_enabled.isChecked(),
+            panel_enabled=False,
             panel_color=self._panel_color_btn.color(),
             panel_opacity=self._panel_opacity.value() / 100.0,
             panel_radius=self._panel_radius.value(),
             animation_enabled=self._anim_enabled.isChecked(),
             animation_type=str(self._anim_type.currentData() or "fade"),
-            animation_direction=str(self._anim_direction.currentData() or "up"),
+            animation_direction="up",
             animation_duration=self._anim_duration.value(),
             ken_burns=self._ken_burns.isChecked(),
         )

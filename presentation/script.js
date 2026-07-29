@@ -20,6 +20,17 @@ async function readJson(url) {
 function applyConfig(cfg) {
   if (!cfg) return;
   const root = document.documentElement;
+  cfg = {
+    ...cfg,
+    layout_mode: 'fullscreen',
+    position: 'center',
+    slide_style: 'cinematic',
+    reference_position: 'bottom',
+    padding: 0,
+    auto_fit: false,
+    uniform_text_size: true,
+    panel_enabled: false,
+  };
   currentConfig = { ...currentConfig, ...cfg };
   
   if (cfg.font_family) {
@@ -115,6 +126,10 @@ function fitTextToStage(textEl, shellEl, baseSize) {
   if (!textEl || !shellEl) return;
 
   const root = document.documentElement;
+  if (currentConfig.uniform_text_size !== false || currentConfig.auto_fit === false) {
+    root.style.setProperty('--text-size', `${Math.max(10, Math.round(baseSize))}px`);
+    return;
+  }
   const minSize = 30;
   const shellBounds = shellEl.getBoundingClientRect();
   const maxHeight = Math.max(320, Math.min(window.innerHeight - 48, shellBounds.height || window.innerHeight));

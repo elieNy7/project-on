@@ -421,7 +421,9 @@ class NdiLowerThirdSender:
             "border_radius",
         ):
             try:
-                setattr(out, attr, int(cfg.get(attr) or getattr(out, attr)))
+                value = cfg.get(attr)
+                if value is not None:
+                    setattr(out, attr, int(value))
             except Exception:
                 pass
         try:
@@ -502,18 +504,18 @@ class NdiLowerThirdSender:
         font_ref = _load_font(int(cfg.ref_size))
 
         layout_mode = str(cfg.layout_mode or "lower_third").lower()
-        max_width_pct = max(45, min(100, int(cfg.max_width or 82)))
+        max_width_pct = max(40, min(100, int(cfg.max_width)))
         if layout_mode == "fullscreen":
-            max_width_pct = 100
+            max_width_pct = max(40, min(100, max_width_pct))
         elif layout_mode == "side_panel":
-            max_width_pct = min(max_width_pct, 44)
+            max_width_pct = max(40, min(100, max_width_pct))
         elif layout_mode == "subtitle":
-            max_width_pct = min(92, max(max_width_pct, 72))
+            max_width_pct = max(40, min(100, max_width_pct))
         elif layout_mode == "focus_card":
-            max_width_pct = min(max_width_pct, 68)
+            max_width_pct = max(40, min(100, max_width_pct))
         box_max_w = int(self._width * max_width_pct / 100)
-        pad_x = max(28, min(110, int(cfg.padding_horizontal or 48)))
-        pad_y = max(16, min(80, int(cfg.padding_vertical or 26)))
+        pad_x = max(0, min(110, int(cfg.padding_horizontal)))
+        pad_y = max(0, min(80, int(cfg.padding_vertical)))
         accent_gap = 26
         accent_w = 7
         inner_w = max(320, box_max_w - (pad_x * 2) - accent_w - accent_gap)
@@ -566,17 +568,16 @@ class NdiLowerThirdSender:
         safe_margin = int(
             min(self._width, self._height) * cfg.safe_area_percent / 100
         )
-        margin = max(0, int(cfg.edge_margin), safe_margin)
+        margin = max(0, int(cfg.edge_margin)) + safe_margin
         if layout_mode == "fullscreen":
             box_w = self._width - (margin * 2)
             box_h = self._height - (margin * 2)
         elif layout_mode == "side_panel":
-            box_w = min(box_w, int(self._width * 0.44))
             box_h = self._height - (margin * 2)
         elif layout_mode == "subtitle":
-            box_w = min(int(self._width * 0.92), self._width - (margin * 2))
+            box_w = min(box_w, self._width - (margin * 2))
         elif layout_mode == "focus_card":
-            box_w = min(int(self._width * 0.68), self._width - (margin * 2))
+            box_w = min(box_w, self._width - (margin * 2))
             box_h = max(box_h, int(self._height * 0.48))
 
         band_align = str(cfg.band_align).lower()
@@ -608,7 +609,7 @@ class NdiLowerThirdSender:
         box_x = max(-box_w, min(self._width, box_x))
         box_y = max(-box_h, min(self._height, box_y))
 
-        radius = max(0, min(48, int(cfg.border_radius or 22)))
+        radius = max(0, min(48, int(cfg.border_radius)))
 
         if cfg.bg_enabled:
             bg = _parse_rgba_tuple(cfg.bg_color, (8, 15, 28, int(0.82 * 255)))

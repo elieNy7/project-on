@@ -466,8 +466,8 @@ body.preview-canvas::before {
 
 #root.layout-fullscreen .lt-inner {
     justify-content: center;
-    width: min(78vw, 1440px);
-    max-width: min(78vw, 1440px);
+    width: min(var(--max-width), 1440px);
+    max-width: min(var(--max-width), 1440px);
     margin: 0 auto;
     padding: clamp(24px, 4vh, 64px) 0;
 }
@@ -499,7 +499,7 @@ body.preview-canvas::before {
 #root.layout-side_panel.panel-right { align-items: flex-end; }
 
 #root.layout-side_panel .lower-third {
-    width: min(44vw, 860px);
+    width: min(var(--max-width), 860px);
     height: calc(100vh - (var(--safe-inset) * 2));
 }
 
@@ -554,7 +554,7 @@ body.preview-canvas::before {
 }
 
 #root.layout-subtitle .lower-third {
-    width: min(92vw, 1680px);
+    width: min(var(--max-width), 1680px);
     filter: drop-shadow(0 18px 42px rgba(0, 0, 0, 0.48));
 }
 
@@ -578,7 +578,7 @@ body.preview-canvas::before {
 }
 
 #root.layout-subtitle .lt-text {
-    font-size: min(var(--text-size), 3.15vw);
+    font-size: var(--text-size);
     line-height: max(1.12, var(--line-height));
 }
 
@@ -588,7 +588,7 @@ body.preview-canvas::before {
 }
 
 #root.layout-focus_card .lower-third {
-    width: min(68vw, 1180px);
+    width: min(var(--max-width), 1180px);
 }
 
 #root.layout-focus_card .lt-body {
@@ -780,6 +780,10 @@ body.preview-canvas::before {
 }
 
 .lt-bg-image.visible { opacity: 1; }
+
+.lt-body.has-bg-image .lt-dimmer {
+    display: block;
+}
 
 /* When an image fills the band, darken slightly for text legibility and
    drop the colored gradient so the image reads cleanly. */

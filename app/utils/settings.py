@@ -46,6 +46,7 @@ class ObsOutputSettings:
     padding_vertical: int = 26  # pixels
     max_width: int = 82  # percentage of screen width
     auto_fit: bool = True
+    uniform_text_size: bool = True  # keep the configured size across slides
     min_text_size: int = 24
     max_lines: int = 6
     reference_style: str = "badge"  # badge|plain|inline
@@ -117,16 +118,27 @@ class ObsOutputSettings:
             # Professional styling
             "text_shadow": bool(self.text_shadow),
             "shadow_color": str(self.shadow_color or "rgba(0, 0, 0, 0.56)"),
-            "shadow_blur": int(self.shadow_blur or 14),
+            "shadow_blur": int(
+                self.shadow_blur if self.shadow_blur is not None else 14
+            ),
             "text_stroke": bool(self.text_stroke),
             "stroke_color": str(self.stroke_color or "rgba(0, 0, 0, 0.8)"),
-            "stroke_width": int(self.stroke_width or 1),
+            "stroke_width": int(
+                self.stroke_width if self.stroke_width is not None else 1
+            ),
             "letter_spacing": int(self.letter_spacing or 0),
             "line_height": float(self.line_height or 1.16),
-            "padding_horizontal": int(self.padding_horizontal or 48),
-            "padding_vertical": int(self.padding_vertical or 26),
+            "padding_horizontal": int(
+                self.padding_horizontal
+                if self.padding_horizontal is not None
+                else 48
+            ),
+            "padding_vertical": int(
+                self.padding_vertical if self.padding_vertical is not None else 26
+            ),
             "max_width": int(self.max_width or 82),
             "auto_fit": bool(self.auto_fit),
+            "uniform_text_size": bool(self.uniform_text_size),
             "min_text_size": max(12, int(self.min_text_size or 24)),
             "max_lines": max(1, min(12, int(self.max_lines or 6))),
             "reference_style": (
@@ -145,18 +157,30 @@ class ObsOutputSettings:
                     ),
                 ),
             ),
-            "border_radius": int(self.border_radius or 22),
+            "border_radius": int(
+                self.border_radius if self.border_radius is not None else 22
+            ),
             "animation_enabled": bool(self.animation_enabled),
             "animation_type": str(self.animation_type or "auto"),
-            "animation_duration": int(self.animation_duration or 520),
+            "animation_duration": int(
+                self.animation_duration
+                if self.animation_duration is not None
+                else 520
+            ),
             "font_weight": str(self.font_weight or "bold"),
             "text_transform": str(self.text_transform or "none"),
             "bg_blur": bool(self.bg_blur),
-            "bg_blur_amount": int(self.bg_blur_amount or 20),
+            "bg_blur_amount": int(
+                self.bg_blur_amount if self.bg_blur_amount is not None else 20
+            ),
             "opacity": float(self.opacity if self.opacity is not None else 1.0),
             "bg_gradient_enabled": bool(self.bg_gradient_enabled),
             "bg_color_2": str(self.bg_color_2 or "rgba(3, 8, 18, 0.90)"),
-            "bg_gradient_angle": int(self.bg_gradient_angle or 135),
+            "bg_gradient_angle": int(
+                self.bg_gradient_angle
+                if self.bg_gradient_angle is not None
+                else 135
+            ),
             "bg_mode": "image" if self.bg_mode == "image" else "color",
             "bg_image": str(self.bg_image or ""),
             "bg_image_fit": "contain" if self.bg_image_fit == "contain" else "cover",
@@ -200,7 +224,8 @@ class ProjectionSettings:
     shadow_color: str = "rgba(0,0,0,0.88)"  # shadow color
     shadow_blur: int = 18  # shadow blur in pixels
     max_width: int = 100  # percentage of screen width
-    auto_fit: bool = True
+    auto_fit: bool = False
+    uniform_text_size: bool = True  # keep the configured size across slides
     min_text_size: int = 18
     max_lines: int = 8
     background_dimmer: float = 0.34
@@ -222,58 +247,41 @@ class ProjectionSettings:
     ken_burns: bool = True  # slow zoom on background images
 
     def to_presentation_config(self) -> dict[str, Any]:
-        layout_mode = str(self.layout_mode or "fullscreen").lower()
-        if layout_mode not in (
-            "fullscreen",
-            "lower_third",
-            "side_panel",
-            "subtitle",
-            "focus_card",
-        ):
-            layout_mode = "fullscreen"
+        layout_mode = "fullscreen"
         align = (self.align or "center").lower()
         if align not in ("center", "left", "right"):
             align = "center"
-        slide_style = (self.slide_style or "cinematic").lower()
-        if slide_style not in ("cinematic", "clean", "split"):
-            slide_style = "cinematic"
-
         return {
             "layout_mode": layout_mode,
             "display_screen": str(self.display_screen or "auto"),
             "safe_margin": max(0, min(240, int(self.safe_margin or 0))),
-            "panel_side": "right" if self.panel_side == "right" else "left",
+            "panel_side": "left",
             "font_family": str(self.font_family or "Google Sans").strip(),
             "text_size": int(self.text_size or 48),
             "ref_size": int(self.ref_size or 24),
-            "padding": int(self.padding if self.padding is not None else 0),
+            "padding": 0,
             "align": align,
-            "position": (
-                self.position
-                if self.position in ("top", "center", "bottom")
-                else "center"
-            ),
-            "slide_style": slide_style,
-            "content_width": int(self.content_width or 88),
-            "content_height": int(self.content_height or 82),
+            "position": "center",
+            "slide_style": "cinematic",
+            "content_width": max(60, min(94, int(self.content_width or 86))),
+            "content_height": 86,
             "show_reference": bool(self.show_reference),
-            "reference_position": (
-                self.reference_position
-                if self.reference_position in ("top", "bottom")
-                else "bottom"
-            ),
+            "reference_position": "bottom",
             "uppercase": bool(self.uppercase),
             "text_color": str(self.text_color or "rgba(255,255,255,0.96)"),
             "ref_color": str(self.ref_color or "rgba(255,244,214,0.82)"),
             "bg_color": str(self.bg_color or "#07111f"),
             "font_weight": str(self.font_weight or "bold"),
-            "line_height": float(self.line_height or 1.15),
-            "letter_spacing": int(self.letter_spacing or 0),
-            "text_shadow": bool(self.text_shadow),
+            "line_height": 1.18,
+            "letter_spacing": 0,
+            "text_shadow": False,
             "shadow_color": str(self.shadow_color or "rgba(0,0,0,0.88)"),
-            "shadow_blur": int(self.shadow_blur or 18),
-            "max_width": int(self.max_width or 100),
-            "auto_fit": bool(self.auto_fit),
+            "shadow_blur": int(
+                self.shadow_blur if self.shadow_blur is not None else 18
+            ),
+            "max_width": max(60, min(94, int(self.content_width or 86))),
+            "auto_fit": False,
+            "uniform_text_size": True,
             "min_text_size": max(10, int(self.min_text_size or 18)),
             "max_lines": max(1, min(20, int(self.max_lines or 8))),
             "background_dimmer": max(
@@ -287,7 +295,7 @@ class ProjectionSettings:
                     ),
                 ),
             ),
-            "panel_enabled": bool(self.panel_enabled),
+            "panel_enabled": False,
             "panel_color": str(self.panel_color or "rgba(5,12,24,0.86)"),
             "panel_opacity": max(
                 0.0,
@@ -303,13 +311,21 @@ class ProjectionSettings:
             "panel_radius": max(0, min(96, int(self.panel_radius or 0))),
             "bg_gradient_enabled": bool(self.bg_gradient_enabled),
             "bg_color_2": str(self.bg_color_2 or "#0f2744"),
-            "bg_gradient_angle": int(self.bg_gradient_angle or 160),
+            "bg_gradient_angle": int(
+                self.bg_gradient_angle
+                if self.bg_gradient_angle is not None
+                else 160
+            ),
             "bg_mode": "image" if self.bg_mode == "image" else "color",
             "bg_image": str(self.bg_image or ""),
             "bg_image_fit": "contain" if self.bg_image_fit == "contain" else "cover",
             "animation_enabled": bool(self.animation_enabled),
             "animation_type": str(self.animation_type or "fade"),
-            "animation_duration": int(self.animation_duration or 420),
+            "animation_duration": int(
+                self.animation_duration
+                if self.animation_duration is not None
+                else 420
+            ),
             "animation_direction": str(self.animation_direction or "up"),
             "ken_burns": bool(self.ken_burns),
         }
@@ -335,7 +351,7 @@ def _gi(d: dict, key: str, default: int) -> int:
             return default
         # Ensure font sizes and other pixel values are strictly positive if they seem to be UI sizes
         val = int(v)
-        if "size" in key.lower() or "padding" in key.lower():
+        if "size" in key.lower():
             return max(val, 8) if val > 0 else default
         return val
     except (ValueError, TypeError):
@@ -426,6 +442,9 @@ class AppSettings:
             projection.shadow_blur = _gi(p, "shadow_blur", projection.shadow_blur)
             projection.max_width = _gi(p, "max_width", projection.max_width)
             projection.auto_fit = _gb(p, "auto_fit", projection.auto_fit)
+            projection.uniform_text_size = _gb(
+                p, "uniform_text_size", projection.uniform_text_size
+            )
             projection.min_text_size = _gi(
                 p, "min_text_size", projection.min_text_size
             )
@@ -542,6 +561,9 @@ class AppSettings:
                 )
                 obs.output.max_width = _gi(out, "max_width", obs.output.max_width)
                 obs.output.auto_fit = _gb(out, "auto_fit", obs.output.auto_fit)
+                obs.output.uniform_text_size = _gb(
+                    out, "uniform_text_size", obs.output.uniform_text_size
+                )
                 obs.output.min_text_size = _gi(
                     out, "min_text_size", obs.output.min_text_size
                 )
