@@ -589,6 +589,11 @@ class PreviewPanel(QFrame):
         self._hide_button.setChecked(hidden)
         self._update_hide_button()
 
+    def set_settings(self, settings) -> None:
+        """Refresh the operator preview from the active application settings."""
+        self._settings = settings
+        self._apply_slide_text_style()
+
     def _toggle_hide(self) -> None:
         self._hide_button.setChecked(not self._hide_button.isChecked())
         self._on_hide_clicked()
@@ -601,23 +606,31 @@ class PreviewPanel(QFrame):
         font_weight = "600"
         transform = "none"
 
-        if self._settings and hasattr(self._settings, "obs"):
-            obs_output = self._settings.obs.output
-            base_size = max(16, int(obs_output.text_size * 0.60))
-            line_height = obs_output.line_height
+        if self._settings and hasattr(self._settings, "projection"):
+            projection = self._settings.projection
+            base_size = max(16, int(projection.text_size * 0.60))
+            line_height = projection.line_height
             font_weight = (
                 "800"
-                if obs_output.font_weight == "bold"
-                else "300" if obs_output.font_weight == "light" else "500"
+                if projection.font_weight == "bold"
+                else "300" if projection.font_weight == "light" else "500"
             )
-            transform = obs_output.text_transform
+            transform = "uppercase" if projection.uppercase else "none"
 
-        # Progressive scale
-        if text_len > 400:
+        variable_fit = False
+        if self._settings and hasattr(self._settings, "projection"):
+            projection = self._settings.projection
+            variable_fit = bool(projection.auto_fit) and not bool(
+                projection.uniform_text_size
+            )
+
+        # Variable scaling is now explicit. The default uniform mode keeps the
+        # operator preview identical to the configured projection size.
+        if variable_fit and text_len > 400:
             font_size = base_size * 0.58
-        elif text_len > 280:
+        elif variable_fit and text_len > 280:
             font_size = base_size * 0.70
-        elif text_len > 180:
+        elif variable_fit and text_len > 180:
             font_size = base_size * 0.82
         else:
             font_size = base_size

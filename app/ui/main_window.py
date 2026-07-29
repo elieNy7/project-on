@@ -597,6 +597,7 @@ class MainWindow(QMainWindow):
         self._write_presentation_config()
         self._write_obs_config()
         self._obs.update_settings(self._settings.obs)
+        self.preview_panel.set_settings(self._settings)
         if self._projection_window is not None and self._projection_window.isVisible():
             try:
                 self._projection_window._apply_config(
@@ -640,6 +641,7 @@ class MainWindow(QMainWindow):
         def on_live_update(new_settings):
             # Apply to temp state and write config for immediate visual effect
             self._settings.projection = new_settings
+            self.preview_panel.set_settings(self._settings)
             cfg = new_settings.to_presentation_config()
             self._safe_write_json(self._presentation_dir / "config.json", cfg)
             if self._projection_window is not None and self._projection_window.isVisible():
@@ -664,10 +666,12 @@ class MainWindow(QMainWindow):
                 self._settings.projection.bg_image_fit,
             )
             self._settings.save(self._settings_path)
+            self.preview_panel.set_settings(self._settings)
             self._refresh_settings_details()
         else:
             # Revert to deep copy
             self._settings.projection = original_projection
+            self.preview_panel.set_settings(self._settings)
             self._write_presentation_config()
             self._sync_obs_background(
                 original_obs_mode, original_obs_bg, original_obs_fit

@@ -81,25 +81,40 @@ class ObsPreviewWidget(QFrame):
         painter.setOpacity(self._settings.opacity)
         rect = self.contentsRect()
         W, H = rect.width(), rect.height()
-        safe = max(8, int(min(W, H) * self._settings.safe_area_percent / 100))
+        scale = max(0.12, min(W / 1920.0, H / 1080.0))
+        safe = max(4, int(self._settings.edge_margin * scale)) + int(
+            min(W, H) * self._settings.safe_area_percent / 100
+        )
         mode = self._settings.layout_mode or "lower_third"
+        width_ratio = max(0.40, min(1.0, self._settings.max_width / 100.0))
 
         if mode == "fullscreen":
             text_rect = QRect(safe, safe, W - (safe * 2), H - (safe * 2))
         elif mode == "side_panel":
-            panel_w = max(150, int(W * 0.44))
+            panel_w = min(
+                max(120, W - (safe * 2)),
+                max(120, int(W * width_ratio)),
+            )
             x = W - safe - panel_w if self._settings.panel_side == "right" else safe
             text_rect = QRect(x, safe, panel_w, H - (safe * 2))
         elif mode == "subtitle":
             panel_h = max(64, int(H * 0.24))
-            text_rect = QRect(safe, H - safe - panel_h, W - (safe * 2), panel_h)
+            panel_w = min(W - (safe * 2), int(W * width_ratio))
+            text_rect = QRect(
+                (W - panel_w) // 2,
+                H - safe - panel_h,
+                panel_w,
+                panel_h,
+            )
         elif mode == "focus_card":
-            panel_w, panel_h = int(W * 0.68), int(H * 0.56)
+            panel_w = min(W - (safe * 2), int(W * width_ratio))
+            panel_h = int(H * 0.56)
             text_rect = QRect(
                 (W - panel_w) // 2, (H - panel_h) // 2, panel_w, panel_h
             )
         else:
-            panel_w, panel_h = int(W * 0.82), max(80, int(H * 0.34))
+            panel_w = min(W - (safe * 2), int(W * width_ratio))
+            panel_h = max(80, int(H * 0.34))
             x = (
                 safe
                 if self._settings.band_align == "left"
@@ -116,8 +131,13 @@ class ObsPreviewWidget(QFrame):
             )
             text_rect = QRect(x, y, panel_w, panel_h)
 
+        text_rect.translate(
+            int(self._settings.offset_x * scale),
+            int(self._settings.offset_y * scale),
+        )
+
         if self._settings.bg_enabled:
-            radius = self._settings.border_radius // 2
+            radius = max(0, int(self._settings.border_radius * scale))
             bg_color = self._parse_color(
                 self._settings.bg_color, self._settings.bg_opacity
             )
@@ -141,9 +161,16 @@ class ObsPreviewWidget(QFrame):
             painter.setPen(Qt.PenStyle.NoPen)
             painter.drawRoundedRect(text_rect, radius, radius)
 
-        inner = text_rect.adjusted(18, 14, -18, -14)
+        pad_h = max(0, int(self._settings.padding_horizontal * scale))
+        pad_v = max(0, int(self._settings.padding_vertical * scale))
+        inner = text_rect.adjusted(pad_h, pad_v, -pad_h, -pad_v)
         if self._settings.show_accent_bar and mode != "fullscreen":
-            painter.setBrush(QBrush(self._parse_color(self._settings.accent_color)))
+            accent_color = (
+                self._settings.accent_color
+                if self._settings.accent_mode == "custom"
+                else "#74a7f8"
+            )
+            painter.setBrush(QBrush(self._parse_color(accent_color)))
             painter.setPen(Qt.PenStyle.NoPen)
             painter.drawRoundedRect(
                 QRect(text_rect.x(), text_rect.y(), 5, text_rect.height()), 2, 2
@@ -151,14 +178,21 @@ class ObsPreviewWidget(QFrame):
 
         text_color = self._parse_color(self._settings.text_color)
         painter.setPen(QPen(text_color))
-        # Scale the configured 1920x1080 text size to this compact canvas.
-        # Reserving a separate reference lane prevents the two texts from
-        # colliding in lower-third and subtitle previews.
-        font_size = max(7, min(16, int(self._settings.text_size * W / 1400)))
+        # Scale from the OBS reference canvas (1920×1080) without a hard cap:
+        # changing the main text size must remain visible in the preview.
+        font_size = max(4, int(round(self._settings.text_size * scale)))
+        ref_font_size = max(4, int(round(self._settings.ref_size * scale)))
+        self._last_effective_text_size = font_size
         font = QFont(self._settings.font_family or Typography.FAMILY)
         font.setPixelSize(font_size)
+        font.setLetterSpacing(
+            QFont.SpacingType.AbsoluteSpacing,
+            float(self._settings.letter_spacing * scale),
+        )
         if self._settings.font_weight == "bold":
             font.setBold(True)
+        elif self._settings.font_weight == "light":
+            font.setWeight(QFont.Weight.Light)
         painter.setFont(font)
         align = (
             Qt.AlignmentFlag.AlignLeft
@@ -168,7 +202,7 @@ class ObsPreviewWidget(QFrame):
             else Qt.AlignmentFlag.AlignHCenter
         )
         ref_height = (
-            max(12, int(font_size * 1.6))
+            max(8, int(ref_font_size * 1.75))
             if self._settings.show_reference
             else 0
         )
@@ -181,7 +215,7 @@ class ObsPreviewWidget(QFrame):
 
         if self._settings.show_reference:
             ref_font = QFont(font)
-            ref_font.setPixelSize(max(6, font_size - 2))
+            ref_font.setPixelSize(ref_font_size)
             ref_font.setBold(False)
             painter.setFont(ref_font)
             painter.setPen(QPen(self._parse_color(self._settings.ref_color)))
@@ -736,6 +770,7 @@ class ObsOutputSettingsDialog(QDialog):
 
         # Construction complete — allow signals
         self._initializing = False
+        self._on_change()
 
     def _add_scroll_page(self, widget: QWidget) -> int:
         """Helper to wrap a page in a scroll area before adding to stack."""
@@ -750,8 +785,20 @@ class ObsOutputSettingsDialog(QDialog):
         """Trigger debounced settings changed signal."""
         if getattr(self, "_initializing", True):
             return
-            
+
         try:
+            if hasattr(self, "_text_size") and hasattr(self, "_min_text_size"):
+                self._min_text_size.setMaximum(
+                    max(12, self._text_size.value())
+                )
+                if self._min_text_size.value() > self._text_size.value():
+                    self._min_text_size.setValue(self._text_size.value())
+                uniform = self._uniform_text_size.isChecked()
+                self._auto_fit.setEnabled(not uniform)
+                auto_fit = not uniform and self._auto_fit.isChecked()
+                self._min_text_size.setEnabled(auto_fit)
+                self._max_lines.setEnabled(auto_fit)
+
             # Immediate UI feedback for preview widget
             settings = self.get_settings()
             if hasattr(self, "_preview_widget"):
@@ -984,7 +1031,15 @@ class ObsOutputSettingsDialog(QDialog):
         self._border_radius.setValue(settings.border_radius)
         dim_section.addRow("Coins arrondis", self._border_radius)
 
-        self._auto_fit = QCheckBox("Ajuster automatiquement les textes longs")
+        self._uniform_text_size = QCheckBox(
+            "Conserver la même taille de texte sur toutes les slides"
+        )
+        self._uniform_text_size.setChecked(bool(settings.uniform_text_size))
+        dim_section.addWidget(self._uniform_text_size)
+
+        self._auto_fit = QCheckBox(
+            "Ajuster automatiquement seulement si le texte déborde"
+        )
         self._auto_fit.setChecked(bool(settings.auto_fit))
         dim_section.addWidget(self._auto_fit)
 
@@ -1065,7 +1120,11 @@ class ObsOutputSettingsDialog(QDialog):
         self._text_size.setRange(16, 120)
         self._text_size.setSuffix(" px")
         self._text_size.setValue(settings.text_size)
-        size_section.addRow("Taille du texte", self._text_size)
+        size_section.addRow(
+            "Taille du texte principal",
+            self._text_size,
+            "Taille appliquée directement; avec Auto-fit, elle devient la taille maximale.",
+        )
 
         self._ref_size = QSpinBox()
         self._ref_size.setRange(10, 60)
@@ -1436,6 +1495,7 @@ class ObsOutputSettingsDialog(QDialog):
         self._padding_h.setValue(defaults.padding_horizontal)
         self._padding_v.setValue(defaults.padding_vertical)
         self._border_radius.setValue(defaults.border_radius)
+        self._uniform_text_size.setChecked(defaults.uniform_text_size)
         self._auto_fit.setChecked(defaults.auto_fit)
         self._min_text_size.setValue(defaults.min_text_size)
         self._max_lines.setValue(defaults.max_lines)
@@ -1533,6 +1593,7 @@ class ObsOutputSettingsDialog(QDialog):
             padding_vertical=self._padding_v.value(),
             max_width=self._max_width.value(),
             auto_fit=self._auto_fit.isChecked(),
+            uniform_text_size=self._uniform_text_size.isChecked(),
             min_text_size=self._min_text_size.value(),
             max_lines=self._max_lines.value(),
             reference_style=self._reference_style.currentData() or "badge",

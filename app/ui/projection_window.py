@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import math
 import re
-from html import escape
 from pathlib import Path
 from typing import Any
 
@@ -93,10 +92,10 @@ class ProjectionWindow(QWidget):
 
         self.text_label = QLabel("")
         self.text_label.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred
         )
         self.text_label.setWordWrap(True)
-        self.text_label.setTextFormat(Qt.TextFormat.RichText)
+        self.text_label.setTextFormat(Qt.TextFormat.PlainText)
         self.text_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         # Hidden by default: local projection should feel like a clean PowerPoint slide.
@@ -115,6 +114,7 @@ class ProjectionWindow(QWidget):
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred
         )
         self.ref_label.setWordWrap(True)
+        self.ref_label.setTextFormat(Qt.TextFormat.PlainText)
         self.ref_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self._shell_layout.addWidget(self._content_widget, 1)
@@ -174,7 +174,8 @@ class ProjectionWindow(QWidget):
 
         if cfg.get("bg_gradient_enabled"):
             bg_color_2 = self._parse_color(cfg.get("bg_color_2") or "#020818", 1.0)
-            angle = float(cfg.get("bg_gradient_angle") or 180)
+            angle_value = cfg.get("bg_gradient_angle")
+            angle = float(angle_value if angle_value is not None else 180)
 
             rad = math.radians(angle)
             x1 = rect.center().x() - math.sin(rad) * rect.height()
@@ -307,8 +308,10 @@ class ProjectionWindow(QWidget):
             edge_guard, edge_guard, edge_guard, edge_guard
         )
 
-        mode = str(cfg.get("layout_mode") or "fullscreen").lower()
-        width_pct = max(40, min(100, int(cfg.get("content_width") or cfg.get("max_width") or 88)))
+        mode = "fullscreen"
+        content_width = int(cfg.get("content_width") or 88)
+        maximum_width = int(cfg.get("max_width") or 100)
+        width_pct = max(40, min(100, content_width, maximum_width))
         height_pct = max(35, min(100, int(cfg.get("content_height") or 82)))
         if mode == "lower_third":
             width_pct = min(width_pct, 88)
@@ -327,21 +330,23 @@ class ProjectionWindow(QWidget):
 
         self._available_content_width = available_width
         self._available_content_height = available_height
+        self._content_shell.setMinimumWidth(available_width)
         self._content_shell.setMaximumWidth(available_width)
+        self._content_shell.setMinimumHeight(available_height)
         self._content_shell.setMaximumHeight(available_height)
-        self._content_shell.setMinimumWidth(min(available_width, 320))
-        self._content_shell.setMinimumHeight(min(available_height, 240))
-        self._content_widget.setMinimumWidth(max(260, available_width - 96))
-        self._content_widget.setMinimumHeight(max(180, available_height - 96))
-        self.text_label.setMinimumWidth(max(260, available_width - 96))
-        self.ref_label.setMinimumWidth(max(260, available_width - 96))
+        self._content_widget.setMinimumSize(0, 0)
+        self.text_label.setMinimumSize(0, 0)
+        self.ref_label.setMinimumSize(0, 0)
 
         # Text sits directly on the background — no inner frame padding.
         panel_mode = mode in ("lower_third", "side_panel", "subtitle", "focus_card")
         panel_on = bool(cfg.get("panel_enabled", False)) or panel_mode
-        panel_padding = max(0, int(cfg.get("padding") or 0))
-        if panel_on:
-            panel_padding = max(panel_padding, max(18, min(72, int(sh * 0.035))))
+        padding_value = cfg.get("padding")
+        panel_padding = max(
+            0, int(padding_value if padding_value is not None else 0)
+        )
+        if not panel_on:
+            panel_padding = 0
         self._shell_layout.setContentsMargins(
             panel_padding, panel_padding, panel_padding, panel_padding
         )
@@ -375,19 +380,21 @@ class ProjectionWindow(QWidget):
             elif item.widget():
                 item.widget().setParent(None)
 
+        self._content_layout.addStretch(1)
         if show_ref and reference_position == "top":
             self._content_layout.addWidget(self.ref_label, 0)
             self._content_layout.addWidget(
                 self._accent_line, 0, Qt.AlignmentFlag.AlignHCenter
             )
-            self._content_layout.addWidget(self.text_label, 1)
+            self._content_layout.addWidget(self.text_label, 0)
         else:
-            self._content_layout.addWidget(self.text_label, 1)
+            self._content_layout.addWidget(self.text_label, 0)
             self._content_layout.addWidget(
                 self._accent_line, 0, Qt.AlignmentFlag.AlignHCenter
             )
             if show_ref:
                 self._content_layout.addWidget(self.ref_label, 0)
+        self._content_layout.addStretch(1)
 
     def _update_shell_style(self, cfg: dict[str, Any]) -> None:
         mode = str(cfg.get("layout_mode") or "fullscreen").lower()
@@ -509,6 +516,19 @@ class ProjectionWindow(QWidget):
                     print(f"Error applying slide: {e}")
 
     def _apply_config(self, cfg: dict[str, Any]) -> None:
+        cfg = dict(cfg)
+        cfg.update(
+            {
+                "layout_mode": "fullscreen",
+                "position": "center",
+                "slide_style": "cinematic",
+                "reference_position": "bottom",
+                "padding": 0,
+                "auto_fit": False,
+                "uniform_text_size": True,
+                "panel_enabled": False,
+            }
+        )
         self._config = cfg
         preferred_screen = str(cfg.get("display_screen") or "auto")
         available_names = {
@@ -520,19 +540,11 @@ class ProjectionWindow(QWidget):
             and preferred_screen != self._active_display_screen
         ):
             self._apply_best_screen_fullscreen(preferred_screen)
-        pos = str(cfg.get("position") or "center").lower()
+        pos = "center"
         align = str(cfg.get("align") or "center").lower()
-        reference_position = str(cfg.get("reference_position") or "bottom").lower()
-        slide_style = str(cfg.get("slide_style") or "cinematic").lower()
-        layout_mode = str(cfg.get("layout_mode") or "fullscreen").lower()
-        if layout_mode in ("lower_third", "subtitle"):
-            pos = "bottom"
-        elif layout_mode in ("side_panel", "focus_card"):
-            pos = "center"
-        if slide_style == "split":
-            align = "left"
-        if layout_mode == "side_panel":
-            align = "left"
+        reference_position = "bottom"
+        slide_style = "cinematic"
+        layout_mode = "fullscreen"
 
         self._apply_layout_metrics(cfg)
         self._update_shell_style(cfg)
@@ -553,16 +565,7 @@ class ProjectionWindow(QWidget):
             if pos == "bottom"
             else Qt.AlignmentFlag.AlignVCenter
         )
-        horizontal_container_align = (
-            Qt.AlignmentFlag.AlignRight
-            if (
-                layout_mode == "side_panel"
-                and str(cfg.get("panel_side") or "left") == "right"
-            )
-            else Qt.AlignmentFlag.AlignLeft
-            if slide_style == "split" or layout_mode == "side_panel"
-            else Qt.AlignmentFlag.AlignHCenter
-        )
+        horizontal_container_align = Qt.AlignmentFlag.AlignHCenter
         self._main_layout.addWidget(
             self._content_shell,
             1,
@@ -626,7 +629,8 @@ class ProjectionWindow(QWidget):
         cfg = self._config
         anim_on = bool(cfg.get("animation_enabled", True))
         anim_type = str(cfg.get("animation_type") or "fade").lower()
-        duration = int(cfg.get("animation_duration") or 420)
+        duration_value = cfg.get("animation_duration")
+        duration = int(duration_value if duration_value is not None else 420)
         was_hidden = not self._content_shell.isVisible()
         going_hidden = bool(slide.get("hidden"))
 
@@ -836,8 +840,6 @@ class ProjectionWindow(QWidget):
         uppercase = bool(cfg.get("uppercase"))
         show_reference = bool(cfg.get("show_reference", True))
         align = str(cfg.get("align") or "center").lower()
-        if str(cfg.get("slide_style") or "").lower() == "split":
-            align = "left"
         line_height = float(cfg.get("line_height") or 1.35)
         font_family = str(cfg.get("font_family") or "Poppins")
 
@@ -874,6 +876,10 @@ class ProjectionWindow(QWidget):
             360,
             constrained_width - shell_margins.left() - shell_margins.right(),
         )
+        # Keep a typographic gutter inside the configured block. Qt's text
+        # layout can have glyph overhang beyond horizontalAdvance(); using the
+        # full width risks clipping the final word even when metrics say it fits.
+        wrap_width = max(320, int(available_width * 0.90))
 
         ref_size = max(8, int(float(cfg.get("ref_size") or 22)))
         has_ref = show_reference and ref.strip()
@@ -891,7 +897,7 @@ class ProjectionWindow(QWidget):
             wrapped_lines = 0
             for line in lines:
                 line_width = max(1, metrics.horizontalAdvance(line))
-                wrapped_lines += max(1, math.ceil(line_width / available_width))
+                wrapped_lines += max(1, math.ceil(line_width / wrap_width))
             return (
                 wrapped_lines * metrics.lineSpacing() * max(line_height, 0.9),
                 wrapped_lines,
@@ -899,12 +905,16 @@ class ProjectionWindow(QWidget):
 
         configured_size = max(8, int(float(cfg.get("text_size") or 54)))
         text_size = configured_size
-        if bool(cfg.get("auto_fit", True)):
+        if bool(cfg.get("auto_fit", True)) and not bool(
+            cfg.get("uniform_text_size", True)
+        ):
             minimum = max(
                 10,
                 min(configured_size, int(cfg.get("min_text_size") or 18)),
             )
             max_lines = max(1, min(20, int(cfg.get("max_lines") or 8)))
+            _minimum_height, minimum_lines = estimated_text_metrics(minimum)
+            enforce_line_limit = minimum_lines <= max_lines
             low = minimum
             high = configured_size
             best = minimum
@@ -913,7 +923,10 @@ class ProjectionWindow(QWidget):
                 estimated_height, wrapped_lines = estimated_text_metrics(mid)
                 if (
                     estimated_height <= text_available_height * 0.96
-                    and wrapped_lines <= max_lines
+                    and (
+                        not enforce_line_limit
+                        or wrapped_lines <= max_lines
+                    )
                 ):
                     best = mid
                     low = mid + 1
@@ -948,44 +961,37 @@ class ProjectionWindow(QWidget):
                     wrapped.append(current)
             return "\n".join(wrapped)
 
-        wrapped_text = wrap_for_qt(text, text_size, available_width)
-        wrapped_ref = wrap_for_qt(ref, ref_size, available_width)
-        text_html = escape(wrapped_text).replace("\n", "<br>")
-        ref_html = escape(wrapped_ref).replace("\n", "<br>")
+        wrapped_text = wrap_for_qt(text, text_size, wrap_width)
+        wrapped_ref = wrap_for_qt(ref, ref_size, wrap_width)
 
-        css_align = align if align in ("center", "right") else "left"
-
-        # Simple presentation shadow only when enabled.
-        shadow_css = ""
-        if bool(cfg.get("text_shadow", True)):
-            s_color = str(cfg.get("shadow_color") or "rgba(0,0,0,0.7)")
-            blur = int(cfg.get("shadow_blur") or 12)
-            shadow_css = f"text-shadow: 0px 2px {blur}px {s_color}; "
-
-        base_style = (
-            f"font-family: '{font_family}', 'Poppins', system-ui; "
-            f"line-height: {line_height}; "
-            f"text-align: {css_align}; "
-            f"font-weight: {font_weight}; "
-            f"letter-spacing: {letter_spacing}px; "
-            f"display: block; "
-            f"width: 100%; "
-            f"margin: 0; "
-            f"{shadow_css}"
+        text_font = QFont(font_family)
+        text_font.setPixelSize(text_size)
+        text_font.setWeight(self._font_weight_to_qt(font_weight))
+        text_font.setLetterSpacing(
+            QFont.SpacingType.AbsoluteSpacing, float(letter_spacing)
+        )
+        self.text_label.setFont(text_font)
+        self.text_label.setStyleSheet(
+            f"color: {text_color}; background: transparent; border: none;"
         )
 
-        html_text = (
-            f'<div style="{base_style} font-size: {text_size}px; color: {text_color};'
-            f' word-break: normal; overflow-wrap: anywhere;">{text_html}</div>'
-        )
-        html_ref = (
-            f'<div style="{base_style} font-size: {ref_size}px; color: {ref_color};'
-            f' font-weight: 600; letter-spacing: 0px;'
-            f' word-break: normal; overflow-wrap: anywhere;">{ref_html}</div>'
+        ref_font = QFont(font_family)
+        ref_font.setPixelSize(ref_size)
+        ref_font.setWeight(QFont.Weight.DemiBold)
+        self.ref_label.setFont(ref_font)
+        self.ref_label.setStyleSheet(
+            f"color: {ref_color}; background: transparent; border: none;"
         )
 
-        self.text_label.setText(html_text)
-        self.ref_label.setText(html_ref if has_ref else "")
+        # A QGraphicsDropShadowEffect on a multiline QLabel renders through an
+        # intermediate pixmap. On Windows it can crop the right edge and the
+        # bottom lines even when the label geometry is large enough. Local
+        # projection prioritises complete words, so text is drawn directly.
+        self.text_label.setGraphicsEffect(None)
+        self.ref_label.setGraphicsEffect(None)
+
+        self.text_label.setText(wrapped_text)
+        self.ref_label.setText(wrapped_ref if has_ref else "")
         self._accent_line.setVisible(
             str(cfg.get("layout_mode") or "fullscreen")
             in ("lower_third", "focus_card")

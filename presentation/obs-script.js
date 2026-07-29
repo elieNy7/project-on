@@ -76,11 +76,11 @@ function applyConfig(cfg) {
     // Typography
     root.style.setProperty('--font-family', `'${cfg.font_family || 'Poppins'}', system-ui, sans-serif`);
     root.style.setProperty('--font-weight', cfg.font_weight || '600');
-    root.style.setProperty('--text-size', `${cfg.text_size || 52}px`);
-    root.style.setProperty('--base-text-size', `${cfg.text_size || 52}px`);
-    root.style.setProperty('--ref-size', `${cfg.ref_size || 20}px`);
-    root.style.setProperty('--letter-spacing', `${cfg.letter_spacing || 0}px`);
-    root.style.setProperty('--line-height', cfg.line_height || 1.3);
+    root.style.setProperty('--text-size', `${cfg.text_size ?? 52}px`);
+    root.style.setProperty('--base-text-size', `${cfg.text_size ?? 52}px`);
+    root.style.setProperty('--ref-size', `${cfg.ref_size ?? 20}px`);
+    root.style.setProperty('--letter-spacing', `${cfg.letter_spacing ?? 0}px`);
+    root.style.setProperty('--line-height', cfg.line_height ?? 1.3);
     root.style.setProperty('--text-transform', cfg.text_transform || 'none');
 
     // Background
@@ -122,7 +122,7 @@ function applyConfig(cfg) {
         }
     }
 
-    root.style.setProperty('--bg-blur', cfg.bg_blur ? `${cfg.bg_blur_amount || 20}px` : '0px');
+    root.style.setProperty('--bg-blur', cfg.bg_blur ? `${cfg.bg_blur_amount ?? 20}px` : '0px');
     root.style.setProperty('--text-color', cfg.text_color || '#ffffff');
     root.style.setProperty('--ref-color', cfg.ref_color || 'rgba(255, 255, 255, 0.82)');
 
@@ -131,10 +131,10 @@ function applyConfig(cfg) {
     }
 
     // Layout
-    root.style.setProperty('--padding-h', `${cfg.padding_horizontal || 52}px`);
-    root.style.setProperty('--padding-v', `${cfg.padding_vertical || 30}px`);
-    root.style.setProperty('--max-width', `${cfg.max_width || 85}%`);
-    root.style.setProperty('--border-radius', `${cfg.border_radius || 14}px`);
+    root.style.setProperty('--padding-h', `${cfg.padding_horizontal ?? 52}px`);
+    root.style.setProperty('--padding-v', `${cfg.padding_vertical ?? 30}px`);
+    root.style.setProperty('--max-width', `${cfg.max_width ?? 85}%`);
+    root.style.setProperty('--border-radius', `${cfg.border_radius ?? 14}px`);
     root.style.setProperty(
         '--background-dimmer',
         Math.max(0, Math.min(0.85, Number(cfg.background_dimmer ?? 0.36)))
@@ -142,7 +142,7 @@ function applyConfig(cfg) {
 
     // Stroke
     if (cfg.text_stroke) {
-        root.style.setProperty('--stroke-width', `${cfg.stroke_width || 1}px`);
+        root.style.setProperty('--stroke-width', `${cfg.stroke_width ?? 1}px`);
         root.style.setProperty('--stroke-color', cfg.stroke_color || 'rgba(0,0,0,0.8)');
     } else {
         root.style.setProperty('--stroke-width', '0px');
@@ -152,7 +152,7 @@ function applyConfig(cfg) {
     // Shadow
     if (cfg.text_shadow !== false) {
         const sc = cfg.shadow_color || 'rgba(0,0,0,0.6)';
-        const sb = cfg.shadow_blur || 8;
+        const sb = cfg.shadow_blur ?? 8;
         root.style.setProperty('--text-shadow', `0 2px ${sb}px ${sc}`);
     } else {
         root.style.setProperty('--text-shadow', 'none');
@@ -201,7 +201,7 @@ function applyConfig(cfg) {
     root.style.setProperty('--edge-margin', `${edgeMargin}px`);
     const safePercent = Math.max(0, Math.min(15, Number(cfg.safe_area_percent || 0)));
     const safePixels = Math.round(Math.min(window.innerWidth, window.innerHeight) * safePercent / 100);
-    root.style.setProperty('--safe-inset', `${Math.max(edgeMargin, safePixels)}px`);
+    root.style.setProperty('--safe-inset', `${edgeMargin + safePixels}px`);
 
     // Decorations
     rootEl.classList.toggle('kicker-hidden', cfg.show_kicker === false);
@@ -268,11 +268,20 @@ function fitTextToViewport(textEl, refEl, bodyEl, baseTextSize) {
     if (!textEl || !bodyEl) return;
 
     const root = document.documentElement;
-    if (currentConfig.auto_fit === false) {
+    if (
+        currentConfig.uniform_text_size !== false
+        || currentConfig.auto_fit === false
+    ) {
         root.style.setProperty('--text-size', `${Math.max(12, Math.round(baseTextSize))}px`);
         return;
     }
-    const minSize = Math.max(12, Number(currentConfig.min_text_size || 24));
+    const minSize = Math.max(
+        12,
+        Math.min(
+            Math.max(12, Math.round(baseTextSize)),
+            Number(currentConfig.min_text_size || 24)
+        )
+    );
     const requestedMaxLines = Math.max(
         1,
         Math.min(12, Number(currentConfig.max_lines || 6))
@@ -293,6 +302,15 @@ function fitTextToViewport(textEl, refEl, bodyEl, baseTextSize) {
     ) || 64;
     const maxHeight = Math.max(220, window.innerHeight - Math.max(0, edgeMargin * 2 - 16));
     const maxWidth = Math.max(360, window.innerWidth - Math.max(0, edgeMargin * 2 - 16));
+    const lineCountAtCurrentSize = () => {
+        const styles = getComputedStyle(textEl);
+        const currentSize = parseFloat(styles.fontSize) || minSize;
+        const lineHeight = parseFloat(styles.lineHeight) || currentSize * 1.2;
+        return Math.max(1, Math.round(textEl.scrollHeight / lineHeight));
+    };
+
+    root.style.setProperty('--text-size', `${minSize}px`);
+    const enforceLineLimit = lineCountAtCurrentSize() <= maxLines;
     let size = Math.max(minSize, Math.round(baseTextSize));
 
     root.style.setProperty('--text-size', `${size}px`);
@@ -302,7 +320,14 @@ function fitTextToViewport(textEl, refEl, bodyEl, baseTextSize) {
         const lineCount = Math.max(1, Math.round(textEl.scrollHeight / lineHeight));
         const tooTall = bodyEl.scrollHeight > maxHeight;
         const tooWide = bodyEl.scrollWidth > maxWidth || textEl.scrollWidth > textEl.clientWidth + 2;
-        if ((!tooTall && !tooWide && lineCount <= maxLines) || size <= minSize) break;
+        if (
+            (
+                !tooTall
+                && !tooWide
+                && (!enforceLineLimit || lineCount <= maxLines)
+            )
+            || size <= minSize
+        ) break;
         size = Math.max(minSize, size - 2);
         root.style.setProperty('--text-size', `${size}px`);
     }
