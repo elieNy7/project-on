@@ -831,7 +831,7 @@ class Database:
         stripped = str(text or "").strip()
         return bool(
             re.match(
-                r"^(?:Dernier\s+)?(Chœur|Choeur|Refrain|Chorus)\s*[:.\-–—]?",
+                r"^(?:Dernier\s+)?(?:Ch(?:oe|œ)urs?|Refrain|Chorus)\s*[:.\-–—]?",
                 stripped,
                 re.IGNORECASE,
             )

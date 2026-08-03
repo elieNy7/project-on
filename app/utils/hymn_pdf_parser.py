@@ -48,9 +48,18 @@ MUSIC_KEY_RE = re.compile(
 )
 
 CHORUS_RE = re.compile(
-    r"^(ch(?:oe|œ)ur|refrain|dernier refrain)\s*:?\s*(.*)$",
+    r"^(ch(?:oe|œ)urs?|refrain|dernier refrain)\s*[.:]?\s*(.*)$",
     re.IGNORECASE,
 )
+
+
+@dataclass(frozen=True)
+class HymnSection:
+    """One projection unit, explicitly classified as a verse or chorus."""
+
+    text: str
+    label: str
+    is_chorus: bool
 
 
 @dataclass
@@ -59,7 +68,13 @@ class Hymn:
     source_order: int
     number: str
     title: str
-    stanzas: list[str]
+    sections: list[HymnSection]
+
+    @property
+    def stanzas(self) -> list[str]:
+        """Backward-compatible text-only view used by existing callers."""
+
+        return [section.text for section in self.sections]
 
 
 def normalize_text(value: str) -> str:
@@ -218,8 +233,8 @@ def should_continue_title(line: str, current_parts: list[str]) -> bool:
     return looks_like_title_line(clean) and len(clean) <= 70
 
 
-def parse_hymn_headers(lines: list[str]) -> list[tuple[int, int, str, int]]:
-    headers: list[tuple[int, int, str, int]] = []
+def parse_hymn_headers(lines: list[str]) -> list[tuple[int, str, str, int]]:
+    headers: list[tuple[int, str, str, int]] = []
     i = 0
 
     while i < len(lines):
@@ -228,25 +243,27 @@ def parse_hymn_headers(lines: list[str]) -> list[tuple[int, int, str, int]]:
             i += 1
             continue
 
-        number: int | None = None
+        number: str | None = None
         title_parts: list[str] = []
         body_start = i + 1
 
         inline = re.match(r"^(\d{1,3})\.\s*(.+)$", line)
         compact_inline = re.match(r"^(\d{1,3})([A-ZÀ-ÖØ-Þ].+)$", line)
         spaced_inline = re.match(r"^(\d{1,3})\s+([A-ZÀ-ÖØ-Þ].+)$", line)
-        standalone = re.match(r"^(\d{1,3})(?:\s*[a-z])?\.?$", line, re.IGNORECASE)
+        standalone = re.match(
+            r"^(\d{1,3})(?:\s*([a-z]))?\.?$", line, re.IGNORECASE
+        )
 
         if inline and looks_like_title_line(inline.group(2)):
-            number = int(inline.group(1))
+            number = inline.group(1)
             title_parts.append(inline.group(2))
             body_start = i + 1
         elif compact_inline and looks_like_title_line(compact_inline.group(2)):
-            number = int(compact_inline.group(1))
+            number = compact_inline.group(1)
             title_parts.append(compact_inline.group(2))
             body_start = i + 1
         elif spaced_inline and looks_like_title_line(spaced_inline.group(2)):
-            number = int(spaced_inline.group(1))
+            number = spaced_inline.group(1)
             title_parts.append(spaced_inline.group(2))
             body_start = i + 1
         elif standalone:
@@ -254,7 +271,7 @@ def parse_hymn_headers(lines: list[str]) -> list[tuple[int, int, str, int]]:
             while j < len(lines) and not normalize_text(lines[j]):
                 j += 1
             if j < len(lines) and looks_like_title_line(lines[j]):
-                number = int(standalone.group(1))
+                number = standalone.group(1) + (standalone.group(2) or "").upper()
                 title_parts.append(lines[j])
                 body_start = j + 1
 
@@ -307,7 +324,9 @@ def clean_body_line(line: str) -> str:
     return line
 
 
-def parse_stanzas(lines: list[str], repeat_single_chorus: bool = True) -> list[str]:
+def parse_stanza_sections(
+    lines: list[str], repeat_single_chorus: bool = True
+) -> list[HymnSection]:
     parts: list[tuple[str, str]] = []
     current_label = "verse"
     current: list[str] = []
@@ -378,45 +397,67 @@ def parse_stanzas(lines: list[str], repeat_single_chorus: bool = True) -> list[s
         verse_blocks = [text for label, text in parts if label == "verse"]
         if len(chorus_blocks) == 1 and len(final_blocks) == 0 and len(verse_blocks) > 1:
             chorus = chorus_blocks[0]
-            rebuilt: list[str] = []
-            for verse in verse_blocks:
-                rebuilt.append(verse)
-                rebuilt.append("Choeur:\n" + chorus)
+            rebuilt: list[HymnSection] = []
+            for verse_no, verse in enumerate(verse_blocks, start=1):
+                rebuilt.append(HymnSection(verse, f"Strophe {verse_no}", False))
+                rebuilt.append(HymnSection("Choeur:\n" + chorus, "Refrain", True))
             return rebuilt
 
-    stanzas: list[str] = []
+    sections: list[HymnSection] = []
+    verse_no = 0
+    chorus_no = 0
     for label, text in parts:
         if label == "chorus":
-            stanzas.append("Choeur:\n" + text)
+            chorus_no += 1
+            chorus_label = "Refrain" if chorus_no == 1 else f"Refrain {chorus_no}"
+            sections.append(HymnSection("Choeur:\n" + text, chorus_label, True))
         elif label == "final_chorus":
-            stanzas.append("Dernier refrain:\n" + text)
+            sections.append(
+                HymnSection("Dernier refrain:\n" + text, "Dernier refrain", True)
+            )
         else:
-            stanzas.append(text)
-    return stanzas
+            verse_no += 1
+            sections.append(HymnSection(text, f"Strophe {verse_no}", False))
+    return sections
+
+
+def parse_stanzas(lines: list[str], repeat_single_chorus: bool = True) -> list[str]:
+    """Backward-compatible wrapper returning only section text."""
+
+    return [
+        section.text
+        for section in parse_stanza_sections(
+            lines, repeat_single_chorus=repeat_single_chorus
+        )
+    ]
 
 
 def parse_hymns_from_lines(lines: list[str], source: str) -> list[Hymn]:
     headers = parse_hymn_headers(lines)
     hymns: list[Hymn] = []
-    seen_number_counts: dict[int, int] = {}
+    seen_number_counts: dict[str, int] = {}
 
     for index, (header_line, number, title, body_start) in enumerate(headers, start=1):
         next_header = headers[index][0] if index < len(headers) else len(lines)
         body_lines = lines[body_start:next_header]
-        stanzas = parse_stanzas(body_lines)
-        if not stanzas:
+        sections = parse_stanza_sections(body_lines)
+        if not sections:
             continue
 
         seen_number_counts[number] = seen_number_counts.get(number, 0) + 1
         suffix = "" if seen_number_counts[number] == 1 else f"-{seen_number_counts[number]}"
-        source_number = f"{source}-{number:03d}{suffix}"
+        number_match = re.fullmatch(r"(\d{1,3})([A-Z]?)", number)
+        if number_match is None:
+            continue
+        formatted_number = f"{int(number_match.group(1)):03d}{number_match.group(2)}"
+        source_number = f"{source}-{formatted_number}{suffix}"
         hymns.append(
             Hymn(
                 source=source,
                 source_order=index,
                 number=source_number,
                 title=title,
-                stanzas=stanzas,
+                sections=sections,
             )
         )
 

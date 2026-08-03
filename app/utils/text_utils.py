@@ -114,26 +114,58 @@ def _force_split(text: str, limit: int) -> list[str]:
 
 
 def _rebalance(slides: list[str], limit: int, min_chars: int) -> list[str]:
-    """Rebalance slides so the last one isn't too short."""
-    if len(slides) < 2:
-        return slides
-    while len(slides) >= 2 and len(slides[-1]) < min_chars:
-        last = slides.pop()
-        prev = slides.pop()
-        combined = prev + " " + last
-        if len(combined) <= limit:
-            slides.append(combined)
-        else:
+    """Merge any too-short slide into a neighbour so no slide feels orphaned.
+
+    Works on every slide (not just the last one): a short slide is merged
+    into the neighbour that keeps both sides under *limit*; when no merge
+    fits, the pair is re-split in two balanced halves at a word boundary.
+    """
+    guard = len(slides) * 3 + 4
+    while len(slides) >= 2 and guard > 0:
+        guard -= 1
+        short_idx = next(
+            (i for i, s in enumerate(slides) if len(s) < min_chars), None
+        )
+        if short_idx is None:
+            break
+        s = slides[short_idx]
+        merged = False
+        # Prefer merging into the shorter neighbour.
+        neighbours = []
+        if short_idx > 0:
+            neighbours.append(short_idx - 1)
+        if short_idx < len(slides) - 1:
+            neighbours.append(short_idx + 1)
+        neighbours.sort(key=lambda j: len(slides[j]))
+        for j in neighbours:
+            combined = (
+                slides[j] + " " + s if j < short_idx else s + " " + slides[j]
+            )
+            if len(combined) <= limit:
+                slides[j] = combined
+                del slides[short_idx]
+                merged = True
+                break
+        if merged:
+            continue
+        # No merge fits: re-split the pair with the first neighbour in two
+        # balanced halves at a word boundary.
+        if neighbours:
+            j = neighbours[0]
+            combined = (
+                slides[j] + " " + s if j < short_idx else s + " " + slides[j]
+            )
             words = combined.split()
             mid = len(words) // 2
             part1 = " ".join(words[:mid])
             part2 = " ".join(words[mid:])
-            if len(part1) <= limit and len(part2) <= limit:
-                slides.append(part1)
-                slides.append(part2)
+            if part1 and part2 and len(part1) <= limit and len(part2) <= limit:
+                slides[j] = part1
+                slides[short_idx] = part2
             else:
-                slides.append(prev)
-                slides.append(last)
+                # Give up on this slide rather than loop forever.
+                break
+        else:
             break
     return slides
 
@@ -145,9 +177,11 @@ def split_text_into_slides(
 ) -> list[str]:
     """Split text into balanced, readable slides.
 
-    Two-phase algorithm: break into sentences/segments at natural boundaries
-    (paragraph breaks, sentence-ending punctuation), then greedily merge and
-    rebalance so slides have roughly equal length without exceeding *max_chars*.
+    Breaks at natural boundaries first — blank lines (paragraphs/stanzas),
+    then single line breaks (verses), then sentence punctuation — force-splits
+    only oversized segments, then packs segments so every slide lands close
+    to an even share of the text instead of filling the first slides to the
+    limit and leaving a tiny leftover at the end.
     """
     raw = str(text or "").strip()
     if not raw:
@@ -160,35 +194,41 @@ def split_text_into_slides(
     if len(raw) <= max_chars:
         return [raw]
 
-    paragraphs = re.split(r"\n\s*\n+", raw)
-    sentences: list[str] = []
-    for para in paragraphs:
+    # Natural segments: paragraph > line > sentence.
+    segments: list[str] = []
+    for para in re.split(r"\n\s*\n+", raw):
         para = para.strip()
         if not para:
             continue
-        for part in re.split(r"(?<=[.!?;:])\s+", para):
-            part = part.strip()
-            if part:
-                sentences.append(part)
+        for line in para.split("\n"):
+            line = line.strip()
+            if not line:
+                continue
+            if len(line) <= max_chars:
+                for part in re.split(r"(?<=[.!?])\s+", line):
+                    part = part.strip()
+                    if part:
+                        segments.append(part)
+            else:
+                segments.extend(_force_split(line, max_chars))
 
-    if not sentences:
+    if not segments:
         return [raw]
+
+    # Balanced packing: aim for slides of roughly equal size.
+    total = sum(len(s) for s in segments) + max(0, len(segments) - 1)
+    slide_count = max(1, -(-total // max_chars))  # ceil division
+    target = total / slide_count
 
     slides: list[str] = []
     current = ""
-    for s in sentences:
+    for s in segments:
         candidate = (current + " " + s).strip() if current else s
-        if len(candidate) <= max_chars:
-            current = candidate
+        if current and (len(candidate) > max_chars or len(current) >= target):
+            slides.append(current)
+            current = s
         else:
-            if current:
-                slides.append(current)
-            if len(s) > max_chars:
-                forced = _force_split(s, max_chars)
-                slides.extend(forced[:-1])
-                current = forced[-1]
-            else:
-                current = s
+            current = candidate
     if current:
         slides.append(current)
 

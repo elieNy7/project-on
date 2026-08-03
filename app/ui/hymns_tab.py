@@ -26,7 +26,10 @@ from app.ui.library_list_presentation import (
     truncate_preview,
 )
 from app.ui.theme import (
+    Colors,
+    Radius,
     Spacing,
+    Typography,
     get_button_style,
     get_input_style,
     get_list_style,
@@ -160,11 +163,20 @@ class HymnsTab(QFrame):
         left.addLayout(left_header)
         left.addWidget(self.hymns_list, 1)
 
-        # Filter Container
+        # Filter Container — refined
         self.filter_container = QFrame(self)
-        self.filter_container.setStyleSheet(get_surface_panel_style())
+        self.filter_container.setStyleSheet(
+            f"""
+            QFrame {{
+                background: {Colors.BG_TERTIARY};
+                border: 1px solid {Colors.BORDER_SUBTLE};
+                border-radius: {Radius.MD}px;
+            }}
+            """
+        )
         filter_layout = QHBoxLayout(self.filter_container)
         filter_layout.setContentsMargins(Spacing.SM, Spacing.SM, Spacing.SM, Spacing.SM)
+        filter_layout.setSpacing(Spacing.SM)
         filter_layout.addWidget(self.search, 1)
 
         right_widget = QWidget()
@@ -204,17 +216,23 @@ class HymnsTab(QFrame):
         self.search.textChanged.connect(lambda _t: self._search_timer.start())
 
     def set_hymns(self, hymns: list[dict[str, Any]]) -> None:
-        self.hymns_list.clear()
-        for h in hymns:
-            title = str(h.get("title") or "Sans titre")
-            number = str(h.get("number") or "")
-            search_key = str(h.get("title_search") or f"{title} {number}").lower()
-            item = QListWidgetItem(title)
-            item.setData(Qt.ItemDataRole.UserRole, int(h["id"]))
-            item.setData(Qt.ItemDataRole.UserRole + 1, number or int(h["id"]))
-            item.setData(Qt.ItemDataRole.UserRole + 2, search_key)
-            item.setData(Qt.ItemDataRole.UserRole + 3, h.get("original_title", title))
-            self.hymns_list.addItem(item)
+        # Suspend repaints while filling thousands of rows — one layout pass
+        # at the end instead of one per addItem.
+        self.hymns_list.setUpdatesEnabled(False)
+        try:
+            self.hymns_list.clear()
+            for h in hymns:
+                title = str(h.get("title") or "Sans titre")
+                number = str(h.get("number") or "")
+                search_key = str(h.get("title_search") or f"{title} {number}").lower()
+                item = QListWidgetItem(title)
+                item.setData(Qt.ItemDataRole.UserRole, int(h["id"]))
+                item.setData(Qt.ItemDataRole.UserRole + 1, number or int(h["id"]))
+                item.setData(Qt.ItemDataRole.UserRole + 2, search_key)
+                item.setData(Qt.ItemDataRole.UserRole + 3, h.get("original_title", title))
+                self.hymns_list.addItem(item)
+        finally:
+            self.hymns_list.setUpdatesEnabled(True)
 
         if self.hymns_list.count() > 0:
             self.hymns_list.setCurrentRow(0)

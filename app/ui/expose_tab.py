@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from PyQt6.QtCore import QEvent, QObject, QSize, Qt, pyqtSignal
+from PyQt6.QtCore import QEvent, QSize, Qt, QTimer, pyqtSignal
 from PyQt6.QtWidgets import (
     QComboBox,
     QFrame,
@@ -28,6 +28,7 @@ from app.ui.library_list_presentation import (
 )
 from app.ui.theme import (
     Colors,
+    Radius,
     Spacing,
     Typography,
     get_button_style,
@@ -41,22 +42,7 @@ from app.ui.theme import (
 )
 
 
-class HorizontalScrollFilter(QObject):
-    """Event filter to enable horizontal scrolling with the mouse wheel."""
-
-    def eventFilter(self, obj: QObject, event: QEvent) -> bool:
-        if event.type() == QEvent.Type.Wheel:
-            if isinstance(obj, QScrollArea):
-                delta = event.angleDelta().y()
-                if delta == 0:
-                    delta = event.angleDelta().x()
-
-                hbar = obj.horizontalScrollBar()
-                # Use a larger multiplier for smoother, faster scrolling
-                # A value of 4 is usually good for high density bars
-                hbar.setValue(hbar.value() - int(delta * 1.5))
-                return True
-        return super().eventFilter(obj, event)
+from app.utils.flow_layout import FlowLayout
 
 
 class ExposeTab(QFrame):
@@ -79,7 +65,7 @@ class ExposeTab(QFrame):
         # ── Left panel: chapters list ────────────────────────────────────
         self.chapters_list = QListWidget(self)
         self.chapters_list.setMinimumWidth(120)
-        self.chapters_list.setStyleSheet(get_list_style())
+        self.chapters_list.setStyleSheet(get_list_style(borderless=True))
         self.chapters_list.setItemDelegate(ExposeListDelegate(self.chapters_list))
         self.chapters_list.setUniformItemSizes(True)
         self.chapters_list.setVerticalScrollMode(QListWidget.ScrollMode.ScrollPerPixel)
@@ -98,29 +84,27 @@ class ExposeTab(QFrame):
 
         # ── Right panel: page bar + paragraphs ───────────────────────────
 
-        # Page number bar (like Bible chapter bar)
+        # Page number bar — wraps over multiple rows so every page stays visible
         self.page_bar = QWidget(self)
         self.page_bar.setStyleSheet("background: transparent;")
-        self.page_bar_layout = QHBoxLayout(self.page_bar)
-        self.page_bar_layout.setContentsMargins(0, 0, 0, 0)
-        self.page_bar_layout.setSpacing(4)
+        self.page_bar_layout = FlowLayout(self.page_bar, margin=2, hSpacing=4, vSpacing=4)
+
+        self._page_buttons: dict[int, QPushButton] = {}
+        self._current_page: int | None = None
 
         self.page_scroll = QScrollArea(self)
         self.page_scroll.setWidgetResizable(True)
         self.page_scroll.setFrameShape(QFrame.Shape.NoFrame)
         self.page_scroll.setWidget(self.page_bar)
-        self.page_scroll.setFixedHeight(52)
+        self.page_scroll.setFixedHeight(48)
         self.page_scroll.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOn
-        )
-        self.page_scroll.setVerticalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         )
+        self.page_scroll.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded
+        )
         self.page_scroll.setStyleSheet(get_scroll_area_style())
-
-        # Enable horizontal wheel scrolling
-        self._scroll_filter = HorizontalScrollFilter(self)
-        self.page_scroll.installEventFilter(self._scroll_filter)
+        self.page_scroll.viewport().installEventFilter(self)
 
         # Page info label
         self.page_info_label = QLabel("", self)
@@ -147,7 +131,7 @@ class ExposeTab(QFrame):
 
         # Paragraphs list
         self.paragraphs_list = QListWidget(self)
-        self.paragraphs_list.setStyleSheet(get_list_style())
+        self.paragraphs_list.setStyleSheet(get_list_style(borderless=True))
         self.paragraphs_list.setWordWrap(False)
         self.paragraphs_list.setItemDelegate(ExposeParagraphDelegate(self))
         self.paragraphs_list.setVerticalScrollMode(
@@ -193,9 +177,17 @@ class ExposeTab(QFrame):
         right.addWidget(self.page_scroll)
         right.addWidget(self.page_info_label)
 
-        # Filter Container with Background
+        # Filter Container with refined background
         self.filter_container = QFrame(self)
-        self.filter_container.setStyleSheet(get_surface_panel_style())
+        self.filter_container.setStyleSheet(
+            f"""
+            QFrame {{
+                background: {Colors.BG_TERTIARY};
+                border: 1px solid {Colors.BORDER_SUBTLE};
+                border-radius: {Radius.MD}px;
+            }}
+            """
+        )
 
         filter_layout = QHBoxLayout(self.filter_container)
         filter_layout.setContentsMargins(Spacing.SM, Spacing.SM, Spacing.SM, Spacing.SM)
@@ -299,24 +291,110 @@ class ExposeTab(QFrame):
             w = self.page_bar_layout.takeAt(0)
             if w and w.widget():
                 w.widget().deleteLater()
+        self._page_buttons.clear()
+        self._current_page = None
 
         if not pages:
-            self.page_bar_layout.addWidget(QLabel("", self.page_bar))
             self.page_info_label.setText("")
+            self.page_scroll.setFixedHeight(48)
             return
 
         self.page_info_label.setText(f"{len(pages)} pages")
 
+        fm = None  # shared font metrics — polish once instead of per button
         for pg in pages:
             btn = QPushButton(str(pg), self.page_bar)
-            btn.setFixedSize(40, 32)
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            btn.setObjectName("IconButton")
+            btn.setStyleSheet(self._page_btn_style(False))
+            fm = self._fit_number_button(btn, str(pg), fm)
             btn.clicked.connect(
-                lambda checked=False, p=int(pg): self.pageSelected.emit(p)
+                lambda checked=False, p=int(pg): self._on_page_clicked(p)
             )
             self.page_bar_layout.addWidget(btn)
-        self.page_bar_layout.addStretch(1)
+            self._page_buttons[int(pg)] = btn
+
+        QTimer.singleShot(0, self._update_page_bar_height)
+
+    @staticmethod
+    def _fit_number_button(btn: QPushButton, text: str, fm=None):
+        """Size the button so the number always fits, with comfortable padding.
+
+        Measures with the button's own polished font (stylesheet applied),
+        so the result matches what is actually rendered on screen. All page
+        buttons share the same stylesheet, so the metrics are computed once
+        and reused for the whole bar.
+        """
+        if fm is None:
+            btn.ensurePolished()
+            fm = btn.fontMetrics()
+        width = max(48, fm.horizontalAdvance(text) + 34)
+        btn.setFixedSize(width, 34)
+        return fm
+
+    @staticmethod
+    def _page_btn_style(active: bool) -> str:
+        if active:
+            return f"""
+                QPushButton {{
+                    background: {Colors.ACCENT_GLOW};
+                    border: 1px solid {Colors.ACCENT_GLOW_STRONG};
+                    border-radius: {Radius.SM}px;
+                    color: {Colors.ACCENT_PRIMARY};
+                    font-size: {Typography.SIZE_SM}px;
+                    font-weight: {Typography.WEIGHT_BOLD};
+                }}
+            """
+        return f"""
+            QPushButton {{
+                background: transparent;
+                border: 1px solid transparent;
+                border-radius: {Radius.SM}px;
+                color: {Colors.TEXT_SECONDARY};
+                font-size: {Typography.SIZE_SM}px;
+                font-weight: {Typography.WEIGHT_SEMIBOLD};
+            }}
+            QPushButton:hover {{
+                background: {Colors.GLASS_MEDIUM};
+                color: {Colors.TEXT_PRIMARY};
+            }}
+            QPushButton:pressed {{
+                background: {Colors.ACCENT_GLOW};
+                color: {Colors.ACCENT_PRIMARY};
+            }}
+        """
+
+    def _on_page_clicked(self, pg: int) -> None:
+        self.set_current_page(pg)
+        self.pageSelected.emit(pg)
+
+    def set_current_page(self, pg: int | None) -> None:
+        """Highlight the given page button (None clears the highlight)."""
+        self._current_page = pg
+        self._apply_page_highlight()
+        btn = self._page_buttons.get(pg) if pg is not None else None
+        if btn is not None:
+            self.page_scroll.ensureWidgetVisible(btn)
+
+    def _apply_page_highlight(self) -> None:
+        for num, btn in self._page_buttons.items():
+            btn.setStyleSheet(self._page_btn_style(num == self._current_page))
+
+    def _update_page_bar_height(self) -> None:
+        """Grow the bar (up to ~4 rows) so wrapped page numbers stay visible."""
+        if not self._page_buttons:
+            return
+        width = self.page_scroll.viewport().width()
+        if width <= 0:
+            return
+        needed = int(self.page_bar_layout.heightForWidth(width)) + 8
+        height = max(48, min(needed, 168))
+        if height != self.page_scroll.height():
+            self.page_scroll.setFixedHeight(height)
+
+    def eventFilter(self, obj, event) -> bool:
+        if obj is self.page_scroll.viewport() and event.type() == QEvent.Type.Resize:
+            self._update_page_bar_height()
+        return super().eventFilter(obj, event)
 
     def set_paragraphs(self, paragraphs: list[dict[str, Any]]) -> None:
         self.paragraphs_list.clear()

@@ -1,83 +1,97 @@
 from __future__ import annotations
 
 from PyQt6.QtCore import QSize, Qt, pyqtSignal
-from PyQt6.QtWidgets import QFrame, QLabel, QPushButton, QVBoxLayout, QWidget
+from PyQt6.QtGui import QColor, QFont
+from PyQt6.QtWidgets import (
+    QFrame,
+    QGraphicsDropShadowEffect,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+)
 
 from app.ui.icons import app_icon
 from app.ui.theme import Colors, Radius, Spacing, Typography
 
 
 class SidebarButton(QPushButton):
-    """Professional sidebar button with a refined active state."""
+    """Premium sidebar button with refined active state and subtle glow."""
 
     def __init__(self, text: str, icon_name: str, parent=None) -> None:
         super().__init__(parent)
         self._icon_name = icon_name
+        self._text = text
 
         self.setText(text)
         self.setIconSize(QSize(20, 20))
         self.setCheckable(True)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setMinimumHeight(42)
+        self.setMinimumHeight(44)
 
-        self._base_style = f"""
-            QPushButton {{
-                text-align: left;
-                padding: 9px 12px 9px 14px;
-                border: 1px solid transparent;
-                border-radius: {Radius.SM}px;
-                background: transparent;
-                color: {Colors.TEXT_SECONDARY};
-                font-family: {Typography.PRIMARY_FAMILY};
-                font-size: {Typography.SIZE_MD}px;
-                font-weight: {Typography.WEIGHT_MEDIUM};
-                margin: 0 0 2px 0;
-                letter-spacing: 0;
-            }}
-            QPushButton:hover {{
-                background: {Colors.GLASS_MEDIUM};
-                color: {Colors.TEXT_PRIMARY};
-                border-color: {Colors.BORDER_SUBTLE};
-            }}
-            QPushButton:focus {{
-                border-color: {Colors.ACCENT_SECONDARY};
-            }}
-        """
-
-        self._checked_style = f"""
-            QPushButton {{
-                text-align: left;
-                padding: 9px 12px 9px 14px;
-                border: none;
-                border-radius: {Radius.SM}px;
-                background: qlineargradient(
-                    x1:0, y1:0, x2:1, y2:0,
-                    stop:0 {Colors.ACCENT_GLOW_STRONG},
-                    stop:1 {Colors.ACCENT_GLOW}
-                );
-                color: {Colors.ACCENT_LIGHT};
-                font-family: {Typography.PRIMARY_FAMILY};
-                font-size: {Typography.SIZE_MD}px;
-                font-weight: {Typography.WEIGHT_SEMIBOLD};
-                margin: 0 0 2px 0;
-                letter-spacing: 0;
-                border: 1px solid {Colors.ACCENT_GLOW_STRONG};
-            }}
-            QPushButton:hover {{
-                background: {Colors.ACCENT_GLOW_STRONG};
-                border-color: {Colors.ACCENT_PRIMARY};
-            }}
-            QPushButton:focus {{
-                border-color: {Colors.ACCENT_SECONDARY};
-            }}
-        """
+        # Subtle shadow effect for depth
+        self._shadow = QGraphicsDropShadowEffect(self)
+        self._shadow.setBlurRadius(12)
+        self._shadow.setXOffset(0)
+        self._shadow.setYOffset(2)
+        self._shadow.setColor(QColor(0, 0, 0, 40))
+        self.setGraphicsEffect(self._shadow)
 
         self._update_style(False)
 
     def _update_style(self, checked: bool) -> None:
-        icon_color = Colors.ACCENT_PRIMARY if checked else Colors.TEXT_SECONDARY
+        icon_color = Colors.ACCENT_PRIMARY if checked else Colors.TEXT_MUTED
         self.setIcon(app_icon(self._icon_name, icon_color))
-        self.setStyleSheet(self._checked_style if checked else self._base_style)
+
+        if checked:
+            self.setStyleSheet(f"""
+                QPushButton {{
+                    text-align: left;
+                    padding: 10px 14px 10px 14px;
+                    border: none;
+                    border-radius: {Radius.MD}px;
+                    background: qlineargradient(
+                        x1:0, y1:0, x2:1, y2:0,
+                        stop:0 {Colors.ACCENT_GLOW_STRONG},
+                        stop:1 {Colors.ACCENT_GLOW}
+                    );
+                    color: {Colors.ACCENT_LIGHT};
+                    font-family: {Typography.PRIMARY_FAMILY};
+                    font-size: {Typography.SIZE_MD}px;
+                    font-weight: {Typography.WEIGHT_SEMIBOLD};
+                    margin: 0 0 3px 0;
+                    letter-spacing: 0;
+                    border: 1px solid {Colors.ACCENT_GLOW_STRONG};
+                }}
+                QPushButton:hover {{
+                    background: {Colors.ACCENT_GLOW_STRONG};
+                    border-color: {Colors.ACCENT_PRIMARY};
+                }}
+            """)
+            self._shadow.setColor(QColor(232, 176, 86, 30))
+        else:
+            self.setStyleSheet(f"""
+                QPushButton {{
+                    text-align: left;
+                    padding: 10px 14px 10px 14px;
+                    border: 1px solid transparent;
+                    border-radius: {Radius.MD}px;
+                    background: transparent;
+                    color: {Colors.TEXT_MUTED};
+                    font-family: {Typography.PRIMARY_FAMILY};
+                    font-size: {Typography.SIZE_MD}px;
+                    font-weight: {Typography.WEIGHT_MEDIUM};
+                    margin: 0 0 3px 0;
+                    letter-spacing: 0;
+                }}
+                QPushButton:hover {{
+                    background: {Colors.GLASS_MEDIUM};
+                    color: {Colors.TEXT_SECONDARY};
+                    border-color: {Colors.BORDER_SUBTLE};
+                }}
+            """)
+            self._shadow.setColor(QColor(0, 0, 0, 40))
 
     def setChecked(self, checked: bool) -> None:
         super().setChecked(checked)
@@ -85,13 +99,13 @@ class SidebarButton(QPushButton):
 
 
 class Sidebar(QFrame):
-    """Professional vertical navigation sidebar."""
+    """Premium vertical navigation sidebar with glassmorphism header."""
 
     currentChanged = pyqtSignal(int)
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
-        self.setFixedWidth(196)
+        self.setFixedWidth(210)
         self.setObjectName("Sidebar")
 
         self.setStyleSheet(
@@ -100,7 +114,7 @@ class Sidebar(QFrame):
                 background: qlineargradient(
                     x1:0, y1:0, x2:0, y2:1,
                     stop:0 {Colors.SIDEBAR_GRADIENT_START},
-                    stop:1 {Colors.BG_SECONDARY}
+                    stop:1 {Colors.SIDEBAR_GRADIENT_END}
                 );
                 border: 1px solid {Colors.BORDER_SUBTLE};
                 border-right: 1px solid {Colors.BORDER_DEFAULT};
@@ -113,17 +127,35 @@ class Sidebar(QFrame):
         self._current_index = 0
 
         self._layout = QVBoxLayout(self)
-        self._layout.setContentsMargins(12, 14, 12, 12)
+        self._layout.setContentsMargins(14, 16, 14, 14)
         self._layout.setSpacing(Spacing.SM)
 
         self._build_header()
 
+        # Separator
+        separator = QFrame(self)
+        separator.setFrameShape(QFrame.Shape.HLine)
+        separator.setStyleSheet(f"background: {Colors.BORDER_SUBTLE}; max-height: 1px;")
+        self._layout.addWidget(separator)
+
         self._nav_container = QWidget(self)
         self._nav_layout = QVBoxLayout(self._nav_container)
-        self._nav_layout.setContentsMargins(0, 0, 0, 0)
+        self._nav_layout.setContentsMargins(0, 8, 0, 0)
         self._nav_layout.setSpacing(Spacing.XS)
         self._layout.addWidget(self._nav_container)
         self._layout.addStretch(1)
+
+        # Bottom separator
+        sep2 = QFrame(self)
+        sep2.setFrameShape(QFrame.Shape.HLine)
+        sep2.setStyleSheet(f"background: {Colors.BORDER_SUBTLE}; max-height: 1px;")
+        self._layout.addWidget(sep2)
+
+        # Footer with version info
+        footer_widget = QWidget(self)
+        footer_layout = QVBoxLayout(footer_widget)
+        footer_layout.setContentsMargins(0, 4, 0, 0)
+        footer_layout.setSpacing(0)
 
         self._footer = QLabel("Project-On", self)
         self._footer.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -131,13 +163,30 @@ class Sidebar(QFrame):
             f"""
             QLabel {{
                 color: {Colors.TEXT_MUTED};
-                font-size: {Typography.SIZE_XS}px;
-                padding: 6px 4px 0 4px;
-                letter-spacing: 0.7px;
+                font-size: {Typography.SIZE_2XS}px;
+                padding: 4px;
+                letter-spacing: 1px;
+                font-weight: {Typography.WEIGHT_BOLD};
             }}
             """
         )
-        self._layout.addWidget(self._footer)
+
+        self._footer_sub = QLabel("Presentation Software", self)
+        self._footer_sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._footer_sub.setStyleSheet(
+            f"""
+            QLabel {{
+                color: {Colors.TEXT_DISABLED};
+                font-size: {Typography.SIZE_2XS}px;
+                padding: 0 4px 4px 4px;
+                letter-spacing: 0.5px;
+            }}
+            """
+        )
+
+        footer_layout.addWidget(self._footer)
+        footer_layout.addWidget(self._footer_sub)
+        self._layout.addWidget(footer_widget)
 
     def _build_header(self) -> None:
         header = QFrame(self)
@@ -156,23 +205,55 @@ class Sidebar(QFrame):
             """
         )
 
+        # Add subtle shadow to header
+        header_shadow = QGraphicsDropShadowEffect(header)
+        header_shadow.setBlurRadius(16)
+        header_shadow.setXOffset(0)
+        header_shadow.setYOffset(3)
+        header_shadow.setColor(QColor(0, 0, 0, 50))
+        header.setGraphicsEffect(header_shadow)
+
         header_layout = QVBoxLayout(header)
-        header_layout.setContentsMargins(14, 14, 14, 14)
+        header_layout.setContentsMargins(16, 16, 16, 16)
         header_layout.setSpacing(Spacing.XS)
+
+        # Top row: eyebrow + icon indicator
+        top_row = QHBoxLayout()
+        top_row.setContentsMargins(0, 0, 0, 0)
+        top_row.setSpacing(Spacing.SM)
 
         eyebrow = QLabel("PROJECT-ON", header)
         eyebrow.setStyleSheet(
             f"""
             QLabel {{
                 color: {Colors.ACCENT_PRIMARY};
-                font-size: {Typography.SIZE_XS}px;
+                font-size: {Typography.SIZE_2XS}px;
                 font-weight: {Typography.WEIGHT_BOLD};
-                letter-spacing: 0;
+                letter-spacing: 1px;
             }}
             """
         )
 
-        title = QLabel("Bibliotheque", header)
+        # Accent indicator dot
+        indicator = QLabel(header)
+        indicator.setFixedSize(6, 6)
+        indicator.setStyleSheet(
+            f"""
+            QLabel {{
+                background: {Colors.ACCENT_PRIMARY};
+                border-radius: 3px;
+            }}
+            """
+        )
+
+        top_row.addWidget(eyebrow)
+        top_row.addWidget(indicator)
+        top_row.addStretch(1)
+
+        title = QLabel("Bibliothèque", header)
+        title_font = QFont(Typography.FAMILY, Typography.SIZE_LG_PT)
+        title_font.setWeight(Typography.WEIGHT_BOLD)
+        title.setFont(title_font)
         title.setStyleSheet(
             f"""
             QLabel {{
@@ -183,18 +264,18 @@ class Sidebar(QFrame):
             """
         )
 
-        subtitle = QLabel("Presentation", header)
+        subtitle = QLabel("Gestion de présentation", header)
         subtitle.setWordWrap(True)
         subtitle.setStyleSheet(
             f"""
             QLabel {{
-                color: {Colors.TEXT_SECONDARY};
-                font-size: {Typography.SIZE_XS}px;
+                color: {Colors.TEXT_MUTED};
+                font-size: {Typography.SIZE_2XS}px;
             }}
             """
         )
 
-        header_layout.addWidget(eyebrow)
+        header_layout.addLayout(top_row)
         header_layout.addWidget(title)
         header_layout.addWidget(subtitle)
         self._layout.addWidget(header)

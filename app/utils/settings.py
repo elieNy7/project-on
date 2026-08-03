@@ -10,7 +10,7 @@ from typing import Any
 @dataclass
 class ObsOutputSettings:
     layout_mode: str = "lower_third"  # lower_third|fullscreen|side_panel|subtitle|focus_card
-    font_family: str = "Google Sans"
+    font_family: str = "Poppins"
     text_size: int = 48  # pixels
     ref_size: int = 19  # pixels
     align: str = "center"  # center|left|right (text alignment)
@@ -86,7 +86,7 @@ class ObsOutputSettings:
         return {
             "version": int(time.time() * 1000),
             "layout_mode": layout_mode,
-            "font_family": str(self.font_family or "Google Sans").strip(),
+            "font_family": str(self.font_family or "Poppins").strip(),
             "text_size": int(self.text_size or 48),
             "ref_size": int(self.ref_size or 19),
             "align": (
@@ -202,8 +202,8 @@ class ProjectionSettings:
     display_screen: str = "auto"  # auto or QScreen.name()
     safe_margin: int = 32  # pixels
     panel_side: str = "left"  # left|right, used by side_panel
-    font_family: str = "Google Sans"
-    text_size: int = 48  # pixels
+    font_family: str = "Poppins"
+    text_size: int = 56  # pixels
     ref_size: int = 24  # pixels
     padding: int = 0  # pixels
     align: str = "center"  # center|left
@@ -224,8 +224,8 @@ class ProjectionSettings:
     shadow_color: str = "rgba(0,0,0,0.88)"  # shadow color
     shadow_blur: int = 18  # shadow blur in pixels
     max_width: int = 100  # percentage of screen width
-    auto_fit: bool = False
-    uniform_text_size: bool = True  # keep the configured size across slides
+    auto_fit: bool = True
+    uniform_text_size: bool = False  # grow-to-fill: text fills the stage by default
     min_text_size: int = 18
     max_lines: int = 8
     background_dimmer: float = 0.34
@@ -247,41 +247,61 @@ class ProjectionSettings:
     ken_burns: bool = True  # slow zoom on background images
 
     def to_presentation_config(self) -> dict[str, Any]:
-        layout_mode = "fullscreen"
+        layout_mode = (self.layout_mode or "fullscreen").lower()
+        if layout_mode not in (
+            "fullscreen",
+            "lower_third",
+            "side_panel",
+            "subtitle",
+            "focus_card",
+        ):
+            layout_mode = "fullscreen"
         align = (self.align or "center").lower()
         if align not in ("center", "left", "right"):
             align = "center"
+        position = (self.position or "center").lower()
+        if position not in ("top", "center", "bottom"):
+            position = "center"
+        slide_style = (self.slide_style or "cinematic").lower()
+        if slide_style not in ("cinematic", "clean", "split"):
+            slide_style = "cinematic"
+        reference_position = (self.reference_position or "bottom").lower()
+        if reference_position not in ("top", "bottom"):
+            reference_position = "bottom"
+        panel_side = (self.panel_side or "left").lower()
+        if panel_side not in ("left", "right"):
+            panel_side = "left"
         return {
             "layout_mode": layout_mode,
             "display_screen": str(self.display_screen or "auto"),
             "safe_margin": max(0, min(240, int(self.safe_margin or 0))),
-            "panel_side": "left",
-            "font_family": str(self.font_family or "Google Sans").strip(),
-            "text_size": int(self.text_size or 48),
+            "panel_side": panel_side,
+            "font_family": str(self.font_family or "Poppins").strip(),
+            "text_size": int(self.text_size or 56),
             "ref_size": int(self.ref_size or 24),
-            "padding": 0,
+            "padding": max(0, min(160, int(self.padding or 0))),
             "align": align,
-            "position": "center",
-            "slide_style": "cinematic",
+            "position": position,
+            "slide_style": slide_style,
             "content_width": max(60, min(94, int(self.content_width or 86))),
-            "content_height": 86,
+            "content_height": max(35, min(100, int(self.content_height or 86))),
             "show_reference": bool(self.show_reference),
-            "reference_position": "bottom",
+            "reference_position": reference_position,
             "uppercase": bool(self.uppercase),
             "text_color": str(self.text_color or "rgba(255,255,255,0.96)"),
             "ref_color": str(self.ref_color or "rgba(255,244,214,0.82)"),
             "bg_color": str(self.bg_color or "#07111f"),
             "font_weight": str(self.font_weight or "bold"),
-            "line_height": 1.18,
-            "letter_spacing": 0,
-            "text_shadow": False,
+            "line_height": max(0.9, min(2.2, float(self.line_height or 1.18))),
+            "letter_spacing": max(-2, min(24, int(self.letter_spacing or 0))),
+            "text_shadow": bool(self.text_shadow),
             "shadow_color": str(self.shadow_color or "rgba(0,0,0,0.88)"),
             "shadow_blur": int(
                 self.shadow_blur if self.shadow_blur is not None else 18
             ),
-            "max_width": max(60, min(94, int(self.content_width or 86))),
-            "auto_fit": False,
-            "uniform_text_size": True,
+            "max_width": max(60, min(100, int(self.max_width or 100))),
+            "auto_fit": bool(self.auto_fit),
+            "uniform_text_size": bool(self.uniform_text_size),
             "min_text_size": max(10, int(self.min_text_size or 18)),
             "max_lines": max(1, min(20, int(self.max_lines or 8))),
             "background_dimmer": max(
@@ -295,7 +315,7 @@ class ProjectionSettings:
                     ),
                 ),
             ),
-            "panel_enabled": False,
+            "panel_enabled": bool(self.panel_enabled),
             "panel_color": str(self.panel_color or "rgba(5,12,24,0.86)"),
             "panel_opacity": max(
                 0.0,

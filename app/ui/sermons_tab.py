@@ -58,8 +58,6 @@ class SermonsTab(QFrame):
         self._current_sermon_date: str = ""
 
         # Filters
-
-
         self.year_combo = QComboBox(self)
         self.year_combo.addItem("Toutes années", None)
         self.year_combo.setEnabled(False)
@@ -107,6 +105,21 @@ class SermonsTab(QFrame):
         self._para_search_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._para_search_btn.setObjectName("IconButton")
 
+        self.btn_refresh = QPushButton(self)
+        self.btn_refresh.setIcon(app_icon("refresh.svg"))
+        self.btn_refresh.setToolTip("Actualiser (recharger la base de données)")
+        self.btn_refresh.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_refresh.setObjectName("IconButton")
+
+        # Sermons list
+        self._para_search_btn.setIcon(
+            app_icon("search.svg")
+        )  # Using generic search icon
+        self._para_search_btn.setToolTip("Recherche globale dans les paragraphes")
+        self._para_search_btn.setCheckable(True)
+        self._para_search_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._para_search_btn.setObjectName("IconButton")
+
         # Sermons list
         self.sermons_count_label = QLabel("0 sermons", self)
         self.sermons_count_label.setStyleSheet(
@@ -125,20 +138,6 @@ class SermonsTab(QFrame):
         self.paragraphs_count_label.setStyleSheet(
             f"font-size: {Typography.SIZE_XS}px; color: {Colors.TEXT_MUTED};"
         )
-
-        # Search row (search input + toggle button)
-        search_row = QHBoxLayout()
-        search_row.setContentsMargins(0, 0, 0, 0)
-        search_row.setSpacing(Spacing.SM)
-        search_row.addWidget(self.search, 1)
-        search_row.addWidget(self._para_search_btn)
-
-        self.btn_refresh = QPushButton(self)
-        self.btn_refresh.setIcon(app_icon("refresh.svg"))
-        self.btn_refresh.setToolTip("Actualiser (recharger la base de données)")
-        self.btn_refresh.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_refresh.setObjectName("IconButton")
-        search_row.addWidget(self.btn_refresh)
 
         self.paragraphs_list = QListWidget(self)
         self.paragraphs_list.setStyleSheet(get_list_style())
@@ -192,9 +191,17 @@ class SermonsTab(QFrame):
         self.add_paragraph_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.add_paragraph_btn.setStyleSheet(get_button_style())
 
-        # Filters container
+        # Filters container — refined
         self.filters_container = QFrame(self)
-        self.filters_container.setStyleSheet(get_surface_panel_style())
+        self.filters_container.setStyleSheet(
+            f"""
+            QFrame {{
+                background: {Colors.BG_TERTIARY};
+                border: 1px solid {Colors.BORDER_SUBTLE};
+                border-radius: {Radius.MD}px;
+            }}
+            """
+        )
 
         filters_main_layout = QVBoxLayout(self.filters_container)
         filters_main_layout.setContentsMargins(
@@ -202,25 +209,23 @@ class SermonsTab(QFrame):
         )
         filters_main_layout.setSpacing(Spacing.SM)
 
-        # Filters row 1: language, year, translator
+        # Filters row 1: year, translator
         filters_row = QHBoxLayout()
         filters_row.setContentsMargins(0, 0, 0, 0)
         filters_row.setSpacing(Spacing.SM)
         filters_row.addWidget(self.year_combo)
         filters_row.addWidget(self.translator_combo, 1)
 
-        # Search row is already defined above, we just reuse it or redefine it carefully. Wait, let's keep it as is since we defined it above and we shouldn't redefine it.
-        # Oh, in the original it redefines search_row. Let's merge the refresh button into the second search_row definition.
-
-        search_row2 = QHBoxLayout()
-        search_row2.setContentsMargins(0, 0, 0, 0)
-        search_row2.setSpacing(Spacing.SM)
-        search_row2.addWidget(self.search, 1)
-        search_row2.addWidget(self._para_search_btn)
-        search_row2.addWidget(self.btn_refresh)
+        # Search row
+        search_row = QHBoxLayout()
+        search_row.setContentsMargins(0, 0, 0, 0)
+        search_row.setSpacing(Spacing.SM)
+        search_row.addWidget(self.search, 1)
+        search_row.addWidget(self._para_search_btn)
+        search_row.addWidget(self.btn_refresh)
 
         filters_main_layout.addLayout(filters_row)
-        filters_main_layout.addLayout(search_row2)
+        filters_main_layout.addLayout(search_row)
 
         # Left panel
         left_widget = QWidget()
@@ -381,34 +386,38 @@ class SermonsTab(QFrame):
         count = len(sermons)
         self.sermons_count_label.setText(f"{count} sermon{'s' if count != 1 else ''}")
 
-        for s in sermons:
-            title = str(s.get("title", ""))
-            date_code = str(s.get("date_code", "") or "")
-            date = date_code or str(s.get("date", "") or "")
-            translator = str(s.get("translator", "") or "")
-            location = str(s.get("location", "") or "")
-            tradition = str(s.get("tradition", "") or "")
+        self.sermons_list.setUpdatesEnabled(False)
+        try:
+            for s in sermons:
+                title = str(s.get("title", ""))
+                date_code = str(s.get("date_code", "") or "")
+                date = date_code or str(s.get("date", "") or "")
+                translator = str(s.get("translator", "") or "")
+                location = str(s.get("location", "") or "")
+                tradition = str(s.get("tradition", "") or "")
 
-            # Use translator if tradition is generic "VGR" but we want specific translator info?
-            # Actually delegate shows Tradition/Translator badge.
-            badge_text = translator or tradition
+                # Use translator if tradition is generic "VGR" but we want specific translator info?
+                # Actually delegate shows Tradition/Translator badge.
+                badge_text = translator or tradition
 
-            # The delegate handles formatting, but we provide a fallback display text
-            # for accessibility or if delegate fails
-            display = f"{title}"
+                # The delegate handles formatting, but we provide a fallback display text
+                # for accessibility or if delegate fails
+                display = f"{title}"
 
-            item = QListWidgetItem(display)
-            item.setData(256, s["id"])
-            item.setData(257, title)
+                item = QListWidgetItem(display)
+                item.setData(256, s["id"])
+                item.setData(257, title)
 
-            # Set Data for Delegate
-            # UserRole = 32
-            item.setData(Qt.ItemDataRole.UserRole + 1, title)
-            item.setData(Qt.ItemDataRole.UserRole + 2, date)
-            item.setData(Qt.ItemDataRole.UserRole + 3, location)
-            item.setData(Qt.ItemDataRole.UserRole + 4, badge_text)
+                # Set Data for Delegate
+                # UserRole = 32
+                item.setData(Qt.ItemDataRole.UserRole + 1, title)
+                item.setData(Qt.ItemDataRole.UserRole + 2, date)
+                item.setData(Qt.ItemDataRole.UserRole + 3, location)
+                item.setData(Qt.ItemDataRole.UserRole + 4, badge_text)
 
-            self.sermons_list.addItem(item)
+                self.sermons_list.addItem(item)
+        finally:
+            self.sermons_list.setUpdatesEnabled(True)
 
         if sermons:
             # Safely select first item
@@ -420,46 +429,50 @@ class SermonsTab(QFrame):
         self._jump_to_para.clear()
         self._jump_to_para.blockSignals(False)
 
-        self.paragraphs_list.clear()
-        self.paragraph_preview.clear()
+        self.paragraphs_list.setUpdatesEnabled(False)
+        try:
+            self.paragraphs_list.clear()
+            self.paragraph_preview.clear()
 
-        # Update count label
-        count = len(paragraphs)
-        self.paragraphs_count_label.setText(
-            f"{count} paragraphe{'s' if count != 1 else ''}"
-        )
+            # Update count label
+            count = len(paragraphs)
+            self.paragraphs_count_label.setText(
+                f"{count} paragraphe{'s' if count != 1 else ''}"
+            )
 
-        for p in paragraphs:
-            no = p.get("paragraph_no")
-            para_id = str(p.get("marker") or p.get("para_id") or "")
-            text = str(p.get("text", ""))
+            for p in paragraphs:
+                no = p.get("paragraph_no")
+                para_id = str(p.get("marker") or p.get("para_id") or "")
+                text = str(p.get("text", ""))
 
-            # Clean up text for list display (single line)
-            clean_text = normalize_preview_text(text)
+                # Clean up text for list display (single line)
+                clean_text = normalize_preview_text(text)
 
-            # Marker logic: prio para_id (starts with E-), then (n) if at text start
-            marker = ""
-            if para_id:
-                marker = para_id
-            else:
-                # Try to extract (n) from beginning of text
-                m = re.match(r"^\((\d+)\)", text.strip())
-                if m:
-                    marker = f"({m.group(1)})"
-                elif no is not None:
-                    marker = f"§{int(no):03d}"
+                # Marker logic: prio para_id (starts with E-), then (n) if at text start
+                marker = ""
+                if para_id:
+                    marker = para_id
+                else:
+                    # Try to extract (n) from beginning of text
+                    m = re.match(r"^\((\d+)\)", text.strip())
+                    if m:
+                        marker = f"({m.group(1)})"
+                    elif no is not None:
+                        marker = f"§{int(no):03d}"
 
-            # Format item for delegate
-            # We put the marker in the main text so elidedText can use it if needed,
-            # though the delegate handles display.
-            display = f"{marker} | {clean_text}"
-            item = QListWidgetItem(display)
+                # Format item for delegate
+                # We put the marker in the main text so elidedText can use it if needed,
+                # though the delegate handles display.
+                display = f"{marker} | {clean_text}"
+                item = QListWidgetItem(display)
 
-            ref = str(p.get("reference", "") or p.get("ref", ""))
-            item.setData(256, ref)
-            item.setData(257, text)
-            item.setData(258, marker)
-            self.paragraphs_list.addItem(item)
+                ref = str(p.get("reference", "") or p.get("ref", ""))
+                item.setData(256, ref)
+                item.setData(257, text)
+                item.setData(258, marker)
+                self.paragraphs_list.addItem(item)
+        finally:
+            self.paragraphs_list.setUpdatesEnabled(True)
 
         if paragraphs:
             if self.paragraphs_list.count() > 0:

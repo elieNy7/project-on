@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from PyQt6.QtCore import QEvent, QObject, QSize, Qt, QTimer, pyqtSignal
+from PyQt6.QtCore import QEvent, QSize, Qt, QTimer, pyqtSignal
 from PyQt6.QtWidgets import (
     QComboBox,
     QFrame,
@@ -28,7 +28,10 @@ from app.ui.library_list_presentation import (
     truncate_preview,
 )
 from app.ui.theme import (
+    Colors,
+    Radius,
     Spacing,
+    Typography,
     get_button_style,
     get_combo_style,
     get_input_style,
@@ -38,23 +41,8 @@ from app.ui.theme import (
     get_splitter_style,
     get_surface_panel_style,
 )
+from app.utils.flow_layout import FlowLayout
 from app.utils.translations import tr
-
-
-class HorizontalScrollFilter(QObject):
-    """Event filter to enable horizontal scrolling with the mouse wheel."""
-
-    def eventFilter(self, obj: QObject, event: QEvent) -> bool:
-        if event.type() == QEvent.Type.Wheel:
-            if isinstance(obj, QScrollArea):
-                delta = event.angleDelta().y()
-                if delta == 0:
-                    delta = event.angleDelta().x()
-                hbar = obj.horizontalScrollBar()
-                # Use a larger multiplier for smoother, faster scrolling
-                hbar.setValue(hbar.value() - int(delta * 1.5))
-                return True
-        return super().eventFilter(obj, event)
 
 
 class BibleTab(QFrame):
@@ -87,7 +75,7 @@ class BibleTab(QFrame):
         # Books list
         self.books_list = QListWidget(self)
         self.books_list.setMinimumWidth(120)
-        self.books_list.setStyleSheet(get_list_style())
+        self.books_list.setStyleSheet(get_list_style(borderless=True))
         self.books_list.setItemDelegate(BibleBookDelegate(self.books_list))
         self.books_list.setUniformItemSizes(True)
         self.books_list.setVerticalScrollMode(QListWidget.ScrollMode.ScrollPerPixel)
@@ -96,33 +84,31 @@ class BibleTab(QFrame):
         books_label = QLabel(tr("bible"), self)
         books_label.setObjectName("PanelTitle")
 
-        # Chapter bar
+        # Chapter bar — wraps over multiple rows so every number stays visible
         self.chapter_bar = QWidget(self)
         self.chapter_bar.setStyleSheet("background: transparent;")
-        self.chapter_bar_layout = QHBoxLayout(self.chapter_bar)
-        self.chapter_bar_layout.setContentsMargins(0, 0, 0, 0)
-        self.chapter_bar_layout.setSpacing(4)
+        self.chapter_bar_layout = FlowLayout(self.chapter_bar, margin=2, hSpacing=6, vSpacing=6)
+
+        self._chapter_buttons: dict[int, QPushButton] = {}
+        self._current_chapter: int | None = None
 
         self.chapter_scroll = QScrollArea(self)
         self.chapter_scroll.setWidgetResizable(True)
         self.chapter_scroll.setFrameShape(QFrame.Shape.NoFrame)
         self.chapter_scroll.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOn
-        )
-        self.chapter_scroll.setVerticalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         )
+        self.chapter_scroll.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded
+        )
         self.chapter_scroll.setWidget(self.chapter_bar)
-        self.chapter_scroll.setFixedHeight(52)
+        self.chapter_scroll.setFixedHeight(48)
         self.chapter_scroll.setStyleSheet(get_scroll_area_style())
-
-        # Enable horizontal wheel scrolling
-        self._scroll_filter = HorizontalScrollFilter(self)
-        self.chapter_scroll.installEventFilter(self._scroll_filter)
+        self.chapter_scroll.viewport().installEventFilter(self)
 
         # Verses list (multi-selection enabled)
         self.verses_list = QListWidget(self)
-        self.verses_list.setStyleSheet(get_list_style())
+        self.verses_list.setStyleSheet(get_list_style(borderless=True))
         self.verses_list.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
         self.verses_list.setWordWrap(False)
         self.verses_list.setItemDelegate(BibleVerseDelegate(self.verses_list))
@@ -167,9 +153,17 @@ class BibleTab(QFrame):
         left.addWidget(books_label)
         left.addWidget(self.books_list, 1)
 
-        # Filter Container with Background (matches Expose tab)
+        # Filter Container with refined background
         self.filter_container = QFrame(self)
-        self.filter_container.setStyleSheet(get_surface_panel_style())
+        self.filter_container.setStyleSheet(
+            f"""
+            QFrame {{
+                background: {Colors.BG_TERTIARY};
+                border: 1px solid {Colors.BORDER_SUBTLE};
+                border-radius: {Radius.MD}px;
+            }}
+            """
+        )
         filter_layout = QHBoxLayout(self.filter_container)
         filter_layout.setContentsMargins(Spacing.SM, Spacing.SM, Spacing.SM, Spacing.SM)
         filter_layout.setSpacing(Spacing.SM)
@@ -242,21 +236,110 @@ class BibleTab(QFrame):
             w = self.chapter_bar_layout.takeAt(0)
             if w and w.widget():
                 w.widget().deleteLater()
+        self._chapter_buttons.clear()
+        self._current_chapter = None
 
         if not chapters:
-            self.chapter_bar_layout.addWidget(QLabel("", self.chapter_bar))
+            self.chapter_scroll.setFixedHeight(48)
             return
 
+        fm = None  # shared font metrics — polish once instead of per button
         for ch in chapters:
             btn = QPushButton(str(ch), self.chapter_bar)
-            btn.setFixedSize(40, 32)
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            btn.setObjectName("IconButton")
+            btn.setStyleSheet(self._chapter_btn_style(False))
+            fm = self._fit_number_button(btn, str(ch), fm)
             btn.clicked.connect(
-                lambda checked=False, c=int(ch): self.chapterSelected.emit(c)
+                lambda checked=False, c=int(ch): self._on_chapter_clicked(c)
             )
             self.chapter_bar_layout.addWidget(btn)
-        self.chapter_bar_layout.addStretch(1)
+            self._chapter_buttons[int(ch)] = btn
+
+        QTimer.singleShot(0, self._update_chapter_bar_height)
+
+    @staticmethod
+    def _fit_number_button(btn: QPushButton, text: str, fm=None):
+        """Size the button so the number always fits, with comfortable padding.
+
+        Measures with the button's own polished font (stylesheet applied),
+        so the result matches what is actually rendered on screen. All chapter
+        buttons share the same stylesheet, so the metrics are computed once
+        and reused for the whole bar.
+        """
+        if fm is None:
+            btn.ensurePolished()
+            fm = btn.fontMetrics()
+        width = max(48, fm.horizontalAdvance(text) + 34)
+        btn.setFixedSize(width, 34)
+        return fm
+
+    @staticmethod
+    def _chapter_btn_style(active: bool) -> str:
+        if active:
+            return f"""
+                QPushButton {{
+                    background: {Colors.ACCENT_GLOW};
+                    border: 1px solid {Colors.ACCENT_GLOW_STRONG};
+                    border-radius: {Radius.SM}px;
+                    color: {Colors.ACCENT_PRIMARY};
+                    font-size: {Typography.SIZE_SM}px;
+                    font-weight: {Typography.WEIGHT_BOLD};
+                }}
+            """
+        return f"""
+            QPushButton {{
+                background: transparent;
+                border: 1px solid transparent;
+                border-radius: {Radius.SM}px;
+                color: {Colors.TEXT_SECONDARY};
+                font-size: {Typography.SIZE_SM}px;
+                font-weight: {Typography.WEIGHT_SEMIBOLD};
+            }}
+            QPushButton:hover {{
+                background: {Colors.GLASS_MEDIUM};
+                color: {Colors.TEXT_PRIMARY};
+            }}
+            QPushButton:pressed {{
+                background: {Colors.ACCENT_GLOW};
+                color: {Colors.ACCENT_PRIMARY};
+            }}
+        """
+
+    def _on_chapter_clicked(self, ch: int) -> None:
+        self.set_current_chapter(ch)
+        self.chapterSelected.emit(ch)
+
+    def set_current_chapter(self, ch: int | None) -> None:
+        """Highlight the given chapter button (None clears the highlight)."""
+        self._current_chapter = ch
+        self._apply_chapter_highlight()
+        btn = self._chapter_buttons.get(ch) if ch is not None else None
+        if btn is not None:
+            self.chapter_scroll.ensureWidgetVisible(btn)
+
+    def _apply_chapter_highlight(self) -> None:
+        for num, btn in self._chapter_buttons.items():
+            btn.setStyleSheet(self._chapter_btn_style(num == self._current_chapter))
+
+    def _update_chapter_bar_height(self) -> None:
+        """Grow the bar (up to ~4 rows) so wrapped chapter numbers stay visible."""
+        if not self._chapter_buttons:
+            return
+        width = self.chapter_scroll.viewport().width()
+        if width <= 0:
+            return
+        needed = int(self.chapter_bar_layout.heightForWidth(width)) + 8
+        height = max(48, min(needed, 168))
+        if height != self.chapter_scroll.height():
+            self.chapter_scroll.setFixedHeight(height)
+
+    def eventFilter(self, obj, event) -> bool:
+        if (
+            obj is self.chapter_scroll.viewport()
+            and event.type() == QEvent.Type.Resize
+        ):
+            self._update_chapter_bar_height()
+        return super().eventFilter(obj, event)
 
     def set_verses(self, verses: list[dict[str, Any]]) -> None:
         self.verses_list.clear()

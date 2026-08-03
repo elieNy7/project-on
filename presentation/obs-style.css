@@ -16,10 +16,10 @@
     /* Colors */
     --text-color: #fbfcff;
     --ref-color: rgba(255, 247, 226, 0.86);
-    --accent-color: #74a7f8;
+    --accent-color: #6db4ff;
     --accent-color-2: #cfe0ff;
-    --bg-color: rgba(10, 16, 27, 0.88);
-    --bg-color-2: rgba(21, 28, 42, 0.86);
+    --bg-color: rgba(8, 13, 23, 0.88);
+    --bg-color-2: rgba(18, 25, 39, 0.86);
     --bg-blur: 20px;
     --bg-saturate: 145%;
     --kicker-bg: rgba(255, 255, 255, 0.075);
@@ -37,7 +37,7 @@
     --padding-h: 48px;
     --padding-v: 26px;
     --max-width: 82%;
-    --border-radius: 22px;
+    --border-radius: 24px;
     --edge-margin: 64px;
     --safe-inset: 64px;
     --background-dimmer: 0.36;
@@ -45,8 +45,8 @@
     --offset-y: 0px;
 
     /* Effects */
-    --text-shadow: 0 3px 14px rgba(0, 0, 0, 0.54), 0 14px 34px rgba(0, 0, 0, 0.22);
-    --container-shadow: 0 26px 70px -24px rgba(0, 0, 0, 0.72);
+    --text-shadow: 0 2px 8px rgba(0, 0, 0, 0.48), 0 10px 26px rgba(0, 0, 0, 0.30), 0 22px 52px rgba(0, 0, 0, 0.22);
+    --container-shadow: 0 28px 72px -26px rgba(0, 0, 0, 0.74);
     --overall-opacity: 1.0;
 }
 
@@ -431,7 +431,7 @@ body.preview-canvas::before {
     font-size: var(--ref-size);
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 1.4px;
+    letter-spacing: 2px;
     color: var(--ref-color);
     white-space: pre-wrap;
     line-height: 1.22;
@@ -742,9 +742,9 @@ body.preview-canvas::before {
 }
 
 .source-custom {
-    --source-accent: #74a7f8;
+    --source-accent: #6db4ff;
     --source-accent-2: #cfe0ff;
-    --source-glow: rgba(116, 167, 248, 0.24);
+    --source-glow: rgba(109, 180, 255, 0.24);
     --source-kicker-bg: rgba(42, 66, 110, 0.20);
     --source-kicker-border: rgba(145, 182, 255, 0.22);
     --source-ref-bg: rgba(23, 36, 61, 0.18);

@@ -58,7 +58,7 @@ def test_obs_modes_are_exported_with_professional_controls() -> None:
         assert config["background_dimmer"] == 0.42
 
 
-def test_local_projection_is_always_exported_as_professional_fullscreen() -> None:
+def test_local_projection_export_honours_operator_settings() -> None:
     for mode in LAYOUT_MODES:
         config = ProjectionSettings(
             layout_mode=mode,
@@ -66,6 +66,7 @@ def test_local_projection_is_always_exported_as_professional_fullscreen() -> Non
             safe_margin=48,
             panel_side="right",
             auto_fit=False,
+            uniform_text_size=True,
             min_text_size=20,
             max_lines=7,
             background_dimmer=0.4,
@@ -74,16 +75,16 @@ def test_local_projection_is_always_exported_as_professional_fullscreen() -> Non
             panel_radius=30,
         ).to_presentation_config()
 
-        assert config["layout_mode"] == "fullscreen"
+        assert config["layout_mode"] == mode
         assert config["display_screen"] == "DISPLAY2"
         assert config["safe_margin"] == 48
-        assert config["panel_side"] == "left"
+        assert config["panel_side"] == "right"
         assert config["auto_fit"] is False
         assert config["uniform_text_size"] is True
         assert config["min_text_size"] == 20
         assert config["max_lines"] == 7
         assert config["background_dimmer"] == 0.4
-        assert config["panel_enabled"] is False
+        assert config["panel_enabled"] is True
         assert config["panel_opacity"] == 0.78
         assert config["panel_radius"] == 30
         assert config["position"] == "center"
@@ -108,7 +109,7 @@ def test_invalid_modes_fall_back_without_breaking_old_settings(tmp_path) -> None
     assert settings.obs.output.to_obs_config()["layout_mode"] == "lower_third"
     assert settings.projection.text_size == 60
     assert settings.obs.output.text_size == 54
-    assert settings.projection.uniform_text_size is True
+    assert settings.projection.uniform_text_size is False
     assert settings.obs.output.uniform_text_size is True
 
 
@@ -179,7 +180,7 @@ def test_zero_value_controls_survive_export_and_reload(tmp_path) -> None:
     assert local["panel_opacity"] == 0.0
     assert local["bg_gradient_angle"] == 0
     assert local["animation_duration"] == 0
-    assert local["uniform_text_size"] is True
+    assert local["uniform_text_size"] is False
     assert obs["padding_horizontal"] == 0
     assert obs["padding_vertical"] == 0
     assert obs["border_radius"] == 0
@@ -240,8 +241,11 @@ def test_local_projection_main_text_size_has_visible_effect(tmp_path) -> None:
     window._render_slide_content(slide)
     large = window.text_label.font().pixelSize()
 
-    assert small == 32
+    # The readability floor may lift the small size (never too small on a
+    # projector), but the configured size must still have a visible effect.
+    assert small >= 32
     assert large == 84
+    assert small < large
     window.close()
     app.processEvents()
 
@@ -271,7 +275,7 @@ def test_local_projection_uses_safe_area_instead_of_inner_padding(tmp_path) -> N
     app.processEvents()
 
 
-def test_uniform_mode_keeps_local_size_identical_between_slides(tmp_path) -> None:
+def test_uniform_mode_never_clips_long_slides(tmp_path) -> None:
     app = QApplication.instance() or QApplication([])
     window = ProjectionWindow(tmp_path)
     window.resize(1280, 720)
@@ -292,12 +296,15 @@ def test_uniform_mode_keeps_local_size_identical_between_slides(tmp_path) -> Non
         window._render_slide_content({"text": text, "reference": "Référence"})
         sizes.append(window.text_label.font().pixelSize())
 
-    assert sizes == [64, 64]
+    # Short slide keeps the configured size; a slide that would overflow is
+    # shrunk to the largest size that fits instead of being clipped.
+    assert sizes[0] == 64
+    assert 12 <= sizes[1] < 64
     window.close()
     app.processEvents()
 
 
-def test_legacy_local_layout_and_variable_fit_are_normalized(tmp_path) -> None:
+def test_local_projection_honours_fit_settings_and_validates_layout(tmp_path) -> None:
     app = QApplication.instance() or QApplication([])
     window = ProjectionWindow(tmp_path)
     window.resize(1280, 720)
@@ -311,9 +318,16 @@ def test_legacy_local_layout_and_variable_fit_are_normalized(tmp_path) -> None:
     window._apply_config(config)
     assert window._config["layout_mode"] == "fullscreen"
     assert window._config["position"] == "center"
-    assert window._config["auto_fit"] is False
-    assert window._config["uniform_text_size"] is True
+    assert window._config["auto_fit"] is True
+    assert window._config["uniform_text_size"] is False
     assert window._config["panel_enabled"] is False
+
+    # Invalid legacy values fall back to safe defaults instead of breaking.
+    window._apply_config(
+        {**config, "layout_mode": "unknown", "position": "nowhere"}
+    )
+    assert window._config["layout_mode"] == "fullscreen"
+    assert window._config["position"] == "center"
     window.close()
     app.processEvents()
 
@@ -328,6 +342,7 @@ def test_local_projection_never_breaks_words_and_centers_the_content_block(
         text_size=72,
         content_width=60,
         align="right",
+        text_shadow=False,
     ).to_presentation_config()
     window._apply_config(config)
     window._render_slide_content(
@@ -389,14 +404,15 @@ def test_operator_preview_keeps_uniform_size_between_slides() -> None:
     app.processEvents()
 
 
-def test_settings_dialogs_expose_uniform_mode_as_the_safe_default() -> None:
+def test_settings_dialogs_expose_auto_grow_as_the_default() -> None:
     app = QApplication.instance() or QApplication([])
     local_dialog = ProjectionSettingsDialog(ProjectionSettings())
     obs_dialog = ObsOutputSettingsDialog(ObsOutputSettings())
 
-    assert local_dialog._uniform_text_size.isChecked() is True
-    assert local_dialog._auto_fit.isEnabled() is False
-    assert local_dialog.read_settings().uniform_text_size is True
+    assert local_dialog._uniform_text_size.isChecked() is False
+    assert local_dialog._auto_fit.isEnabled() is True
+    assert local_dialog._auto_fit.isChecked() is True
+    assert local_dialog.read_settings().uniform_text_size is False
     assert obs_dialog._uniform_text_size.isChecked() is True
     assert obs_dialog._auto_fit.isEnabled() is False
     assert obs_dialog.get_settings().uniform_text_size is True
@@ -413,7 +429,7 @@ def test_settings_dialogs_expose_uniform_mode_as_the_safe_default() -> None:
     local_settings = local_dialog.read_settings()
     assert local_settings.layout_mode == "fullscreen"
     assert local_settings.position == "center"
-    assert local_settings.auto_fit is False
+    assert local_settings.auto_fit is True
     assert local_settings.panel_enabled is False
 
     local_dialog.close()

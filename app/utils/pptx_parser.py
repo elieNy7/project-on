@@ -135,7 +135,11 @@ def _is_chorus_slide(text: str) -> bool:
     # Regex to match start of string, optional numbering/bullets, then chorus keyword
     # ^(?:[\d\.\-\)\s]*)\b(ch[oeœ]ur|chorus|refrain)\b
     return bool(
-        re.match(r"(?i)^(?:[\d\.\-\)\s]*)\b(ch[oeœ]ur|chorus|refrain)\b", text_lower)
+        re.match(
+            r"(?i)^(?:[\d.\-)\s]*)(?:dernier\s+)?"
+            r"\b(ch(?:oe|œ)urs?|chorus|refrain)",
+            text_lower,
+        )
     )
 
 
@@ -144,7 +148,10 @@ def _extract_chorus_text(text: str) -> str:
     # Remove the label found by _is_chorus_slide
     # We want to keep the text AFTER the label.
     # Regex: replace the match with empty string.
-    pattern = r"(?i)^(?:[\d\.\-\)\s]*)\b(ch[oeœ]ur|chorus|refrain)\b[\s:：\-–—]*"
+    pattern = (
+        r"(?i)^(?:[\d.\-)\s]*)(?:dernier\s+)?"
+        r"\b(ch(?:oe|œ)urs?|chorus|refrain)[\s:：\-–—]*"
+    )
     cleaned = re.sub(pattern, "", text.strip())
     return cleaned.strip()
 
@@ -274,6 +281,62 @@ def _strip_leading_verse_marker(text: str) -> str:
     return re.sub(r"^\s*\d{1,2}\s*[.\-)]\s*", "", str(text or "").strip()).strip()
 
 
+def _detect_repeated_lyric_block(
+    slides: list[dict[str, Any]],
+) -> tuple[str, tuple[str, ...]] | None:
+    """Find a repeated multi-line refrain embedded inside verse slides."""
+
+    candidates: dict[tuple[str, ...], set[int]] = {}
+    originals: dict[tuple[str, ...], str] = {}
+    for slide_index, slide in enumerate(slides):
+        if slide["is_chorus"]:
+            continue
+        lines = [line.strip() for line in str(slide["text"]).splitlines() if line.strip()]
+        keys = [_normalize_for_match(line) for line in lines]
+        for start in range(len(lines)):
+            for end in range(start + 1, min(len(lines), start + 8) + 1):
+                block_keys = tuple(keys[start:end])
+                if not all(block_keys):
+                    continue
+                block_text = "\n".join(lines[start:end])
+                if len(block_keys) == 1 and len(block_text) < 40:
+                    continue
+                if len(block_keys) >= 2 and len(block_text) < 35:
+                    continue
+                candidates.setdefault(block_keys, set()).add(slide_index)
+                originals.setdefault(block_keys, block_text)
+
+    minimum_occurrences = 2 if len(slides) <= 8 else 3
+    valid = [
+        (keys, indexes)
+        for keys, indexes in candidates.items()
+        if len(indexes) >= minimum_occurrences
+        and (len(keys) >= 2 or len(indexes) >= 3)
+    ]
+    if not valid:
+        return None
+
+    keys, _indexes = max(
+        valid,
+        key=lambda item: (
+            len(item[1]) * len(originals[item[0]]),
+            len(item[0]),
+            len(item[1]),
+        ),
+    )
+    return originals[keys], keys
+
+
+def _remove_repeated_block(text: str, block_keys: tuple[str, ...]) -> str:
+    lines = [line.strip() for line in str(text or "").splitlines() if line.strip()]
+    keys = [_normalize_for_match(line) for line in lines]
+    width = len(block_keys)
+    for start in range(0, len(keys) - width + 1):
+        if tuple(keys[start : start + width]) == block_keys:
+            return "\n".join(lines[:start] + lines[start + width :]).strip()
+    return "\n".join(lines).strip()
+
+
 def _post_process_stanzas(stanzas: list[str], title: str) -> list[str]:
     result: list[str] = []
     for stanza in stanzas:
@@ -298,12 +361,13 @@ def parse_slides_as_hymn(slides: list[str], title: str) -> dict[str, Any] | None
     cleaned_slides: list[dict[str, Any]] = []  # {"text": ..., "is_chorus": bool}
     chorus_text: str = ""
     chorus_label: str = "Chœur:"
+    explicit_chorus_texts: list[str] = []
 
     for slide_text in slides:
         # Check for chorus BEFORE cleaning (cleaning might remove labels if title matches label, unlikely but safe)
         is_chorus_label = _is_chorus_slide(slide_text)
 
-        cleaned = _clean_stanza_text(slide_text, title)
+        cleaned = _strip_source_header(_clean_stanza_text(slide_text, title), title)
         if not cleaned or cleaned.lower() == title.lower():
             continue
 
@@ -315,6 +379,8 @@ def parse_slides_as_hymn(slides: list[str], title: str) -> dict[str, Any] | None
                 # Detect label from original text for display preference
                 if "refrain" in slide_text.lower():
                     chorus_label = "Refrain:"
+            if extracted:
+                explicit_chorus_texts.append(extracted)
             cleaned_slides.append({"text": extracted, "is_chorus": True})
         else:
             cleaned_slides.append({"text": cleaned, "is_chorus": False})
@@ -322,7 +388,18 @@ def parse_slides_as_hymn(slides: list[str], title: str) -> dict[str, Any] | None
     if not cleaned_slides:
         return None
 
-    # Implicit chorus detection
+    # Detect a refrain embedded at the end (or middle) of several verse slides.
+    if not chorus_text:
+        repeated = _detect_repeated_lyric_block(cleaned_slides)
+        if repeated is not None:
+            chorus_text, block_keys = repeated
+            for slide in cleaned_slides:
+                remainder = _remove_repeated_block(slide["text"], block_keys)
+                if remainder != slide["text"]:
+                    slide["text"] = remainder
+                    slide["is_chorus"] = not bool(remainder)
+
+    # Whole-slide implicit chorus detection.
     if not chorus_text:
         texts = [s["text"] for s in cleaned_slides]
         counts = Counter(texts)
@@ -362,6 +439,22 @@ def parse_slides_as_hymn(slides: list[str], title: str) -> dict[str, Any] | None
                 if s["text"] == chorus_text:
                     s["is_chorus"] = True
 
+    unique_explicit_choruses = {
+        _normalize_for_match(text) for text in explicit_chorus_texts if text.strip()
+    }
+    if len(unique_explicit_choruses) > 1:
+        # Bilingual/multi-refrain decks need their original slide order; using
+        # only the first refrain would silently discard the other language.
+        ordered_stanzas = [
+            f"Chœur:\n{slide['text']}" if slide["is_chorus"] else slide["text"]
+            for slide in cleaned_slides
+            if slide["text"]
+        ]
+        stanzas = _post_process_stanzas(ordered_stanzas, title)
+        if not stanzas:
+            return None
+        return _build_hymn_result(title, stanzas)
+
     # Collect unique verses (skip chorus slides)
     verses: list[str] = []
     for s in cleaned_slides:
@@ -382,9 +475,27 @@ def parse_slides_as_hymn(slides: list[str], title: str) -> dict[str, Any] | None
     if not stanzas:
         return None
 
+    return _build_hymn_result(title, stanzas)
+
+
+def _build_hymn_result(title: str, stanzas: list[str]) -> dict[str, Any]:
+    sections: list[dict[str, Any]] = []
+    verse_no = 0
+    chorus_no = 0
+    for stanza in stanzas:
+        is_chorus = _is_chorus_slide(stanza)
+        if is_chorus:
+            chorus_no += 1
+            label = "Refrain" if chorus_no == 1 else f"Refrain {chorus_no}"
+        else:
+            verse_no += 1
+            label = f"Strophe {verse_no}"
+        sections.append({"text": stanza, "label": label, "is_chorus": is_chorus})
+
     return {
         "title": title,
         "stanzas": stanzas,
+        "sections": sections,
     }
 
 

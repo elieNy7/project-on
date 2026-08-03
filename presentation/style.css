@@ -1,9 +1,14 @@
+/* ================================================================
+   Project-On — Web fullscreen projection
+   Sanctuary design language — deep obsidian, warm gold, cinematic
+   ================================================================ */
+
 :root {
-  --bg-color: #07111f;
-  --bg-color-accent: #153357;
+  --bg-color: #04070d;
+  --bg-color-accent: #12233d;
   --text-color: rgba(255, 255, 255, 0.96);
-  --ref-color: rgba(255, 244, 214, 0.82);
-  --accent-color: #e1b15d;
+  --ref-color: rgba(255, 244, 214, 0.84);
+  --accent-color: #ecb661;
   --text-size: 72px;
   --base-text-size: 72px;
   --ref-size: 26px;
@@ -12,7 +17,7 @@
   --font-weight: 700;
   --font-family: 'Poppins', system-ui, sans-serif;
   --letter-spacing: 0px;
-  --line-height: 1.12;
+  --line-height: 1.14;
   --anim-duration: 0.5s;
   --anim-easing: cubic-bezier(0.16, 1, 0.3, 1);
   --shell-width: calc(100vw - (var(--padding) * 2));
@@ -42,17 +47,18 @@ html, body {
   align-items: center;
   justify-content: center;
   background:
-    radial-gradient(ellipse 80% 50% at 50% 20%, var(--bg-color-accent), transparent),
+    radial-gradient(ellipse 82% 52% at 50% 18%, var(--bg-color-accent), transparent 72%),
     var(--bg-color);
 }
 
-/* Subtle noise texture overlay */
+/* Cinematic vignette + edge falloff */
 #background-overlay {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(ellipse at 50% 100%, rgba(0,0,0,0.34) 0%, transparent 70%),
-    radial-gradient(ellipse at 50% 0%, rgba(0,0,0,0.24) 0%, transparent 60%);
+    radial-gradient(ellipse 120% 90% at 50% 50%, transparent 62%, rgba(0, 0, 0, 0.30) 100%),
+    radial-gradient(ellipse at 50% 100%, rgba(0, 0, 0, 0.30) 0%, transparent 62%),
+    radial-gradient(ellipse at 50% 0%, rgba(0, 0, 0, 0.22) 0%, transparent 55%);
   pointer-events: none;
   z-index: 1;
 }
@@ -63,21 +69,21 @@ html, body {
 
 #root.style-card {
   background:
-    linear-gradient(135deg, rgba(255,255,255,0.06), transparent 32%),
-    radial-gradient(ellipse 70% 50% at 50% 12%, var(--bg-color-accent), transparent),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.05), transparent 32%),
+    radial-gradient(ellipse 72% 52% at 50% 12%, var(--bg-color-accent), transparent 74%),
     var(--bg-color);
 }
 
 #root.style-glass {
   background:
-    radial-gradient(ellipse 75% 42% at 50% 0%, rgba(255,255,255,0.10), transparent),
-    radial-gradient(ellipse 80% 52% at 50% 95%, rgba(0,0,0,0.36), transparent),
+    radial-gradient(ellipse 76% 44% at 50% 0%, rgba(255, 255, 255, 0.09), transparent),
+    radial-gradient(ellipse 82% 54% at 50% 96%, rgba(0, 0, 0, 0.34), transparent),
     linear-gradient(135deg, var(--bg-color), var(--bg-color-accent));
 }
 
 #root.style-split {
   background:
-    linear-gradient(90deg, rgba(255,255,255,0.07) 0 38%, transparent 38% 100%),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.06) 0 38%, transparent 38% 100%),
     linear-gradient(135deg, var(--bg-color), var(--bg-color-accent));
 }
 
@@ -112,13 +118,17 @@ html, body {
   background-blend-mode: overlay;
 }
 
+/* Layered scrim over background images: weighted gradients + vignette
+   keep every text zone readable without killing the picture. */
 .slide.image-slide::after {
   content: "";
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(180deg, rgba(4, 9, 18, 0.38), rgba(3, 7, 14, 0.68)),
-    radial-gradient(circle at 50% 24%, rgba(255,255,255,0.08), transparent 42%);
+    linear-gradient(180deg, rgba(3, 7, 14, 0.44) 0%, transparent 34%),
+    linear-gradient(0deg, rgba(3, 7, 14, 0.56) 0%, transparent 42%),
+    radial-gradient(ellipse 120% 92% at 50% 46%, transparent 58%, rgba(2, 6, 12, 0.38) 100%),
+    radial-gradient(circle at 50% 22%, rgba(255, 255, 255, 0.06), transparent 42%);
   pointer-events: none;
 }
 
@@ -222,8 +232,9 @@ html, body {
   letter-spacing: var(--letter-spacing);
   color: var(--text-color);
   text-shadow:
-    0 4px 14px rgba(0, 0, 0, 0.55),
-    0 20px 46px rgba(0, 0, 0, 0.28);
+    0 2px 8px rgba(0, 0, 0, 0.48),
+    0 8px 24px rgba(0, 0, 0, 0.32),
+    0 24px 56px rgba(0, 0, 0, 0.24);
   margin-bottom: 0;
   word-wrap: break-word;
   overflow-wrap: normal;
@@ -240,16 +251,17 @@ html, body {
   flex: 0 0 auto;
   flex-direction: column;
   align-items: var(--align-flex, center);
-  gap: 14px;
+  gap: 16px;
   margin-top: 0;
 }
 
 .ref-line {
-  width: 80px;
+  width: 96px;
   height: 2px;
   background: linear-gradient(90deg, transparent, var(--accent-color), transparent);
   border-radius: 10px;
-  opacity: 0.7;
+  opacity: 0.85;
+  box-shadow: 0 0 12px rgba(236, 182, 97, 0.35);
 }
 
 .ref {
@@ -258,8 +270,8 @@ html, body {
   color: var(--ref-color);
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 3px;
-  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+  letter-spacing: 3.5px;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.55);
   overflow-wrap: normal;
   word-break: normal;
   hyphens: none;
@@ -272,10 +284,10 @@ html, body {
 
 /* Glass card option */
 .glass {
-  background: rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.045);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 28px;
   padding: 48px;
 }
 

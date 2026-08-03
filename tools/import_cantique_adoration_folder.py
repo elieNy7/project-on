@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import re
 import shutil
 import sqlite3
+import subprocess
 import sys
 import unicodedata
 import zipfile
@@ -18,6 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_FOLDER = ROOT / "CANTIQUE D'ADORATION"
 DEFAULT_DB = ROOT / "data" / "project_on.db"
 DEFAULT_CACHE = ROOT / "build" / "cantique_adoration_pptx_cache"
+LEGACY_CONVERTER = ROOT / "tools" / "convert_legacy_powerpoints.ps1"
 
 SUPPORTED_EXTENSIONS = {".pptx", ".ppsx", ".pptm", ".potx", ".ppt", ".pps", ".ewsx"}
 POWERPOINT_EXTENSIONS = {".pptx", ".ppsx", ".pptm", ".potx", ".ppt", ".pps"}
@@ -30,7 +33,7 @@ if str(ROOT) not in sys.path:
 
 from app.database.connection import Database, DatabaseConfig
 from app.database.dao_hymns import HymnsDao
-from app.utils.pptx_parser import parse_pptx_as_hymn, parse_slides_as_hymn
+from app.utils.pptx_parser import extract_slides_from_pptx, parse_slides_as_hymn
 from app.utils.text_utils import clean_text
 
 
@@ -54,6 +57,21 @@ def normalize_key(value: object) -> str:
     text = text.casefold()
     text = re.sub(r"[^a-z0-9]+", " ", text)
     return re.sub(r"\s+", " ", text).strip()
+
+
+def clean_source_title(value: object) -> str:
+    title = clean_text(value)
+    title = re.sub(
+        r"\s*\[(?:Lecture seule|Compatibility Mode|Enregistrement automatique)\]\s*",
+        " ",
+        title,
+        flags=re.IGNORECASE,
+    )
+    title = re.sub(r"^Copie de\s+", "", title, flags=re.IGNORECASE)
+    title = re.sub(r"\s+-\s+Copie\s*$", "", title, flags=re.IGNORECASE)
+    title = re.sub(r"\s*\(\s*\d+\s*\)\s*$", "", title)
+    title = re.sub(r"\s+\.pptx?\s*$", "", title, flags=re.IGNORECASE)
+    return re.sub(r"\s+", " ", title).strip(" .")
 
 
 def safe_cache_name(path: Path) -> str:
@@ -84,49 +102,73 @@ def try_convert_legacy_powerpoint(path: Path, cache_dir: Path) -> Path | None:
     output = cache_dir / safe_cache_name(path)
     if output.exists() and output.stat().st_mtime >= path.stat().st_mtime:
         return output
-
-    if not legacy_conversion_available():
+    failure_marker = output.with_name(output.name + ".failed.txt")
+    if (
+        failure_marker.exists()
+        and failure_marker.stat().st_mtime >= path.stat().st_mtime
+    ):
         return None
 
-    import win32com.client  # type: ignore
+    convert_legacy_powerpoints([path], cache_dir)
+    return output if output.exists() else None
 
-    powerpoint = None
-    presentation = None
-    try:
-        powerpoint = win32com.client.DispatchEx("PowerPoint.Application")
-        powerpoint.Visible = 1
-        presentation = powerpoint.Presentations.Open(
-            str(path.resolve()),
-            WithWindow=False,
-            ReadOnly=True,
-            Untitled=False,
+
+def convert_legacy_powerpoints(paths: list[Path], cache_dir: Path) -> dict[Path, Path]:
+    """Convert all stale .ppt/.pps files in one PowerPoint COM session."""
+
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    outputs = {path: cache_dir / safe_cache_name(path) for path in paths}
+    stale = [
+        path
+        for path, output in outputs.items()
+        if (not output.exists() or output.stat().st_mtime < path.stat().st_mtime)
+        and not (
+            output.with_name(output.name + ".failed.txt").exists()
+            and output.with_name(output.name + ".failed.txt").stat().st_mtime
+            >= path.stat().st_mtime
         )
-        # 24 = ppSaveAsOpenXMLPresentation
-        presentation.SaveAs(str(output.resolve()), 24)
-        return output if output.exists() else None
-    except Exception:
-        return None
-    finally:
-        try:
-            if presentation is not None:
-                presentation.Close()
-        except Exception:
-            pass
-        try:
-            if powerpoint is not None:
-                powerpoint.Quit()
-        except Exception:
-            pass
+    ]
+    if stale:
+        if not legacy_conversion_available():
+            return {path: output for path, output in outputs.items() if output.exists()}
+        manifest = cache_dir / "_legacy_conversion_manifest.json"
+        manifest.write_text(
+            json.dumps(
+                [
+                    {
+                        "source": str(path.resolve()),
+                        "output": str(outputs[path].resolve()),
+                    }
+                    for path in stale
+                ],
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        subprocess.run(
+            [
+                "powershell",
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                str(LEGACY_CONVERTER),
+                "-Manifest",
+                str(manifest),
+            ],
+            check=False,
+        )
+    return {path: output for path, output in outputs.items() if output.exists()}
 
 
 @lru_cache(maxsize=1)
 def legacy_conversion_available() -> bool:
-    try:
-        import win32com.client  # type: ignore  # noqa: F401
-
-        return True
-    except Exception:
-        return False
+    candidates = (
+        Path(r"C:\Program Files\Microsoft Office\Root\Office16\POWERPNT.EXE"),
+        Path(r"C:\Program Files (x86)\Microsoft Office\Root\Office16\POWERPNT.EXE"),
+    )
+    return LEGACY_CONVERTER.exists() and any(path.exists() for path in candidates)
 
 
 def rtf_to_text(value: str) -> str:
@@ -250,11 +292,12 @@ def parse_cantique_file(path: Path, cache_dir: Path) -> dict[str, Any] | None:
             return None
         parse_path = converted
 
-    hymn = parse_pptx_as_hymn(parse_path)
+    title = clean_source_title(path.stem)
+    hymn = parse_slides_as_hymn(extract_slides_from_pptx(parse_path), title)
     if hymn is None:
         return None
 
-    hymn["title"] = clean_text(path.stem)
+    hymn["title"] = title
     hymn["source_path"] = str(path)
     return hymn
 
@@ -321,7 +364,14 @@ def import_folder(
     sort_no = next_ad_sort_number(db)
     stats = ImportStats()
 
-    for path in iter_folder_files(folder, recursive=recursive):
+    folder_files = iter_folder_files(folder, recursive=recursive)
+    legacy_paths = [
+        path for path in folder_files if path.suffix.lower() in LEGACY_POWERPOINT_EXTENSIONS
+    ]
+    if legacy_paths and legacy_conversion_available():
+        convert_legacy_powerpoints(legacy_paths, cache_dir)
+
+    for path in folder_files:
         stats.scanned += 1
         suffix = path.suffix.lower()
 
