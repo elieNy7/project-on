@@ -115,7 +115,12 @@ class ProjectionSettingsDialog(QDialog):
 
         self._layout_mode = QComboBox()
         self._layout_mode.addItem("Plein écran", "fullscreen")
-        self._layout_mode.setCurrentIndex(0)
+        self._layout_mode.addItem("Bandeau tiers inférieur", "lower_third")
+        self._layout_mode.addItem("Sous-titre", "subtitle")
+        self._layout_mode.addItem("Panneau latéral", "side_panel")
+        self._layout_mode.addItem("Carte focus", "focus_card")
+        idx = self._layout_mode.findData(settings.layout_mode or "fullscreen")
+        self._layout_mode.setCurrentIndex(max(idx, 0))
 
         self._display_screen = QComboBox()
         self._display_screen.addItem("Automatique (écran secondaire)", "auto")
@@ -152,12 +157,12 @@ class ProjectionSettingsDialog(QDialog):
         self._uniform_text_size = QCheckBox(
             "Conserver la même taille de texte sur toutes les slides"
         )
-        self._uniform_text_size.setChecked(True)
+        self._uniform_text_size.setChecked(bool(settings.uniform_text_size))
 
         self._auto_fit = QCheckBox(
-            "Ajuster automatiquement seulement si le texte déborde"
+            "Ajuster automatiquement la taille pour remplir le bloc"
         )
-        self._auto_fit.setChecked(False)
+        self._auto_fit.setChecked(bool(settings.auto_fit))
 
         self._min_text_size = QSpinBox()
         self._min_text_size.setRange(10, 120)
@@ -245,6 +250,7 @@ class ProjectionSettingsDialog(QDialog):
 
         self._slide_style = QComboBox()
         self._slide_style.addItem("Standard (centré)", "cinematic")
+        self._slide_style.addItem("Épuré (sans voile)", "clean")
         self._slide_style.addItem("Split (texte à gauche)", "split")
         idx = self._slide_style.findData(settings.slide_style or "cinematic")
         self._slide_style.setCurrentIndex(max(idx, 0))
@@ -511,36 +517,13 @@ class ProjectionSettingsDialog(QDialog):
 
         layout.addWidget(display_section)
 
-        # ═══════ Section: Transitions & Effets ═══════
-        anim_section = SettingSection("Transitions & Effets", "sparkles.svg")
+        # ═══════ Section: Transition (fondu PowerPoint) ═══════
+        anim_section = SettingSection("Transition", "sparkles.svg")
 
-        self._anim_enabled = QCheckBox("Activer les transitions entre slides")
+        self._anim_enabled = QCheckBox("Transition en fondu entre les slides")
         self._anim_enabled.setChecked(bool(settings.animation_enabled))
         anim_section.addWidget(self._anim_enabled)
 
-        self._anim_type = QComboBox()
-        for label, data in (
-            ("Aucune", "none"),
-            ("Fondu", "fade"),
-            ("Glissement", "slide"),
-            ("Zoom doux", "scale"),
-        ):
-            self._anim_type.addItem(label, data)
-        idx = self._anim_type.findData(settings.animation_type or "fade")
-        self._anim_type.setCurrentIndex(max(idx, 0))
-        anim_section.addRow("Style de transition", self._anim_type)
-        _style_combo(self._anim_type)
-
-        self._anim_direction = QComboBox()
-        for label, data in (
-            ("Vers le haut", "up"),
-            ("Vers le bas", "down"),
-            ("Vers la gauche", "left"),
-            ("Vers la droite", "right"),
-        ):
-            self._anim_direction.addItem(label, data)
-        idx = self._anim_direction.findData(settings.animation_direction or "up")
-        self._anim_direction.setCurrentIndex(max(idx, 0))
 
         self._anim_duration = QSpinBox()
         self._anim_duration.setRange(0, 800)
@@ -550,29 +533,16 @@ class ProjectionSettingsDialog(QDialog):
             int(
                 settings.animation_duration
                 if settings.animation_duration is not None
-                else 420
+                else 400
             )
         )
         anim_section.addRow(
-            "Durée", self._anim_duration, "420 ms donne un rendu fluide"
+            "Durée du fondu", self._anim_duration, "400 ms donne un rendu fluide"
         )
+        self._anim_enabled.toggled.connect(self._anim_duration.setEnabled)
 
-        self._ken_burns = QCheckBox("Zoom lent sur les images de fond (Ken Burns)")
-        self._ken_burns.setChecked(bool(settings.ken_burns))
-        anim_section.addWidget(self._ken_burns)
 
-        def _update_anim_controls() -> None:
-            on = self._anim_enabled.isChecked()
-            anim_type = str(self._anim_type.currentData() or "fade")
-            self._anim_type.setEnabled(on)
-            self._anim_duration.setEnabled(on and anim_type != "none")
-            self._anim_direction.setEnabled(
-                on and anim_type in ("slide", "reveal")
-            )
 
-        self._anim_enabled.toggled.connect(_update_anim_controls)
-        self._anim_type.currentIndexChanged.connect(_update_anim_controls)
-        _update_anim_controls()
 
         layout.addWidget(anim_section)
 
@@ -632,10 +602,7 @@ class ProjectionSettingsDialog(QDialog):
         self._reference_position.currentIndexChanged.connect(self._on_change)
         self._uppercase.toggled.connect(self._on_change)
         self._anim_enabled.toggled.connect(self._on_change)
-        self._anim_type.currentIndexChanged.connect(self._on_change)
-        self._anim_direction.currentIndexChanged.connect(self._on_change)
         self._anim_duration.valueChanged.connect(self._on_change)
-        self._ken_burns.toggled.connect(self._on_change)
 
         layout.addStretch()
         scroll.setWidget(content)
@@ -807,34 +774,27 @@ class ProjectionSettingsDialog(QDialog):
         self._uppercase.setChecked(d.uppercase)
         # Transitions & effects
         self._anim_enabled.setChecked(d.animation_enabled)
-        idx = self._anim_type.findData(d.animation_type)
-        if idx >= 0:
-            self._anim_type.setCurrentIndex(idx)
-        idx = self._anim_direction.findData(d.animation_direction)
-        if idx >= 0:
-            self._anim_direction.setCurrentIndex(idx)
         self._anim_duration.setValue(d.animation_duration)
-        self._ken_burns.setChecked(d.ken_burns)
         self._on_change()
 
     def read_settings(self) -> ProjectionSettings:
         font = self._font_combo.currentData() or self._font_combo.currentText()
         return ProjectionSettings(
-            layout_mode="fullscreen",
+            layout_mode=str(self._layout_mode.currentData() or "fullscreen"),
             display_screen=str(self._display_screen.currentData() or "auto"),
             safe_margin=self._safe_margin.value(),
-            panel_side="left",
-            font_family=str(font).strip() or "Google Sans",
+            panel_side=str(self._panel_side.currentData() or "left"),
+            font_family=str(font).strip() or "Poppins",
             text_size=self._text_size.value(),
             ref_size=self._ref_size.value(),
-            padding=0,
+            padding=self._padding.value(),
             align=str(self._align.currentData() or "center"),
-            position="center",
-            slide_style="cinematic",
+            position=str(self._position.currentData() or "center"),
+            slide_style=str(self._slide_style.currentData() or "cinematic"),
             content_width=self._content_width.value(),
-            content_height=86,
+            content_height=self._content_height.value(),
             show_reference=self._show_reference.isChecked(),
-            reference_position="bottom",
+            reference_position=str(self._reference_position.currentData() or "bottom"),
             uppercase=self._uppercase.isChecked(),
             text_color=self._text_color_btn.color(),
             ref_color=self._ref_color_btn.color(),
@@ -846,26 +806,26 @@ class ProjectionSettingsDialog(QDialog):
             bg_image=self._bg_image_path,
             bg_image_fit=str(self._bg_image_fit_combo.currentData() or "cover"),
             font_weight=str(self._font_weight.currentData() or "normal"),
-            line_height=1.18,
-            letter_spacing=0,
-            text_shadow=False,
+            line_height=self._line_height.value(),
+            letter_spacing=self._letter_spacing.value(),
+            text_shadow=self._text_shadow.isChecked(),
             shadow_color=self._shadow_color_btn.color(),
             shadow_blur=self._shadow_blur.value(),
-            max_width=self._content_width.value(),
-            auto_fit=False,
-            uniform_text_size=True,
+            max_width=self._max_width.value(),
+            auto_fit=self._auto_fit.isChecked(),
+            uniform_text_size=self._uniform_text_size.isChecked(),
             min_text_size=self._min_text_size.value(),
             max_lines=self._max_lines.value(),
             background_dimmer=self._background_dimmer.value() / 100.0,
-            panel_enabled=False,
+            panel_enabled=self._panel_enabled.isChecked(),
             panel_color=self._panel_color_btn.color(),
             panel_opacity=self._panel_opacity.value() / 100.0,
             panel_radius=self._panel_radius.value(),
             animation_enabled=self._anim_enabled.isChecked(),
-            animation_type=str(self._anim_type.currentData() or "fade"),
+            animation_type="fade",
             animation_direction="up",
             animation_duration=self._anim_duration.value(),
-            ken_burns=self._ken_burns.isChecked(),
+            ken_burns=False,
         )
 
     @staticmethod

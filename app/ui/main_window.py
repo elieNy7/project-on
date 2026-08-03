@@ -31,6 +31,7 @@ from app.ui.projection_window import ProjectionWindow
 from app.ui.status_bar import StatusBar
 from app.ui.theme import (
     Colors,
+    Radius,
     Spacing,
     get_main_window_style,
     get_theme,
@@ -85,7 +86,7 @@ class MainWindow(QMainWindow):
 
         root_layout = QVBoxLayout(root)
         root_layout.setContentsMargins(Spacing.LG, Spacing.LG, Spacing.LG, Spacing.MD)
-        root_layout.setSpacing(Spacing.SM)
+        root_layout.setSpacing(Spacing.MD)
 
         splitter = QSplitter(root)
         splitter.setChildrenCollapsible(False)
@@ -96,17 +97,17 @@ class MainWindow(QMainWindow):
         self.playlist_panel = PlaylistPanel(splitter)
         self.preview_panel = PreviewPanel(splitter, self._settings)
 
-        # Apply subtle shadows to panels for depth
+        # Apply refined shadows to panels for depth
         is_light_theme = get_theme() == "light"
         for panel in (self.library_panel, self.playlist_panel, self.preview_panel):
             shadow = QGraphicsDropShadowEffect(self)
-            shadow.setBlurRadius(24 if is_light_theme else 34)
+            shadow.setBlurRadius(28 if is_light_theme else 40)
             shadow.setXOffset(0)
-            shadow.setYOffset(4 if is_light_theme else 6)
+            shadow.setYOffset(5 if is_light_theme else 8)
             shadow.setColor(
-                QColor(15, 23, 42, 38)
+                QColor(15, 23, 42, 45)
                 if is_light_theme
-                else QColor(2, 8, 20, 150)
+                else QColor(2, 6, 14, 160)
             )
             panel.setGraphicsEffect(shadow)
 
@@ -125,17 +126,16 @@ class MainWindow(QMainWindow):
 
         root_layout.addWidget(splitter, 1)
 
-        # Status bar
         self.status_bar = StatusBar(root)
         self.status_bar.setContentsMargins(Spacing.SM, 0, Spacing.SM, 0)
         self.status_bar.setStyleSheet(
             f"""
             QFrame#StatusBar {{
-                background: {Colors.BG_SECONDARY};
+                background: {Colors.BG_TERTIARY};
                 border: 1px solid {Colors.BORDER_SUBTLE};
-                border-radius: 10px;
+                border-radius: 12px;
                 color: {Colors.TEXT_SECONDARY};
-                min-height: 26px;
+                min-height: 28px;
             }}
             """
         )

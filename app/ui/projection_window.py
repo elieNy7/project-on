@@ -18,6 +18,7 @@ from PyQt6.QtGui import (
     QBrush,
     QColor,
     QFont,
+    QFontDatabase,
     QFontMetrics,
     QGuiApplication,
     QImage,
@@ -25,6 +26,7 @@ from PyQt6.QtGui import (
     QLinearGradient,
     QPainter,
     QPixmap,
+    QRadialGradient,
     QRegion,
     QShortcut,
 )
@@ -38,6 +40,98 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+
+def _blur_pixmap(pix: QPixmap, radius: float) -> QPixmap:
+    scene = QGraphicsScene()
+    item = QGraphicsPixmapItem(pix)
+    blur = QGraphicsBlurEffect()
+    blur.setBlurRadius(radius)
+    item.setGraphicsEffect(blur)
+    scene.addItem(item)
+    out = QImage(pix.size(), QImage.Format.Format_ARGB32_Premultiplied)
+    out.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(out)
+    scene.render(painter, QRectF(out.rect()), QRectF(pix.rect()))
+    painter.end()
+    return QPixmap.fromImage(out)
+
+
+class ShadowTextLabel(QLabel):
+    """QLabel with a real blurred drop shadow painted by hand.
+
+    QGraphicsDropShadowEffect conflicts with the opacity effect applied to the
+    parent during slide transitions (Qt graphics effects do not nest), and its
+    intermediate pixmap can crop glyphs on Windows. Painting the shadow
+    ourselves avoids both problems and stays crisp during animations. The
+    blurred shadow is cached, so Ken Burns repaints stay cheap.
+    """
+
+    def __init__(self, text: str = "", parent: QWidget | None = None) -> None:
+        super().__init__(text, parent)
+        self._shadow_color: QColor | None = None
+        self._shadow_blur = 0
+        self._shadow_dy = 2
+        self._shadow_cache_key: tuple | None = None
+        self._shadow_cache = QPixmap()
+        self._rendering_shadow = False
+
+    def set_shadow(self, color: QColor | None, blur: int = 18, dy: int = 2) -> None:
+        self._shadow_color = color
+        self._shadow_blur = max(0, int(blur))
+        self._shadow_dy = int(dy)
+        self._shadow_cache_key = None
+        self.update()
+
+    def paintEvent(self, event) -> None:
+        if (
+            self._shadow_color is None
+            or self._shadow_blur <= 0
+            or not self.text()
+            or self._rendering_shadow
+        ):
+            super().paintEvent(event)
+            return
+
+        key = (
+            self.text(),
+            self.width(),
+            self.height(),
+            self._shadow_blur,
+            self._shadow_dy,
+            self._shadow_color.rgba(),
+            self.font().toString(),
+        )
+        if key != self._shadow_cache_key:
+            img = QImage(self.size(), QImage.Format.Format_ARGB32_Premultiplied)
+            img.fill(Qt.GlobalColor.transparent)
+            self._rendering_shadow = True
+            try:
+                src_painter = QPainter(img)
+                self.render(
+                    src_painter, QPoint(), QRegion(), QWidget.RenderFlag.DrawChildren
+                )
+                src_painter.end()
+            finally:
+                self._rendering_shadow = False
+            tinted = QImage(img.size(), img.format())
+            tinted.fill(Qt.GlobalColor.transparent)
+            tint_painter = QPainter(tinted)
+            tint_painter.drawImage(0, 0, img)
+            tint_painter.setCompositionMode(
+                QPainter.CompositionMode.CompositionMode_SourceIn
+            )
+            tint_painter.fillRect(tinted.rect(), self._shadow_color)
+            tint_painter.end()
+            self._shadow_cache = _blur_pixmap(
+                QPixmap.fromImage(tinted), float(self._shadow_blur)
+            )
+            self._shadow_cache_key = key
+
+        shadow_painter = QPainter(self)
+        shadow_painter.drawPixmap(0, self._shadow_dy, self._shadow_cache)
+        shadow_painter.end()
+        super().paintEvent(event)
 
 
 class ProjectionWindow(QWidget):
@@ -61,8 +155,8 @@ class ProjectionWindow(QWidget):
         self._available_content_width = 0
         self._available_content_height = 0
         self._active_display_screen = ""
-        self._stage_accent = QColor(116, 167, 248, 210)
-        self._stage_accent_soft = QColor(116, 167, 248, 42)
+        self._stage_accent = QColor(109, 180, 255, 210)
+        self._stage_accent_soft = QColor(109, 180, 255, 42)
 
         self._main_layout = QVBoxLayout(self)
         self._main_layout.setContentsMargins(0, 0, 0, 0)
@@ -90,7 +184,7 @@ class ProjectionWindow(QWidget):
         self._content_layout.setContentsMargins(0, 0, 0, 0)
         self._content_layout.setSpacing(18)
 
-        self.text_label = QLabel("")
+        self.text_label = ShadowTextLabel("")
         self.text_label.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred
         )
@@ -109,7 +203,7 @@ class ProjectionWindow(QWidget):
             " border-radius: 1px;"
         )
 
-        self.ref_label = QLabel("")
+        self.ref_label = ShadowTextLabel("")
         self.ref_label.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred
         )
@@ -135,17 +229,6 @@ class ProjectionWindow(QWidget):
         self._trans_anim.setEasingCurve(QEasingCurve.Type.InOutCubic)
         self._trans_anim.valueChanged.connect(self._on_trans_value)
         self._trans_anim.finished.connect(self._on_trans_finished)
-
-        # Ken Burns — slow continuous zoom on full-screen background images
-        self._kb_t = 0.0
-        self._kb_active = False
-        self._kb_anim = QVariantAnimation(self)
-        self._kb_anim.setStartValue(0.0)
-        self._kb_anim.setEndValue(1.0)
-        self._kb_anim.setDuration(16000)
-        self._kb_anim.setLoopCount(-1)
-        self._kb_anim.setEasingCurve(QEasingCurve.Type.Linear)
-        self._kb_anim.valueChanged.connect(self._on_kb_value)
 
         self._timer = QTimer(self)
         self._timer.setInterval(120)
@@ -203,29 +286,127 @@ class ProjectionWindow(QWidget):
                 rect,
                 contain=is_contain,
             )
-            # Ken Burns: gently zoom the cover image over time.
-            if self._kb_active and not is_contain:
-                f = self._kb_factor()
-                cx, cy = target.center().x(), target.center().y()
-                nw, nh = target.width() * f, target.height() * f
-                target = QRectF(cx - nw / 2, cy - nh / 2, nw, nh)
             painter.drawPixmap(
                 target,
                 self._background_pixmap,
                 QRectF(self._background_pixmap.rect()),
             )
-            if has_text or has_ref:
-                dimmer = max(
-                    0.0, min(0.85, float(cfg.get("background_dimmer", 0.34)))
+            dimmer = max(
+                0.0, min(0.85, float(cfg.get("background_dimmer", 0.34)))
+            )
+            slide_style = self._choice(
+                cfg.get("slide_style"), ("cinematic", "clean", "split"), "cinematic"
+            )
+            self._paint_cinematic_scrim(
+                painter, rect, dimmer, has_text or has_ref, slide_style
+            )
+        elif cfg.get("bg_gradient_enabled"):
+            # Depth vignette on plain gradient backgrounds (skipped for the
+            # « clean » style, which stays perfectly flat by design).
+            slide_style = self._choice(
+                cfg.get("slide_style"), ("cinematic", "clean", "split"), "cinematic"
+            )
+            if slide_style != "clean":
+                w, h = rect.width(), rect.height()
+                vignette = QRadialGradient(
+                    rect.center().x(), rect.center().y(), math.hypot(w, h) * 0.62
                 )
-                overlay = QColor(0, 0, 0, int(255 * dimmer))
-                painter.setBrush(QBrush(overlay))
-                painter.drawRect(rect)
+                vignette.setColorAt(0.0, QColor(0, 0, 0, 0))
+                vignette.setColorAt(0.75, QColor(0, 0, 0, 0))
+                vignette.setColorAt(1.0, QColor(0, 0, 0, 60))
+                painter.fillRect(rect, QBrush(vignette))
 
         # Slide transition (text block) painted over the continuous background.
         if self._trans is not None:
             painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
             self._paint_transition(painter)
+
+    def _paint_cinematic_scrim(
+        self,
+        painter: QPainter,
+        rect,
+        dimmer: float,
+        has_content: bool,
+        slide_style: str = "cinematic",
+    ) -> None:
+        """Layered scrim over a background image, in three flavours.
+
+        « cinematic » — soft global veil, weighted top/bottom gradients and a
+        vignette that focuses the eye toward the centre.
+        « clean » — a single flat veil, no gradients, no vignette: the most
+        discreet, documentary look.
+        « split » — a strong horizontal gradient anchored on the text side
+        (left) that fades to the right, keeping the image alive on the
+        opposite half.
+        """
+        w, h = rect.width(), rect.height()
+
+        if slide_style == "clean":
+            veil = dimmer * (0.55 if has_content else 0.20)
+            painter.fillRect(rect, QColor(0, 0, 0, int(255 * veil)))
+            return
+
+        if slide_style == "split":
+            if has_content:
+                # Anchor the darkness on the left text zone, fade to clear.
+                side = QLinearGradient(0, 0, w * 0.78, 0)
+                side.setColorAt(0.0, QColor(0, 0, 0, int(255 * dimmer * 0.92)))
+                side.setColorAt(0.55, QColor(0, 0, 0, int(255 * dimmer * 0.45)))
+                side.setColorAt(1.0, QColor(0, 0, 0, 0))
+                painter.fillRect(rect, QBrush(side))
+            else:
+                painter.fillRect(rect, QColor(0, 0, 0, int(255 * dimmer * 0.22)))
+            # Gentle vignette, weaker than cinematic.
+            vig_alpha = int(255 * (0.10 + 0.18 * dimmer))
+            vignette = QRadialGradient(
+                rect.center().x(), rect.center().y(), math.hypot(w, h) * 0.62
+            )
+            vignette.setColorAt(0.0, QColor(0, 0, 0, 0))
+            vignette.setColorAt(0.74, QColor(0, 0, 0, 0))
+            vignette.setColorAt(1.0, QColor(0, 0, 0, vig_alpha))
+            painter.fillRect(rect, QBrush(vignette))
+            return
+
+        if has_content:
+            # Soft global veil
+            painter.fillRect(rect, QColor(0, 0, 0, int(255 * dimmer * 0.55)))
+            # Bottom-weighted gradient (main text zone)
+            bottom = QLinearGradient(0, h * 0.35, 0, h)
+            bottom.setColorAt(0.0, QColor(0, 0, 0, 0))
+            bottom.setColorAt(1.0, QColor(0, 0, 0, int(255 * dimmer * 0.85)))
+            painter.fillRect(rect, QBrush(bottom))
+            # Top-weighted gradient (upper reference zone)
+            top = QLinearGradient(0, 0, 0, h * 0.42)
+            top.setColorAt(0.0, QColor(0, 0, 0, int(255 * dimmer * 0.55)))
+            top.setColorAt(1.0, QColor(0, 0, 0, 0))
+            painter.fillRect(rect, QBrush(top))
+        else:
+            # Image-only slide: barely veil it, keep the picture alive.
+            painter.fillRect(rect, QColor(0, 0, 0, int(255 * dimmer * 0.25)))
+
+        # Vignette — subtle darkening toward the edges, always on images.
+        vig_alpha = int(255 * (0.16 + 0.30 * dimmer))
+        vignette = QRadialGradient(
+            rect.center().x(), rect.center().y(), math.hypot(w, h) * 0.62
+        )
+        vignette.setColorAt(0.0, QColor(0, 0, 0, 0))
+        vignette.setColorAt(0.72, QColor(0, 0, 0, 0))
+        vignette.setColorAt(1.0, QColor(0, 0, 0, vig_alpha))
+        painter.fillRect(rect, QBrush(vignette))
+
+    @staticmethod
+    def _resolve_font_family(configured: str) -> str:
+        """Pick the first installed family so a missing configured font
+        (e.g. « Google Sans ») never falls back to an arbitrary system font."""
+        try:
+            available = {f.lower() for f in QFontDatabase.families()}
+        except Exception:
+            available = set()
+        for candidate in (configured, "Poppins", "Segoe UI", "Arial"):
+            name = str(candidate or "").strip()
+            if name and (not available or name.lower() in available):
+                return name
+        return "sans-serif"
 
     def _cover_rect(
         self, pix_w: int, pix_h: int, target: QRectF, contain: bool = False
@@ -266,7 +447,7 @@ class ProjectionWindow(QWidget):
             "sermon": QColor(224, 160, 68, 220),
             "hymn": QColor(185, 151, 255, 220),
             "expose": QColor(0, 172, 193, 220),
-            "custom": QColor(116, 167, 248, 220),
+            "custom": QColor(109, 180, 255, 220),
             "image": QColor(130, 123, 112, 220),
         }
         accent = palette.get(str(source or "").lower(), palette["custom"])
@@ -308,7 +489,9 @@ class ProjectionWindow(QWidget):
             edge_guard, edge_guard, edge_guard, edge_guard
         )
 
-        mode = "fullscreen"
+        mode = self._choice(
+            cfg.get("layout_mode"), self._LAYOUT_MODES, "fullscreen"
+        )
         content_width = int(cfg.get("content_width") or 88)
         maximum_width = int(cfg.get("max_width") or 100)
         width_pct = max(40, min(100, content_width, maximum_width))
@@ -359,7 +542,7 @@ class ProjectionWindow(QWidget):
             max(28, min(72, int(sh * 0.05))) if show_top_reference else 0
         )
         self._content_layout.setContentsMargins(0, top_reference_margin, 0, 0)
-        self._accent_line.setMaximumWidth(max(100, min(260, sw // 5)))
+        self._accent_line.setFixedWidth(max(120, min(280, sw // 6)))
         return available_width, available_height
 
     def resizeEvent(self, event) -> None:
@@ -371,8 +554,17 @@ class ProjectionWindow(QWidget):
 
         cfg = self._config
         self._apply_layout_metrics(cfg)
+        # Font sizes scale with the screen — re-render the current slide so a
+        # screen/geometry change immediately re-computes them.
+        if self._current_slide:
+            self._render_slide_content(self._current_slide)
 
-    def _refresh_content_order(self, show_ref: bool, reference_position: str) -> None:
+    def _refresh_content_order(
+        self,
+        show_ref: bool,
+        reference_position: str,
+        accent_align: Qt.AlignmentFlag = Qt.AlignmentFlag.AlignHCenter,
+    ) -> None:
         for i in reversed(range(self._content_layout.count())):
             item = self._content_layout.itemAt(i)
             if item.spacerItem():
@@ -383,15 +575,11 @@ class ProjectionWindow(QWidget):
         self._content_layout.addStretch(1)
         if show_ref and reference_position == "top":
             self._content_layout.addWidget(self.ref_label, 0)
-            self._content_layout.addWidget(
-                self._accent_line, 0, Qt.AlignmentFlag.AlignHCenter
-            )
+            self._content_layout.addWidget(self._accent_line, 0, accent_align)
             self._content_layout.addWidget(self.text_label, 0)
         else:
             self._content_layout.addWidget(self.text_label, 0)
-            self._content_layout.addWidget(
-                self._accent_line, 0, Qt.AlignmentFlag.AlignHCenter
-            )
+            self._content_layout.addWidget(self._accent_line, 0, accent_align)
             if show_ref:
                 self._content_layout.addWidget(self.ref_label, 0)
         self._content_layout.addStretch(1)
@@ -515,20 +703,39 @@ class ProjectionWindow(QWidget):
                 except Exception as e:
                     print(f"Error applying slide: {e}")
 
+    _LAYOUT_MODES = ("fullscreen", "lower_third", "side_panel", "subtitle", "focus_card")
+
+    @staticmethod
+    def _choice(value: Any, allowed: tuple[str, ...], fallback: str) -> str:
+        v = str(value or "").strip().lower()
+        return v if v in allowed else fallback
+
     def _apply_config(self, cfg: dict[str, Any]) -> None:
         cfg = dict(cfg)
-        cfg.update(
-            {
-                "layout_mode": "fullscreen",
-                "position": "center",
-                "slide_style": "cinematic",
-                "reference_position": "bottom",
-                "padding": 0,
-                "auto_fit": False,
-                "uniform_text_size": True,
-                "panel_enabled": False,
-            }
+        # Validate — never override — the operator's settings. Invalid values
+        # fall back to safe defaults so legacy configs keep working.
+        cfg["layout_mode"] = self._choice(
+            cfg.get("layout_mode"), self._LAYOUT_MODES, "fullscreen"
         )
+        cfg["position"] = self._choice(
+            cfg.get("position"), ("top", "center", "bottom"), "center"
+        )
+        cfg["slide_style"] = self._choice(
+            cfg.get("slide_style"), ("cinematic", "clean", "split"), "cinematic"
+        )
+        cfg["reference_position"] = self._choice(
+            cfg.get("reference_position"), ("top", "bottom"), "bottom"
+        )
+        cfg["align"] = self._choice(
+            cfg.get("align"), ("left", "center", "right"), "center"
+        )
+        cfg["panel_side"] = self._choice(
+            cfg.get("panel_side"), ("left", "right"), "left"
+        )
+        try:
+            cfg["padding"] = max(0, min(160, int(cfg.get("padding") or 0)))
+        except (TypeError, ValueError):
+            cfg["padding"] = 0
         self._config = cfg
         preferred_screen = str(cfg.get("display_screen") or "auto")
         available_names = {
@@ -540,11 +747,11 @@ class ProjectionWindow(QWidget):
             and preferred_screen != self._active_display_screen
         ):
             self._apply_best_screen_fullscreen(preferred_screen)
-        pos = "center"
-        align = str(cfg.get("align") or "center").lower()
-        reference_position = "bottom"
-        slide_style = "cinematic"
-        layout_mode = "fullscreen"
+        pos = cfg["position"]
+        align = cfg["align"]
+        reference_position = cfg["reference_position"]
+        slide_style = cfg["slide_style"]
+        layout_mode = cfg["layout_mode"]
 
         self._apply_layout_metrics(cfg)
         self._update_shell_style(cfg)
@@ -556,7 +763,14 @@ class ProjectionWindow(QWidget):
                 widget.setParent(None)
 
         show_ref = bool(cfg.get("show_reference", True))
-        self._refresh_content_order(show_ref, reference_position)
+        accent_align = (
+            Qt.AlignmentFlag.AlignLeft
+            if slide_style == "split" or align == "left"
+            else Qt.AlignmentFlag.AlignRight
+            if align == "right"
+            else Qt.AlignmentFlag.AlignHCenter
+        )
+        self._refresh_content_order(show_ref, reference_position, accent_align)
 
         vertical_container_align = (
             Qt.AlignmentFlag.AlignTop
@@ -565,21 +779,40 @@ class ProjectionWindow(QWidget):
             if pos == "bottom"
             else Qt.AlignmentFlag.AlignVCenter
         )
-        horizontal_container_align = Qt.AlignmentFlag.AlignHCenter
+        # Horizontal placement: side_panel follows panel_side, band modes
+        # follow the text alignment, everything else stays centred.
+        if layout_mode == "side_panel":
+            horizontal_container_align = (
+                Qt.AlignmentFlag.AlignRight
+                if cfg["panel_side"] == "right"
+                else Qt.AlignmentFlag.AlignLeft
+            )
+        elif layout_mode in ("lower_third", "subtitle"):
+            horizontal_container_align = (
+                Qt.AlignmentFlag.AlignLeft
+                if align == "left"
+                else Qt.AlignmentFlag.AlignRight
+                if align == "right"
+                else Qt.AlignmentFlag.AlignHCenter
+            )
+        else:
+            horizontal_container_align = Qt.AlignmentFlag.AlignHCenter
         self._main_layout.addWidget(
             self._content_shell,
             1,
             horizontal_container_align | vertical_container_align,
         )
 
-        self._accent_line.setVisible(layout_mode in ("lower_third", "focus_card"))
+        # Visibility of the divider is decided per-slide in _render_slide_content.
+        self._accent_line.setVisible(False)
 
-        # Text Alignment
+        # Text Alignment — the split style is always left-aligned by design.
+        effective_align = "left" if slide_style == "split" else align
         horizontal_align = (
             Qt.AlignmentFlag.AlignHCenter
-            if align == "center"
+            if effective_align == "center"
             else Qt.AlignmentFlag.AlignRight
-            if align == "right"
+            if effective_align == "right"
             else Qt.AlignmentFlag.AlignLeft
         )
         vertical_align = (
@@ -624,23 +857,16 @@ class ProjectionWindow(QWidget):
 
     # ── Slide transition engine ────────────────────────────────────────────
     def _begin_transition(self, slide: dict[str, Any]) -> None:
-        """Render the new slide with a configurable transition. The background
-        stays continuous; only the text block cross-animates as a pixmap."""
+        """Render the new slide with a clean PowerPoint-style crossfade. The
+        background stays continuous; only the text block fades as a pixmap."""
         cfg = self._config
         anim_on = bool(cfg.get("animation_enabled", True))
-        anim_type = str(cfg.get("animation_type") or "fade").lower()
         duration_value = cfg.get("animation_duration")
-        duration = int(duration_value if duration_value is not None else 420)
+        duration = int(duration_value if duration_value is not None else 400)
         was_hidden = not self._content_shell.isVisible()
         going_hidden = bool(slide.get("hidden"))
 
-        if (
-            not anim_on
-            or anim_type == "none"
-            or duration <= 0
-            or was_hidden
-            or going_hidden
-        ):
+        if not anim_on or duration <= 0 or was_hidden or going_hidden:
             self._trans = None
             self._fade_effect.setOpacity(1.0)
             self._render_slide_content(slide)
@@ -662,19 +888,12 @@ class ProjectionWindow(QWidget):
             self._fade_effect.setOpacity(1.0)
             return
 
-        trans: dict[str, Any] = {
-            "type": anim_type,
-            "dir": str(cfg.get("animation_direction") or "up").lower(),
+        self._trans = {
             "out": QPixmap.fromImage(out_img),
             "outpos": out_pos,
             "in": QPixmap.fromImage(in_img),
             "inpos": in_pos,
         }
-        if anim_type == "blur":
-            radius = max(6.0, min(out_img.width(), out_img.height()) * 0.05)
-            trans["out_blur"] = self._blur_pixmap(trans["out"], radius)
-            trans["in_blur"] = self._blur_pixmap(trans["in"], radius)
-        self._trans = trans
 
         # Hide the live content; the pixmaps carry the animation.
         self._fade_effect.setOpacity(0.0)
@@ -703,21 +922,6 @@ class ProjectionWindow(QWidget):
         return img, w.geometry().topLeft()
 
     @staticmethod
-    def _blur_pixmap(pix: QPixmap, radius: float) -> QPixmap:
-        scene = QGraphicsScene()
-        item = QGraphicsPixmapItem(pix)
-        blur = QGraphicsBlurEffect()
-        blur.setBlurRadius(radius)
-        item.setGraphicsEffect(blur)
-        scene.addItem(item)
-        out = QImage(pix.size(), QImage.Format.Format_ARGB32_Premultiplied)
-        out.fill(Qt.GlobalColor.transparent)
-        painter = QPainter(out)
-        scene.render(painter, QRectF(out.rect()), QRectF(pix.rect()))
-        painter.end()
-        return QPixmap.fromImage(out)
-
-    @staticmethod
     def _ease(p: float) -> float:
         p = max(0.0, min(1.0, p))
         return p * p * p * (p * (p * 6 - 15) + 10)  # smootherstep
@@ -737,81 +941,14 @@ class ProjectionWindow(QWidget):
             )
         painter.setOpacity(1.0)
 
-    @staticmethod
-    def _slide_offsets(direction: str, pix: QPixmap) -> tuple[float, float]:
-        dh, dv = pix.width() * 0.6, pix.height() * 0.6
-        return {
-            "up": (0.0, -dv),
-            "down": (0.0, dv),
-            "left": (-dh, 0.0),
-            "right": (dh, 0.0),
-        }.get(direction, (0.0, -dv))
-
-    @staticmethod
-    def _reveal_clip(direction: str, pix: QPixmap, ip: QPoint, e: float) -> QRectF:
-        w, h = pix.width(), pix.height()
-        x, y = ip.x(), ip.y()
-        if direction == "down":
-            return QRectF(x, y, w, h * e)
-        if direction == "left":
-            return QRectF(x + w * (1 - e), y, w * e, h)
-        if direction == "right":
-            return QRectF(x, y, w * e, h)
-        return QRectF(x, y + h * (1 - e), w, h * e)  # "up"
-
     def _paint_transition(self, painter) -> None:
+        """Single, elegant crossfade — like a PowerPoint « Fondu » transition."""
         t = self._trans
         if not t:
             return
         e = self._ease(self._trans_p)
-        typ = t["type"]
-        out, op = t["out"], t["outpos"]
-        inn, ip = t["in"], t["inpos"]
-
-        if typ == "slide":
-            dx, dy = self._slide_offsets(t["dir"], inn)
-            self._draw_pix(painter, out, op.x() + dx * e, op.y() + dy * e, 1.0, 1.0 - e)
-            self._draw_pix(
-                painter, inn, ip.x() - dx * (1 - e), ip.y() - dy * (1 - e), 1.0, e
-            )
-        elif typ == "scale":
-            self._draw_pix(painter, out, op.x(), op.y(), 1.0 + 0.06 * e, 1.0 - e)
-            self._draw_pix(painter, inn, ip.x(), ip.y(), 0.94 + 0.06 * e, e)
-        elif typ == "blur":
-            ob = t.get("out_blur", out)
-            ib = t.get("in_blur", inn)
-            self._draw_pix(painter, ob, op.x(), op.y(), 1.0, 1.0 - e)
-            self._draw_pix(painter, ib, ip.x(), ip.y(), 1.0, e * (1 - e) * 2.0)
-            self._draw_pix(painter, inn, ip.x(), ip.y(), 1.0, e * e)
-        elif typ == "reveal":
-            self._draw_pix(painter, out, op.x(), op.y(), 1.0, 1.0)
-            painter.save()
-            painter.setClipRect(self._reveal_clip(t["dir"], inn, ip, e))
-            self._draw_pix(painter, inn, ip.x(), ip.y(), 1.0, 1.0)
-            painter.restore()
-        else:  # fade (default)
-            self._draw_pix(painter, out, op.x(), op.y(), 1.0, 1.0 - e)
-            self._draw_pix(painter, inn, ip.x(), ip.y(), 1.0, e)
-
-    # ── Ken Burns (background image slow zoom) ─────────────────────────────
-    def _kb_factor(self) -> float:
-        tri = 1.0 - abs(2.0 * self._kb_t - 1.0)  # 0 -> 1 -> 0 over one loop
-        return 1.0 + 0.07 * tri
-
-    def _on_kb_value(self, value) -> None:
-        self._kb_t = float(value)
-        if self._kb_active:
-            self.update()
-
-    def _start_ken_burns(self) -> None:
-        self._kb_active = True
-        self._kb_anim.stop()
-        self._kb_anim.start()
-
-    def _stop_ken_burns(self) -> None:
-        self._kb_active = False
-        self._kb_anim.stop()
-        self._kb_t = 0.0
+        self._draw_pix(painter, t["out"], t["outpos"].x(), t["outpos"].y(), 1.0, 1.0 - e)
+        self._draw_pix(painter, t["in"], t["inpos"].x(), t["inpos"].y(), 1.0, e)
 
     def _render_slide_content(self, slide: dict[str, Any]) -> None:
         slide = dict(slide)
@@ -841,7 +978,7 @@ class ProjectionWindow(QWidget):
         show_reference = bool(cfg.get("show_reference", True))
         align = str(cfg.get("align") or "center").lower()
         line_height = float(cfg.get("line_height") or 1.35)
-        font_family = str(cfg.get("font_family") or "Poppins")
+        font_family = self._resolve_font_family(str(cfg.get("font_family") or ""))
 
         # The configured size is the target; auto-scaling only reduces it if needed.
         screen = self.screen()
@@ -881,62 +1018,25 @@ class ProjectionWindow(QWidget):
         # full width risks clipping the final word even when metrics say it fits.
         wrap_width = max(320, int(available_width * 0.90))
 
-        ref_size = max(8, int(float(cfg.get("ref_size") or 22)))
-        has_ref = show_reference and ref.strip()
-        text_available_height = max(
-            120,
-            available_height - (int(ref_size * 1.8) if has_ref else 0),
-        )
+        # Configured pixel sizes are defined against a 1080p reference screen.
+        # Larger displays scale text UP so it stays proportionally readable,
+        # but the user's configured size is never reduced on smaller windows —
+        # the readability floor below is the only minimum.
+        screen_h = max(self.height(), 1)
+        size_scale = max(1.0, min(3.0, screen_h / 1080.0))
 
+        ref_size = int(round(float(cfg.get("ref_size") or 22) * size_scale))
+        ref_size = max(int(screen_h * 0.024), 8, ref_size)
+        has_ref = show_reference and ref.strip()
         font = QFont(font_family)
         font.setWeight(self._font_weight_to_qt(font_weight))
-
-        def estimated_text_metrics(size: int) -> tuple[float, int]:
-            font.setPixelSize(size)
-            metrics = QFontMetrics(font)
-            wrapped_lines = 0
-            for line in lines:
-                line_width = max(1, metrics.horizontalAdvance(line))
-                wrapped_lines += max(1, math.ceil(line_width / wrap_width))
-            return (
-                wrapped_lines * metrics.lineSpacing() * max(line_height, 0.9),
-                wrapped_lines,
-            )
-
-        configured_size = max(8, int(float(cfg.get("text_size") or 54)))
-        text_size = configured_size
-        if bool(cfg.get("auto_fit", True)) and not bool(
-            cfg.get("uniform_text_size", True)
-        ):
-            minimum = max(
-                10,
-                min(configured_size, int(cfg.get("min_text_size") or 18)),
-            )
-            max_lines = max(1, min(20, int(cfg.get("max_lines") or 8)))
-            _minimum_height, minimum_lines = estimated_text_metrics(minimum)
-            enforce_line_limit = minimum_lines <= max_lines
-            low = minimum
-            high = configured_size
-            best = minimum
-            while low <= high:
-                mid = (low + high) // 2
-                estimated_height, wrapped_lines = estimated_text_metrics(mid)
-                if (
-                    estimated_height <= text_available_height * 0.96
-                    and (
-                        not enforce_line_limit
-                        or wrapped_lines <= max_lines
-                    )
-                ):
-                    best = mid
-                    low = mid + 1
-                else:
-                    high = mid - 1
-            text_size = best
-
         letter_spacing = int(cfg.get("letter_spacing") or 0)
-        text_color = str(cfg.get("text_color") or "#ffffff")
-        ref_color = str(cfg.get("ref_color") or "rgba(255,255,255,0.75)")
+
+        # Inner padding that lets the drop-shadow blur render without being
+        # clipped at the widget edges.
+        shadow_on = bool(cfg.get("text_shadow", True))
+        blur_px = max(4, min(80, int(cfg.get("shadow_blur") or 18)))
+        pad_px = (int(blur_px * 0.75) + 6) if shadow_on else 0
 
         def wrap_for_qt(value: str, size: int, width: int) -> str:
             wrap_font = QFont(font_family)
@@ -961,8 +1061,115 @@ class ProjectionWindow(QWidget):
                     wrapped.append(current)
             return "\n".join(wrapped)
 
+        # Exact-fit measurement: the probe uses the same word-wrap and font
+        # metrics as the real render, and reserves room for the CSS padding,
+        # the reference block, the accent line and the layout spacing — so the
+        # fit decision matches what is actually painted.
+        ref_block_height = 0
+        if has_ref:
+            ref_probe = QFont(font_family)
+            ref_probe.setPixelSize(ref_size)
+            ref_probe.setWeight(QFont.Weight.DemiBold)
+            ref_probe.setLetterSpacing(QFont.SpacingType.PercentageSpacing, 112.0)
+            ref_line_count = wrap_for_qt(ref, ref_size, wrap_width).count("\n") + 1
+            ref_block_height = (
+                ref_line_count * QFontMetrics(ref_probe).lineSpacing() + pad_px * 2
+            )
+        layout_spacing = max(0, self._content_layout.spacing())
+        reserved_height = (
+            ref_block_height
+            + (6 + layout_spacing if has_ref else 0)
+            + layout_spacing
+        )
+
+        def rendered_height(size: int) -> tuple[float, int]:
+            probe = QFont(font_family)
+            probe.setWeight(self._font_weight_to_qt(font_weight))
+            probe.setPixelSize(size)
+            probe.setLetterSpacing(
+                QFont.SpacingType.AbsoluteSpacing, float(letter_spacing)
+            )
+            wrapped_count = wrap_for_qt(text, size, wrap_width).count("\n") + 1
+            line_px = QFontMetrics(probe).lineSpacing()
+            # line_height above 1.0 stays a conservative air factor for the
+            # fit decision; the paint uses the font's natural leading.
+            total = (
+                wrapped_count * line_px * max(line_height, 1.0)
+                + pad_px * 2
+                + reserved_height
+            )
+            return total, wrapped_count
+
+        configured_size = int(
+            round(float(cfg.get("text_size") or 54) * size_scale)
+        )
+        # Readability floor: never below ~6.2 % of the screen height — a
+        # fixed 48 px on a 1080p projector was simply too small to read
+        # from the back of the room.
+        text_size = max(int(screen_h * 0.062), configured_size)
+        if bool(cfg.get("auto_fit", True)) and not bool(
+            cfg.get("uniform_text_size", True)
+        ):
+            minimum = max(
+                10,
+                min(
+                    text_size,
+                    int(round(int(cfg.get("min_text_size") or 18) * size_scale)),
+                ),
+            )
+            max_lines = max(1, min(20, int(cfg.get("max_lines") or 8)))
+            _minimum_height, minimum_lines = rendered_height(minimum)
+            enforce_line_limit = minimum_lines <= max_lines
+            # Grow-to-fill (ProPresenter-style): pick the LARGEST size that
+            # fits the block — the configured size is only the starting
+            # point, text grows to fill the stage when there is room and
+            # shrinks when it overflows. Cap so a one-line slide stays
+            # elegant rather than monstrous.
+            grow_cap = max(text_size, int(available_height * 0.5))
+            low = minimum
+            high = grow_cap
+            best = minimum
+            while low <= high:
+                mid = (low + high) // 2
+                estimated_height, wrapped_lines = rendered_height(mid)
+                if (
+                    estimated_height <= available_height * 0.96
+                    and (
+                        not enforce_line_limit
+                        or wrapped_lines <= max_lines
+                    )
+                ):
+                    best = mid
+                    low = mid + 1
+                else:
+                    high = mid - 1
+            text_size = best
+
+        # Overflow guard: text is never clipped, in ANY layout. The configured
+        # (or grown) size is kept whenever it fits; otherwise shrink to the
+        # largest size that does, without dropping below a legibility floor.
+        guard_floor = max(12, min(text_size, int(screen_h * 0.022)))
+        estimated_height, _ = rendered_height(text_size)
+        if estimated_height > available_height * 0.98 and text_size > guard_floor:
+            low, high = guard_floor, text_size
+            best_fit = guard_floor
+            while low <= high:
+                mid = (low + high) // 2
+                estimated_height, _ = rendered_height(mid)
+                if estimated_height <= available_height * 0.96:
+                    best_fit = mid
+                    low = mid + 1
+                else:
+                    high = mid - 1
+            text_size = best_fit
+
+        text_color = str(cfg.get("text_color") or "#ffffff")
+        ref_color = str(cfg.get("ref_color") or "rgba(255,255,255,0.75)")
+
         wrapped_text = wrap_for_qt(text, text_size, wrap_width)
         wrapped_ref = wrap_for_qt(ref, ref_size, wrap_width)
+
+        pad_css = f"padding: {pad_px}px;" if pad_px else ""
 
         text_font = QFont(font_family)
         text_font.setPixelSize(text_size)
@@ -970,32 +1177,49 @@ class ProjectionWindow(QWidget):
         text_font.setLetterSpacing(
             QFont.SpacingType.AbsoluteSpacing, float(letter_spacing)
         )
-        self.text_label.setFont(text_font)
+        # The widget's own stylesheet must carry the font properties: the
+        # app-wide stylesheet sets QWidget { font-size: 13px } and would
+        # otherwise override setFont() at polish time — which made the
+        # projected text tiny no matter the computed size.
         self.text_label.setStyleSheet(
-            f"color: {text_color}; background: transparent; border: none;"
+            f"color: {text_color}; background: transparent; border: none; {pad_css}"
+            f' font-family: "{font_family}"; font-size: {text_size}px;'
         )
+        self.text_label.setFont(text_font)
 
         ref_font = QFont(font_family)
         ref_font.setPixelSize(ref_size)
         ref_font.setWeight(QFont.Weight.DemiBold)
-        self.ref_label.setFont(ref_font)
+        ref_font.setLetterSpacing(QFont.SpacingType.PercentageSpacing, 112.0)
         self.ref_label.setStyleSheet(
-            f"color: {ref_color}; background: transparent; border: none;"
+            f"color: {ref_color}; background: transparent; border: none; {pad_css}"
+            f' font-family: "{font_family}"; font-size: {ref_size}px;'
         )
+        self.ref_label.setFont(ref_font)
 
-        # A QGraphicsDropShadowEffect on a multiline QLabel renders through an
-        # intermediate pixmap. On Windows it can crop the right edge and the
-        # bottom lines even when the label geometry is large enough. Local
-        # projection prioritises complete words, so text is drawn directly.
-        self.text_label.setGraphicsEffect(None)
-        self.ref_label.setGraphicsEffect(None)
+        # Apply the stylesheet fonts immediately so the effective font is
+        # correct even before the widget is shown (and in tests).
+        self.text_label.ensurePolished()
+        self.ref_label.ensurePolished()
+
+        # Text shadow painted by the labels themselves (see ShadowTextLabel) —
+        # no QGraphicsEffect, so it composes cleanly with the opacity effect
+        # used on the parent during transitions.
+        if shadow_on:
+            shadow_color = self._parse_color(
+                str(cfg.get("shadow_color") or "rgba(0,0,0,0.85)")
+            )
+            dy = max(1, blur_px // 8)
+            self.text_label.set_shadow(shadow_color, blur_px, dy)
+            self.ref_label.set_shadow(shadow_color, blur_px, dy)
+        else:
+            self.text_label.set_shadow(None)
+            self.ref_label.set_shadow(None)
 
         self.text_label.setText(wrapped_text)
         self.ref_label.setText(wrapped_ref if has_ref else "")
-        self._accent_line.setVisible(
-            str(cfg.get("layout_mode") or "fullscreen")
-            in ("lower_third", "focus_card")
-        )
+        # Refined divider between text and reference whenever a reference shows.
+        self._accent_line.setVisible(bool(has_ref))
         has_content = bool(text.strip() or has_ref)
         self._content_shell.setVisible(has_content)
         self._update_shell_style(cfg)
@@ -1009,7 +1233,6 @@ class ProjectionWindow(QWidget):
         self._active_visual_path = normalized
         if not normalized:
             self._background_pixmap = QPixmap()
-            self._stop_ken_burns()
             self.update()
             return
 
@@ -1017,12 +1240,7 @@ class ProjectionWindow(QWidget):
         if not visual_file.is_absolute():
             visual_file = (self._presentation_dir / visual_file).resolve()
 
+        # Static background — no motion, like a PowerPoint slide.
         pixmap = QPixmap(str(visual_file))
         self._background_pixmap = pixmap if not pixmap.isNull() else QPixmap()
-        if not self._background_pixmap.isNull() and bool(
-            self._config.get("ken_burns", True)
-        ):
-            self._start_ken_burns()
-        else:
-            self._stop_ken_burns()
         self.update()

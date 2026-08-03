@@ -34,6 +34,14 @@ class Line:
     y0: float
     x1: float
     y1: float
+    is_italic: bool = False
+
+
+@dataclass(frozen=True)
+class ParsedSection:
+    text: str
+    label: str
+    is_chorus: bool
 
 
 @dataclass
@@ -42,7 +50,11 @@ class ParsedHymn:
     title: str
     start_page: int
     end_page: int
-    stanzas: list[str]
+    sections: list[ParsedSection]
+
+    @property
+    def stanzas(self) -> list[str]:
+        return [section.text for section in self.sections]
 
 
 SKIP_PHRASES = (
@@ -75,7 +87,25 @@ def page_lines(doc: fitz.Document, page_index: int) -> list[Line]:
             if not text:
                 continue
             x0, y0, x1, y1 = line["bbox"]
-            fragments.append(Line(text=text, x0=x0, y0=y0, x1=x1, y1=y1))
+            text_chars = sum(
+                len(str(span.get("text", "")).strip()) for span in line["spans"]
+            )
+            italic_chars = sum(
+                len(str(span.get("text", "")).strip())
+                for span in line["spans"]
+                if int(span.get("flags", 0)) & 2
+                or "italic" in str(span.get("font", "")).lower()
+            )
+            fragments.append(
+                Line(
+                    text=text,
+                    x0=x0,
+                    y0=y0,
+                    x1=x1,
+                    y1=y1,
+                    is_italic=italic_chars >= max(1, text_chars / 2),
+                )
+            )
 
     fragments.sort(key=lambda item: (item.y0, item.x0))
     merged: list[Line] = []
@@ -89,6 +119,7 @@ def page_lines(doc: fitz.Document, page_index: int) -> list[Line]:
             prev.text = f"{prev.text} {item.text}".strip()
             prev.x1 = max(prev.x1, item.x1)
             prev.y1 = max(prev.y1, item.y1)
+            prev.is_italic = prev.is_italic or item.is_italic
         else:
             merged.append(item)
     return merged
@@ -244,21 +275,52 @@ def extract_hymn_lines(
     return strip_author_tail(raw)
 
 
-def split_stanzas(lines: list[Line]) -> list[str]:
-    stanzas: list[str] = []
+def split_sections(lines: list[Line]) -> list[ParsedSection]:
+    raw_sections: list[tuple[bool, str]] = []
     current: list[str] = []
+    current_is_chorus = False
+
+    def flush() -> None:
+        nonlocal current
+        text = "\n".join(current).strip()
+        if text:
+            raw_sections.append((current_is_chorus, text))
+        current = []
+
     for line in lines:
         match = VERSE_RE.match(line.text)
         if match:
-            if current:
-                stanzas.append("\n".join(current).strip())
+            flush()
+            current_is_chorus = False
             rest = match.group(2).strip()
             current = [rest] if rest else []
+        elif line.is_italic:
+            if current and not current_is_chorus:
+                flush()
+            current_is_chorus = True
+            current.append(line.text)
         elif current:
             current.append(line.text)
-    if current:
-        stanzas.append("\n".join(current).strip())
-    return [stanza for stanza in stanzas if stanza]
+    flush()
+
+    sections: list[ParsedSection] = []
+    verse_no = 0
+    chorus_no = 0
+    for is_chorus, text in raw_sections:
+        if is_chorus:
+            chorus_no += 1
+            label = "Refrain" if chorus_no == 1 else f"Refrain {chorus_no}"
+            sections.append(ParsedSection(f"Choeur:\n{text}", label, True))
+        else:
+            verse_no += 1
+            sections.append(ParsedSection(text, f"Strophe {verse_no}", False))
+    return sections
+
+
+def split_stanzas(lines: list[Line]) -> list[str]:
+    """Backward-compatible text-only view of :func:`split_sections`."""
+
+    return [section.text for section in split_sections(lines)]
 
 
 def parse_pdf(pdf_path: Path) -> list[ParsedHymn]:
@@ -274,8 +336,8 @@ def parse_pdf(pdf_path: Path) -> list[ParsedHymn]:
             end_page = (
                 starts[idx + 1][1] - 1 if idx + 1 < len(starts) else LAST_HYMN_PAGE - 1
             )
-            stanzas = split_stanzas(extract_hymn_lines(doc, start_page, end_page))
-            if not stanzas:
+            sections = split_sections(extract_hymn_lines(doc, start_page, end_page))
+            if not sections:
                 raise RuntimeError(f"No stanzas parsed for hymn {number}.")
             hymns.append(
                 ParsedHymn(
@@ -283,7 +345,7 @@ def parse_pdf(pdf_path: Path) -> list[ParsedHymn]:
                     title=title or f"Cantique Swahili {number}",
                     start_page=start_page + 1,
                     end_page=end_page + 1,
-                    stanzas=stanzas,
+                    sections=sections,
                 )
             )
         return hymns

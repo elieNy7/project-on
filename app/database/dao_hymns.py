@@ -40,7 +40,7 @@ class HymnsDao:
     def _detect_chorus(text: str) -> bool:
         return bool(
             re.match(
-                r"^(?:Dernier\s+)?(Chœur|Choeur|Refrain|Chorus)\s*[:.\-–—]?",
+                r"^(?:Dernier\s+)?(?:Ch(?:oe|œ)urs?|Refrain|Chorus)\s*[:.\-–—]?",
                 str(text or "").strip(),
                 re.IGNORECASE,
             )

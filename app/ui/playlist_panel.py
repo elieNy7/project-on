@@ -162,11 +162,12 @@ class PlaylistPanel(QFrame):
         # ── Header: title + count + action buttons ────────────────────────
         header = QFrame(self)
         header.setObjectName("TopBar")
+        header.setFixedHeight(56)
         header.setStyleSheet(f"""
             QFrame#TopBar {{
                 background: {Colors.BG_TERTIARY};
                 border: 1px solid {Colors.BORDER_SUBTLE};
-                border-radius: {Radius.MD}px;
+                border-radius: {Radius.LG}px;
             }}
         """)
         header_layout = QHBoxLayout(header)
@@ -175,7 +176,7 @@ class PlaylistPanel(QFrame):
 
         self.title = QLabel(tr("playlist"), header)
         self.title.setStyleSheet(
-            f"font-size: 18px; font-weight: {Typography.WEIGHT_BOLD}; color: {Colors.TEXT_PRIMARY}; background: transparent;"
+            f"font-size: 16px; font-weight: {Typography.WEIGHT_BOLD}; color: {Colors.TEXT_PRIMARY}; background: transparent;"
         )
         header_layout.addWidget(self.title)
 
@@ -185,7 +186,7 @@ class PlaylistPanel(QFrame):
             background: {Colors.ACCENT_GLOW};
             border: 1px solid {Colors.ACCENT_GLOW_STRONG};
             border-radius: 8px;
-            padding: 3px 8px;
+            padding: 3px 10px;
             font-size: {Typography.SIZE_XS}px;
             font-weight: {Typography.WEIGHT_SEMIBOLD};
         """)
@@ -233,19 +234,20 @@ class PlaylistPanel(QFrame):
             "plus.svg", tr("add_custom_slide"), toolbar
         )
         self.custom_slide_button.setObjectName("PrimaryToolButton")
+
         self.folder_button = PlaylistToolButton(
             "folder-open.svg", tr("new_folder"), toolbar
         )
-        self.remove_button = PlaylistToolButton(
-            "trash.svg", tr("playlist_remove"), toolbar
+
+        self.delete_button = PlaylistToolButton(
+            "trash.svg", tr("remove"), toolbar
         )
-        self.remove_button.setObjectName("DangerToolButton")
-        self.remove_button.setEnabled(False)
+        self.delete_button.setObjectName("DangerToolButton")
 
         toolbar_layout.addWidget(self.custom_slide_button)
         toolbar_layout.addWidget(self.folder_button)
+        toolbar_layout.addWidget(self.delete_button)
         toolbar_layout.addStretch(1)
-        toolbar_layout.addWidget(self.remove_button)
 
         # ── Tree view ─────────────────────────────────────────────────
         self.tree_view = QTreeView(self)
@@ -257,7 +259,10 @@ class PlaylistPanel(QFrame):
         self.tree_view.setAnimated(True)
         self.tree_view.setIndentation(0)
         self.tree_view.setItemDelegate(PlaylistDelegate(self))
-        self.tree_view.setStyleSheet(get_tree_style())
+        self.tree_view.setStyleSheet(
+            get_tree_style()
+            + " QTreeView { border: none; background: transparent; }"
+        )
         self.tree_view.setVerticalScrollMode(
             QAbstractItemView.ScrollMode.ScrollPerPixel
         )
@@ -314,9 +319,9 @@ class PlaylistPanel(QFrame):
 
         self.tree_view.clicked.connect(self._on_item_clicked)
         self.tree_view.doubleClicked.connect(self._on_item_double_clicked)
-        self.remove_button.clicked.connect(self._on_remove_clicked)
-        self.folder_button.clicked.connect(self._on_folder_clicked)
         self.custom_slide_button.clicked.connect(self._on_custom_slide_clicked)
+        self.folder_button.clicked.connect(self._on_folder_clicked)
+        self.delete_button.clicked.connect(self._on_remove_clicked)
 
         # Keyboard shortcuts
         self._delete_shortcut = QShortcut(QKeySequence.StandardKey.Delete, self)
@@ -345,13 +350,9 @@ class PlaylistPanel(QFrame):
         self.tree_view.setModel(self._proxy_model)
         self.tree_view.expanded.connect(self._on_folder_expanded)
 
-        self._update_remove_state()
         self._update_count()
         self._update_empty_state()
 
-        sel = self.tree_view.selectionModel()
-        if sel is not None:
-            sel.currentChanged.connect(lambda _c, _p: self._update_remove_state())
 
         # Connect to model changes to update count and grid
         if model is not None:
@@ -405,11 +406,7 @@ class PlaylistPanel(QFrame):
             self.tree_view.scrollTo(
                 view_idx, QAbstractItemView.ScrollHint.PositionAtCenter
             )
-        self._update_remove_state()
 
-    def _update_remove_state(self) -> None:
-        idx = self.tree_view.currentIndex()
-        self.remove_button.setEnabled(idx.isValid())
 
     def _on_folder_expanded(self, index: QModelIndex) -> None:
         """Accordion behaviour: when a folder is opened, collapse its siblings."""
@@ -432,7 +429,6 @@ class PlaylistPanel(QFrame):
             self._suppress_accordion = False
 
     def _on_item_clicked(self, index: QModelIndex) -> None:
-        self._update_remove_state()
         if self._model is None or self._proxy_model is None:
             return
         # Map proxy index to source index
@@ -496,13 +492,26 @@ class PlaylistPanel(QFrame):
     def _on_context_menu(self, pos) -> None:
         """Afficher le menu contextuel sur un élément de la playlist."""
         index = self.tree_view.indexAt(pos)
-        if not index.isValid():
-            return
 
         menu = QMenu(self)
         from app.ui.theme import get_menu_style
 
         menu.setStyleSheet(get_menu_style())
+
+        def _add_folder_action(target_menu) -> None:
+            folder_act = target_menu.addAction(
+                app_icon("folder-open.svg"), tr("new_folder")
+            )
+            folder_act.triggered.connect(self._on_folder_clicked)
+
+        if not index.isValid():
+            # Right-click on empty area: creation actions only.
+            _add_folder_action(menu)
+            menu.exec(self.tree_view.viewport().mapToGlobal(pos))
+            return
+
+        _add_folder_action(menu)
+        menu.addSeparator()
 
         # Determine if folder or slide
         source_index = (

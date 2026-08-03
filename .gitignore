@@ -5,6 +5,7 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+tmp/
 
 build/
 dist/
@@ -49,4 +50,3 @@ docs/music.wav
 docs/_render_raw/
 docs/_frames/
 docs/_thumb_2x.png
-

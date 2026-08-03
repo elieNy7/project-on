@@ -218,6 +218,7 @@ class LibraryController(QObject):
         if self._current_book_id is None:
             return
         self._current_chapter = int(chapter)
+        self._bible_tab.set_current_chapter(self._current_chapter)
         if self._current_translation_id is not None:
             verses = self._bible_dao.list_translation_verses(
                 self._current_translation_id,
@@ -450,6 +451,8 @@ class LibraryController(QObject):
         else:
             p = page_num
             self._current_expose_page = p
+
+        self._expose_tab.set_current_page(p)
 
         ch_id = self._current_expose_chapter_id
 

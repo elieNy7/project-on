@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from PyQt6.QtCore import QSignalBlocker, QSize, Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QKeySequence, QPixmap, QShortcut
+from PyQt6.QtGui import QColor, QFont, QKeySequence, QPixmap, QShortcut
 from PyQt6.QtWidgets import (
     QFrame,
     QGraphicsDropShadowEffect,
@@ -15,7 +15,7 @@ from PyQt6.QtWidgets import (
 )
 
 from app.ui.icons import app_icon
-from app.ui.theme import Colors, get_theme
+from app.ui.theme import Colors, Radius, get_theme
 from app.utils.translations import tr
 
 
@@ -153,12 +153,12 @@ class PreviewPanel(QFrame):
         # ── Header ────────────────────────────────────────────────
         self.header = QFrame(self)
         self.header.setObjectName("TopBar")
-        self.header.setFixedHeight(58)
+        self.header.setFixedHeight(56)
         self.header.setStyleSheet(f"""
             QFrame#TopBar {{
                 background: {Colors.BG_TERTIARY};
                 border: 1px solid {Colors.BORDER_SUBTLE};
-                border-radius: 14px;
+                border-radius: {Radius.LG}px;
             }}
         """)
 
@@ -211,7 +211,7 @@ class PreviewPanel(QFrame):
         self._mode_badge.setStyleSheet(
             f"""
             QLabel {{
-                background: rgba(116,167,248,0.14);
+                background: rgba(109,180,255,0.14);
                 border: none;
                 border-radius: 10px;
                 padding: 4px 10px;
@@ -231,13 +231,13 @@ class PreviewPanel(QFrame):
             " stop:0 #ffffff, stop:0.48 #f2f5fa, stop:1 #e6edf6)"
             if self._is_light_theme
             else "qlineargradient(x1:0, y1:0, x2:0, y2:1,"
-            " stop:0 #10233a, stop:0.48 #091523, stop:1 #050b13)"
+            " stop:0 #0f1c2e, stop:0.48 #0a1424, stop:1 #04070d)"
         )
         self._bg_hidden = (
             "qlineargradient(x1:0, y1:0, x2:0, y2:1,"
             " stop:0 #fff1f2, stop:1 #f8d7da)"
             if self._is_light_theme
-            else "qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #321722, stop:1 #110a10)"
+            else "qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #2e1520, stop:1 #0e090d)"
         )
 
         self._slide_frame = QFrame()
@@ -364,9 +364,11 @@ class PreviewPanel(QFrame):
         # ── Controls bar ──────────────────────────────────────────
         self.controls = QFrame(self)
         self.controls.setStyleSheet(f"""
-            background: {Colors.BG_TERTIARY};
-            border: 1px solid {Colors.BORDER_SUBTLE};
-            border-radius: 14px;
+            QFrame {{
+                background: {Colors.BG_TERTIARY};
+                border: 1px solid {Colors.BORDER_SUBTLE};
+                border-radius: {Radius.LG}px;
+            }}
         """)
         controls_layout = QHBoxLayout(self.controls)
         controls_layout.setContentsMargins(12, 10, 12, 10)
@@ -545,7 +547,7 @@ class PreviewPanel(QFrame):
             self._mode_badge.setStyleSheet(
                 f"""
                 QLabel {{
-                    background: rgba(116,167,248,0.14);
+                    background: rgba(109,180,255,0.14);
                     border: none;
                     border-radius: 10px;
                     padding: 4px 10px;
@@ -601,14 +603,19 @@ class PreviewPanel(QFrame):
     def _apply_slide_text_style(self) -> None:
         text_len = len(self.slide_view.text().strip())
 
-        base_size = 22
+        base_size = 16
         line_height = 1.3
         font_weight = "600"
         transform = "none"
 
         if self._settings and hasattr(self._settings, "projection"):
             projection = self._settings.projection
-            base_size = max(16, int(projection.text_size * 0.60))
+            # The operator preview is a monitoring view, not the stage: keep
+            # the text clearly smaller than the real projection output.
+            base_size = max(13, int(projection.text_size * 0.42))
+            pane_h = self._slide_frame.height()
+            if pane_h > 120:
+                base_size = max(base_size, int(pane_h * 0.038))
             line_height = projection.line_height
             font_weight = (
                 "800"
@@ -662,13 +669,16 @@ class PreviewPanel(QFrame):
         """)
 
         ref_size = max(9, font_size - 5)
+        # Qt style sheets ignore letter-spacing — set it on the QFont instead.
+        ref_font = QFont()
+        ref_font.setPixelSize(ref_size)
+        ref_font.setWeight(QFont.Weight.Bold)
+        ref_font.setLetterSpacing(QFont.SpacingType.PercentageSpacing, 112.0)
+        self._ref_label.setFont(ref_font)
         self._ref_label.setStyleSheet(f"""
             QLabel {{
-                font-size: {ref_size}px;
-                font-weight: 700;
                 color: {ref_color};
                 background: transparent;
-                letter-spacing: 0;
                 padding-top: 6px;
             }}
         """)

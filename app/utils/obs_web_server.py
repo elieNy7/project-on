@@ -7,6 +7,7 @@ notifications are sent OUTSIDE the data lock to prevent deadlocks.
 
 import json
 import queue
+import socket
 import sys
 import threading
 import time
@@ -30,6 +31,23 @@ class _QuietThreadingHTTPServer(ThreadingHTTPServer):
 
     daemon_threads = True
     allow_reuse_address = True
+
+    def server_bind(self):
+        """Bind without the reverse-DNS lookup.
+
+        ``http.server.HTTPServer.server_bind`` calls ``socket.getfqdn(host)``
+        after binding, which triggers a reverse DNS query. On machines with a
+        slow or unreachable resolver this blocks the UI thread for 1.5 s+ at
+        startup. ``server_name`` is only used for informational headers, so
+        keeping the bound host is safe here.
+        """
+        if self.allow_reuse_address and hasattr(socket, "SO_REUSEADDR"):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.socket.bind(self.server_address)
+        self.server_address = self.socket.getsockname()
+        host, port = self.server_address[:2]
+        self.server_name = host
+        self.server_port = port
 
     def handle_error(self, request, client_address):  # noqa: D102
         exc_type = sys.exc_info()[0]
