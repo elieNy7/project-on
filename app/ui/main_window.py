@@ -96,7 +96,7 @@ class MainWindow(QMainWindow):
 
         splitter = QSplitter(root)
         splitter.setChildrenCollapsible(False)
-        splitter.setHandleWidth(Spacing.XS)
+        splitter.setHandleWidth(Spacing.SM)
         splitter.setStyleSheet(get_splitter_style())
 
         self.library_panel = LibraryPanel(splitter)
@@ -112,10 +112,10 @@ class MainWindow(QMainWindow):
         splitter.addWidget(self.playlist_panel)
         splitter.addWidget(self.preview_panel)
 
-        # Balance: Library (30%), Playlist (40%), Preview (30%)
-        splitter.setStretchFactor(0, 30)
-        splitter.setStretchFactor(1, 40)
-        splitter.setStretchFactor(2, 30)
+        # Balance: Library (moderate, like Exposé) / Playlist / Preview
+        splitter.setStretchFactor(0, 34)
+        splitter.setStretchFactor(1, 38)
+        splitter.setStretchFactor(2, 28)
 
         # Proportional initial sizes
         width = self.width() if self.width() > 800 else 1400
