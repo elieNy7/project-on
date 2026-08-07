@@ -479,34 +479,36 @@ def vertical_split(
     top_stretch: int = 1,
     bottom_stretch: int = 2,
     parent: QWidget | None = None,
-) -> QSplitter:
-    """Stack ``top`` over ``bottom`` in a VERTICAL splitter.
+) -> QWidget:
+    """Stack ``top`` over ``bottom`` filling the FULL column height.
 
-    Unlike a plain QVBoxLayout, a vertical splitter constrains each panel to
-    its own height share (via setStretchFactor) and never lets an unconstrained
-    list widget (e.g. a QListWidget with hundreds of items) overflow and cover
-    the panel below. Both panels keep the FULL column width.
+    Uses a QVBoxLayout with explicit stretch factors (more reliable than a
+    QSplitter, which honours each widget's minimumSizeHint over the stretch and
+    would starve a small list). The list widgets are Expanding with
+    minimumHeight(0), so they fill their share without overflowing/covering the
+    panel below. Both panels keep the FULL column width.
+
+    A thin styled separator line between the two keeps the visual "divider"
+    language consistent with the main window's draggable splitter.
 
     The stretch factors are owned per-tab so the ratio can differ by tab.
     """
-    splitter = QSplitter(Qt.Orientation.Vertical, parent)
-    splitter.setHandleWidth(1)
-    splitter.setStyleSheet(
-        f"""
-        QSplitter::handle {{
-            background: {Colors.BORDER_SUBTLE};
-            height: 1px;
-        }}
-        """
-    )
-    splitter.addWidget(top)
-    splitter.addWidget(bottom)
-    # Force both panels to EXPAND so they always fill their allocated share
-    # of the splitter (otherwise a list widget with a small sizeHint — e.g.
-    # the hymns list with uniform item sizes — would leave a blank gap and
-    # not occupy the full height of its cell).
-    top.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-    bottom.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-    splitter.setStretchFactor(0, top_stretch)
-    splitter.setStretchFactor(1, bottom_stretch)
-    return splitter
+    container = QWidget(parent)
+    container.setStyleSheet("background: transparent;")
+    layout = QVBoxLayout(container)
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setSpacing(0)
+
+    layout.addWidget(top, top_stretch)
+    layout.addWidget(_divider_line(), 0)
+    layout.addWidget(bottom, bottom_stretch)
+    return container
+
+
+def _divider_line() -> QFrame:
+    """Thin horizontal separator matching the app's border language."""
+    line = QFrame()
+    line.setFixedHeight(1)
+    line.setFrameShape(QFrame.Shape.HLine)
+    line.setStyleSheet(f"background: {Colors.BORDER_SUBTLE}; border: none;")
+    return line

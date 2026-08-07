@@ -13,7 +13,7 @@ from PyQt6.QtWidgets import (
     QMenu,
     QPlainTextEdit,
     QPushButton,
-    QSplitter,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -99,6 +99,9 @@ class HymnsTab(QFrame):
         self.hymns_list.setItemDelegate(HymnDelegate(self.hymns_list))
         self.hymns_list.setUniformItemSizes(True)
         self.hymns_list.setVerticalScrollMode(QListWidget.ScrollMode.ScrollPerPixel)
+        self.hymns_list.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.hymns_list.setMinimumHeight(0)
+        self.hymns_list.setMaximumHeight(16777215)
 
         # Stanzas list (multi-selection)
         self.stanzas_list = QListWidget(self)
@@ -107,6 +110,9 @@ class HymnsTab(QFrame):
         self.stanzas_list.setWordWrap(False)
         self.stanzas_list.setItemDelegate(HymnStanzaDelegate(self.stanzas_list))
         self.stanzas_list.setVerticalScrollMode(QListWidget.ScrollMode.ScrollPerPixel)
+        self.stanzas_list.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.stanzas_list.setMinimumHeight(0)
+        self.stanzas_list.setMaximumHeight(16777215)
 
         # Preview box
         self.preview_box = QPlainTextEdit(self)
