@@ -159,20 +159,19 @@ class BibleTab(QFrame):
         right.addWidget(self.verse_preview)
         right.addWidget(self.add_verse_btn)
 
-        splitter = QSplitter(Qt.Orientation.Horizontal)
-        splitter.addWidget(left_widget)
-        splitter.addWidget(right_widget)
-        splitter.setStretchFactor(0, 2)
-        splitter.setStretchFactor(1, 5)
-        # Professional thin handle that reacts to hover
-        splitter.setHandleWidth(1)
-        splitter.setStyleSheet(get_splitter_style())
+        # ── Unified shell: header + filter bar + full-width column ──
+        column = QWidget(self)
+        column.setStyleSheet("background: transparent;")
+        col_layout = QVBoxLayout(column)
+        col_layout.setContentsMargins(0, 0, 0, 0)
+        col_layout.setSpacing(Spacing.MD)
+        col_layout.addWidget(left_widget)
+        col_layout.addWidget(right_widget, 1)
 
-        # ── Unified shell: header + filter bar + splitter body ──
         shell = TabShell(tr("bible"), "Ancien & Nouveau Testament", "book.svg", self)
         shell.header.add_action(self.translation_combo)
         shell.filter_bar.set_search(self.search)
-        shell.set_content(splitter)
+        shell.set_content(column)
 
         self.translation_combo.currentIndexChanged.connect(self._on_translation_changed)
         self.books_list.currentItemChanged.connect(self._on_book_changed)

@@ -11,12 +11,13 @@ search + contextual actions, and a `panel_card` helper for bordered surfaces.
 
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
+    QPushButton,
     QSizePolicy,
     QVBoxLayout,
     QWidget,
@@ -370,3 +371,97 @@ class DialogHeader(QFrame):
     def set_subtitle(self, subtitle: str) -> None:
         self._subtitle_lbl.setText(subtitle)
         self._subtitle_lbl.setVisible(bool(subtitle))
+
+
+# ──────────────────────────────────────────────────────────────────────────
+#  AppTitleBar — common window title bar shared by the main window
+# ──────────────────────────────────────────────────────────────────────────
+
+
+class AppTitleBar(QFrame):
+    """The single, unified title bar pinned at the top of the main window.
+
+    Shows the app identity (logo + name + tagline) on the left and a cluster
+    of global action buttons on the right. Its material matches SectionHeader
+    / TopBar so the whole application reads as one design language.
+    """
+
+    settingsRequested = pyqtSignal()
+    shortcutsRequested = pyqtSignal()
+    aboutRequested = pyqtSignal()
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setObjectName("AppTitleBar")
+        self.setFixedHeight(56)
+        self.setStyleSheet(
+            f"""
+            QFrame#AppTitleBar {{
+                background: qlineargradient(
+                    x1:0, y1:0, x2:1, y2:0,
+                    stop:0 {Colors.BG_TERTIARY},
+                    stop:1 {Colors.BG_SECONDARY}
+                );
+                border: 1px solid {Colors.BORDER_SUBTLE};
+                border-radius: {Radius.LG}px;
+            }}
+            """
+        )
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(Spacing.MD, 0, Spacing.MD, 0)
+        layout.setSpacing(Spacing.SM)
+
+        logo = QLabel(self)
+        logo.setPixmap(app_icon("monitor.svg", Colors.ACCENT_PRIMARY).pixmap(22, 22))
+        logo.setStyleSheet("background: transparent; border: none;")
+        layout.addWidget(logo)
+
+        col = QVBoxLayout()
+        col.setContentsMargins(0, 0, 0, 0)
+        col.setSpacing(1)
+        title = QLabel("Project-On", self)
+        title.setStyleSheet(
+            f"""
+            QLabel {{
+                font-size: {Typography.SIZE_LG}px;
+                font-weight: {Typography.WEIGHT_BOLD};
+                color: {Colors.TEXT_PRIMARY};
+                background: transparent;
+                border: none;
+            }}
+            """
+        )
+        tagline = QLabel("Gestion de présentation", self)
+        tagline.setStyleSheet(
+            f"""
+            QLabel {{
+                font-size: {Typography.SIZE_XS}px;
+                color: {Colors.TEXT_MUTED};
+                background: transparent;
+                border: none;
+            }}
+            """
+        )
+        col.addWidget(title)
+        col.addWidget(tagline)
+        layout.addLayout(col)
+        layout.addStretch(1)
+
+        self._btn_settings = self._make_button("settings.svg", "Paramètres", self.settingsRequested)
+        self._btn_shortcuts = self._make_button("keyboard.svg", "Raccourcis", self.shortcutsRequested)
+        self._btn_about = self._make_button("info.svg", "À propos", self.aboutRequested)
+        layout.addWidget(self._btn_shortcuts)
+        layout.addWidget(self._btn_about)
+        layout.addWidget(self._btn_settings)
+
+    def _make_button(self, icon_name: str, tooltip: str, signal) -> QPushButton:
+        btn = QPushButton(self)
+        btn.setIcon(app_icon(icon_name, Colors.TEXT_SECONDARY))
+        btn.setIconSize(__import__("PyQt6.QtCore", fromlist=["QSize"]).QSize(16, 16))
+        btn.setToolTip(tooltip)
+        btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn.setFixedSize(38, 38)
+        btn.setObjectName("IconButton")
+        btn.clicked.connect(signal.emit)
+        return btn

@@ -10,7 +10,6 @@ from PyQt6.QtGui import QColor, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
     QApplication,
     QDialog,
-    QGraphicsDropShadowEffect,
     QLineEdit,
     QMainWindow,
     QMessageBox,
@@ -36,6 +35,7 @@ from app.ui.theme import (
     get_main_window_style,
     get_theme,
     get_splitter_style,
+    panel_shadow,
     set_theme,
 )
 from app.utils.app_paths import ensure_presentation_workdir, settings_path
@@ -81,12 +81,18 @@ class MainWindow(QMainWindow):
             self._on_slide_changed_for_obs
         )
 
+        from app.ui.shared_tab import AppTitleBar
+
         root = QWidget(self)
         self.setCentralWidget(root)
 
         root_layout = QVBoxLayout(root)
         root_layout.setContentsMargins(Spacing.LG, Spacing.LG, Spacing.LG, Spacing.MD)
         root_layout.setSpacing(Spacing.MD)
+
+        # Common window title bar (shared design language)
+        self.title_bar = AppTitleBar(root)
+        root_layout.addWidget(self.title_bar)
 
         splitter = QSplitter(root)
         splitter.setChildrenCollapsible(False)
@@ -97,28 +103,19 @@ class MainWindow(QMainWindow):
         self.playlist_panel = PlaylistPanel(splitter)
         self.preview_panel = PreviewPanel(splitter, self._settings)
 
-        # Apply refined shadows to panels for depth
+        # Apply refined shadows to panels for depth (centralised in theme)
         is_light_theme = get_theme() == "light"
         for panel in (self.library_panel, self.playlist_panel, self.preview_panel):
-            shadow = QGraphicsDropShadowEffect(self)
-            shadow.setBlurRadius(28 if is_light_theme else 40)
-            shadow.setXOffset(0)
-            shadow.setYOffset(5 if is_light_theme else 8)
-            shadow.setColor(
-                QColor(15, 23, 42, 45)
-                if is_light_theme
-                else QColor(2, 6, 14, 160)
-            )
-            panel.setGraphicsEffect(shadow)
+            panel.setGraphicsEffect(panel_shadow(self))
 
         splitter.addWidget(self.library_panel)
         splitter.addWidget(self.playlist_panel)
         splitter.addWidget(self.preview_panel)
 
-        # Balance: Playlist (45%), Library (20%), Preview (35%)
-        splitter.setStretchFactor(0, 20)
-        splitter.setStretchFactor(1, 45)
-        splitter.setStretchFactor(2, 35)
+        # Balance: Library (30%), Playlist (40%), Preview (30%)
+        splitter.setStretchFactor(0, 30)
+        splitter.setStretchFactor(1, 40)
+        splitter.setStretchFactor(2, 30)
 
         # Proportional initial sizes
         width = self.width() if self.width() > 800 else 1400
@@ -185,6 +182,11 @@ class MainWindow(QMainWindow):
                     self._apply_settings_from_settings_tab
                 )
             self._refresh_settings_details()
+
+        # Common window title bar actions
+        self.title_bar.settingsRequested.connect(self._open_appearance_settings)
+        self.title_bar.shortcutsRequested.connect(self._show_shortcuts_dialog)
+        self.title_bar.aboutRequested.connect(self._show_about)
 
         # Connect playlist panel signals
         self.playlist_panel.moveRequested.connect(self._project_controller.move_index)

@@ -165,19 +165,19 @@ class HymnsTab(QFrame):
         right.addWidget(self.preview_box)
         right.addLayout(action_bar)
 
-        splitter = QSplitter(Qt.Orientation.Horizontal)
-        splitter.addWidget(left_widget)
-        splitter.addWidget(right_widget)
-        splitter.setStretchFactor(0, 2)
-        splitter.setStretchFactor(1, 5)
-        splitter.setHandleWidth(1)
-        splitter.setStyleSheet(get_splitter_style())
+        # ── Unified shell: header + filter bar + full-width column ──
+        column = QWidget(self)
+        column.setStyleSheet("background: transparent;")
+        col_layout = QVBoxLayout(column)
+        col_layout.setContentsMargins(0, 0, 0, 0)
+        col_layout.setSpacing(Spacing.MD)
+        col_layout.addWidget(left_widget)
+        col_layout.addWidget(right_widget, 1)
 
-        # ── Unified shell: header + filter bar + splitter body ──
         shell = TabShell("Cantiques", "Recueil de louange", "music.svg", self)
         shell.header.add_action(self.import_btn)
         shell.filter_bar.set_search(self.search)
-        shell.set_content(splitter)
+        shell.set_content(column)
 
         # Connections
         self.hymns_list.currentItemChanged.connect(self._on_hymn_changed)
