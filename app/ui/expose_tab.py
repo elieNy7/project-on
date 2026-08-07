@@ -26,7 +26,7 @@ from app.ui.library_list_presentation import (
     COMPACT_PREVIEW_BOX_HEIGHT,
     truncate_preview,
 )
-from app.ui.shared_tab import TabShell
+from app.ui.shared_tab import TabShell, vertical_split
 from app.ui.theme import (
     Colors,
     Radius,
@@ -182,22 +182,15 @@ class ExposeTab(QFrame):
         right.addWidget(self.paragraph_preview)
         right.addWidget(self.add_btn)
 
-        # ── Unified shell: header + filter bar + full-width column ──
-        column = QWidget(self)
-        column.setStyleSheet("background: transparent;")
-        col_layout = QVBoxLayout(column)
-        col_layout.setContentsMargins(0, 0, 0, 0)
-        col_layout.setSpacing(Spacing.MD)
-        col_layout.addWidget(left_widget, 2)
-        col_layout.addWidget(right_widget, 5)
+        # ── Unified shell: header + filter bar + full-width vertical split ──
+        splitter = vertical_split(left_widget, right_widget, 2, 5, self)
 
-        # ── Unified shell: header + filter bar + splitter body ──
         shell = TabShell("Exposé", "Les Sept Âges de l'Église", "file-text.svg", self)
         shell.header.add_action(self.translator_combo)
         shell.header.add_spacer(8)
         shell.header.add_action(self.btn_refresh)
         shell.filter_bar.set_search(self.search_input)
-        shell.set_content(column)
+        shell.set_content(splitter)
 
         # Signals
         self.chapters_list.currentItemChanged.connect(self._on_chapter_changed)

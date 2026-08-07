@@ -27,7 +27,7 @@ from app.ui.library_list_presentation import (
     normalize_preview_text,
     truncate_preview,
 )
-from app.ui.shared_tab import TabShell
+from app.ui.shared_tab import TabShell, vertical_split
 from app.ui.theme import (
     Colors,
     Radius,
@@ -159,19 +159,13 @@ class BibleTab(QFrame):
         right.addWidget(self.verse_preview)
         right.addWidget(self.add_verse_btn)
 
-        # ── Unified shell: header + filter bar + full-width column ──
-        column = QWidget(self)
-        column.setStyleSheet("background: transparent;")
-        col_layout = QVBoxLayout(column)
-        col_layout.setContentsMargins(0, 0, 0, 0)
-        col_layout.setSpacing(Spacing.MD)
-        col_layout.addWidget(left_widget)
-        col_layout.addWidget(right_widget, 1)
+        # ── Unified shell: header + filter bar + full-width vertical split ──
+        splitter = vertical_split(left_widget, right_widget, 1, 2, self)
 
         shell = TabShell(tr("bible"), "Ancien & Nouveau Testament", "book.svg", self)
         shell.header.add_action(self.translation_combo)
         shell.filter_bar.set_search(self.search)
-        shell.set_content(column)
+        shell.set_content(splitter)
 
         self.translation_combo.currentIndexChanged.connect(self._on_translation_changed)
         self.books_list.currentItemChanged.connect(self._on_book_changed)

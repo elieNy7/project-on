@@ -25,7 +25,7 @@ from app.ui.library_list_presentation import (
     COMPACT_PREVIEW_BOX_HEIGHT,
     truncate_preview,
 )
-from app.ui.shared_tab import TabShell
+from app.ui.shared_tab import TabShell, vertical_split
 from app.ui.theme import (
     Colors,
     Radius,
@@ -165,19 +165,13 @@ class HymnsTab(QFrame):
         right.addWidget(self.preview_box)
         right.addLayout(action_bar)
 
-        # ── Unified shell: header + filter bar + full-width column ──
-        column = QWidget(self)
-        column.setStyleSheet("background: transparent;")
-        col_layout = QVBoxLayout(column)
-        col_layout.setContentsMargins(0, 0, 0, 0)
-        col_layout.setSpacing(Spacing.MD)
-        col_layout.addWidget(left_widget)
-        col_layout.addWidget(right_widget, 1)
+        # ── Unified shell: header + filter bar + full-width vertical split ──
+        splitter = vertical_split(left_widget, right_widget, 1, 2, self)
 
         shell = TabShell("Cantiques", "Recueil de louange", "music.svg", self)
         shell.header.add_action(self.import_btn)
         shell.filter_bar.set_search(self.search)
-        shell.set_content(column)
+        shell.set_content(splitter)
 
         # Connections
         self.hymns_list.currentItemChanged.connect(self._on_hymn_changed)
