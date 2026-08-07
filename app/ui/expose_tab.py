@@ -182,14 +182,14 @@ class ExposeTab(QFrame):
         right.addWidget(self.paragraph_preview)
         right.addWidget(self.add_btn)
 
-        # ── Splitter ─────────────────────────────────────────────────────
-        splitter = QSplitter(Qt.Orientation.Horizontal)
-        splitter.addWidget(left_widget)
-        splitter.addWidget(right_widget)
-        splitter.setStretchFactor(0, 2)
-        splitter.setStretchFactor(1, 5)
-        splitter.setHandleWidth(1)
-        splitter.setStyleSheet(get_splitter_style())
+        # ── Unified shell: header + filter bar + full-width column ──
+        column = QWidget(self)
+        column.setStyleSheet("background: transparent;")
+        col_layout = QVBoxLayout(column)
+        col_layout.setContentsMargins(0, 0, 0, 0)
+        col_layout.setSpacing(Spacing.MD)
+        col_layout.addWidget(left_widget, 2)
+        col_layout.addWidget(right_widget, 5)
 
         # ── Unified shell: header + filter bar + splitter body ──
         shell = TabShell("Exposé", "Les Sept Âges de l'Église", "file-text.svg", self)
@@ -197,7 +197,7 @@ class ExposeTab(QFrame):
         shell.header.add_spacer(8)
         shell.header.add_action(self.btn_refresh)
         shell.filter_bar.set_search(self.search_input)
-        shell.set_content(splitter)
+        shell.set_content(column)
 
         # Signals
         self.chapters_list.currentItemChanged.connect(self._on_chapter_changed)
