@@ -26,6 +26,7 @@ from app.ui.library_list_presentation import (
     COMPACT_PREVIEW_BOX_HEIGHT,
     truncate_preview,
 )
+from app.ui.shared_tab import TabShell
 from app.ui.theme import (
     Colors,
     Radius,
@@ -176,27 +177,7 @@ class ExposeTab(QFrame):
         right.setSpacing(Spacing.SM)
         right.addWidget(self.page_scroll)
         right.addWidget(self.page_info_label)
-
-        # Filter Container with refined background
-        self.filter_container = QFrame(self)
-        self.filter_container.setStyleSheet(
-            f"""
-            QFrame {{
-                background: {Colors.BG_TERTIARY};
-                border: 1px solid {Colors.BORDER_SUBTLE};
-                border-radius: {Radius.MD}px;
-            }}
-            """
-        )
-
-        filter_layout = QHBoxLayout(self.filter_container)
-        filter_layout.setContentsMargins(Spacing.SM, Spacing.SM, Spacing.SM, Spacing.SM)
-        filter_layout.setSpacing(Spacing.SM)
-        filter_layout.addWidget(self.translator_combo)
-        filter_layout.addWidget(self.search_input, 1)
-        filter_layout.addWidget(self.btn_refresh)
-
-        right.addWidget(self.filter_container)
+        right.addWidget(self.search_input)
         right.addWidget(self.paragraphs_list, 1)
         right.addWidget(self.paragraph_preview)
         right.addWidget(self.add_btn)
@@ -210,11 +191,13 @@ class ExposeTab(QFrame):
         splitter.setHandleWidth(1)
         splitter.setStyleSheet(get_splitter_style())
 
-        # Main layout
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(Spacing.SM)
-        layout.addWidget(splitter, 1)
+        # ── Unified shell: header + filter bar + splitter body ──
+        shell = TabShell("Exposé", "Les Sept Âges de l'Église", "file-text.svg", self)
+        shell.header.add_action(self.translator_combo)
+        shell.header.add_spacer(8)
+        shell.header.add_action(self.btn_refresh)
+        shell.filter_bar.set_search(self.search_input)
+        shell.set_content(splitter)
 
         # Signals
         self.chapters_list.currentItemChanged.connect(self._on_chapter_changed)

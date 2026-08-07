@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from app.ui.shared_tab import DialogHeader
 from app.ui.theme import Colors, Radius, Typography
 from app.utils.translations import tr
 
@@ -55,21 +56,26 @@ class ShortcutsDialog(QDialog):
         """)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 20, 24, 20)
-        layout.setSpacing(16)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
-        # Title
-        title = QLabel(tr("keyboard_shortcuts"), self)
-        title.setStyleSheet(f"""
-            font-size: {Typography.SIZE_2XL}px;
-            font-weight: {Typography.WEIGHT_BOLD};
-            color: {Colors.TEXT_PRIMARY};
-        """)
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(title)
+        header = DialogHeader(
+            tr("keyboard_shortcuts"),
+            "Raccourcis clavier disponibles",
+            "keyboard.svg",
+            self,
+        )
+        layout.addWidget(header)
+
+        body = QWidget(self)
+        body.setStyleSheet("background: transparent;")
+        body_layout = QVBoxLayout(body)
+        body_layout.setContentsMargins(24, 20, 24, 20)
+        body_layout.setSpacing(16)
+        layout.addWidget(body, 1)
 
         # Scrollable list
-        scroll = QScrollArea(self)
+        scroll = QScrollArea(body)
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.Shape.NoFrame)
         scroll.setStyleSheet("""
@@ -83,12 +89,12 @@ class ShortcutsDialog(QDialog):
         rows_layout.setSpacing(2)
 
         # Header
-        header = self._make_row(
+        header_row = self._make_row(
             tr("shortcut_action"),
             tr("shortcut_key"),
             is_header=True,
         )
-        rows_layout.addWidget(header)
+        rows_layout.addWidget(header_row)
 
         # Shortcut rows
         for key, shortcut in _SHORTCUTS:
@@ -97,7 +103,7 @@ class ShortcutsDialog(QDialog):
 
         rows_layout.addStretch(1)
         scroll.setWidget(container)
-        layout.addWidget(scroll, 1)
+        body_layout.addWidget(scroll, 1)
 
         # Close button
         close_btn = QPushButton(tr("close"), self)
@@ -118,7 +124,7 @@ class ShortcutsDialog(QDialog):
             }}
         """)
         close_btn.clicked.connect(self.accept)
-        layout.addWidget(close_btn, 0, Qt.AlignmentFlag.AlignCenter)
+        body_layout.addWidget(close_btn, 0, Qt.AlignmentFlag.AlignCenter)
 
     @staticmethod
     def _make_row(label: str, shortcut: str, is_header: bool = False) -> QWidget:

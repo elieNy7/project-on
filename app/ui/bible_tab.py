@@ -27,6 +27,7 @@ from app.ui.library_list_presentation import (
     normalize_preview_text,
     truncate_preview,
 )
+from app.ui.shared_tab import TabShell
 from app.ui.theme import (
     Colors,
     Radius,
@@ -137,37 +138,14 @@ class BibleTab(QFrame):
         self.add_verse_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.add_verse_btn.setStyleSheet(get_button_style())
 
-        # Toolbar (Translation only in left panel now)
-        toolbar = QHBoxLayout()
-        toolbar.setContentsMargins(0, 0, 0, 0)
-        toolbar.setSpacing(Spacing.MD)
-        toolbar.addWidget(self.translation_combo, 1)
-
         # Left panel
         left_widget = QWidget()
         left_widget.setStyleSheet("background: transparent;")
         left = QVBoxLayout(left_widget)
         left.setContentsMargins(0, 0, 0, 0)
         left.setSpacing(Spacing.SM)
-        left.addLayout(toolbar)
         left.addWidget(books_label)
         left.addWidget(self.books_list, 1)
-
-        # Filter Container with refined background
-        self.filter_container = QFrame(self)
-        self.filter_container.setStyleSheet(
-            f"""
-            QFrame {{
-                background: {Colors.BG_TERTIARY};
-                border: 1px solid {Colors.BORDER_SUBTLE};
-                border-radius: {Radius.MD}px;
-            }}
-            """
-        )
-        filter_layout = QHBoxLayout(self.filter_container)
-        filter_layout.setContentsMargins(Spacing.SM, Spacing.SM, Spacing.SM, Spacing.SM)
-        filter_layout.setSpacing(Spacing.SM)
-        filter_layout.addWidget(self.search, 1)
 
         # Right panel
         right_widget = QWidget()
@@ -176,7 +154,7 @@ class BibleTab(QFrame):
         right.setContentsMargins(0, 0, 0, 0)
         right.setSpacing(Spacing.SM)
         right.addWidget(self.chapter_scroll)
-        right.addWidget(self.filter_container)
+        right.addWidget(self.search)
         right.addWidget(self.verses_list, 1)
         right.addWidget(self.verse_preview)
         right.addWidget(self.add_verse_btn)
@@ -190,11 +168,11 @@ class BibleTab(QFrame):
         splitter.setHandleWidth(1)
         splitter.setStyleSheet(get_splitter_style())
 
-        # Main layout
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-        layout.addWidget(splitter, 1)
+        # ── Unified shell: header + filter bar + splitter body ──
+        shell = TabShell(tr("bible"), "Ancien & Nouveau Testament", "book.svg", self)
+        shell.header.add_action(self.translation_combo)
+        shell.filter_bar.set_search(self.search)
+        shell.set_content(splitter)
 
         self.translation_combo.currentIndexChanged.connect(self._on_translation_changed)
         self.books_list.currentItemChanged.connect(self._on_book_changed)
