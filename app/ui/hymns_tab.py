@@ -25,6 +25,7 @@ from app.ui.library_list_presentation import (
     COMPACT_PREVIEW_BOX_HEIGHT,
     truncate_preview,
 )
+from app.ui.shared_tab import TabShell
 from app.ui.theme import (
     Colors,
     Radius,
@@ -147,43 +148,19 @@ class HymnsTab(QFrame):
         action_bar.addWidget(self.add_btn, 1)
         action_bar.addWidget(self.delete_btn)
 
-        # Left Header
-        left_header = QHBoxLayout()
-        left_header.setContentsMargins(0, 0, 0, 0)
-        left_header.setSpacing(Spacing.MD)
-        left_header.addWidget(hymns_label)
-        left_header.addStretch()
-        left_header.addWidget(self.import_btn)
-
         # Layouts
         left_widget = QWidget()
         left = QVBoxLayout(left_widget)
         left.setContentsMargins(0, 0, 0, 0)
         left.setSpacing(Spacing.SM)
-        left.addLayout(left_header)
+        left.addWidget(hymns_label)
         left.addWidget(self.hymns_list, 1)
-
-        # Filter Container — refined
-        self.filter_container = QFrame(self)
-        self.filter_container.setStyleSheet(
-            f"""
-            QFrame {{
-                background: {Colors.BG_TERTIARY};
-                border: 1px solid {Colors.BORDER_SUBTLE};
-                border-radius: {Radius.MD}px;
-            }}
-            """
-        )
-        filter_layout = QHBoxLayout(self.filter_container)
-        filter_layout.setContentsMargins(Spacing.SM, Spacing.SM, Spacing.SM, Spacing.SM)
-        filter_layout.setSpacing(Spacing.SM)
-        filter_layout.addWidget(self.search, 1)
 
         right_widget = QWidget()
         right = QVBoxLayout(right_widget)
         right.setContentsMargins(0, 0, 0, 0)
         right.setSpacing(Spacing.SM)
-        right.addWidget(self.filter_container)
+        right.addWidget(self.search)
         right.addWidget(self.stanzas_list, 1)
         right.addWidget(self.preview_box)
         right.addLayout(action_bar)
@@ -196,9 +173,11 @@ class HymnsTab(QFrame):
         splitter.setHandleWidth(1)
         splitter.setStyleSheet(get_splitter_style())
 
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.addWidget(splitter)
+        # ── Unified shell: header + filter bar + splitter body ──
+        shell = TabShell("Cantiques", "Recueil de louange", "music.svg", self)
+        shell.header.add_action(self.import_btn)
+        shell.filter_bar.set_search(self.search)
+        shell.set_content(splitter)
 
         # Connections
         self.hymns_list.currentItemChanged.connect(self._on_hymn_changed)
