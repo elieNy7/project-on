@@ -501,6 +501,12 @@ def vertical_split(
     )
     splitter.addWidget(top)
     splitter.addWidget(bottom)
+    # Force both panels to EXPAND so they always fill their allocated share
+    # of the splitter (otherwise a list widget with a small sizeHint — e.g.
+    # the hymns list with uniform item sizes — would leave a blank gap and
+    # not occupy the full height of its cell).
+    top.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+    bottom.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
     splitter.setStretchFactor(0, top_stretch)
     splitter.setStretchFactor(1, bottom_stretch)
     return splitter
