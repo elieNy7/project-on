@@ -756,13 +756,16 @@ def get_splitter_style() -> str:
     return f"""
         QSplitter::handle {{
             background: transparent;
+            border: 0;
             margin: 0;
         }}
         QSplitter::handle:horizontal {{
-            width: 2px;
+            width: 8px;
+            border-left: 1px solid {Colors.BORDER_SUBTLE};
         }}
         QSplitter::handle:vertical {{
-            height: 2px;
+            height: 8px;
+            border-top: 1px solid {Colors.BORDER_SUBTLE};
         }}
         QSplitter::handle:hover {{
             background: {Colors.ACCENT_PRIMARY};
