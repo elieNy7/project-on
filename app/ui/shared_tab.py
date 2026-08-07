@@ -21,6 +21,7 @@ from PyQt6.QtWidgets import (
     QSizePolicy,
     QVBoxLayout,
     QWidget,
+    QSplitter,
 )
 
 from app.ui.icons import app_icon
@@ -465,3 +466,41 @@ class AppTitleBar(QFrame):
         btn.setObjectName("IconButton")
         btn.clicked.connect(signal.emit)
         return btn
+
+
+# ──────────────────────────────────────────────────────────────────────────
+#  vertical_split — full-width stacked splitter (no overlap, tab-owned ratio)
+# ──────────────────────────────────────────────────────────────────────────
+
+
+def vertical_split(
+    top: QWidget,
+    bottom: QWidget,
+    top_stretch: int = 1,
+    bottom_stretch: int = 2,
+    parent: QWidget | None = None,
+) -> QSplitter:
+    """Stack ``top`` over ``bottom`` in a VERTICAL splitter.
+
+    Unlike a plain QVBoxLayout, a vertical splitter constrains each panel to
+    its own height share (via setStretchFactor) and never lets an unconstrained
+    list widget (e.g. a QListWidget with hundreds of items) overflow and cover
+    the panel below. Both panels keep the FULL column width.
+
+    The stretch factors are owned per-tab so the ratio can differ by tab.
+    """
+    splitter = QSplitter(Qt.Orientation.Vertical, parent)
+    splitter.setHandleWidth(1)
+    splitter.setStyleSheet(
+        f"""
+        QSplitter::handle {{
+            background: {Colors.BORDER_SUBTLE};
+            height: 1px;
+        }}
+        """
+    )
+    splitter.addWidget(top)
+    splitter.addWidget(bottom)
+    splitter.setStretchFactor(0, top_stretch)
+    splitter.setStretchFactor(1, bottom_stretch)
+    return splitter

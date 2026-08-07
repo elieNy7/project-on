@@ -28,7 +28,7 @@ from app.ui.library_list_presentation import (
 )
 from app.ui.sermon_delegate import SermonParagraphDelegate
 from app.ui.sermon_list_delegate import SermonListDelegate
-from app.ui.shared_tab import TabShell
+from app.ui.shared_tab import TabShell, vertical_split
 from app.ui.theme import (
     Colors,
     Radius,
@@ -223,14 +223,8 @@ class SermonsTab(QFrame):
         right.addWidget(self.paragraph_preview)
         right.addWidget(self.add_paragraph_btn)
 
-        # ── Unified shell: header + filter bar + full-width column ──
-        column = QWidget(self)
-        column.setStyleSheet("background: transparent;")
-        col_layout = QVBoxLayout(column)
-        col_layout.setContentsMargins(0, 0, 0, 0)
-        col_layout.setSpacing(Spacing.MD)
-        col_layout.addWidget(left_widget)
-        col_layout.addWidget(right_widget, 1)
+        # ── Unified shell: header + filter bar + full-width vertical split ──
+        splitter = vertical_split(left_widget, right_widget, 1, 2, self)
 
         shell = TabShell("Prédications", "Messages & enseignements", "mic.svg", self)
         shell.header.add_action(self.year_combo)
@@ -239,7 +233,7 @@ class SermonsTab(QFrame):
         shell.filter_bar.set_search(self.search)
         shell.filter_bar.add_trailing(self._para_search_btn)
         shell.filter_bar.add_trailing(self.btn_refresh)
-        shell.set_content(column)
+        shell.set_content(splitter)
 
         self.sermons_list.currentItemChanged.connect(self._on_sermon_changed)
         self.paragraphs_list.itemDoubleClicked.connect(self._on_paragraph_activated)
