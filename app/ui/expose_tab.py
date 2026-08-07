@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import (
     QPlainTextEdit,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QSplitter,
     QVBoxLayout,
     QWidget,
@@ -70,6 +71,9 @@ class ExposeTab(QFrame):
         self.chapters_list.setItemDelegate(ExposeListDelegate(self.chapters_list))
         self.chapters_list.setUniformItemSizes(True)
         self.chapters_list.setVerticalScrollMode(QListWidget.ScrollMode.ScrollPerPixel)
+        self.chapters_list.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.chapters_list.setMinimumHeight(0)
+        self.chapters_list.setMaximumHeight(16777215)
 
         # Title label above chapters
         chapters_label = QLabel(self.tr("Chapitres"), self)
@@ -139,6 +143,8 @@ class ExposeTab(QFrame):
             QListWidget.ScrollMode.ScrollPerPixel
         )
         self.paragraphs_list.setTextElideMode(Qt.TextElideMode.ElideRight)
+        self.paragraphs_list.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.paragraphs_list.setMinimumHeight(0)
 
         self.paragraph_preview = QPlainTextEdit(self)
         self.paragraph_preview.setReadOnly(True)

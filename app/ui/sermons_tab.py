@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import (
     QMenu,
     QPlainTextEdit,
     QPushButton,
+    QSizePolicy,
     QSplitter,
     QVBoxLayout,
     QWidget,
@@ -133,6 +134,9 @@ class SermonsTab(QFrame):
         self.sermons_list.setItemDelegate(SermonListDelegate(self.sermons_list))
         self.sermons_list.setUniformItemSizes(True)
         self.sermons_list.setVerticalScrollMode(QListWidget.ScrollMode.ScrollPerPixel)
+        self.sermons_list.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.sermons_list.setMinimumHeight(0)
+        self.sermons_list.setMaximumHeight(16777215)
 
         # Paragraphs list
         self.paragraphs_count_label = QLabel("0 paragraphes", self)
@@ -148,6 +152,8 @@ class SermonsTab(QFrame):
         self.paragraphs_list.setVerticalScrollMode(
             QListWidget.ScrollMode.ScrollPerPixel
         )
+        self.paragraphs_list.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.paragraphs_list.setMinimumHeight(0)
         self.paragraphs_list.setHorizontalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         )

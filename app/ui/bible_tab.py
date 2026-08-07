@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import (
     QPlainTextEdit,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QSplitter,
     QVBoxLayout,
     QWidget,
@@ -80,6 +81,9 @@ class BibleTab(QFrame):
         self.books_list.setItemDelegate(BibleBookDelegate(self.books_list))
         self.books_list.setUniformItemSizes(True)
         self.books_list.setVerticalScrollMode(QListWidget.ScrollMode.ScrollPerPixel)
+        self.books_list.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.books_list.setMinimumHeight(0)
+        self.books_list.setMaximumHeight(16777215)
 
         # Title label above books
         books_label = QLabel(tr("bible"), self)
@@ -115,6 +119,8 @@ class BibleTab(QFrame):
         self.verses_list.setItemDelegate(BibleVerseDelegate(self.verses_list))
         self.verses_list.setVerticalScrollMode(QListWidget.ScrollMode.ScrollPerPixel)
         self.verses_list.setTextElideMode(Qt.TextElideMode.ElideRight)
+        self.verses_list.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.verses_list.setMinimumHeight(0)
         # self.verses_list.setUniformItemSizes(True) # Disabled for flexible delegate height
 
         # Verse preview (Modernized)
