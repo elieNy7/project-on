@@ -37,7 +37,6 @@ from app.ui.theme import (
     Typography,
     get_combo_style,
     get_panel_style,
-    get_topbar_style,
     get_tree_style,
 )
 from app.utils.playlist_model import PlaylistRoles
@@ -163,8 +162,14 @@ class PlaylistPanel(QFrame):
         # ── Header: title + count + action buttons ────────────────────────
         header = QFrame(self)
         header.setObjectName("TopBar")
-        header.setFixedHeight(52)
-        header.setStyleSheet(get_topbar_style(52))
+        header.setFixedHeight(56)
+        header.setStyleSheet(f"""
+            QFrame#TopBar {{
+                background: {Colors.BG_TERTIARY};
+                border: 1px solid {Colors.BORDER_SUBTLE};
+                border-radius: {Radius.LG}px;
+            }}
+        """)
         header_layout = QHBoxLayout(header)
         header_layout.setContentsMargins(14, 10, 14, 10)
         header_layout.setSpacing(Spacing.SM)

@@ -15,7 +15,7 @@ from PyQt6.QtWidgets import (
 )
 
 from app.ui.icons import app_icon
-from app.ui.theme import Colors, Radius, get_theme, get_topbar_style
+from app.ui.theme import Colors, Radius, get_theme
 from app.utils.translations import tr
 
 
@@ -153,8 +153,14 @@ class PreviewPanel(QFrame):
         # ── Header ────────────────────────────────────────────────
         self.header = QFrame(self)
         self.header.setObjectName("TopBar")
-        self.header.setFixedHeight(52)
-        self.header.setStyleSheet(get_topbar_style(52))
+        self.header.setFixedHeight(56)
+        self.header.setStyleSheet(f"""
+            QFrame#TopBar {{
+                background: {Colors.BG_TERTIARY};
+                border: 1px solid {Colors.BORDER_SUBTLE};
+                border-radius: {Radius.LG}px;
+            }}
+        """)
 
         header_lay = QHBoxLayout(self.header)
         header_lay.setContentsMargins(16, 0, 16, 0)

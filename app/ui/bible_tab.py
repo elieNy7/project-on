@@ -14,7 +14,6 @@ from PyQt6.QtWidgets import (
     QPlainTextEdit,
     QPushButton,
     QScrollArea,
-    QSizePolicy,
     QSplitter,
     QVBoxLayout,
     QWidget,
@@ -28,7 +27,6 @@ from app.ui.library_list_presentation import (
     normalize_preview_text,
     truncate_preview,
 )
-from app.ui.shared_tab import TabShell, vertical_split
 from app.ui.theme import (
     Colors,
     Radius,
@@ -81,9 +79,6 @@ class BibleTab(QFrame):
         self.books_list.setItemDelegate(BibleBookDelegate(self.books_list))
         self.books_list.setUniformItemSizes(True)
         self.books_list.setVerticalScrollMode(QListWidget.ScrollMode.ScrollPerPixel)
-        self.books_list.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self.books_list.setMinimumHeight(0)
-        self.books_list.setMaximumHeight(16777215)
 
         # Title label above books
         books_label = QLabel(tr("bible"), self)
@@ -119,8 +114,6 @@ class BibleTab(QFrame):
         self.verses_list.setItemDelegate(BibleVerseDelegate(self.verses_list))
         self.verses_list.setVerticalScrollMode(QListWidget.ScrollMode.ScrollPerPixel)
         self.verses_list.setTextElideMode(Qt.TextElideMode.ElideRight)
-        self.verses_list.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self.verses_list.setMinimumHeight(0)
         # self.verses_list.setUniformItemSizes(True) # Disabled for flexible delegate height
 
         # Verse preview (Modernized)
@@ -144,14 +137,37 @@ class BibleTab(QFrame):
         self.add_verse_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.add_verse_btn.setStyleSheet(get_button_style())
 
+        # Toolbar (Translation only in left panel now)
+        toolbar = QHBoxLayout()
+        toolbar.setContentsMargins(0, 0, 0, 0)
+        toolbar.setSpacing(Spacing.MD)
+        toolbar.addWidget(self.translation_combo, 1)
+
         # Left panel
         left_widget = QWidget()
         left_widget.setStyleSheet("background: transparent;")
         left = QVBoxLayout(left_widget)
         left.setContentsMargins(0, 0, 0, 0)
         left.setSpacing(Spacing.SM)
+        left.addLayout(toolbar)
         left.addWidget(books_label)
         left.addWidget(self.books_list, 1)
+
+        # Filter Container with refined background
+        self.filter_container = QFrame(self)
+        self.filter_container.setStyleSheet(
+            f"""
+            QFrame {{
+                background: {Colors.BG_TERTIARY};
+                border: 1px solid {Colors.BORDER_SUBTLE};
+                border-radius: {Radius.MD}px;
+            }}
+            """
+        )
+        filter_layout = QHBoxLayout(self.filter_container)
+        filter_layout.setContentsMargins(Spacing.SM, Spacing.SM, Spacing.SM, Spacing.SM)
+        filter_layout.setSpacing(Spacing.SM)
+        filter_layout.addWidget(self.search, 1)
 
         # Right panel
         right_widget = QWidget()
@@ -160,18 +176,25 @@ class BibleTab(QFrame):
         right.setContentsMargins(0, 0, 0, 0)
         right.setSpacing(Spacing.SM)
         right.addWidget(self.chapter_scroll)
-        right.addWidget(self.search)
+        right.addWidget(self.filter_container)
         right.addWidget(self.verses_list, 1)
         right.addWidget(self.verse_preview)
         right.addWidget(self.add_verse_btn)
 
-        # ── Unified shell: header + filter bar + full-width vertical split ──
-        splitter = vertical_split(left_widget, right_widget, 1, 2, self)
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+        splitter.addWidget(left_widget)
+        splitter.addWidget(right_widget)
+        splitter.setStretchFactor(0, 2)
+        splitter.setStretchFactor(1, 5)
+        # Professional thin handle that reacts to hover
+        splitter.setHandleWidth(1)
+        splitter.setStyleSheet(get_splitter_style())
 
-        shell = TabShell(tr("bible"), "Ancien & Nouveau Testament", "book.svg", self)
-        shell.header.add_action(self.translation_combo)
-        shell.filter_bar.set_search(self.search)
-        shell.set_content(splitter)
+        # Main layout
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(splitter, 1)
 
         self.translation_combo.currentIndexChanged.connect(self._on_translation_changed)
         self.books_list.currentItemChanged.connect(self._on_book_changed)
