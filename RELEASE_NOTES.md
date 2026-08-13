@@ -1,22 +1,20 @@
-# Project-On 1.4.0
+# Project-On 1.5.1
 
-Une version pensée pour les églises : ordre du culte en un clic, compte à rebours en direct, lower-third totalement ajustable et sortie NDI optimisée.
+Cette mise à jour stabilise la projection locale : la taille du texte est désormais strictement celle choisie dans les paramètres, quelle que soit la longueur de la slide.
 
 ## Nouveautés de cette version
 
-- **Ordre du culte** : générez en un clic un dossier de playlist complet — accueil, louange, prière, lecture biblique, prédication, offrande & dîme, annonces (numérotées automatiquement), Sainte-Cène, baptême, présentation d'enfant, bénédiction — avec le thème, le prédicateur et le nom de l'église.
-- **Compte à rebours avant le culte** : décompte affiché en direct sur la projection locale, OBS et NDI (message, durée et message de fin configurables). S'arrête automatiquement à zéro sur le message d'accueil ; un clic sur une slide reprend la main.
-- **Lower-third totalement ajustable** : décalage horizontal/vertical au pixel près, placement du bandeau (gauche / centre / droite), marge des bords, alignement du texte à droite, badge de source et barre d'accent activables, couleur d'accent automatique par source ou personnalisée.
-- **Préréglages église** dans les réglages OBS : *Église — Culte*, *Sainte-Cène — Discret*, *Louange — Impact*.
-- **Sortie NDI améliorée** : consommation CPU fortement réduite (rendu uniquement au changement de slide), et prise en charge des mêmes réglages que l'OBS (position, dégradé, fond désactivé, majuscules, opacité, accents fidèles aux couleurs de l'application).
-- **Export / Import de playlist** au format JSON, pour préparer le culte sur un poste et le projeter sur un autre.
-- **Projection locale** : alignement du texte à droite désormais disponible.
+- **Taille locale constante** : aucun texte court ou long ne peut agrandir ou réduire automatiquement la police.
+- **Paramètre respecté** : la taille principale et celle de la référence suivent exactement les valeurs configurées, avec mise à l'échelle proportionnelle sur les écrans au-delà de 1080p.
+- **Compatibilité automatique** : les anciens réglages « auto-fit » locaux sont migrés vers le rendu uniforme sans casser les préférences existantes.
+- **Aperçu opérateur cohérent** : le retour de projection conserve lui aussi une taille stable entre les slides.
+- **Stabilité générale** : validation complète de la projection, des réglages, de la bibliothèque, des imports et de la playlist.
 
 ## Installation
 
-Téléchargez **`ProjectOn_1.4.0_Setup.exe`** ci-dessous et lancez-le.
+Téléchargez **`ProjectOn_1.5.1_Setup.exe`** ci-dessous et lancez-le.
 Si Windows affiche **SmartScreen** : « Informations complémentaires » → « Exécuter quand même ».
-Si l'installeur est bloqué (erreur 4551), utilisez **`ProjectOn_1.4.0_Portable.zip`** : décompressez et lancez `Project-On.exe`.
+Si l'installeur est bloqué (erreur 4551), utilisez **`ProjectOn_1.5.1_Portable.zip`** : décompressez et lancez `Project-On.exe`.
 
 Windows 10 / 11 (64 bits) · ~500 Mo · fonctionne hors-ligne.
 

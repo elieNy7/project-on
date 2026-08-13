@@ -7,6 +7,56 @@ block_cipher = None
 spec_root = Path(globals().get("SPECPATH", ".")).resolve()
 
 
+def build_windows_version_resource() -> Path:
+    version_namespace = {}
+    exec(
+        (spec_root / "app" / "version.py").read_text(encoding="utf-8"),
+        version_namespace,
+    )
+    version = str(version_namespace["__version__"])
+    parts = [int(part) for part in version.split(".")]
+    if len(parts) > 4:
+        raise ValueError(f"Unsupported application version: {version}")
+    parts.extend([0] * (4 - len(parts)))
+    version_tuple = tuple(parts)
+    resource_path = spec_root / "build" / "project_on_version_info.txt"
+    resource_path.parent.mkdir(parents=True, exist_ok=True)
+    resource_path.write_text(
+        f"""VSVersionInfo(
+  ffi=FixedFileInfo(
+    filevers={version_tuple},
+    prodvers={version_tuple},
+    mask=0x3f,
+    flags=0x0,
+    OS=0x40004,
+    fileType=0x1,
+    subtype=0x0,
+    date=(0, 0)
+  ),
+  kids=[
+    StringFileInfo([
+      StringTable(
+        u'040c04B0',
+        [StringStruct(u'CompanyName', u'Elie Nyembo'),
+         StringStruct(u'FileDescription', u'Project-On - Projection pour eglises'),
+         StringStruct(u'FileVersion', u'{version}'),
+         StringStruct(u'InternalName', u'Project-On'),
+         StringStruct(u'LegalCopyright', u'Copyright 2026 Elie Nyembo'),
+         StringStruct(u'OriginalFilename', u'Project-On.exe'),
+         StringStruct(u'ProductName', u'Project-On'),
+         StringStruct(u'ProductVersion', u'{version}')])
+    ]),
+    VarFileInfo([VarStruct(u'Translation', [1036, 1200])])
+  ]
+)""",
+        encoding="utf-8",
+    )
+    return resource_path
+
+
+version_resource = build_windows_version_resource()
+
+
 def data_file(relative_path, target_dir):
     src = spec_root / relative_path
     if not src.exists():
@@ -122,6 +172,7 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon='assets/logo.ico',
+    version=str(version_resource),
 )
 
 coll = COLLECT(

@@ -6,6 +6,7 @@ application. Deep obsidian tones with warm gold accents — reverent, cinematic 
 
 from __future__ import annotations
 
+from PyQt6.QtWidgets import QGraphicsDropShadowEffect
 from PyQt6.QtGui import QColor
 
 
@@ -486,6 +487,47 @@ def get_card_style() -> str:
     """
 
 
+def get_topbar_style(height: int = 52) -> str:
+    """Shared style for the unified section/card top bars (Playlist, Preview,
+    dialogs). Keeps the same material as SectionHeader for visual parity."""
+    return f"""
+        QFrame#TopBar {{
+            background: qlineargradient(
+                x1:0, y1:0, x2:0, y2:1,
+                stop:0 {Colors.BG_TERTIARY},
+                stop:1 {Colors.BG_SECONDARY}
+            );
+            border: 1px solid {Colors.BORDER_SUBTLE};
+            border-radius: {Radius.MD}px;
+            min-height: {height}px;
+            max-height: {height}px;
+        }}
+    """
+
+
+def panel_shadow(widget_parent) -> "object":
+    """A consistent depth shadow for the main window's three panels.
+
+    Centralises the previously hard-coded colours so light/dark both read
+    from the theme palette (Shadows.SHADOW_* / SHADOW_COLOR).
+    """
+    from PyQt6.QtGui import QColor  # local import to avoid top-level churn
+
+    is_light = get_theme() == "light"
+    shadow = QGraphicsDropShadowEffect(widget_parent)
+    if is_light:
+        shadow.setBlurRadius(28)
+        shadow.setXOffset(0)
+        shadow.setYOffset(5)
+        shadow.setColor(QColor(74, 58, 34, 35))
+    else:
+        shadow.setBlurRadius(40)
+        shadow.setXOffset(0)
+        shadow.setYOffset(8)
+        shadow.setColor(QColor(2, 6, 14, 150))
+    return shadow
+
+
 def get_list_style(
     accent: str = Colors.ACCENT_PRIMARY, borderless: bool = False
 ) -> str:
@@ -714,13 +756,16 @@ def get_splitter_style() -> str:
     return f"""
         QSplitter::handle {{
             background: transparent;
+            border: 0;
             margin: 0;
         }}
         QSplitter::handle:horizontal {{
-            width: 2px;
+            width: 8px;
+            border-left: 1px solid {Colors.BORDER_SUBTLE};
         }}
         QSplitter::handle:vertical {{
-            height: 2px;
+            height: 8px;
+            border-top: 1px solid {Colors.BORDER_SUBTLE};
         }}
         QSplitter::handle:hover {{
             background: {Colors.ACCENT_PRIMARY};

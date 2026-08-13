@@ -109,7 +109,8 @@ def test_invalid_modes_fall_back_without_breaking_old_settings(tmp_path) -> None
     assert settings.obs.output.to_obs_config()["layout_mode"] == "lower_third"
     assert settings.projection.text_size == 60
     assert settings.obs.output.text_size == 54
-    assert settings.projection.uniform_text_size is False
+    assert settings.projection.auto_fit is False
+    assert settings.projection.uniform_text_size is True
     assert settings.obs.output.uniform_text_size is True
 
 
@@ -180,7 +181,8 @@ def test_zero_value_controls_survive_export_and_reload(tmp_path) -> None:
     assert local["panel_opacity"] == 0.0
     assert local["bg_gradient_angle"] == 0
     assert local["animation_duration"] == 0
-    assert local["uniform_text_size"] is False
+    assert local["auto_fit"] is False
+    assert local["uniform_text_size"] is True
     assert obs["padding_horizontal"] == 0
     assert obs["padding_vertical"] == 0
     assert obs["border_radius"] == 0
@@ -275,14 +277,16 @@ def test_local_projection_uses_safe_area_instead_of_inner_padding(tmp_path) -> N
     app.processEvents()
 
 
-def test_uniform_mode_never_clips_long_slides(tmp_path) -> None:
+def test_local_projection_size_is_constant_for_every_text_length(tmp_path) -> None:
     app = QApplication.instance() or QApplication([])
     window = ProjectionWindow(tmp_path)
     window.resize(1280, 720)
     config = ProjectionSettings(
         text_size=64,
+        # Legacy variable-fit values must no longer override the operator's
+        # explicit local projection size.
         auto_fit=True,
-        uniform_text_size=True,
+        uniform_text_size=False,
         min_text_size=18,
         max_lines=4,
     ).to_presentation_config()
@@ -296,10 +300,7 @@ def test_uniform_mode_never_clips_long_slides(tmp_path) -> None:
         window._render_slide_content({"text": text, "reference": "Référence"})
         sizes.append(window.text_label.font().pixelSize())
 
-    # Short slide keeps the configured size; a slide that would overflow is
-    # shrunk to the largest size that fits instead of being clipped.
-    assert sizes[0] == 64
-    assert 12 <= sizes[1] < 64
+    assert sizes == [64, 64]
     window.close()
     app.processEvents()
 
@@ -318,8 +319,8 @@ def test_local_projection_honours_fit_settings_and_validates_layout(tmp_path) ->
     window._apply_config(config)
     assert window._config["layout_mode"] == "fullscreen"
     assert window._config["position"] == "center"
-    assert window._config["auto_fit"] is True
-    assert window._config["uniform_text_size"] is False
+    assert window._config["auto_fit"] is False
+    assert window._config["uniform_text_size"] is True
     assert window._config["panel_enabled"] is False
 
     # Invalid legacy values fall back to safe defaults instead of breaking.
@@ -409,10 +410,11 @@ def test_settings_dialogs_expose_auto_grow_as_the_default() -> None:
     local_dialog = ProjectionSettingsDialog(ProjectionSettings())
     obs_dialog = ObsOutputSettingsDialog(ObsOutputSettings())
 
-    assert local_dialog._uniform_text_size.isChecked() is False
-    assert local_dialog._auto_fit.isEnabled() is True
-    assert local_dialog._auto_fit.isChecked() is True
-    assert local_dialog.read_settings().uniform_text_size is False
+    assert local_dialog._uniform_text_size.isChecked() is True
+    assert local_dialog._uniform_text_size.isEnabled() is False
+    assert local_dialog._auto_fit.isEnabled() is False
+    assert local_dialog._auto_fit.isChecked() is False
+    assert local_dialog.read_settings().uniform_text_size is True
     assert obs_dialog._uniform_text_size.isChecked() is True
     assert obs_dialog._auto_fit.isEnabled() is False
     assert obs_dialog.get_settings().uniform_text_size is True
@@ -429,7 +431,7 @@ def test_settings_dialogs_expose_auto_grow_as_the_default() -> None:
     local_settings = local_dialog.read_settings()
     assert local_settings.layout_mode == "fullscreen"
     assert local_settings.position == "center"
-    assert local_settings.auto_fit is True
+    assert local_settings.auto_fit is False
     assert local_settings.panel_enabled is False
 
     local_dialog.close()
@@ -453,4 +455,5 @@ def test_obs_frontend_preserves_zero_value_controls() -> None:
     local_script = (PROJECT_ROOT / "presentation" / "script.js").read_text(
         encoding="utf-8"
     )
-    assert "currentConfig.uniform_text_size !== false" in local_script
+    assert "content length never changes size" in local_script
+    assert "shellEl.scrollHeight" not in local_script
