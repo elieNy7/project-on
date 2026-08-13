@@ -16,7 +16,6 @@ from PyQt6.QtWidgets import (
     QMenu,
     QPlainTextEdit,
     QPushButton,
-    QSizePolicy,
     QSplitter,
     QVBoxLayout,
     QWidget,
@@ -29,7 +28,6 @@ from app.ui.library_list_presentation import (
 )
 from app.ui.sermon_delegate import SermonParagraphDelegate
 from app.ui.sermon_list_delegate import SermonListDelegate
-from app.ui.shared_tab import TabShell, vertical_split
 from app.ui.theme import (
     Colors,
     Radius,
@@ -134,9 +132,6 @@ class SermonsTab(QFrame):
         self.sermons_list.setItemDelegate(SermonListDelegate(self.sermons_list))
         self.sermons_list.setUniformItemSizes(True)
         self.sermons_list.setVerticalScrollMode(QListWidget.ScrollMode.ScrollPerPixel)
-        self.sermons_list.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self.sermons_list.setMinimumHeight(0)
-        self.sermons_list.setMaximumHeight(16777215)
 
         # Paragraphs list
         self.paragraphs_count_label = QLabel("0 paragraphes", self)
@@ -152,8 +147,6 @@ class SermonsTab(QFrame):
         self.paragraphs_list.setVerticalScrollMode(
             QListWidget.ScrollMode.ScrollPerPixel
         )
-        self.paragraphs_list.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self.paragraphs_list.setMinimumHeight(0)
         self.paragraphs_list.setHorizontalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         )
@@ -198,9 +191,41 @@ class SermonsTab(QFrame):
         self.add_paragraph_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.add_paragraph_btn.setStyleSheet(get_button_style())
 
-        # ── Filters live in the unified shell: year/translator in the
-        #    SectionHeader actions, search + para-search + refresh in the
-        #    FilterBar (see the shell assembly below). ──
+        # Filters container — refined
+        self.filters_container = QFrame(self)
+        self.filters_container.setStyleSheet(
+            f"""
+            QFrame {{
+                background: {Colors.BG_TERTIARY};
+                border: 1px solid {Colors.BORDER_SUBTLE};
+                border-radius: {Radius.MD}px;
+            }}
+            """
+        )
+
+        filters_main_layout = QVBoxLayout(self.filters_container)
+        filters_main_layout.setContentsMargins(
+            Spacing.SM, Spacing.SM, Spacing.SM, Spacing.SM
+        )
+        filters_main_layout.setSpacing(Spacing.SM)
+
+        # Filters row 1: year, translator
+        filters_row = QHBoxLayout()
+        filters_row.setContentsMargins(0, 0, 0, 0)
+        filters_row.setSpacing(Spacing.SM)
+        filters_row.addWidget(self.year_combo)
+        filters_row.addWidget(self.translator_combo, 1)
+
+        # Search row
+        search_row = QHBoxLayout()
+        search_row.setContentsMargins(0, 0, 0, 0)
+        search_row.setSpacing(Spacing.SM)
+        search_row.addWidget(self.search, 1)
+        search_row.addWidget(self._para_search_btn)
+        search_row.addWidget(self.btn_refresh)
+
+        filters_main_layout.addLayout(filters_row)
+        filters_main_layout.addLayout(search_row)
 
         # Left panel
         left_widget = QWidget()
@@ -208,6 +233,7 @@ class SermonsTab(QFrame):
         left = QVBoxLayout(left_widget)
         left.setContentsMargins(0, 0, 0, 0)
         left.setSpacing(Spacing.SM)
+        left.addWidget(self.filters_container)
         left.addWidget(self.sermons_count_label)
         left.addWidget(self.sermons_list, 1)
 
@@ -229,17 +255,20 @@ class SermonsTab(QFrame):
         right.addWidget(self.paragraph_preview)
         right.addWidget(self.add_paragraph_btn)
 
-        # ── Unified shell: header + filter bar + full-width vertical split ──
-        splitter = vertical_split(left_widget, right_widget, 1, 2, self)
+        # Splitter
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+        splitter.addWidget(left_widget)
+        splitter.addWidget(right_widget)
+        splitter.setStretchFactor(0, 2)
+        splitter.setStretchFactor(1, 5)
+        splitter.setHandleWidth(1)
+        splitter.setStyleSheet(get_splitter_style())
 
-        shell = TabShell("Prédications", "Messages & enseignements", "mic.svg", self)
-        shell.header.add_action(self.year_combo)
-        shell.header.add_spacer(8)
-        shell.header.add_action(self.translator_combo)
-        shell.filter_bar.set_search(self.search)
-        shell.filter_bar.add_trailing(self._para_search_btn)
-        shell.filter_bar.add_trailing(self.btn_refresh)
-        shell.set_content(splitter)
+        # Main layout
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(Spacing.SM)
+        layout.addWidget(splitter, 1)
 
         self.sermons_list.currentItemChanged.connect(self._on_sermon_changed)
         self.paragraphs_list.itemDoubleClicked.connect(self._on_paragraph_activated)

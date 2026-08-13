@@ -13,7 +13,7 @@ from PyQt6.QtWidgets import (
     QMenu,
     QPlainTextEdit,
     QPushButton,
-    QSizePolicy,
+    QSplitter,
     QVBoxLayout,
     QWidget,
 )
@@ -25,7 +25,6 @@ from app.ui.library_list_presentation import (
     COMPACT_PREVIEW_BOX_HEIGHT,
     truncate_preview,
 )
-from app.ui.shared_tab import TabShell, vertical_split
 from app.ui.theme import (
     Colors,
     Radius,
@@ -99,9 +98,6 @@ class HymnsTab(QFrame):
         self.hymns_list.setItemDelegate(HymnDelegate(self.hymns_list))
         self.hymns_list.setUniformItemSizes(True)
         self.hymns_list.setVerticalScrollMode(QListWidget.ScrollMode.ScrollPerPixel)
-        self.hymns_list.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self.hymns_list.setMinimumHeight(0)
-        self.hymns_list.setMaximumHeight(16777215)
 
         # Stanzas list (multi-selection)
         self.stanzas_list = QListWidget(self)
@@ -110,9 +106,6 @@ class HymnsTab(QFrame):
         self.stanzas_list.setWordWrap(False)
         self.stanzas_list.setItemDelegate(HymnStanzaDelegate(self.stanzas_list))
         self.stanzas_list.setVerticalScrollMode(QListWidget.ScrollMode.ScrollPerPixel)
-        self.stanzas_list.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self.stanzas_list.setMinimumHeight(0)
-        self.stanzas_list.setMaximumHeight(16777215)
 
         # Preview box
         self.preview_box = QPlainTextEdit(self)
@@ -154,30 +147,58 @@ class HymnsTab(QFrame):
         action_bar.addWidget(self.add_btn, 1)
         action_bar.addWidget(self.delete_btn)
 
+        # Left Header
+        left_header = QHBoxLayout()
+        left_header.setContentsMargins(0, 0, 0, 0)
+        left_header.setSpacing(Spacing.MD)
+        left_header.addWidget(hymns_label)
+        left_header.addStretch()
+        left_header.addWidget(self.import_btn)
+
         # Layouts
         left_widget = QWidget()
         left = QVBoxLayout(left_widget)
         left.setContentsMargins(0, 0, 0, 0)
         left.setSpacing(Spacing.SM)
-        left.addWidget(hymns_label)
+        left.addLayout(left_header)
         left.addWidget(self.hymns_list, 1)
+
+        # Filter Container — refined
+        self.filter_container = QFrame(self)
+        self.filter_container.setStyleSheet(
+            f"""
+            QFrame {{
+                background: {Colors.BG_TERTIARY};
+                border: 1px solid {Colors.BORDER_SUBTLE};
+                border-radius: {Radius.MD}px;
+            }}
+            """
+        )
+        filter_layout = QHBoxLayout(self.filter_container)
+        filter_layout.setContentsMargins(Spacing.SM, Spacing.SM, Spacing.SM, Spacing.SM)
+        filter_layout.setSpacing(Spacing.SM)
+        filter_layout.addWidget(self.search, 1)
 
         right_widget = QWidget()
         right = QVBoxLayout(right_widget)
         right.setContentsMargins(0, 0, 0, 0)
         right.setSpacing(Spacing.SM)
-        right.addWidget(self.search)
+        right.addWidget(self.filter_container)
         right.addWidget(self.stanzas_list, 1)
         right.addWidget(self.preview_box)
         right.addLayout(action_bar)
 
-        # ── Unified shell: header + filter bar + full-width vertical split ──
-        splitter = vertical_split(left_widget, right_widget, 1, 2, self)
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+        splitter.addWidget(left_widget)
+        splitter.addWidget(right_widget)
+        splitter.setStretchFactor(0, 2)
+        splitter.setStretchFactor(1, 5)
+        splitter.setHandleWidth(1)
+        splitter.setStyleSheet(get_splitter_style())
 
-        shell = TabShell("Cantiques", "Recueil de louange", "music.svg", self)
-        shell.header.add_action(self.import_btn)
-        shell.filter_bar.set_search(self.search)
-        shell.set_content(splitter)
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.addWidget(splitter)
 
         # Connections
         self.hymns_list.currentItemChanged.connect(self._on_hymn_changed)
