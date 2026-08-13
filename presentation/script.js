@@ -125,25 +125,9 @@ function applyConfig(cfg) {
 function fitTextToStage(textEl, shellEl, baseSize) {
   if (!textEl || !shellEl) return;
 
+  // Local projection is parameter-driven: content length never changes size.
   const root = document.documentElement;
-  if (currentConfig.uniform_text_size !== false || currentConfig.auto_fit === false) {
-    root.style.setProperty('--text-size', `${Math.max(10, Math.round(baseSize))}px`);
-    return;
-  }
-  const minSize = 30;
-  const shellBounds = shellEl.getBoundingClientRect();
-  const maxHeight = Math.max(320, Math.min(window.innerHeight - 48, shellBounds.height || window.innerHeight));
-  const maxWidth = Math.max(420, Math.min(window.innerWidth - 48, shellBounds.width || window.innerWidth));
-  let size = Math.max(minSize, Math.round(baseSize));
-
-  root.style.setProperty('--text-size', `${size}px`);
-  for (let i = 0; i < 28; i += 1) {
-    const tooTall = shellEl.scrollHeight > maxHeight;
-    const tooWide = shellEl.scrollWidth > maxWidth || textEl.scrollWidth > textEl.clientWidth + 2;
-    if ((!tooTall && !tooWide) || size <= minSize) break;
-    size = Math.max(minSize, size - 2);
-    root.style.setProperty('--text-size', `${size}px`);
-  }
+  root.style.setProperty('--text-size', `${Math.max(10, Math.round(baseSize))}px`);
 }
 
 async function updateSlide(payload) {

@@ -157,12 +157,12 @@ class ProjectionSettingsDialog(QDialog):
         self._uniform_text_size = QCheckBox(
             "Conserver la même taille de texte sur toutes les slides"
         )
-        self._uniform_text_size.setChecked(bool(settings.uniform_text_size))
+        self._uniform_text_size.setChecked(True)
 
         self._auto_fit = QCheckBox(
             "Ajuster automatiquement la taille pour remplir le bloc"
         )
-        self._auto_fit.setChecked(bool(settings.auto_fit))
+        self._auto_fit.setChecked(False)
 
         self._min_text_size = QSpinBox()
         self._min_text_size.setRange(10, 120)
@@ -547,11 +547,14 @@ class ProjectionSettingsDialog(QDialog):
         layout.addWidget(anim_section)
 
         def _update_auto_fit_controls() -> None:
-            uniform = self._uniform_text_size.isChecked()
-            self._auto_fit.setEnabled(not uniform)
-            enabled = not uniform and self._auto_fit.isChecked()
-            self._min_text_size.setEnabled(enabled)
-            self._max_lines.setEnabled(enabled)
+            # Legacy widgets remain alive so reset/read code stays compatible,
+            # but local output is now always driven by the configured size.
+            self._uniform_text_size.setChecked(True)
+            self._uniform_text_size.setEnabled(False)
+            self._auto_fit.setChecked(False)
+            self._auto_fit.setEnabled(False)
+            self._min_text_size.setEnabled(False)
+            self._max_lines.setEnabled(False)
             self._min_text_size.setMaximum(max(10, self._text_size.value()))
             if self._min_text_size.value() > self._text_size.value():
                 self._min_text_size.setValue(self._text_size.value())
@@ -715,8 +718,8 @@ class ProjectionSettingsDialog(QDialog):
         self._safe_margin.setValue(d.safe_margin)
         idx = self._panel_side.findData(d.panel_side)
         self._panel_side.setCurrentIndex(max(idx, 0))
-        self._uniform_text_size.setChecked(d.uniform_text_size)
-        self._auto_fit.setChecked(d.auto_fit)
+        self._uniform_text_size.setChecked(True)
+        self._auto_fit.setChecked(False)
         self._min_text_size.setValue(d.min_text_size)
         self._max_lines.setValue(d.max_lines)
         # Font
@@ -812,8 +815,8 @@ class ProjectionSettingsDialog(QDialog):
             shadow_color=self._shadow_color_btn.color(),
             shadow_blur=self._shadow_blur.value(),
             max_width=self._max_width.value(),
-            auto_fit=self._auto_fit.isChecked(),
-            uniform_text_size=self._uniform_text_size.isChecked(),
+            auto_fit=False,
+            uniform_text_size=True,
             min_text_size=self._min_text_size.value(),
             max_lines=self._max_lines.value(),
             background_dimmer=self._background_dimmer.value() / 100.0,

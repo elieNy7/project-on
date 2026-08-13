@@ -595,8 +595,6 @@ class PreviewPanel(QFrame):
         self._on_hide_clicked()
 
     def _apply_slide_text_style(self) -> None:
-        text_len = len(self.slide_view.text().strip())
-
         base_size = 16
         line_height = 1.3
         font_weight = "600"
@@ -618,25 +616,8 @@ class PreviewPanel(QFrame):
             )
             transform = "uppercase" if projection.uppercase else "none"
 
-        variable_fit = False
-        if self._settings and hasattr(self._settings, "projection"):
-            projection = self._settings.projection
-            variable_fit = bool(projection.auto_fit) and not bool(
-                projection.uniform_text_size
-            )
-
-        # Variable scaling is now explicit. The default uniform mode keeps the
-        # operator preview identical to the configured projection size.
-        if variable_fit and text_len > 400:
-            font_size = base_size * 0.58
-        elif variable_fit and text_len > 280:
-            font_size = base_size * 0.70
-        elif variable_fit and text_len > 180:
-            font_size = base_size * 0.82
-        else:
-            font_size = base_size
-
-        font_size = max(10, int(font_size))
+        # Mirror the stage contract: text length never alters typography.
+        font_size = max(10, int(base_size))
 
         alpha = 0.18 if self._is_hidden else 1.0
         color = (

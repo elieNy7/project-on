@@ -224,8 +224,10 @@ class ProjectionSettings:
     shadow_color: str = "rgba(0,0,0,0.88)"  # shadow color
     shadow_blur: int = 18  # shadow blur in pixels
     max_width: int = 100  # percentage of screen width
-    auto_fit: bool = True
-    uniform_text_size: bool = False  # grow-to-fill: text fills the stage by default
+    # Kept in the schema for old settings files. Local projection is always
+    # parameter-driven and uniform; OBS retains its independent auto-fit.
+    auto_fit: bool = False
+    uniform_text_size: bool = True
     min_text_size: int = 18
     max_lines: int = 8
     background_dimmer: float = 0.34
@@ -277,8 +279,8 @@ class ProjectionSettings:
             "safe_margin": max(0, min(240, int(self.safe_margin or 0))),
             "panel_side": panel_side,
             "font_family": str(self.font_family or "Poppins").strip(),
-            "text_size": int(self.text_size or 56),
-            "ref_size": int(self.ref_size or 24),
+            "text_size": max(10, min(320, int(self.text_size or 56))),
+            "ref_size": max(8, min(160, int(self.ref_size or 24))),
             "padding": max(0, min(160, int(self.padding or 0))),
             "align": align,
             "position": position,
@@ -300,8 +302,8 @@ class ProjectionSettings:
                 self.shadow_blur if self.shadow_blur is not None else 18
             ),
             "max_width": max(60, min(100, int(self.max_width or 100))),
-            "auto_fit": bool(self.auto_fit),
-            "uniform_text_size": bool(self.uniform_text_size),
+            "auto_fit": False,
+            "uniform_text_size": True,
             "min_text_size": max(10, int(self.min_text_size or 18)),
             "max_lines": max(1, min(20, int(self.max_lines or 8))),
             "background_dimmer": max(
@@ -461,10 +463,10 @@ class AppSettings:
             projection.shadow_color = _gs(p, "shadow_color", projection.shadow_color)
             projection.shadow_blur = _gi(p, "shadow_blur", projection.shadow_blur)
             projection.max_width = _gi(p, "max_width", projection.max_width)
-            projection.auto_fit = _gb(p, "auto_fit", projection.auto_fit)
-            projection.uniform_text_size = _gb(
-                p, "uniform_text_size", projection.uniform_text_size
-            )
+            # Migrate legacy grow-to-fill preferences to the fixed local
+            # projection contract introduced in 1.5.1.
+            projection.auto_fit = False
+            projection.uniform_text_size = True
             projection.min_text_size = _gi(
                 p, "min_text_size", projection.min_text_size
             )

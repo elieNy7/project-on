@@ -977,7 +977,6 @@ class ProjectionWindow(QWidget):
         uppercase = bool(cfg.get("uppercase"))
         show_reference = bool(cfg.get("show_reference", True))
         align = str(cfg.get("align") or "center").lower()
-        line_height = float(cfg.get("line_height") or 1.35)
         font_family = self._resolve_font_family(str(cfg.get("font_family") or ""))
 
         # The configured size is the target; auto-scaling only reduces it if needed.
@@ -992,14 +991,6 @@ class ProjectionWindow(QWidget):
             text = text.upper()
             ref = ref.upper()
 
-        lines = [line for line in text.splitlines() if line.strip()] or [text]
-        content_margins = self._content_layout.contentsMargins()
-        available_height = max(
-            120,
-            (self._available_content_height or self.height())
-            - content_margins.top()
-            - content_margins.bottom(),
-        )
         shell_margins = self._shell_layout.contentsMargins()
         # Use the constrained content width (content_width %) rather than the full
         # screen width, otherwise the auto-fit over-estimates how much text fits per
@@ -1026,7 +1017,7 @@ class ProjectionWindow(QWidget):
         size_scale = max(1.0, min(3.0, screen_h / 1080.0))
 
         ref_size = int(round(float(cfg.get("ref_size") or 22) * size_scale))
-        ref_size = max(int(screen_h * 0.024), 8, ref_size)
+        ref_size = max(8, ref_size)
         has_ref = show_reference and ref.strip()
         font = QFont(font_family)
         font.setWeight(self._font_weight_to_qt(font_weight))
@@ -1061,107 +1052,12 @@ class ProjectionWindow(QWidget):
                     wrapped.append(current)
             return "\n".join(wrapped)
 
-        # Exact-fit measurement: the probe uses the same word-wrap and font
-        # metrics as the real render, and reserves room for the CSS padding,
-        # the reference block, the accent line and the layout spacing — so the
-        # fit decision matches what is actually painted.
-        ref_block_height = 0
-        if has_ref:
-            ref_probe = QFont(font_family)
-            ref_probe.setPixelSize(ref_size)
-            ref_probe.setWeight(QFont.Weight.DemiBold)
-            ref_probe.setLetterSpacing(QFont.SpacingType.PercentageSpacing, 112.0)
-            ref_line_count = wrap_for_qt(ref, ref_size, wrap_width).count("\n") + 1
-            ref_block_height = (
-                ref_line_count * QFontMetrics(ref_probe).lineSpacing() + pad_px * 2
-            )
-        layout_spacing = max(0, self._content_layout.spacing())
-        reserved_height = (
-            ref_block_height
-            + (6 + layout_spacing if has_ref else 0)
-            + layout_spacing
+        # The configured value is authoritative. Text length must never change
+        # local projection typography; only the display scale may affect it.
+        text_size = max(
+            10,
+            int(round(float(cfg.get("text_size") or 54) * size_scale)),
         )
-
-        def rendered_height(size: int) -> tuple[float, int]:
-            probe = QFont(font_family)
-            probe.setWeight(self._font_weight_to_qt(font_weight))
-            probe.setPixelSize(size)
-            probe.setLetterSpacing(
-                QFont.SpacingType.AbsoluteSpacing, float(letter_spacing)
-            )
-            wrapped_count = wrap_for_qt(text, size, wrap_width).count("\n") + 1
-            line_px = QFontMetrics(probe).lineSpacing()
-            # line_height above 1.0 stays a conservative air factor for the
-            # fit decision; the paint uses the font's natural leading.
-            total = (
-                wrapped_count * line_px * max(line_height, 1.0)
-                + pad_px * 2
-                + reserved_height
-            )
-            return total, wrapped_count
-
-        configured_size = int(
-            round(float(cfg.get("text_size") or 54) * size_scale)
-        )
-        # Readability floor: never below ~6.2 % of the screen height — a
-        # fixed 48 px on a 1080p projector was simply too small to read
-        # from the back of the room.
-        text_size = max(int(screen_h * 0.062), configured_size)
-        if bool(cfg.get("auto_fit", True)) and not bool(
-            cfg.get("uniform_text_size", True)
-        ):
-            minimum = max(
-                10,
-                min(
-                    text_size,
-                    int(round(int(cfg.get("min_text_size") or 18) * size_scale)),
-                ),
-            )
-            max_lines = max(1, min(20, int(cfg.get("max_lines") or 8)))
-            _minimum_height, minimum_lines = rendered_height(minimum)
-            enforce_line_limit = minimum_lines <= max_lines
-            # Grow-to-fill (ProPresenter-style): pick the LARGEST size that
-            # fits the block — the configured size is only the starting
-            # point, text grows to fill the stage when there is room and
-            # shrinks when it overflows. Cap so a one-line slide stays
-            # elegant rather than monstrous.
-            grow_cap = max(text_size, int(available_height * 0.5))
-            low = minimum
-            high = grow_cap
-            best = minimum
-            while low <= high:
-                mid = (low + high) // 2
-                estimated_height, wrapped_lines = rendered_height(mid)
-                if (
-                    estimated_height <= available_height * 0.96
-                    and (
-                        not enforce_line_limit
-                        or wrapped_lines <= max_lines
-                    )
-                ):
-                    best = mid
-                    low = mid + 1
-                else:
-                    high = mid - 1
-            text_size = best
-
-        # Overflow guard: text is never clipped, in ANY layout. The configured
-        # (or grown) size is kept whenever it fits; otherwise shrink to the
-        # largest size that does, without dropping below a legibility floor.
-        guard_floor = max(12, min(text_size, int(screen_h * 0.022)))
-        estimated_height, _ = rendered_height(text_size)
-        if estimated_height > available_height * 0.98 and text_size > guard_floor:
-            low, high = guard_floor, text_size
-            best_fit = guard_floor
-            while low <= high:
-                mid = (low + high) // 2
-                estimated_height, _ = rendered_height(mid)
-                if estimated_height <= available_height * 0.96:
-                    best_fit = mid
-                    low = mid + 1
-                else:
-                    high = mid - 1
-            text_size = best_fit
 
         text_color = str(cfg.get("text_color") or "#ffffff")
         ref_color = str(cfg.get("ref_color") or "rgba(255,255,255,0.75)")
