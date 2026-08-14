@@ -3,7 +3,7 @@
 ; ═══════════════════════════════════════════════════════════════════
 
 #define MyAppName "Project-On"
-#define MyAppVersion "1.5.2"
+#define MyAppVersion "1.5.3"
 #define MyAppPublisher "Elie Nyembo"
 #define MyAppURL "https://github.com/elieNy7/project-on"
 #define MyAppExeName "Project-On.exe"

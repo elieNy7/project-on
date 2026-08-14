@@ -85,35 +85,35 @@ class _P:
 class PlaylistDelegate(QStyledItemDelegate):
     """Delegate moderne pour afficher les slides avec un design professionnel."""
 
-    SLIDE_MIN_HEIGHT = 72
+    SLIDE_MIN_HEIGHT = 76
     SLIDE_PADDING = 12
-    REFERENCE_FONT_SIZE = 11
-    TEXT_FONT_SIZE = 13
-    TAG_FONT_SIZE = 9
+    REFERENCE_FONT_SIZE = Typography.SIZE_FILTER
+    TEXT_FONT_SIZE = Typography.SIZE_BODY
+    TAG_FONT_SIZE = Typography.SIZE_NUMBER
     BORDER_RADIUS = 8
-    FOLDER_HEIGHT = 38
+    FOLDER_HEIGHT = 42
     FOLDER_RADIUS = 6
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         # Pre-create fonts (avoid re-creating on every paint)
         self._folder_font = QFont(Typography.FAMILY)
-        self._folder_font.setPixelSize(13)
+        self._folder_font.setPixelSize(Typography.SIZE_LABEL)
         self._folder_font.setWeight(QFont.Weight.DemiBold)
 
         self._chevron_font = QFont(Typography.FAMILY)
-        self._chevron_font.setPixelSize(11)
+        self._chevron_font.setPixelSize(Typography.SIZE_META)
 
         self._tag_font = QFont(Typography.FAMILY)
-        self._tag_font.setPixelSize(max(10, self.TAG_FONT_SIZE))
+        self._tag_font.setPixelSize(self.TAG_FONT_SIZE)
         self._tag_font.setWeight(QFont.Weight.Bold)
 
         self._ref_font = QFont(Typography.FAMILY)
-        self._ref_font.setPixelSize(max(11, self.REFERENCE_FONT_SIZE))
+        self._ref_font.setPixelSize(self.REFERENCE_FONT_SIZE)
         self._ref_font.setWeight(QFont.Weight.DemiBold)
 
         self._text_font = QFont(Typography.FAMILY)
-        self._text_font.setPixelSize(max(12, self.TEXT_FONT_SIZE))
+        self._text_font.setPixelSize(self.TEXT_FONT_SIZE)
 
     # ──────────────────────────────────────────────────────────────────
     #  Size hint
@@ -272,7 +272,7 @@ class PlaylistDelegate(QStyledItemDelegate):
         if child_count > 0:
             count_text = str(child_count)
             badge_font = QFont(Typography.FAMILY)
-            badge_font.setPixelSize(10)
+            badge_font.setPixelSize(Typography.SIZE_NUMBER)
             badge_font.setWeight(QFont.Weight.Bold)
             badge_fm = QFontMetrics(badge_font)
             badge_w = max(20, badge_fm.horizontalAdvance(count_text) + 10)

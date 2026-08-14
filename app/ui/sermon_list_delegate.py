@@ -30,11 +30,11 @@ class SermonListDelegate(QStyledItemDelegate):
 
         # Fonts - Initialize with pixel size
         self.title_font = QFont(Typography.FAMILY)
-        self.title_font.setPixelSize(13)
+        self.title_font.setPixelSize(Typography.SIZE_BODY)
         self.title_font.setWeight(QFont.Weight.Bold)
 
         self.detail_font = QFont(Typography.FAMILY)
-        self.detail_font.setPixelSize(11)
+        self.detail_font.setPixelSize(Typography.SIZE_META)
         self.detail_font.setWeight(QFont.Weight.Normal)
 
         # Colors

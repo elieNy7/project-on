@@ -87,7 +87,7 @@ class StatusBar(QFrame):
         # Current slide info
         self._slide_label = QLabel("", self)
         self._slide_label.setStyleSheet(f"""
-            font-size: 10px;
+            font-size: {Typography.SIZE_META}px;
             color: {Colors.TEXT_MUTED};
             background: transparent;
         """)
@@ -104,14 +104,14 @@ class StatusBar(QFrame):
         # Separator
         sep2 = QLabel("\u00b7", self)
         sep2.setStyleSheet(
-            f"color: {Colors.TEXT_DISABLED}; background: transparent; font-size: 9px;"
+            f"color: {Colors.TEXT_DISABLED}; background: transparent; font-size: {Typography.SIZE_NUMBER}px;"
         )
         layout.addWidget(sep2)
 
         # Slide counter
         self._counter_label = QLabel("", self)
         self._counter_label.setStyleSheet(f"""
-            font-size: 10px;
+            font-size: {Typography.SIZE_NUMBER}px;
             font-weight: {Typography.WEIGHT_SEMIBOLD};
             color: {Colors.TEXT_MUTED};
             background: {Colors.BG_TERTIARY};

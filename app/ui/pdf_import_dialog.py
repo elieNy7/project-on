@@ -61,7 +61,7 @@ class PdfImportDialog(QDialog):
         # Header
         header = QLabel(tr("pdf_found", count=len(self._hymns), name=pdf_name))
         header.setStyleSheet(
-            f"font-size: 14px; font-weight: bold; color: {Colors.TEXT_PRIMARY};"
+            f"font-size: {Typography.SIZE_SECTION}px; font-weight: bold; color: {Colors.TEXT_PRIMARY};"
         )
         layout.addWidget(header)
 

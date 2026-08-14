@@ -121,7 +121,7 @@ class SplashScreen(QWidget):
         self.subtitle.setStyleSheet(f"""
             QLabel {{
                 color: {SplashColors.TEXT_MUTED};
-                font-size: 10px;
+                font-size: {Typography.SIZE_CONTROL}px;
                 letter-spacing: 5px;
                 font-weight: 600;
                 background: transparent;
@@ -159,7 +159,7 @@ class SplashScreen(QWidget):
         self.status_label.setStyleSheet(f"""
             QLabel {{
                 color: {SplashColors.TEXT_MUTED};
-                font-size: 10px;
+                font-size: {Typography.SIZE_CONTROL}px;
                 font-weight: 500;
                 background: transparent;
                 font-family: {Typography.FAMILY};
@@ -176,7 +176,7 @@ class SplashScreen(QWidget):
         self.version_label.setStyleSheet(f"""
             QLabel {{
                 color: {SplashColors.TEXT_DISABLED};
-                font-size: 9px;
+                font-size: {Typography.SIZE_NUMBER}px;
                 font-weight: 600;
                 background: transparent;
                 letter-spacing: 0.5px;
@@ -191,7 +191,7 @@ class SplashScreen(QWidget):
         self.copyright_label.setStyleSheet(f"""
             QLabel {{
                 color: {SplashColors.TEXT_DISABLED};
-                font-size: 8px;
+                font-size: {Typography.SIZE_NUMBER}px;
                 background: transparent;
             }}
         """)

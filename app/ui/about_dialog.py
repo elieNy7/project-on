@@ -21,7 +21,7 @@ class AboutDialog(QDialog):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("À propos de Project-On")
-        self.setFixedSize(440, 520)
+        self.setFixedSize(460, 560)
         self.setStyleSheet(f"""
             QDialog {{
                 background: {Colors.BG_SECONDARY};
@@ -80,7 +80,7 @@ class AboutDialog(QDialog):
         v_layout.setContentsMargins(12, 4, 12, 4)
         version_lbl = QLabel(f"v{__version__}", version_frame)
         version_lbl.setStyleSheet(f"""
-            font-size: 12px;
+            font-size: {Typography.SIZE_NUMBER}px;
             font-weight: {Typography.WEIGHT_SEMIBOLD};
             color: #a78bfa;
             background: transparent;
@@ -112,7 +112,7 @@ class AboutDialog(QDialog):
             content,
         )
         desc.setStyleSheet(f"""
-            font-size: {Typography.SIZE_SM}px;
+            font-size: {Typography.SIZE_BODY}px;
             color: {Colors.TEXT_SECONDARY};
             background: transparent;
             line-height: 1.5;
@@ -158,7 +158,7 @@ class AboutDialog(QDialog):
 
             feat_text = QLabel(feature_text, features_frame)
             feat_text.setStyleSheet(f"""
-                font-size: 12px;
+                font-size: {Typography.SIZE_CONTROL}px;
                 color: {Colors.TEXT_SECONDARY};
                 background: transparent;
                 border: none;
@@ -173,7 +173,7 @@ class AboutDialog(QDialog):
         # Copyright & website
         copyright_label = QLabel("© 2025 Onzième Heure Tab. Tous droits réservés.", content)
         copyright_label.setStyleSheet(f"""
-            font-size: 11px;
+            font-size: {Typography.SIZE_META}px;
             color: {Colors.TEXT_DISABLED};
             background: transparent;
         """)
@@ -183,7 +183,7 @@ class AboutDialog(QDialog):
 
         website_label = QLabel("Onzième Heure Tab", content)
         website_label.setStyleSheet(f"""
-            font-size: 11px;
+            font-size: {Typography.SIZE_CONTROL}px;
             color: {Colors.ACCENT_PRIMARY};
             background: transparent;
         """)
@@ -197,7 +197,7 @@ class AboutDialog(QDialog):
             content,
         )
         credits_label.setStyleSheet(f"""
-            font-size: 10px;
+            font-size: {Typography.SIZE_NUMBER}px;
             color: {Colors.TEXT_DISABLED};
             background: transparent;
         """)
@@ -228,7 +228,7 @@ class AboutDialog(QDialog):
                 border-radius: {Radius.MD}px;
                 padding: 8px 28px;
                 color: {Colors.TEXT_PRIMARY};
-                font-size: 13px;
+                font-size: {Typography.SIZE_CONTROL}px;
                 font-weight: {Typography.WEIGHT_MEDIUM};
             }}
             QPushButton:hover {{

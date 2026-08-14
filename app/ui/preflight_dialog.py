@@ -106,7 +106,7 @@ class _CheckRow(QFrame):
             border: 1px solid {color};
             border-radius: 999px;
             padding: 4px 10px;
-            font-size: 10px;
+            font-size: {Typography.SIZE_NUMBER}px;
             font-weight: {Typography.WEIGHT_BOLD};
         """)
         layout.addWidget(badge)

@@ -282,7 +282,7 @@ class BibleTab(QFrame):
                     border: 1px solid {Colors.ACCENT_GLOW_STRONG};
                     border-radius: {Radius.SM}px;
                     color: {Colors.ACCENT_PRIMARY};
-                    font-size: {Typography.SIZE_SM}px;
+                    font-size: {Typography.SIZE_NUMBER}px;
                     font-weight: {Typography.WEIGHT_BOLD};
                 }}
             """
@@ -292,7 +292,7 @@ class BibleTab(QFrame):
                 border: 1px solid transparent;
                 border-radius: {Radius.SM}px;
                 color: {Colors.TEXT_SECONDARY};
-                font-size: {Typography.SIZE_SM}px;
+                font-size: {Typography.SIZE_NUMBER}px;
                 font-weight: {Typography.WEIGHT_SEMIBOLD};
             }}
             QPushButton:hover {{

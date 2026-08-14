@@ -291,7 +291,12 @@ class Radius:
 
 
 class Typography:
-    """Font sizes and weights."""
+    """Application typography scale and semantic text roles.
+
+    The legacy ``SIZE_*`` values remain available for existing components, while
+    the semantic roles below make the hierarchy explicit: readable labels and
+    body copy, compact filters, and deliberately quiet numerical metadata.
+    """
 
     PRIMARY_FAMILY = "'Poppins', 'Segoe UI', sans-serif"
     FAMILY = "Poppins"
@@ -302,18 +307,30 @@ class Typography:
     SIZE_XS_PT = 8
     SIZE_SM = 12
     SIZE_SM_PT = 9
-    SIZE_MD = 13
-    SIZE_MD_PT = 10
-    SIZE_LG = 14
-    SIZE_LG_PT = 11
-    SIZE_XL = 16
-    SIZE_XL_PT = 12
+    SIZE_MD = 14
+    SIZE_MD_PT = 11
+    SIZE_LG = 15
+    SIZE_LG_PT = 12
+    SIZE_XL = 18
+    SIZE_XL_PT = 14
     SIZE_2XL = 20
     SIZE_2XL_PT = 15
     SIZE_3XL = 24
     SIZE_3XL_PT = 18
     SIZE_4XL = 32
     SIZE_4XL_PT = 24
+
+    # Semantic desktop roles. Keep compact information small without making
+    # controls themselves smaller or harder to target.
+    SIZE_NUMBER = 10
+    SIZE_META = 11
+    SIZE_FILTER = 12
+    SIZE_CONTROL = 13
+    SIZE_BODY = 14
+    SIZE_LABEL = 14
+    SIZE_SECTION = 15
+    SIZE_TITLE = 18
+    SIZE_DIALOG_TITLE = 20
 
     WEIGHT_NORMAL = 400
     WEIGHT_MEDIUM = 500
@@ -538,7 +555,7 @@ def get_tree_style() -> str:
             border-radius: {Radius.SM}px;
             margin: 2px 0;
             padding: 6px 6px;
-            font-size: 13px;
+            font-size: {Typography.SIZE_BODY}px;
             color: {Colors.TEXT_PRIMARY};
             background: transparent;
         }}
@@ -568,7 +585,7 @@ def get_input_style() -> str:
             border: 1px solid {Colors.BORDER_DEFAULT};
             border-radius: {Radius.MD}px;
             padding: 8px 14px;
-            font-size: {Typography.SIZE_MD}px;
+            font-size: {Typography.SIZE_FILTER}px;
             color: {Colors.TEXT_PRIMARY};
             selection-background-color: {Colors.ACCENT_GLOW_STRONG};
             selection-color: {Colors.ACCENT_PRIMARY};
@@ -594,7 +611,7 @@ def get_combo_style() -> str:
             border: 1px solid {Colors.BORDER_DEFAULT};
             border-radius: {Radius.MD}px;
             padding: 6px 14px;
-            font-size: {Typography.SIZE_SM}px;
+            font-size: {Typography.SIZE_FILTER}px;
             color: {Colors.TEXT_PRIMARY};
             min-height: 26px;
         }}
@@ -635,7 +652,7 @@ def get_button_style(accent: str = Colors.ACCENT_PRIMARY) -> str:
             border: 1px solid {Colors.BORDER_DEFAULT};
             border-radius: {Radius.SM}px;
             padding: 8px {Spacing.LG}px;
-            font-size: {Typography.SIZE_MD}px;
+            font-size: {Typography.SIZE_CONTROL}px;
             font-weight: {Typography.WEIGHT_SEMIBOLD};
             color: {Colors.TEXT_PRIMARY};
         }}
@@ -667,7 +684,7 @@ def get_accent_button_style() -> str:
             border: 1px solid {Colors.ACCENT_DARK};
             border-radius: {Radius.SM}px;
             padding: 8px {Spacing.LG}px;
-            font-size: {Typography.SIZE_MD}px;
+            font-size: {Typography.SIZE_CONTROL}px;
             font-weight: {Typography.WEIGHT_BOLD};
             color: {Colors.PROJECT_BUTTON_TEXT};
         }}
@@ -737,7 +754,7 @@ def get_tab_button_style(active: bool = False) -> str:
                 border-bottom: 2px solid {Colors.ACCENT_PRIMARY};
                 border-radius: 0;
                 padding: 10px 16px;
-                font-size: {Typography.SIZE_SM}px;
+                font-size: {Typography.SIZE_CONTROL}px;
                 font-weight: {Typography.WEIGHT_SEMIBOLD};
                 color: {Colors.ACCENT_PRIMARY};
             }}
@@ -749,7 +766,7 @@ def get_tab_button_style(active: bool = False) -> str:
             border-bottom: 2px solid transparent;
             border-radius: 0;
             padding: 10px 16px;
-            font-size: {Typography.SIZE_SM}px;
+            font-size: {Typography.SIZE_CONTROL}px;
             font-weight: {Typography.WEIGHT_MEDIUM};
             color: {Colors.TEXT_MUTED};
         }}
@@ -798,7 +815,7 @@ def get_preview_text_style() -> str:
     """
 
 
-def get_label_style(size: int = Typography.SIZE_MD, muted: bool = False) -> str:
+def get_label_style(size: int = Typography.SIZE_LABEL, muted: bool = False) -> str:
     color = Colors.TEXT_MUTED if muted else Colors.TEXT_PRIMARY
     return f"""
         QLabel {{
@@ -812,7 +829,7 @@ def get_label_style(size: int = Typography.SIZE_MD, muted: bool = False) -> str:
 def get_title_style() -> str:
     return f"""
         QLabel {{
-            font-size: {Typography.SIZE_XL}px;
+            font-size: {Typography.SIZE_TITLE}px;
             font-weight: {Typography.WEIGHT_BOLD};
             color: {Colors.TEXT_PRIMARY};
             background: transparent;
@@ -823,7 +840,7 @@ def get_title_style() -> str:
 def get_subtitle_style() -> str:
     return f"""
         QLabel {{
-            font-size: {Typography.SIZE_SM}px;
+            font-size: {Typography.SIZE_CONTROL}px;
             font-weight: {Typography.WEIGHT_MEDIUM};
             color: {Colors.TEXT_SECONDARY};
             background: transparent;
@@ -838,7 +855,7 @@ def get_badge_style(color: str = Colors.ACCENT_PRIMARY) -> str:
             color: {color};
             border-radius: {Radius.SM}px;
             padding: 2px 8px;
-            font-size: {Typography.SIZE_2XS}px;
+            font-size: {Typography.SIZE_NUMBER}px;
             font-weight: {Typography.WEIGHT_BOLD};
         }}
     """
@@ -856,7 +873,7 @@ def get_menu_style() -> str:
             padding: 8px 16px;
             border-radius: {Radius.SM}px;
             color: {Colors.TEXT_PRIMARY};
-            font-size: {Typography.SIZE_SM}px;
+            font-size: {Typography.SIZE_CONTROL}px;
         }}
         QMenu::item:selected {{
             background: {Colors.ACCENT_GLOW_STRONG};
@@ -920,7 +937,7 @@ def get_main_window_style() -> str:
         QWidget {{
             color: {Colors.TEXT_PRIMARY};
             font-family: {Typography.FAMILY};
-            font-size: {Typography.SIZE_MD}px;
+            font-size: {Typography.SIZE_BODY}px;
         }}
         QToolTip {{
             background-color: {_tooltip_bg()};
@@ -928,7 +945,7 @@ def get_main_window_style() -> str:
             border-radius: {Radius.SM}px;
             padding: 6px 12px;
             color: {_tooltip_text()};
-            font-size: {Typography.SIZE_SM}px;
+            font-size: {Typography.SIZE_CONTROL}px;
             opacity: 255;
         }}
     """
@@ -939,7 +956,7 @@ def build_app_stylesheet() -> str:
     return f"""
         QWidget {{
             font-family: "Poppins", "Segoe UI", sans-serif;
-            font-size: {Typography.SIZE_MD}px;
+            font-size: {Typography.SIZE_BODY}px;
             color: {Colors.TEXT_PRIMARY};
             outline: none;
             selection-background-color: {Colors.ACCENT_GLOW_STRONG};
@@ -958,7 +975,7 @@ def build_app_stylesheet() -> str:
         }}
 
         QLabel#PanelTitle {{
-            font-size: {Typography.SIZE_SM}px;
+            font-size: {Typography.SIZE_SECTION}px;
             font-weight: {Typography.WEIGHT_BOLD};
             color: {Colors.ACCENT_PRIMARY};
             padding: 12px 16px;
@@ -967,14 +984,14 @@ def build_app_stylesheet() -> str:
         }}
 
         QLabel#TopBarTitle {{
-            font-size: {Typography.SIZE_LG}px;
+            font-size: {Typography.SIZE_TITLE}px;
             font-weight: {Typography.WEIGHT_SEMIBOLD};
             color: {Colors.TEXT_PRIMARY};
         }}
 
         QLabel#DescLabel {{
             color: {Colors.TEXT_MUTED};
-            font-size: {Typography.SIZE_SM}px;
+            font-size: {Typography.SIZE_CONTROL}px;
             border: none;
             background: transparent;
         }}
@@ -984,7 +1001,7 @@ def build_app_stylesheet() -> str:
             color: {Colors.ACCENT_PRIMARY};
             border-radius: {Radius.SM}px;
             padding: 2px 8px;
-            font-size: {Typography.SIZE_2XS}px;
+            font-size: {Typography.SIZE_NUMBER}px;
             font-weight: {Typography.WEIGHT_BOLD};
         }}
 
@@ -1020,8 +1037,6 @@ def build_app_stylesheet() -> str:
 
         QLineEdit,
         QSpinBox,
-        QTextEdit,
-        QPlainTextEdit,
         QComboBox {{
             background-color: {Colors.BG_INPUT};
             border: 1px solid {Colors.BORDER_DEFAULT};
@@ -1030,6 +1045,19 @@ def build_app_stylesheet() -> str:
             color: {Colors.TEXT_PRIMARY};
             selection-background-color: {Colors.ACCENT_GLOW_STRONG};
             selection-color: {Colors.ACCENT_PRIMARY};
+            font-size: {Typography.SIZE_FILTER}px;
+        }}
+
+        QTextEdit,
+        QPlainTextEdit {{
+            background-color: {Colors.BG_INPUT};
+            border: 1px solid {Colors.BORDER_DEFAULT};
+            border-radius: {Radius.MD}px;
+            padding: 8px 14px;
+            color: {Colors.TEXT_PRIMARY};
+            selection-background-color: {Colors.ACCENT_GLOW_STRONG};
+            selection-color: {Colors.ACCENT_PRIMARY};
+            font-size: {Typography.SIZE_BODY}px;
         }}
 
         QLineEdit:hover,
@@ -1059,6 +1087,7 @@ def build_app_stylesheet() -> str:
             color: {Colors.TEXT_PRIMARY};
             outline: none;
             padding: 6px;
+            font-size: {Typography.SIZE_CONTROL}px;
         }}
 
         QToolTip {{
@@ -1067,6 +1096,7 @@ def build_app_stylesheet() -> str:
             border-radius: {Radius.MD}px;
             color: {_tooltip_text()};
             padding: 8px 12px;
+            font-size: {Typography.SIZE_CONTROL}px;
             opacity: 255;
         }}
 
@@ -1074,6 +1104,7 @@ def build_app_stylesheet() -> str:
             padding: 8px 16px;
             border-radius: {Radius.SM}px;
             color: {Colors.TEXT_PRIMARY};
+            font-size: {Typography.SIZE_CONTROL}px;
         }}
 
         QMenu::item:selected {{
@@ -1087,6 +1118,7 @@ def build_app_stylesheet() -> str:
             border-radius: {Radius.SM}px;
             padding: 8px 16px;
             color: {Colors.TEXT_PRIMARY};
+            font-size: {Typography.SIZE_CONTROL}px;
             font-weight: {Typography.WEIGHT_SEMIBOLD};
         }}
 
@@ -1161,6 +1193,7 @@ def build_app_stylesheet() -> str:
             border: 1px solid {Colors.BORDER_SUBTLE};
             border-radius: {Radius.MD}px;
             color: {Colors.TEXT_SECONDARY};
+            font-size: {Typography.SIZE_BODY}px;
         }}
 
         QListView::item,
@@ -1197,6 +1230,7 @@ def build_app_stylesheet() -> str:
             padding: 10px 22px;
             margin: 0 2px;
             color: {Colors.TEXT_MUTED};
+            font-size: {Typography.SIZE_CONTROL}px;
             font-weight: {Typography.WEIGHT_SEMIBOLD};
             border-bottom: 2px solid transparent;
         }}
@@ -1217,6 +1251,7 @@ def build_app_stylesheet() -> str:
         QRadioButton {{
             color: {Colors.TEXT_SECONDARY};
             spacing: 8px;
+            font-size: {Typography.SIZE_LABEL}px;
         }}
 
         QCheckBox::indicator,
@@ -1258,7 +1293,7 @@ def build_app_stylesheet() -> str:
             border-radius: {Radius.LG}px;
             margin-top: 16px;
             padding-top: 12px;
-            font-size: {Typography.SIZE_XS}px;
+            font-size: {Typography.SIZE_META}px;
             font-weight: {Typography.WEIGHT_BOLD};
             letter-spacing: 0.5px;
             text-transform: uppercase;
@@ -1280,7 +1315,7 @@ def build_app_stylesheet() -> str:
             border-radius: {Radius.SM}px;
             text-align: center;
             color: {Colors.TEXT_PRIMARY};
-            font-size: {Typography.SIZE_2XS}px;
+            font-size: {Typography.SIZE_NUMBER}px;
             font-weight: {Typography.WEIGHT_BOLD};
             height: 6px;
         }}
@@ -1347,7 +1382,7 @@ def build_app_stylesheet() -> str:
         QHeaderView::section {{
             background: {Colors.BG_TERTIARY};
             color: {Colors.TEXT_MUTED};
-            font-size: {Typography.SIZE_XS}px;
+            font-size: {Typography.SIZE_META}px;
             font-weight: {Typography.WEIGHT_BOLD};
             letter-spacing: 0.5px;
             text-transform: uppercase;
@@ -1369,6 +1404,7 @@ def build_app_stylesheet() -> str:
             selection-background-color: {Colors.ACCENT_GLOW};
             selection-color: {Colors.ACCENT_LIGHT};
             color: {Colors.TEXT_SECONDARY};
+            font-size: {Typography.SIZE_BODY}px;
         }}
 
         QTableView::item, QTableWidget::item {{
