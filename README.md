@@ -21,10 +21,13 @@ Sortie OBS (lower-third) · Projection plein écran cinématique · 100 % hors-l
 - **Sortie OBS · Lower Third** — bandeau « broadcast » personnalisable (position, police, couleurs, dégradé, flou, ombres, contour, préréglages) avec aperçu en direct.
 - **Projection cinématique** — transitions Fondu, Glissement, Zoom, Flou et Reveal + zoom lent (Ken Burns) sur les images de fond.
 - **Arrière-plans chrétiens** — fonds sobres et lisibles (croix, aigle, lion, agneau).
+- **Contrôle avant service** — diagnostic des données, écrans, stockage et sortie OBS avec rapport exportable.
+- **Sauvegarde sûre** — copie transactionnelle SQLite vérifiée, même lorsque l'application est ouverte.
+- **Mises à niveau sans perte** — l'installeur conserve la base, les playlists et les paramètres utilisateur.
 
 ## ⬇️ Installation (Windows)
 
-1. Téléchargez **`ProjectOn_1.5.1_Setup.exe`** depuis la [dernière version](https://github.com/elieNy7/project-on/releases/latest).
+1. Téléchargez **`ProjectOn_1.5.2_Setup.exe`** depuis la [dernière version](https://github.com/elieNy7/project-on/releases/latest).
 2. Lancez l'installeur (français). Si Windows affiche **SmartScreen**, cliquez sur « Informations complémentaires » → « Exécuter quand même ».
 3. Ouvrez **Project-On**. Tout fonctionne hors-ligne.
 
@@ -43,7 +46,7 @@ py -3 -m pip install -r requirements.txt
 py -3 main.py
 ```
 
-> La base de données fournie (`data/project_on.db`) et les binaires NDI sont distribués via l'installeur — ils ne sont pas versionnés ici (taille). Tests : `py -3 -m pytest tests/ verification/`.
+> La base de données fournie (`data/project_on.db`) et les binaires NDI sont distribués via l'installeur — ils ne sont pas versionnés ici (taille). Tests : `py -3 -m pytest tests -q`.
 
 Construire l'installeur (PyInstaller + Inno Setup) :
 
