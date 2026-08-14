@@ -121,7 +121,7 @@ class SettingsCard(QFrame):
         hdr.setContentsMargins(20, 0, 20, 10)
         lbl = QLabel(title, self)
         lbl.setStyleSheet(f"""
-            font-size: 11px;
+            font-size: {Typography.SIZE_CONTROL}px;
             font-weight: {Typography.WEIGHT_SEMIBOLD};
             color: {Colors.ACCENT_LIGHT};
             letter-spacing: 1.2px;
@@ -214,7 +214,7 @@ class SettingsItem(QWidget):
             desc_lbl = QLabel(description, self)
             desc_lbl.setWordWrap(True)
             desc_lbl.setStyleSheet(f"""
-                font-size: {Typography.SIZE_SM}px;
+                font-size: {Typography.SIZE_CONTROL}px;
                 color: {Colors.TEXT_MUTED};
                 background: transparent; border: none;
             """)
@@ -224,7 +224,7 @@ class SettingsItem(QWidget):
         # Pill détail
         self._detail_label = QLabel("", self)
         self._detail_label.setStyleSheet(f"""
-            font-size: 11px;
+            font-size: {Typography.SIZE_META}px;
             font-weight: {Typography.WEIGHT_MEDIUM};
             color: {Colors.TEXT_SECONDARY};
             background: {Colors.GLASS_MEDIUM};
@@ -311,7 +311,7 @@ class SettingsInfoItem(QWidget):
         # Titre
         title_lbl = QLabel(title, self)
         title_lbl.setStyleSheet(f"""
-            font-size: {Typography.SIZE_SM}px;
+            font-size: {Typography.SIZE_LABEL}px;
             font-weight: {Typography.WEIGHT_MEDIUM};
             color: {Colors.TEXT_SECONDARY};
             background: transparent; border: none;
@@ -321,7 +321,7 @@ class SettingsInfoItem(QWidget):
         # Valeur pill
         self._value_label = QLabel(value, self)
         self._value_label.setStyleSheet(f"""
-            font-size: 11px;
+            font-size: {Typography.SIZE_NUMBER}px;
             font-weight: {Typography.WEIGHT_SEMIBOLD};
             color: {Colors.TEXT_PRIMARY};
             background: {Colors.GLASS_MEDIUM};
@@ -346,7 +346,7 @@ class _ShortcutRow(QWidget):
 
         desc_lbl = QLabel(description, self)
         desc_lbl.setStyleSheet(f"""
-            font-size: {Typography.SIZE_SM}px;
+            font-size: {Typography.SIZE_CONTROL}px;
             color: {Colors.TEXT_SECONDARY};
             background: transparent; border: none;
         """)
@@ -355,7 +355,7 @@ class _ShortcutRow(QWidget):
         key_lbl = QLabel(shortcut, self)
         key_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         key_lbl.setStyleSheet(f"""
-            font-size: 11px;
+            font-size: {Typography.SIZE_META}px;
             font-weight: {Typography.WEIGHT_SEMIBOLD};
             color: {Colors.TEXT_PRIMARY};
             background: {Colors.BG_ELEVATED};
@@ -383,7 +383,7 @@ class SettingsHeader(QFrame):
 
         badge = QLabel("Onzième Heure Tab", self)
         badge.setStyleSheet(f"""
-            font-size: 10px;
+            font-size: {Typography.SIZE_NUMBER}px;
             font-weight: {Typography.WEIGHT_SEMIBOLD};
             color: {Colors.ACCENT_LIGHT};
             background: {Colors.ACCENT_GLOW};
@@ -598,7 +598,7 @@ class SettingsTab(QWidget):
         footer = QLabel(f"Project-On v{__version__}\nOnzième Heure Tab", content)
         footer.setAlignment(Qt.AlignmentFlag.AlignCenter)
         footer.setStyleSheet(f"""
-            font-size: 11px;
+            font-size: {Typography.SIZE_META}px;
             font-weight: {Typography.WEIGHT_MEDIUM};
             color: {Colors.TEXT_DISABLED};
             letter-spacing: 0.4px;

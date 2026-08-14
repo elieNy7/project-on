@@ -1074,7 +1074,7 @@ class ProjectionWindow(QWidget):
             QFont.SpacingType.AbsoluteSpacing, float(letter_spacing)
         )
         # The widget's own stylesheet must carry the font properties: the
-        # app-wide stylesheet sets QWidget { font-size: 13px } and would
+        # app-wide stylesheet sets QWidget to the application body size and would
         # otherwise override setFont() at polish time — which made the
         # projected text tiny no matter the computed size.
         self.text_label.setStyleSheet(

@@ -31,11 +31,11 @@ class ExposeParagraphDelegate(QStyledItemDelegate):
 
         # Setup typography - Initialize with pixel size
         self.marker_font = QFont(Typography.FAMILY)
-        self.marker_font.setPixelSize(11)
+        self.marker_font.setPixelSize(Typography.SIZE_NUMBER)
         self.marker_font.setWeight(QFont.Weight.Bold)
 
         self.text_font = QFont(Typography.FAMILY)
-        self.text_font.setPixelSize(14)
+        self.text_font.setPixelSize(Typography.SIZE_BODY)
         self.text_font.setWeight(QFont.Weight.Normal)
 
         # Colors from theme

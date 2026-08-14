@@ -15,7 +15,7 @@ from PyQt6.QtWidgets import (
 )
 
 from app.ui.icons import app_icon
-from app.ui.theme import Colors, Radius, get_theme
+from app.ui.theme import Colors, Radius, Typography, get_theme
 from app.utils.translations import tr
 
 
@@ -87,7 +87,7 @@ class PreviewControlButton(QPushButton):
                 border: 1px solid {Colors.BORDER_SUBTLE};
                 border-radius: 20px;
                 color: {Colors.TEXT_PRIMARY};
-                font-size: 11px;
+                font-size: {Typography.SIZE_CONTROL}px;
                 font-weight: 700;
                 letter-spacing: 0;
                 text-transform: uppercase;
@@ -190,14 +190,14 @@ class PreviewPanel(QFrame):
 
         title = QLabel(tr("preview"), self.header)
         title.setStyleSheet(
-            f"font-size: 12px; font-weight: 800; color: {Colors.TEXT_PRIMARY};"
+            f"font-size: {Typography.SIZE_SECTION}px; font-weight: 800; color: {Colors.TEXT_PRIMARY};"
             f"text-transform: uppercase; letter-spacing: 0;"
         )
         title_wrap.addWidget(title)
 
         subtitle = QLabel(tr("projection"), self.header)
         subtitle.setStyleSheet(
-            f"font-size: 10px; color: {Colors.TEXT_MUTED};"
+            f"font-size: {Typography.SIZE_META}px; color: {Colors.TEXT_MUTED};"
             "letter-spacing: 0;"
         )
         title_wrap.addWidget(subtitle)
@@ -217,7 +217,7 @@ class PreviewPanel(QFrame):
                 padding: 4px 10px;
                 min-width: 56px;
                 color: {Colors.ACCENT_PRIMARY};
-                font-size: 9px;
+                font-size: {Typography.SIZE_NUMBER}px;
                 font-weight: 800;
                 letter-spacing: 0;
             }}
@@ -262,7 +262,7 @@ class PreviewPanel(QFrame):
             color: #dfffe9;
             padding: 4px 10px;
             border-radius: 11px;
-            font-size: 8px;
+            font-size: {Typography.SIZE_NUMBER}px;
             font-weight: 800;
             letter-spacing: 0;
             """,
@@ -278,7 +278,7 @@ class PreviewPanel(QFrame):
             color: {Colors.TEXT_SECONDARY};
             padding: 4px 10px;
             border-radius: 11px;
-            font-size: 8px;
+            font-size: {Typography.SIZE_NUMBER}px;
             font-weight: 700;
             letter-spacing: 0;
             """
@@ -322,7 +322,7 @@ class PreviewPanel(QFrame):
         self._scene_label.setStyleSheet(
             f"""
             color: {self._stage_meta_color};
-            font-size: 9px;
+            font-size: {Typography.SIZE_NUMBER}px;
             font-weight: 700;
             letter-spacing: 0;
             """
@@ -334,7 +334,7 @@ class PreviewPanel(QFrame):
         self._counter_label.setStyleSheet(
             f"""
             color: {Colors.TEXT_SECONDARY};
-            font-size: 9px;
+            font-size: {Typography.SIZE_NUMBER}px;
             font-weight: 800;
             letter-spacing: 0.7px;
             background: {self._stage_counter_bg};
@@ -536,7 +536,7 @@ class PreviewPanel(QFrame):
                     padding: 4px 10px;
                     min-width: 56px;
                     color: #dfffe9;
-                    font-size: 9px;
+                    font-size: {Typography.SIZE_NUMBER}px;
                     font-weight: 800;
                     letter-spacing: 0;
                 }
@@ -553,7 +553,7 @@ class PreviewPanel(QFrame):
                     padding: 4px 10px;
                     min-width: 56px;
                     color: {Colors.TEXT_PRIMARY};
-                    font-size: 9px;
+                    font-size: {Typography.SIZE_NUMBER}px;
                     font-weight: 800;
                     letter-spacing: 0;
                 }}

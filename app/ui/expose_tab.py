@@ -109,7 +109,7 @@ class ExposeTab(QFrame):
         # Page info label
         self.page_info_label = QLabel("", self)
         self.page_info_label.setStyleSheet(
-            f"font-size: {Typography.SIZE_XS}px; color: {Colors.TEXT_MUTED};",
+            f"font-size: {Typography.SIZE_META}px; color: {Colors.TEXT_MUTED};",
         )
 
         # Search Bar
@@ -149,7 +149,7 @@ class ExposeTab(QFrame):
             {get_preview_text_style()}
             QPlainTextEdit {{
                 font-family: {Typography.FAMILY};
-                font-size: 14px;
+                font-size: {Typography.SIZE_BODY}px;
             }}
         """)
 
@@ -340,7 +340,7 @@ class ExposeTab(QFrame):
                     border: 1px solid {Colors.ACCENT_GLOW_STRONG};
                     border-radius: {Radius.SM}px;
                     color: {Colors.ACCENT_PRIMARY};
-                    font-size: {Typography.SIZE_SM}px;
+                    font-size: {Typography.SIZE_NUMBER}px;
                     font-weight: {Typography.WEIGHT_BOLD};
                 }}
             """
@@ -350,7 +350,7 @@ class ExposeTab(QFrame):
                 border: 1px solid transparent;
                 border-radius: {Radius.SM}px;
                 color: {Colors.TEXT_SECONDARY};
-                font-size: {Typography.SIZE_SM}px;
+                font-size: {Typography.SIZE_NUMBER}px;
                 font-weight: {Typography.WEIGHT_SEMIBOLD};
             }}
             QPushButton:hover {{

@@ -24,7 +24,7 @@ class HymnStanzaDelegate(QStyledItemDelegate):
         super().__init__(parent)
 
         self.text_font = QFont(Typography.FAMILY)
-        self.text_font.setPixelSize(13)
+        self.text_font.setPixelSize(Typography.SIZE_BODY)
         self.text_font.setWeight(QFont.Weight.Normal)
 
         # Colors from theme

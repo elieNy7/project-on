@@ -176,7 +176,7 @@ class PlaylistPanel(QFrame):
 
         self.title = QLabel(tr("playlist"), header)
         self.title.setStyleSheet(
-            f"font-size: 16px; font-weight: {Typography.WEIGHT_BOLD}; color: {Colors.TEXT_PRIMARY}; background: transparent;"
+            f"font-size: {Typography.SIZE_TITLE}px; font-weight: {Typography.WEIGHT_BOLD}; color: {Colors.TEXT_PRIMARY}; background: transparent;"
         )
         header_layout.addWidget(self.title)
 
@@ -187,7 +187,7 @@ class PlaylistPanel(QFrame):
             border: 1px solid {Colors.ACCENT_GLOW_STRONG};
             border-radius: 8px;
             padding: 3px 10px;
-            font-size: {Typography.SIZE_XS}px;
+            font-size: {Typography.SIZE_NUMBER}px;
             font-weight: {Typography.WEIGHT_SEMIBOLD};
         """)
         header_layout.addWidget(self._count_label)
@@ -204,7 +204,7 @@ class PlaylistPanel(QFrame):
                 border: 1px solid {Colors.BORDER_DEFAULT};
                 border-radius: {Radius.MD}px;
                 padding: 7px 12px;
-                font-size: {Typography.SIZE_MD}px;
+                font-size: {Typography.SIZE_FILTER}px;
                 color: {Colors.TEXT_PRIMARY};
                 selection-background-color: {Colors.ACCENT_GLOW_STRONG};
                 selection-color: {Colors.ACCENT_PRIMARY};
@@ -293,14 +293,14 @@ class PlaylistPanel(QFrame):
 
         empty_text = QLabel(tr("playlist_empty"), self._empty_state)
         empty_text.setStyleSheet(
-            f"font-size: 14px; font-weight: 500; color: {Colors.TEXT_SECONDARY};"
+            f"font-size: {Typography.SIZE_BODY}px; font-weight: 500; color: {Colors.TEXT_SECONDARY};"
         )
         empty_text.setAlignment(Qt.AlignmentFlag.AlignCenter)
         empty_layout.addWidget(empty_text)
 
         empty_hint = QLabel(tr("playlist_empty_hint"), self._empty_state)
         empty_hint.setStyleSheet(
-            f"font-size: {Typography.SIZE_XS}px; color: {Colors.TEXT_DISABLED};"
+            f"font-size: {Typography.SIZE_META}px; color: {Colors.TEXT_DISABLED};"
         )
         empty_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
         empty_layout.addWidget(empty_hint)
@@ -669,7 +669,7 @@ class ConfirmDialog(QDialog):
             }}
             QLabel {{
                 color: {Colors.TEXT_PRIMARY};
-                font-size: {Typography.SIZE_MD}px;
+                font-size: {Typography.SIZE_LABEL}px;
             }}
             QPushButton {{
                 background: {Colors.SURFACE_HOVER};
@@ -725,7 +725,7 @@ class InputDialog(QDialog):
             }}
             QLabel {{
                 color: {Colors.TEXT_PRIMARY};
-                font-size: {Typography.SIZE_SM}px;
+                font-size: {Typography.SIZE_LABEL}px;
             }}
             QLineEdit {{
                 background: {Colors.BG_TERTIARY};
@@ -733,7 +733,7 @@ class InputDialog(QDialog):
                 border-radius: {Radius.MD}px;
                 padding: 8px 12px;
                 color: {Colors.TEXT_PRIMARY};
-                font-size: {Typography.SIZE_MD}px;
+                font-size: {Typography.SIZE_FILTER}px;
             }}
             QLineEdit:focus {{
                 border-color: {Colors.BORDER_FOCUS};
@@ -795,7 +795,7 @@ class ConferenceSlideDialog(QDialog):
             }}
             QLabel {{
                 color: {Colors.TEXT_PRIMARY};
-                font-size: {Typography.SIZE_SM}px;
+                font-size: {Typography.SIZE_LABEL}px;
             }}
             QComboBox, QLineEdit, QSpinBox {{
                 background: {Colors.BG_TERTIARY};
@@ -803,7 +803,7 @@ class ConferenceSlideDialog(QDialog):
                 border-radius: {Radius.MD}px;
                 padding: 8px 12px;
                 color: {Colors.TEXT_PRIMARY};
-                font-size: {Typography.SIZE_MD}px;
+                font-size: {Typography.SIZE_FILTER}px;
             }}
             QComboBox:focus, QLineEdit:focus, QSpinBox:focus {{
                 border-color: {Colors.BORDER_FOCUS};
@@ -814,7 +814,7 @@ class ConferenceSlideDialog(QDialog):
                 border-radius: {Radius.MD}px;
                 padding: 8px;
                 color: {Colors.TEXT_PRIMARY};
-                font-size: {Typography.SIZE_MD}px;
+                font-size: {Typography.SIZE_BODY}px;
             }}
             QPlainTextEdit:focus {{
                 border-color: {Colors.BORDER_FOCUS};
@@ -919,7 +919,7 @@ class ConferenceSlideDialog(QDialog):
         )
         hint.setWordWrap(True)
         hint.setStyleSheet(
-            f"color: {Colors.TEXT_MUTED}; font-size: {Typography.SIZE_XS}px;"
+            f"color: {Colors.TEXT_MUTED}; font-size: {Typography.SIZE_META}px;"
         )
         layout.addWidget(hint)
 
@@ -1091,7 +1091,7 @@ class CustomSlideDialog(QDialog):
             }}
             QLabel {{
                 color: {Colors.TEXT_PRIMARY};
-                font-size: {Typography.SIZE_SM}px;
+                font-size: {Typography.SIZE_LABEL}px;
             }}
             QLineEdit {{
                 background: {Colors.BG_TERTIARY};
@@ -1099,7 +1099,7 @@ class CustomSlideDialog(QDialog):
                 border-radius: {Radius.MD}px;
                 padding: 8px 12px;
                 color: {Colors.TEXT_PRIMARY};
-                font-size: {Typography.SIZE_MD}px;
+                font-size: {Typography.SIZE_FILTER}px;
             }}
             QLineEdit:focus {{
                 border-color: {Colors.BORDER_FOCUS};
@@ -1110,7 +1110,7 @@ class CustomSlideDialog(QDialog):
                 border-radius: {Radius.MD}px;
                 padding: 8px;
                 color: {Colors.TEXT_PRIMARY};
-                font-size: {Typography.SIZE_MD}px;
+                font-size: {Typography.SIZE_BODY}px;
             }}
             QPlainTextEdit:focus {{
                 border-color: {Colors.BORDER_FOCUS};
@@ -1170,7 +1170,7 @@ class CustomSlideDialog(QDialog):
 
         # Character Counter
         self._counter_label = QLabel("", self)
-        self._counter_label.setStyleSheet(f"color: {Colors.TEXT_MUTED}; font-size: {Typography.SIZE_XS}px;")
+        self._counter_label.setStyleSheet(f"color: {Colors.TEXT_MUTED}; font-size: {Typography.SIZE_NUMBER}px;")
         layout.addWidget(self._counter_label)
 
         self._text_edit.textChanged.connect(self._on_text_changed)
@@ -1231,7 +1231,7 @@ class CustomSlideDialog(QDialog):
         color = Colors.ACCENT_PRIMARY if highlight else Colors.TEXT_MUTED
         weight = "bold" if highlight else "normal"
         self._counter_label.setStyleSheet(
-            f"color: {color}; font-size: {Typography.SIZE_XS}px; font-weight: {weight};"
+            f"color: {color}; font-size: {Typography.SIZE_NUMBER}px; font-weight: {weight};"
         )
 
     def get_content(self) -> tuple[str, str]:

@@ -123,7 +123,7 @@ class SermonsTab(QFrame):
         # Sermons list
         self.sermons_count_label = QLabel("0 sermons", self)
         self.sermons_count_label.setStyleSheet(
-            f"font-size: {Typography.SIZE_XS}px; color: {Colors.TEXT_MUTED};"
+            f"font-size: {Typography.SIZE_META}px; color: {Colors.TEXT_MUTED};"
         )
 
         self.sermons_list = QListWidget(self)
@@ -136,7 +136,7 @@ class SermonsTab(QFrame):
         # Paragraphs list
         self.paragraphs_count_label = QLabel("0 paragraphes", self)
         self.paragraphs_count_label.setStyleSheet(
-            f"font-size: {Typography.SIZE_XS}px; color: {Colors.TEXT_MUTED};"
+            f"font-size: {Typography.SIZE_META}px; color: {Colors.TEXT_MUTED};"
         )
 
         self.paragraphs_list = QListWidget(self)
@@ -174,7 +174,7 @@ class SermonsTab(QFrame):
         preview_header_layout.setContentsMargins(8, 4, 8, 4)
         preview_label = QLabel("APERÇU DU PARAGRAPHE")
         preview_label.setStyleSheet(
-            f"color: {Colors.TEXT_MUTED}; font-size: 10px; font-weight: bold; letter-spacing: 1px;"
+            f"color: {Colors.TEXT_MUTED}; font-size: {Typography.SIZE_META}px; font-weight: bold; letter-spacing: 1px;"
         )
         preview_header_layout.addWidget(preview_label)
         preview_header_layout.addStretch()

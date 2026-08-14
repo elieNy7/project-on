@@ -29,11 +29,11 @@ class HymnDelegate(QStyledItemDelegate):
 
         # Fonts - Initialize with pixel size
         self.title_font = QFont(Typography.FAMILY)
-        self.title_font.setPixelSize(13)
+        self.title_font.setPixelSize(Typography.SIZE_BODY)
         self.title_font.setWeight(QFont.Weight.Medium)
 
         self.num_font = QFont(Typography.FAMILY)
-        self.num_font.setPixelSize(11)
+        self.num_font.setPixelSize(Typography.SIZE_NUMBER)
         self.num_font.setWeight(QFont.Weight.Bold)
 
         # Colors

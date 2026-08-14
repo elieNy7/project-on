@@ -24,10 +24,12 @@ Sortie OBS (lower-third) · Projection plein écran cinématique · 100 % hors-l
 - **Contrôle avant service** — diagnostic des données, écrans, stockage et sortie OBS avec rapport exportable.
 - **Sauvegarde sûre** — copie transactionnelle SQLite vérifiée, même lorsque l'application est ouverte.
 - **Mises à niveau sans perte** — l'installeur conserve la base, les playlists et les paramètres utilisateur.
+- **Typographie professionnelle** — labels et contenus plus lisibles, filtres et numéros plus compacts, hiérarchie homogène dans tous les onglets et dialogues.
+- **Playlist améliorée** — cartes plus aérées, références mieux séparées et compteurs plus discrets.
 
 ## ⬇️ Installation (Windows)
 
-1. Téléchargez **`ProjectOn_1.5.2_Setup.exe`** depuis la [dernière version](https://github.com/elieNy7/project-on/releases/latest).
+1. Téléchargez **`ProjectOn_1.5.3_Setup.exe`** depuis la [dernière version](https://github.com/elieNy7/project-on/releases/latest).
 2. Lancez l'installeur (français). Si Windows affiche **SmartScreen**, cliquez sur « Informations complémentaires » → « Exécuter quand même ».
 3. Ouvrez **Project-On**. Tout fonctionne hors-ligne.
 

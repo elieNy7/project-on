@@ -17,7 +17,7 @@ from PyQt6.QtWidgets import (
 )
 
 from app.ui.icons import app_icon
-from app.ui.theme import Colors, Radius
+from app.ui.theme import Colors, Radius, Typography
 from app.utils.obs_controller import ObsController
 from app.utils.settings import ObsSettings
 from app.utils.translations import tr
@@ -36,7 +36,7 @@ DIALOG_STYLE = f"""
         border-radius: {Radius.MD}px;
         padding: 10px 14px;
         color: {Colors.TEXT_PRIMARY};
-        font-size: 13px;
+        font-size: {Typography.SIZE_FILTER}px;
     }}
     QSpinBox:hover, QLineEdit:hover {{
         border: 1px solid {Colors.BORDER_FOCUS};
@@ -91,7 +91,7 @@ class ModeCard(QFrame):
         title_row.setSpacing(8)
         title_label = QLabel(title)
         title_label.setStyleSheet(
-            f"font-size: 14px; font-weight: 600; color: {Colors.TEXT_PRIMARY}; background: transparent; border: none;"
+            f"font-size: {Typography.SIZE_SECTION}px; font-weight: 600; color: {Colors.TEXT_PRIMARY}; background: transparent; border: none;"
         )
         title_row.addWidget(title_label)
 
@@ -100,7 +100,7 @@ class ModeCard(QFrame):
             badge.setStyleSheet(f"""
                 background: {Colors.ACCENT_SUCCESS};
                 color: #000;
-                font-size: 10px;
+                font-size: {Typography.SIZE_NUMBER}px;
                 font-weight: 700;
                 padding: 3px 8px;
                 border-radius: 4px;
@@ -113,7 +113,7 @@ class ModeCard(QFrame):
 
         desc_label = QLabel(description)
         desc_label.setStyleSheet(
-            f"font-size: 12px; color: {Colors.TEXT_MUTED}; background: transparent; border: none;"
+            f"font-size: {Typography.SIZE_CONTROL}px; color: {Colors.TEXT_MUTED}; background: transparent; border: none;"
         )
         desc_label.setWordWrap(True)
         text_layout.addWidget(desc_label)
@@ -181,14 +181,14 @@ class SettingRow(QFrame):
 
         lbl = QLabel(label)
         lbl.setStyleSheet(
-            f"font-size: 13px; font-weight: 500; color: {Colors.TEXT_PRIMARY}; border: none;"
+            f"font-size: {Typography.SIZE_LABEL}px; font-weight: 500; color: {Colors.TEXT_PRIMARY}; border: none;"
         )
         label_col.addWidget(lbl)
 
         if description:
             desc = QLabel(description)
             desc.setStyleSheet(
-                f"font-size: 11px; color: {Colors.TEXT_MUTED}; border: none;"
+                f"font-size: {Typography.SIZE_META}px; color: {Colors.TEXT_MUTED}; border: none;"
             )
             label_col.addWidget(desc)
 
@@ -245,11 +245,11 @@ class ObsSettingsDialog(QDialog):
         title_col.setSpacing(4)
         title = QLabel(tr("obs"))
         title.setStyleSheet(
-            f"font-size: 20px; font-weight: 700; color: {Colors.TEXT_PRIMARY};"
+            f"font-size: {Typography.SIZE_DIALOG_TITLE}px; font-weight: 700; color: {Colors.TEXT_PRIMARY};"
         )
         title_col.addWidget(title)
         subtitle = QLabel(tr("connectivity_desc"))
-        subtitle.setStyleSheet(f"font-size: 13px; color: {Colors.TEXT_MUTED};")
+        subtitle.setStyleSheet(f"font-size: {Typography.SIZE_CONTROL}px; color: {Colors.TEXT_MUTED};")
         title_col.addWidget(subtitle)
         header_layout.addLayout(title_col, 1)
 
@@ -292,7 +292,7 @@ class ObsSettingsDialog(QDialog):
         # Mode selection
         mode_label = QLabel(tr("connectivity"))
         mode_label.setStyleSheet(
-            f"font-size: 12px; font-weight: 600; color: {Colors.TEXT_MUTED}; text-transform: uppercase; letter-spacing: 1px;"
+            f"font-size: {Typography.SIZE_CONTROL}px; font-weight: 600; color: {Colors.TEXT_MUTED}; text-transform: uppercase; letter-spacing: 1px;"
         )
         content_layout.addWidget(mode_label)
 
@@ -352,7 +352,7 @@ class ObsSettingsDialog(QDialog):
 
         self._status_label = QLabel(tr("server_not_started"))
         self._status_label.setStyleSheet(
-            f"font-size: 13px; color: {Colors.TEXT_SECONDARY};"
+            f"font-size: {Typography.SIZE_BODY}px; color: {Colors.TEXT_SECONDARY};"
         )
         status_layout.addWidget(self._status_label, 1)
 
@@ -374,7 +374,7 @@ class ObsSettingsDialog(QDialog):
 
         self._web_url_label = QLabel()
         self._web_url_label.setStyleSheet(
-            f"font-size: 13px; font-weight: 500; color: {Colors.ACCENT_PRIMARY}; background: transparent;"
+            f"font-size: {Typography.SIZE_CONTROL}px; font-weight: 500; color: {Colors.ACCENT_PRIMARY}; background: transparent;"
         )
         url_layout.addWidget(self._web_url_label, 1)
 
@@ -403,7 +403,7 @@ class ObsSettingsDialog(QDialog):
                 border-radius: 6px;
                 padding: 6px 12px;
                 color: {Colors.ACCENT_PRIMARY};
-                font-size: 11px;
+                font-size: {Typography.SIZE_CONTROL}px;
                 font-weight: 600;
             }}
             QPushButton:hover {{
@@ -447,7 +447,7 @@ class ObsSettingsDialog(QDialog):
                 border-left: 3px solid {Colors.ACCENT_PRIMARY};
                 border-radius: 8px;
                 padding: 10px 12px;
-                font-size: 11px;
+                font-size: {Typography.SIZE_CONTROL}px;
             }}
         """)
         web_settings_layout.addWidget(obs_pro_tip)
@@ -493,7 +493,7 @@ class ObsSettingsDialog(QDialog):
         self._ndi_status_label = QLabel()
         self._ndi_status_label.setWordWrap(True)
         self._ndi_status_label.setStyleSheet(
-            f"font-size: 12px; color: {Colors.TEXT_SECONDARY}; background: transparent; border: none;"
+            f"font-size: {Typography.SIZE_CONTROL}px; color: {Colors.TEXT_SECONDARY}; background: transparent; border: none;"
         )
         ndi_status_layout.addWidget(self._ndi_status_label, 1)
 
@@ -531,7 +531,7 @@ class ObsSettingsDialog(QDialog):
                 border-radius: 8px;
                 padding: 10px 24px;
                 color: {Colors.TEXT_SECONDARY};
-                font-size: 13px;
+                font-size: {Typography.SIZE_CONTROL}px;
             }}
             QPushButton:hover {{
                 background: {Colors.SURFACE_ACTIVE};
@@ -549,7 +549,7 @@ class ObsSettingsDialog(QDialog):
                 border-radius: 8px;
                 padding: 10px 24px;
                 color: white;
-                font-size: 13px;
+                font-size: {Typography.SIZE_CONTROL}px;
                 font-weight: 500;
             }}
             QPushButton:hover {{

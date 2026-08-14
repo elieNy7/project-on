@@ -23,7 +23,7 @@ from app.ui.obs_output_settings_dialog import (
     ColorPickerButton,
     SettingSection,
 )
-from app.ui.theme import Colors, Radius, get_scroll_area_style
+from app.ui.theme import Colors, Radius, Typography, get_scroll_area_style
 from app.utils.fonts import get_available_fonts
 from app.utils.settings import ProjectionSettings
 from app.utils.translations import tr
@@ -58,8 +58,8 @@ class ProjectionSettingsDialog(QDialog):
     def __init__(self, settings: ProjectionSettings, parent=None) -> None:
         super().__init__(parent)
         self.setWindowTitle(tr("local_projection_title"))
-        self.setMinimumSize(620, 580)
-        self.resize(680, 720)
+        self.setMinimumSize(760, 620)
+        self.resize(840, 760)
         self.setStyleSheet(DIALOG_STYLE)
 
         main_layout = QVBoxLayout(self)
@@ -87,12 +87,12 @@ class ProjectionSettingsDialog(QDialog):
         title_col.setSpacing(2)
         title = QLabel("Projection locale")
         title.setStyleSheet(
-            f"font-size: 17px; font-weight: 700; color: {Colors.TEXT_PRIMARY}; background: transparent; border: none;"
+            f"font-size: {Typography.SIZE_TITLE}px; font-weight: 700; color: {Colors.TEXT_PRIMARY}; background: transparent; border: none;"
         )
         title_col.addWidget(title)
         subtitle = QLabel("Projection plein écran, lisible et stable")
         subtitle.setStyleSheet(
-            f"font-size: 12px; color: {Colors.TEXT_SECONDARY}; background: transparent; border: none;"
+            f"font-size: {Typography.SIZE_CONTROL}px; color: {Colors.TEXT_SECONDARY}; background: transparent; border: none;"
         )
         title_col.addWidget(subtitle)
         h_layout.addLayout(title_col, 1)
@@ -316,7 +316,7 @@ class ProjectionSettingsDialog(QDialog):
                 border-radius: {Radius.MD}px;
                 padding: 8px 14px;
                 color: {Colors.TEXT_PRIMARY};
-                font-size: 13px;
+                font-size: {Typography.SIZE_BODY}px;
             }}
             QPushButton:hover {{
                 background: {Colors.SURFACE_ACTIVE};
@@ -629,7 +629,7 @@ class ProjectionSettingsDialog(QDialog):
                 border-radius: {Radius.MD}px;
                 padding: 8px 18px;
                 color: {Colors.TEXT_SECONDARY};
-                font-size: 13px;
+                font-size: {Typography.SIZE_CONTROL}px;
             }}
             QPushButton:hover {{ background: {Colors.SURFACE_ACTIVE}; border-color: {Colors.BORDER_FOCUS}; }}
         """)
@@ -646,7 +646,7 @@ class ProjectionSettingsDialog(QDialog):
                 border-radius: {Radius.MD}px;
                 padding: 8px 22px;
                 color: {Colors.TEXT_PRIMARY};
-                font-size: 13px;
+                font-size: {Typography.SIZE_CONTROL}px;
             }}
             QPushButton:hover {{ background: {Colors.SURFACE_ACTIVE}; border-color: {Colors.BORDER_FOCUS}; }}
         """)
@@ -662,7 +662,7 @@ class ProjectionSettingsDialog(QDialog):
                 border-radius: {Radius.MD}px;
                 padding: 8px 22px;
                 color: {Colors.PROJECT_BUTTON_TEXT};
-                font-size: 13px;
+                font-size: {Typography.SIZE_CONTROL}px;
                 font-weight: 600;
             }}
             QPushButton:hover {{ background: {Colors.ACCENT_LIGHT}; }}

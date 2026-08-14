@@ -248,7 +248,7 @@ DIALOG_STYLE = f"""
         min-width: 160px;
         min-height: 20px;
         color: {Colors.TEXT_PRIMARY};
-        font-size: 13px;
+        font-size: {Typography.SIZE_FILTER}px;
     }}
     QComboBox:hover {{
         border: 1px solid {Colors.BORDER_FOCUS};
@@ -275,7 +275,7 @@ DIALOG_STYLE = f"""
         min-height: 20px;
         min-width: 80px;
         color: {Colors.TEXT_PRIMARY};
-        font-size: 13px;
+        font-size: {Typography.SIZE_CONTROL}px;
     }}
     QSpinBox:hover, QDoubleSpinBox:hover {{
         border: 1px solid {Colors.BORDER_HOVER};
@@ -286,7 +286,7 @@ DIALOG_STYLE = f"""
     QCheckBox {{
         color: {Colors.TEXT_PRIMARY};
         spacing: 10px;
-        font-size: 13px;
+        font-size: {Typography.SIZE_BODY}px;
     }}
     QCheckBox::indicator {{
         width: 20px;
@@ -401,14 +401,14 @@ class SettingRow(QFrame):
 
         lbl = QLabel(label)
         lbl.setStyleSheet(
-            f"font-size: 14px; font-weight: 500; color: {Colors.TEXT_PRIMARY}; border: none;"
+            f"font-size: {Typography.SIZE_LABEL}px; font-weight: 500; color: {Colors.TEXT_PRIMARY}; border: none;"
         )
         label_col.addWidget(lbl)
 
         if description:
             desc = QLabel(description)
             desc.setStyleSheet(
-                f"font-size: 12px; color: {Colors.TEXT_SECONDARY}; border: none;"
+                f"font-size: {Typography.SIZE_CONTROL}px; color: {Colors.TEXT_SECONDARY}; border: none;"
             )
             desc.setWordWrap(True)
             label_col.addWidget(desc)
@@ -446,7 +446,7 @@ class SettingSection(QFrame):
 
         title_label = QLabel(title)
         title_label.setStyleSheet(
-            f"font-size: 15px; font-weight: 600; color: {Colors.ACCENT_LIGHT}; background: transparent; border: none;"
+            f"font-size: {Typography.SIZE_SECTION}px; font-weight: 600; color: {Colors.ACCENT_LIGHT}; background: transparent; border: none;"
         )
         header.addWidget(title_label, 1)
 
@@ -490,7 +490,7 @@ class NavButton(QPushButton):
                     border-radius: 8px;
                     padding: 10px 14px;
                     text-align: left;
-                    font-size: 14px;
+                    font-size: {Typography.SIZE_LABEL}px;
                     font-weight: 600;
                 color: {Colors.ACCENT_PRIMARY};
                 }}
@@ -503,7 +503,7 @@ class NavButton(QPushButton):
                     border-radius: 8px;
                     padding: 10px 14px;
                     text-align: left;
-                    font-size: 14px;
+                    font-size: {Typography.SIZE_LABEL}px;
                     color: {Colors.TEXT_MUTED};
                 }}
                 QPushButton:hover {{
@@ -579,7 +579,7 @@ class ObsOutputSettingsDialog(QDialog):
 
         title = QLabel("Projection OBS")
         title.setStyleSheet(
-            f"font-size: 17px; font-weight: 700; color: {Colors.TEXT_PRIMARY}; background: transparent;"
+            f"font-size: {Typography.SIZE_TITLE}px; font-weight: 700; color: {Colors.TEXT_PRIMARY}; background: transparent;"
         )
         title_layout.addWidget(title, 1)
         sidebar_layout.addWidget(title_frame)
@@ -610,7 +610,7 @@ class ObsOutputSettingsDialog(QDialog):
                 border-radius: 8px;
                 padding: 10px;
                 color: {Colors.ACCENT_DANGER};
-                font-size: 12px;
+                font-size: {Typography.SIZE_CONTROL}px;
             }}
             QPushButton:hover {{
                 background: {Colors.GLASS_HEAVY};
@@ -660,7 +660,7 @@ class ObsOutputSettingsDialog(QDialog):
 
         preview_hdr = QLabel("Aperçu en direct")
         preview_hdr.setStyleSheet(
-            f"font-size: 14px; font-weight: 600; color: {Colors.ACCENT_LIGHT};"
+            f"font-size: {Typography.SIZE_SECTION}px; font-weight: 600; color: {Colors.ACCENT_LIGHT};"
         )
         preview_layout.addWidget(preview_hdr)
 
@@ -671,14 +671,14 @@ class ObsOutputSettingsDialog(QDialog):
             "L'aperçu simule l'apparence sur OBS. Certains effets (flou, ombres avancées) peuvent varier légèrement."
         )
         preview_help.setWordWrap(True)
-        preview_help.setStyleSheet(f"font-size: 11px; color: {Colors.TEXT_MUTED};")
+        preview_help.setStyleSheet(f"font-size: {Typography.SIZE_META}px; color: {Colors.TEXT_MUTED};")
         preview_layout.addWidget(preview_help)
 
         # Presets section in preview
         preview_layout.addSpacing(20)
         preset_hdr = QLabel("Préréglages (Styles)")
         preset_hdr.setStyleSheet(
-            f"font-size: 13px; font-weight: 600; color: {Colors.TEXT_SECONDARY};"
+            f"font-size: {Typography.SIZE_LABEL}px; font-weight: 600; color: {Colors.TEXT_SECONDARY};"
         )
         preview_layout.addWidget(preset_hdr)
 
@@ -707,7 +707,7 @@ class ObsOutputSettingsDialog(QDialog):
                 border-radius: 8px;
                 padding: 10px 24px;
                 color: {Colors.TEXT_SECONDARY};
-                font-size: 13px;
+                font-size: {Typography.SIZE_CONTROL}px;
             }}
             QPushButton:hover {{
                 background: {Colors.SURFACE_ACTIVE};
@@ -725,7 +725,7 @@ class ObsOutputSettingsDialog(QDialog):
                 border-radius: 8px;
                 padding: 10px 24px;
                 color: {Colors.PROJECT_BUTTON_TEXT};
-                font-size: 13px;
+                font-size: {Typography.SIZE_CONTROL}px;
                 font-weight: 500;
             }}
             QPushButton:hover {{
@@ -1226,7 +1226,7 @@ class ObsOutputSettingsDialog(QDialog):
             Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
         )
         self._bg_opacity_label.setStyleSheet(
-            f"font-size: 13px; color: {Colors.TEXT_SECONDARY}; border: none;"
+            f"font-size: {Typography.SIZE_NUMBER}px; color: {Colors.TEXT_SECONDARY}; border: none;"
         )
         opacity_row = QWidget()
         opacity_row.setStyleSheet("background: transparent;")
@@ -1843,7 +1843,7 @@ class ObsOutputSettingsDialog(QDialog):
                     border-radius: 6px;
                     padding: 8px;
                     color: {Colors.TEXT_SECONDARY};
-                    font-size: 11px;
+                    font-size: {Typography.SIZE_CONTROL}px;
                 }}
                 QPushButton:hover {{
                     background: {Colors.SURFACE_HOVER};
