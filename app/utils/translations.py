@@ -314,6 +314,10 @@ _translations: dict[str, dict[str, str]] = {
         "fr": "Ouvrir / Fermer la projection",
         "en": "Open / Close projection",
     },
+    "shortcut_preflight": {
+        "fr": "Contrôle avant service",
+        "en": "Pre-service system check",
+    },
     "shortcut_escape": {"fr": "Fermer la projection", "en": "Close projection"},
     # ===== UNDO =====
     "undo": {"fr": "Annuler", "en": "Undo"},

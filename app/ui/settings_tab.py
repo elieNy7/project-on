@@ -36,6 +36,7 @@ from PyQt6.QtWidgets import (
 from app.ui.icons import app_icon
 from app.ui.theme import Colors, Radius, Spacing, Typography, get_scroll_area_style
 from app.utils.app_paths import app_db_path, data_dir, settings_path
+from app.utils.backup_manager import create_database_backup
 from app.utils.settings import AppSettings
 from app.utils.translations import tr
 from app.version import __version__
@@ -46,6 +47,7 @@ from app.version import __version__
 class _WorkerSignals(QObject):
     """Signaux pour les workers de fond (thread-safe via Qt signal/slot)."""
     optimize_done  = pyqtSignal(bool, int, int)  # (success, saved_bytes, new_size)
+    backup_done = pyqtSignal(bool, str, int, str)
 
 
 class _OptimizeWorker(QRunnable):
@@ -69,6 +71,30 @@ class _OptimizeWorker(QRunnable):
             self._signals.optimize_done.emit(True, size_before - size_after, size_after)
         except Exception:
             self._signals.optimize_done.emit(False, 0, 0)
+
+
+class _BackupWorker(QRunnable):
+    """Crée une sauvegarde SQLite cohérente sans bloquer l'interface."""
+
+    def __init__(self, source: Path, destination: Path, signals: _WorkerSignals) -> None:
+        super().__init__()
+        self.setAutoDelete(True)
+        self._source = source
+        self._destination = destination
+        self._signals = signals
+
+    @pyqtSlot()
+    def run(self) -> None:
+        try:
+            result = create_database_backup(self._source, self._destination)
+            self._signals.backup_done.emit(
+                True,
+                str(result.path),
+                result.size_bytes,
+                result.integrity_message,
+            )
+        except Exception as exc:
+            self._signals.backup_done.emit(False, str(self._destination), 0, str(exc))
 
 
 # ─── Composants visuels ───────────────────────────────────────────────────────
@@ -131,6 +157,9 @@ class SettingsItem(QWidget):
         super().__init__(parent)
         self.setObjectName("SettingsItem")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setAccessibleName(title)
+        self.setAccessibleDescription(description)
         self.setMinimumHeight(60)
         self.setStyleSheet(f"""
             QWidget#SettingsItem {{
@@ -140,6 +169,14 @@ class SettingsItem(QWidget):
             }}
             QWidget#SettingsItem:hover {{
                 background: {Colors.GLASS_MEDIUM};
+            }}
+            QWidget#SettingsItem:focus {{
+                border: 2px solid {Colors.BORDER_FOCUS};
+                background: {Colors.GLASS_MEDIUM};
+            }}
+            QWidget#SettingsItem:disabled {{
+                color: {Colors.TEXT_DISABLED};
+                background: transparent;
             }}
         """)
 
@@ -218,9 +255,16 @@ class SettingsItem(QWidget):
             self._detail_label.hide()
 
     def mousePressEvent(self, event) -> None:
-        if event.button() == Qt.MouseButton.LeftButton:
+        if self.isEnabled() and event.button() == Qt.MouseButton.LeftButton:
             self.clicked.emit()
         super().mousePressEvent(event)
+
+    def keyPressEvent(self, event) -> None:
+        if self.isEnabled() and event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
+            self.clicked.emit()
+            event.accept()
+            return
+        super().keyPressEvent(event)
 
 
 class SettingsInfoItem(QWidget):
@@ -396,6 +440,7 @@ class SettingsTab(QWidget):
     appearanceSettingsRequested  = pyqtSignal()
     shortcutsRequested           = pyqtSignal()
     aboutRequested               = pyqtSignal()
+    preflightRequested           = pyqtSignal()
     settingsApplied              = pyqtSignal(object)
 
     def __init__(self, parent=None) -> None:
@@ -405,6 +450,7 @@ class SettingsTab(QWidget):
         # Signaux partagés par les workers (thread-safe)
         self._worker_signals = _WorkerSignals()
         self._worker_signals.optimize_done.connect(self._on_optimize_done)
+        self._worker_signals.backup_done.connect(self._on_backup_done)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -519,6 +565,12 @@ class SettingsTab(QWidget):
             "zap.svg", "#f59e0b", perf_card,
         )
         perf_card.add_item(self._optimize_item)
+        self._preflight_item = SettingsItem(
+            "Contrôle avant service",
+            "Vérifier les données, les écrans, le stockage et la sortie OBS avant le direct",
+            "check-circle.svg", "#4ade80", perf_card,
+        )
+        perf_card.add_item(self._preflight_item)
         cl.addWidget(perf_card)
 
         # ── RACCOURCIS CLAVIER ───────────────────────────────────────
@@ -530,6 +582,7 @@ class SettingsTab(QWidget):
             ("Ctrl+Z",    "Annuler (playlist)"),
             ("F1",        "Aide raccourcis"),
             ("F5",        "Projeter / Arrêter"),
+            ("Ctrl+Shift+D", "Contrôle avant service"),
             ("Haut / Bas", "Naviguer dans la playlist"),
             ("B",         "Masquer / Afficher l'écran"),
             ("Suppr",     "Supprimer de la playlist"),
@@ -569,6 +622,7 @@ class SettingsTab(QWidget):
         self._backup_db_item.clicked.connect(self._on_backup_db)
         self._open_data_folder_item.clicked.connect(self._on_open_data_folder)
         self._optimize_item.clicked.connect(self._on_optimize_db)
+        self._preflight_item.clicked.connect(self.preflightRequested.emit)
 
         # Chargement initial
         self.load_settings()
@@ -608,6 +662,7 @@ class SettingsTab(QWidget):
             self._reset_settings_item.set_detail("Défauts")
             self._backup_db_item.set_detail("Copie .db")
             self._open_data_folder_item.set_detail("Dossier")
+            self._preflight_item.set_detail("Diagnostic")
             self._settings_file_info.set_value(str(path.name))
 
         except Exception as e:
@@ -765,18 +820,29 @@ class SettingsTab(QWidget):
         if not file_path:
             return
 
-        try:
-            shutil.copy2(db_path, Path(file_path))
+        self._backup_db_item.set_detail("Sauvegarde en cours...")
+        self._backup_db_item.setEnabled(False)
+        worker = _BackupWorker(db_path, Path(file_path), self._worker_signals)
+        QThreadPool.globalInstance().start(worker)
+
+    def _on_backup_done(
+        self, success: bool, file_path: str, size_bytes: int, message: str
+    ) -> None:
+        self._backup_db_item.setEnabled(True)
+        if success:
+            self._backup_db_item.set_detail("Sauvegarde vérifiée")
             QMessageBox.information(
                 self,
                 "Sauvegarde terminée",
-                f"Base sauvegardée :\n{Path(file_path).name}",
+                f"Base sauvegardée et vérifiée :\n{Path(file_path).name}\n\n"
+                f"Taille : {self._fmt_size(size_bytes)} · Intégrité SQLite : {message}",
             )
-        except Exception as exc:
+        else:
+            self._backup_db_item.set_detail("Erreur")
             QMessageBox.warning(
                 self,
                 "Erreur sauvegarde",
-                f"Impossible de sauvegarder la base.\n\n{exc}",
+                f"Impossible de sauvegarder la base.\n\n{message}",
             )
 
     def _on_open_data_folder(self) -> None:
@@ -804,7 +870,7 @@ class SettingsTab(QWidget):
         if reply != QMessageBox.StandardButton.Yes:
             return
 
-        self._optimize_item.set_detail("⏳ En cours…")
+        self._optimize_item.set_detail("En cours...")
         self._optimize_item.setEnabled(False)
 
         worker = _OptimizeWorker(db_path, self._worker_signals)
@@ -816,16 +882,16 @@ class SettingsTab(QWidget):
 
         if success:
             if saved_bytes > 1024:
-                detail = f"✓  {self._fmt_size(saved_bytes)} libérés"
+                detail = f"{self._fmt_size(saved_bytes)} libérés"
             else:
-                detail = "✓  Déjà optimisé"
+                detail = "Déjà optimisé"
             self._optimize_item.set_detail(detail)
             QMessageBox.information(
                 self, "Optimisation terminée",
-                f"Base optimisée avec succès.\n{detail.replace('✓  ', '')}"
+                f"Base optimisée avec succès.\n{detail}"
             )
         else:
-            self._optimize_item.set_detail("✗  Erreur")
+            self._optimize_item.set_detail("Erreur")
             QMessageBox.warning(
                 self, "Erreur",
                 "L'optimisation a échoué.\n"

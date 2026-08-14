@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import json
+import sys
 import time
 from pathlib import Path
 
@@ -38,7 +39,13 @@ from app.ui.theme import (
     get_splitter_style,
     set_theme,
 )
-from app.utils.app_paths import ensure_presentation_workdir, settings_path
+from app.utils.app_paths import (
+    app_db_path,
+    data_dir,
+    ensure_presentation_workdir,
+    resource_root,
+    settings_path,
+)
 from app.utils.library_controller import LibraryController
 from app.utils.obs_controller import ObsController
 from app.utils.project_on_controller import ProjectOnController
@@ -184,6 +191,10 @@ class MainWindow(QMainWindow):
                 self.library_panel.settings_tab.settingsApplied.connect(
                     self._apply_settings_from_settings_tab
                 )
+            if hasattr(self.library_panel.settings_tab, "preflightRequested"):
+                self.library_panel.settings_tab.preflightRequested.connect(
+                    self._show_preflight_dialog
+                )
             self._refresh_settings_details()
 
         # Connect playlist panel signals
@@ -311,6 +322,11 @@ class MainWindow(QMainWindow):
         sc_para = QShortcut(QKeySequence("Ctrl+G"), self)
         sc_para.setContext(Qt.ShortcutContext.ApplicationShortcut)
         sc_para.activated.connect(self._focus_paragraph_search)
+
+        # Ctrl+Shift+D → operator preflight / diagnostics
+        sc_diagnostics = QShortcut(QKeySequence("Ctrl+Shift+D"), self)
+        sc_diagnostics.setContext(Qt.ShortcutContext.ApplicationShortcut)
+        sc_diagnostics.activated.connect(self._show_preflight_dialog)
 
         # Escape → Close projection (Only when MainWindow is active)
         sc_esc = QShortcut(QKeySequence(Qt.Key.Key_Escape), self)
@@ -916,6 +932,23 @@ class MainWindow(QMainWindow):
 
         dlg = ShortcutsDialog(self)
         dlg.exec()
+
+    def _show_preflight_dialog(self) -> None:
+        from app.ui.preflight_dialog import PreflightDialog
+
+        ndi_arch = "x64" if sys.maxsize > 2**32 else "x86"
+        ndi_runtime = (
+            resource_root() / "ndi" / "bin" / f"Processing.NDI.Lib.{ndi_arch}.dll"
+        )
+        dialog = PreflightDialog(
+            database_path=app_db_path(),
+            data_directory=data_dir(),
+            presentation_directory=self._presentation_dir,
+            ndi_runtime_path=ndi_runtime,
+            settings=self._settings,
+            parent=self,
+        )
+        dialog.exec()
 
     def _undo_playlist(self) -> None:
         if not self._project_controller.undo():

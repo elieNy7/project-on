@@ -3,7 +3,7 @@
 ; ═══════════════════════════════════════════════════════════════════
 
 #define MyAppName "Project-On"
-#define MyAppVersion "1.5.1"
+#define MyAppVersion "1.5.2"
 #define MyAppPublisher "Elie Nyembo"
 #define MyAppURL "https://github.com/elieNy7/project-on"
 #define MyAppExeName "Project-On.exe"
@@ -75,17 +75,10 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
 
 [InstallDelete]
-; Supprimer tout le contenu du dossier d'installation pour une installation propre
-; On cible spécifiquement les fichiers et sous-dossiers
+; Refresh application binaries while preserving user data in AppData.
+; Inno Setup upgrades the same AppId in place; never invoke the previous
+; uninstaller here because older uninstallers removed the user's database.
 Type: filesandordirs; Name: "{app}\*"
-Type: filesandordirs; Name: "{app}"
-; Supprimer les données utilisateur (base de données, paramètres) et les caches
-Type: filesandordirs; Name: "{userappdata}\{#MyAppName}"
-Type: filesandordirs; Name: "{localappdata}\{#MyAppName}"
-
-[UninstallDelete]
-Type: filesandordirs; Name: "{localappdata}\{#MyAppName}"
-Type: filesandordirs; Name: "{userappdata}\{#MyAppName}"
 
 [Registry]
 Root: HKCU; Subkey: "Software\{#MyAppName}"; ValueType: string; ValueName: "DataPath"; ValueData: "{userappdata}\{#MyAppName}\data"; Flags: uninsdeletekey
@@ -97,77 +90,11 @@ english.WelcomeLabel1=Welcome to the {#MyAppName} Setup Wizard
 english.WelcomeLabel2=This will install {#MyAppName} {#MyAppVersion} on your computer.%n%n{#MyAppDescription}%n%nClick Next to continue.
 
 [Code]
-// Helper function to get the uninstaller string from registry
-function GetUninstallString(): String;
-var
-  sUninstPath: String;
-  sUninstString: String;
-begin
-  sUninstPath := 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{{#MyAppId}}_is1';
-  sUninstString := '';
-  if not RegQueryStringValue(HKLM, sUninstPath, 'UninstallString', sUninstString) then
-    RegQueryStringValue(HKCU, sUninstPath, 'UninstallString', sUninstString);
-  Result := sUninstString;
-end;
-
-// Helper function to check if the app is already installed
-function IsAlreadyInstalled(): Boolean;
-begin
-  Result := (GetUninstallString() <> '');
-end;
-
-// Helper function to uninstall the previous version
-function UninstallOldVersion(): Integer;
-var
-  sUninstString: String;
-  iResultCode: Integer;
-begin
-  // Return codes: 0 = success, 1 = error, 2 = user cancelled
-  sUninstString := GetUninstallString();
-  if sUninstString <> '' then
-  begin
-    sUninstString := RemoveQuotes(sUninstString);
-    if Exec(sUninstString, '/SILENT /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS', '', SW_HIDE, ewWaitUntilTerminated, iResultCode) then
-      Result := 0
-    else
-      Result := 1;
-  end
-  else
-    Result := 0;
-end;
-
-// Automatic uninstallation and cleanup before new install starts
-function InitializeSetup(): Boolean;
-begin
-  Result := True;
-  
-  if IsAlreadyInstalled() then
-  begin
-    // Optional: Ask user for clean install. 
-    // But since the user explicitly asked for "erase all old files", we do it.
-    if MsgBox('Une version précédente de {#MyAppName} a été détectée.' #13#10 #13#10 'L''assistant va maintenant supprimer TOUS les anciens fichiers et paramètres pour garantir une installation propre. Souhaitez-vous continuer ?', mbInformation, MB_YESNO) = IDYES then
-    begin
-      UninstallOldVersion();
-      
-      // Additional aggressive cleanup of directories if uninstaller left anything
-      // (This will be double-enforced by [InstallDelete])
-    end
-    else
-    begin
-      // If user says NO, we still proceed but it won't be a "clean install" in the uninstaller sense.
-      // However, [InstallDelete] will still target the files.
-    end;
-  end;
-end;
-
-// Show a progress message during extraction
+// Show accurate progress messages during an in-place, data-preserving upgrade.
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep = ssInstall then
   begin
-    WizardForm.StatusLabel.Caption := 'Désinstallation des anciennes versions et nettoyage...';
-    // We can't easily delete AppData here because [InstallDelete] handles it, 
-    // but we can ensure the label reflects the "Clean Install" phase.
     WizardForm.StatusLabel.Caption := 'Installation des nouveaux fichiers...';
   end;
   if CurStep = ssPostInstall then
