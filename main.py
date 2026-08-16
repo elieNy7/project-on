@@ -23,13 +23,19 @@ def _exception_handler(exctype, value, traceback_obj):
         log_dir = logs_dir()
         log_dir.mkdir(parents=True, exist_ok=True)
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        log_file = log_dir / f"crash_{timestamp}.txt"
+        # Nom construit depuis un horodatage local (chiffres/underscore),
+        # puis confiné au répertoire de journaux géré par l'application.
+        log_file = (log_dir / ("crash_" + timestamp + ".txt")).resolve()
+        if not log_file.is_relative_to(log_dir.resolve()):
+            raise ValueError("Chemin de rapport de crash hors du dossier de journaux")
 
-        with open(log_file, "w", encoding="utf-8") as f:
-            f.write(f"Crash at {timestamp}\n")
-            f.write(f"Exception Type: {exctype}\n")
-            f.write(f"Value: {value}\n\n")
-            traceback.print_exception(exctype, value, traceback_obj, file=f)
+        report = (
+            f"Crash at {timestamp}\n"
+            f"Exception Type: {exctype}\n"
+            f"Value: {value}\n\n"
+            + "".join(traceback.format_exception(exctype, value, traceback_obj))
+        )
+        log_file.write_text(report, encoding="utf-8")
 
         cleanup_old_crash_logs(log_dir)
 

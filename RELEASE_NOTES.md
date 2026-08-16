@@ -1,3 +1,30 @@
+# Project-On 1.6.0
+
+Cette mise à jour fait passer la diffusion OBS de Project-On au niveau professionnel : habillage TV repensé, animation du texte mot à mot, styles indépendants par scène OBS et pilotage de OBS depuis le poste opérateur via WebSocket. Les versions précédentes restent compatible : vos réglages existants sont conservés tels quels.
+
+## Nouveautés de cette version
+
+- **Révélation du texte mot à mot** : nouveau style d'animation « broadcast » où les mots apparaissent en cascade, comme sur les habillages TV. Réglable dans Style OBS → Effets → « Révélation du texte », mis en valeur par les préréglages *Lower Third TV* et *Louange — Impact*.
+- **Entrée de bandeau chorégraphiée** : à l'apparition du bandeau, la barre d'accent balaie l'écran, puis le badge source, le texte et la référence arrivent en cascade.
+- **Design affiné** : liseré lumineux sur le haut du bandeau, barre d'accent en dégradé deux tons avec halo doux, badge source avec anneau interne, badge référence épuré, reflets et orbes plus discrets.
+- **Styles par scène OBS** : créez des styles indépendants (ex. *Louange* plein écran, *Prédication* en lower third discret) dans Style OBS, chacun avec son URL dédiée `?scene=…` à coller dans une source Navigateur. Ajout, renommage, duplication et suppression directement dans le dialogue, avec aperçu en direct par scène.
+- **Contrôle OBS (WebSocket)** : Project-On se connecte à OBS (obs-websocket 5.x, aucun réglage OBS requis si sans mot de passe) et peut basculer automatiquement de scène quand vous projetez ou masquez, charger la liste des scènes et créer la source Navigateur Project-On en 1920 × 1080 en un clic. Reconnexion automatique si OBS redémarre.
+- **Compatibilité et robustesse** : les anciens fichiers de réglages chargent sans perte ; 91 tests automatisés couvrent l'application, dont les scènes, le protocole WebSocket et la diffusion serveur.
+
+## Installation
+
+Téléchargez **`ProjectOn_1.6.0_Setup.exe`** ci-dessous et lancez-le.
+Si Windows affiche **SmartScreen** : « Informations complémentaires » → « Exécuter quand même ».
+Si l'installeur est bloqué (erreur 4551), utilisez **`ProjectOn_1.6.0_Portable.zip`** : décompressez et lancez `Project-On.exe`.
+
+Windows 10 / 11 (64 bits) · ~500 Mo · fonctionne hors-ligne.
+
+## Crédits
+
+Silhouettes aigle / lion / agneau : game-icons.net (Lorc, Delapouite) — CC BY 3.0.
+
+---
+
 # Project-On 1.5.3
 
 Cette mise à jour harmonise toute la typographie de Project-On afin de rendre le poste opérateur plus lisible, plus rapide à parcourir et plus cohérent pendant un service. Elle améliore également la playlist et les principaux dialogues sans modifier la navigation existante ni la taille configurée du texte projeté.

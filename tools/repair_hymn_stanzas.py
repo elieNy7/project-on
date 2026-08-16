@@ -63,7 +63,9 @@ def table_exists(conn: sqlite3.Connection, table: str) -> bool:
 
 
 def table_columns(conn: sqlite3.Connection, table: str) -> set[str]:
-    return {str(row[1]) for row in conn.execute(f"PRAGMA table_info({table})")}
+    # Fonction table-valued : le nom de table est passé en paramètre lié.
+    rows = conn.execute("SELECT name FROM pragma_table_info(?)", (table,))
+    return {str(row[0]) for row in rows}
 
 
 def detect_chorus(text: str) -> bool:
