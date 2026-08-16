@@ -1,3 +1,5 @@
+import re
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -9,6 +11,25 @@ FONTS = [
     "Poppins",
 ]
 TARGET_DIR = Path("assets/fonts")
+
+# Seule origine autorisée pour le téléchargement des polices.
+ALLOWED_DOWNLOAD_HOSTS = {"github.com", "raw.githubusercontent.com"}
+
+
+def _checked_url(url: str) -> str:
+    """Valide l'URL contre la liste blanche avant toute requête."""
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme != "https" or parsed.hostname not in ALLOWED_DOWNLOAD_HOSTS:
+        raise ValueError(f"URL refusée (hôte non autorisé) : {url}")
+    return url
+
+
+def _safe_local_name(filename: str) -> str:
+    """Réduit un chemin distant à un nom de fichier inoffensif."""
+    local_name = Path(filename).name
+    if not re.fullmatch(r"[A-Za-z0-9._\-]+", local_name):
+        raise ValueError(f"Nom de fichier refusé : {filename!r}")
+    return local_name
 
 
 def download_and_extract(font_name):
@@ -70,29 +91,29 @@ def download_and_extract(font_name):
         # Check if we should try root if static fails, or vice versa?
         # We constructed specific paths above.
 
-        url = f"{base_url}{filename}"
-        local_name = Path(filename).name  # Flatten structure
-        dest = extract_dir / local_name
+        url = _checked_url(base_url + filename)
+        local_name = _safe_local_name(filename)
+        dest = (extract_dir / local_name).resolve()
+        if not dest.is_relative_to(extract_dir.resolve()):
+            raise ValueError(f"Chemin de destination refusé : {filename!r}")
 
         try:
             print(f"  Downloading {filename}...")
             req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
             with urllib.request.urlopen(req) as response:
-                with open(dest, "wb") as f:
-                    f.write(response.read())
+                dest.write_bytes(response.read())
                 print("    Success")
         except Exception:
             # Try static/ prefix if not already there
             if "static/" not in filename:
                 try:
-                    url = f"{base_url}static/{filename}"
+                    url = _checked_url(base_url + "static/" + filename)
                     print(f"    Trying static/{filename}...")
                     req = urllib.request.Request(
                         url, headers={"User-Agent": "Mozilla/5.0"}
                     )
                     with urllib.request.urlopen(req) as response:
-                        with open(dest, "wb") as f:
-                            f.write(response.read())
+                        dest.write_bytes(response.read())
                         print("    Success (from static)")
                 except Exception:
                     print(f"    Failed: {url}")

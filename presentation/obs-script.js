@@ -14,6 +14,7 @@ const LAYOUT_MODES = new Set([
     'focus_card',
 ]);
 const requestedLayout = new URLSearchParams(window.location.search).get('layout');
+const requestedScene = new URLSearchParams(window.location.search).get('scene');
 const previewCanvas = ['1', 'true'].includes(
     new URLSearchParams(window.location.search).get('preview')
 );
@@ -54,6 +55,15 @@ function applyAlpha(colorStr, alpha) {
 /* ── Config Application ──────────────────────────────────────── */
 function applyConfig(cfg) {
     if (!cfg) return;
+    // Per-scene style override (?scene=<id>): the server broadcasts the base
+    // style plus one payload per named scene; this source applies its own.
+    if (
+        requestedScene
+        && cfg.scenes
+        && Object.prototype.hasOwnProperty.call(cfg.scenes, requestedScene)
+    ) {
+        cfg = { ...cfg, ...cfg.scenes[requestedScene] };
+    }
     const configuredLayout = LAYOUT_MODES.has(cfg.layout_mode)
         ? cfg.layout_mode
         : 'lower_third';
@@ -486,6 +496,132 @@ async function animateElement(element, phase, settings, token) {
     }
 }
 
+/* ── Word-by-word broadcast reveal ──────────────────────────── */
+function wrapWordsIn(textEl) {
+    if (!textEl) return [];
+    const raw = textEl.textContent || '';
+    const fragment = document.createDocumentFragment();
+    const spans = [];
+    raw.split(/(\s+)/).forEach((token) => {
+        if (!token) return;
+        if (/^\s+$/.test(token)) {
+            fragment.appendChild(document.createTextNode(token));
+        } else {
+            const span = document.createElement('span');
+            span.className = 'lt-word';
+            span.textContent = token;
+            fragment.appendChild(span);
+            spans.push(span);
+        }
+    });
+    textEl.textContent = '';
+    textEl.appendChild(fragment);
+    return spans;
+}
+
+function animateBandEntrance(accentStrip, transition) {
+    if (!accentStrip || !transition.enabled || typeof accentStrip.animate !== 'function') return;
+    try {
+        const targetOpacity = getComputedStyle(accentStrip).opacity || '0.7';
+        accentStrip.style.transformOrigin = 'left center';
+        accentStrip.animate(
+            [
+                { transform: 'scaleX(0)', opacity: 0 },
+                { transform: 'scaleX(1)', opacity: targetOpacity },
+            ],
+            {
+                duration: Math.min(Math.max(transition.duration * 0.7, 240), 460),
+                easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+                fill: 'backwards',
+            }
+        );
+    } catch {
+        // Animations unsupported — keep the static strip.
+    }
+}
+
+function softInAnimation(el, duration, delay) {
+    if (!el || typeof el.animate !== 'function') return null;
+    try {
+        return el.animate(
+            [{ opacity: 0 }, { opacity: 1 }],
+            {
+                duration: Math.min(duration, 420),
+                delay,
+                easing: 'ease-out',
+                fill: 'backwards',
+            }
+        );
+    } catch {
+        return null;
+    }
+}
+
+async function animateWordsReveal(els, transition, bandEntrance) {
+    const { textEl, kicker, divider, refBox, accentStrip } = els;
+    const promises = [];
+
+    if (bandEntrance) {
+        animateBandEntrance(accentStrip, transition);
+
+        if (kicker && !kicker.classList.contains('hidden') && typeof kicker.animate === 'function') {
+            try {
+                promises.push(kicker.animate(
+                    [
+                        { opacity: 0, transform: 'translateY(-10px)' },
+                        { opacity: 1, transform: 'translateY(0px)' },
+                    ],
+                    {
+                        duration: Math.min(transition.duration, 380),
+                        delay: 40,
+                        easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+                        fill: 'backwards',
+                    }
+                ).finished.catch(() => {}));
+            } catch {
+                // ignore
+            }
+        }
+    }
+
+    const wordSpans = wrapWordsIn(textEl);
+    const startDelay = bandEntrance ? 150 : 0;
+    const stagger = wordSpans.length
+        ? Math.min(46, Math.max(16, Math.round(980 / wordSpans.length)))
+        : 0;
+    const wordDuration = Math.min(Math.max(transition.duration, 320), 620);
+    wordSpans.forEach((span, index) => {
+        if (typeof span.animate !== 'function') return;
+        try {
+            promises.push(span.animate(
+                [
+                    { opacity: 0, transform: 'translateY(0.38em)' },
+                    { opacity: 1, transform: 'translateY(0em)' },
+                ],
+                {
+                    duration: wordDuration,
+                    delay: startDelay + index * stagger,
+                    easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+                    fill: 'backwards',
+                }
+            ).finished.catch(() => {}));
+        } catch {
+            // ignore
+        }
+    });
+
+    if (bandEntrance) {
+        const tailDelay = startDelay + Math.min(wordSpans.length * stagger, 480);
+        [divider, refBox].forEach((el) => {
+            if (!el || el.classList.contains('hidden')) return;
+            const anim = softInAnimation(el, transition.duration, tailDelay);
+            if (anim) promises.push(anim.finished.catch(() => {}));
+        });
+    }
+
+    if (promises.length) await Promise.allSettled(promises);
+}
+
 function getSourcePresentation(source) {
     switch (source) {
         case 'bible':
@@ -660,11 +796,31 @@ async function setSlide(payload) {
     if (divider) divider.classList.toggle('hidden', !showReference);
 
     if (lowerThird) {
+        const bandWasHidden = !lowerThird.classList.contains('visible');
         lowerThird.classList.add('visible');
         fitTextToViewport(textEl, refEl, lowerThird.querySelector('.lt-body'), fittedBaseSize);
         if (innerWrapper) innerWrapper.classList.remove('content-hidden');
-        await animateElement(innerWrapper, 'in', transition, localToken);
-        if (localToken === transitionToken) resetAnimatedState(innerWrapper);
+        const useWords = currentConfig.animation_style === 'words' && transition.enabled;
+        if (useWords) {
+            await animateWordsReveal(
+                {
+                    textEl,
+                    kicker: sourceKicker,
+                    divider,
+                    refBox,
+                    accentStrip: document.getElementById('accent-strip'),
+                },
+                transition,
+                bandWasHidden
+            );
+            if (localToken === transitionToken) resetAnimatedState(innerWrapper);
+        } else {
+            if (bandWasHidden) {
+                animateBandEntrance(document.getElementById('accent-strip'), transition);
+            }
+            await animateElement(innerWrapper, 'in', transition, localToken);
+            if (localToken === transitionToken) resetAnimatedState(innerWrapper);
+        }
     }
 }
 

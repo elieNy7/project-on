@@ -105,24 +105,28 @@ class Database:
     # Plain B-tree indexes over full text columns. They cannot serve the only
     # text queries the app issues (`unaccent(text) LIKE '%q%'`, handled by FTS),
     # so they just duplicate the text on disk. Dropping them reclaims ~600 MB.
+    # SQLite cannot bind identifiers, so each drop is a fixed literal statement.
     _OBSOLETE_INDEXES = (
-        "idx_sermon_paragraph_text",
-        "idx_bible_translation_verse_text",
-        "idx_bible_verse_text",
-        "idx_hymn_stanza_text",
+        ("idx_sermon_paragraph_text", "DROP INDEX IF EXISTS idx_sermon_paragraph_text"),
+        (
+            "idx_bible_translation_verse_text",
+            "DROP INDEX IF EXISTS idx_bible_translation_verse_text",
+        ),
+        ("idx_bible_verse_text", "DROP INDEX IF EXISTS idx_bible_verse_text"),
+        ("idx_hymn_stanza_text", "DROP INDEX IF EXISTS idx_hymn_stanza_text"),
     )
 
     def _drop_obsolete_indexes(self, conn: sqlite3.Connection) -> bool:
         """Drop the dead text indexes if present. Returns True if any existed."""
         dropped = False
-        for name in self._OBSOLETE_INDEXES:
+        for name, drop_sql in self._OBSOLETE_INDEXES:
             try:
                 exists = conn.execute(
                     "SELECT 1 FROM sqlite_master WHERE type='index' AND name=?",
                     (name,),
                 ).fetchone()
                 if exists:
-                    conn.execute(f"DROP INDEX IF EXISTS {name}")
+                    conn.execute(drop_sql)
                     dropped = True
             except sqlite3.Error:
                 pass
@@ -170,7 +174,12 @@ class Database:
 
     @staticmethod
     def _set_user_version(conn: sqlite3.Connection, version: int) -> None:
-        conn.execute(f"PRAGMA user_version = {int(version)};")
+        # PRAGMA ne supporte pas les paramètres liés : la valeur est validée
+        # comme entier strictement positif avant l'exécution.
+        safe_version = int(version)
+        if safe_version < 0:
+            raise ValueError(f"Invalid user_version: {version!r}")
+        conn.execute("PRAGMA user_version = %d;" % safe_version)
 
     @staticmethod
     def _ensure_app_meta_table(conn: sqlite3.Connection) -> None:

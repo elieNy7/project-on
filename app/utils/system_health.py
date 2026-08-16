@@ -101,16 +101,17 @@ def _database_checks(database_path: Path) -> list[HealthCheck]:
                     "SELECT name FROM sqlite_master WHERE type='table'"
                 )
             }
+            # Requêtes littérales par table — SQLite ne lie pas les identifiants.
             content_specs = (
-                ("bible_translation_verse", "versets"),
-                ("hymn", "cantiques"),
-                ("sermon", "prédications"),
-                ("playlist_item", "éléments de playlist"),
+                ("bible_translation_verse", "versets", 'SELECT COUNT(*) FROM "bible_translation_verse"'),
+                ("hymn", "cantiques", 'SELECT COUNT(*) FROM "hymn"'),
+                ("sermon", "prédications", 'SELECT COUNT(*) FROM "sermon"'),
+                ("playlist_item", "éléments de playlist", 'SELECT COUNT(*) FROM "playlist_item"'),
             )
             counts: list[str] = []
-            for table, label in content_specs:
+            for table, label, count_sql in content_specs:
                 if table in tables:
-                    count = int(conn.execute(f'SELECT COUNT(*) FROM "{table}"').fetchone()[0])
+                    count = int(conn.execute(count_sql).fetchone()[0])
                     counts.append(f"{count:,} {label}".replace(",", " "))
 
             if counts:

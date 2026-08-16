@@ -81,9 +81,13 @@ class ObsController:
         self._apply_output_config()
 
     def _apply_output_config(self) -> None:
-        """Apply output configuration to the web server."""
+        """Apply output configuration to the web server.
+
+        The broadcast config embeds every named scene's style so each OBS
+        browser source can pick its own look via ?scene=<id>.
+        """
         try:
-            config = self._settings.output.to_obs_config()
+            config = self._settings.to_full_obs_config()
             logger.debug("Applying OBS output config: %s", config)
             self._web_server.update_config(config)
         except Exception as e:
@@ -172,9 +176,24 @@ class ObsController:
             )
         }
 
+    def get_scene_urls(self) -> dict[str, str]:
+        """Return a dedicated OBS URL per configured style scene."""
+        base = self._web_server.get_url()
+        return {
+            scene.id: f"{base}?{urlencode({'scene': scene.id})}"
+            for scene in self._settings.scenes
+            if scene.id
+        }
+
     def open_in_browser(self, layout_mode: str | None = None) -> None:
         """Open the OBS page in the default browser for testing."""
         url = self.get_web_server_url(layout_mode)
+        if url:
+            webbrowser.open_new_tab(url)
+
+    def open_scene_in_browser(self, scene_id: str) -> None:
+        """Open a named scene's OBS page in the default browser."""
+        url = self.get_scene_urls().get(scene_id)
         if url:
             webbrowser.open_new_tab(url)
 

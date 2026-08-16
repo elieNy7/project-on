@@ -3,6 +3,7 @@ from __future__ import annotations
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import (
     QApplication,
+    QCheckBox,
     QComboBox,
     QDialog,
     QFrame,
@@ -201,16 +202,18 @@ class ObsSettingsDialog(QDialog):
         self,
         settings: ObsSettings,
         obs_controller: ObsController | None = None,
+        remote_client=None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle(tr("obs"))
         self.setMinimumSize(550, 580)
-        self.resize(580, 620)
+        self.resize(580, 700)
         self.setStyleSheet(DIALOG_STYLE)
 
         self._settings = settings
         self._obs_controller = obs_controller
+        self._remote_client = remote_client
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 24, 24, 24)
@@ -426,11 +429,16 @@ class ObsSettingsDialog(QDialog):
             ("Carte focus", "focus_card"),
         ):
             self._url_mode_combo.addItem(label, data)
+        for scene in getattr(settings, "scenes", []) or []:
+            if scene.id:
+                self._url_mode_combo.addItem(
+                    f"Scène : {scene.name}", f"scene:{scene.id}"
+                )
         web_settings_layout.addWidget(
             SettingRow(
                 "URL par scène OBS",
                 self._url_mode_combo,
-                "Créez plusieurs sources Navigateur avec des compositions différentes.",
+                "Créez plusieurs sources Navigateur avec des compositions ou styles différents.",
             )
         )
 
@@ -516,6 +524,9 @@ class ObsSettingsDialog(QDialog):
         ndi_settings_layout.addWidget(self._ndi_status_frame)
         content_layout.addWidget(self._ndi_settings_frame)
 
+        # Remote control of OBS via obs-websocket
+        self._create_remote_section(content_layout)
+
         content_layout.addStretch()
 
         # Buttons
@@ -584,25 +595,41 @@ class ObsSettingsDialog(QDialog):
     def _update_url(self) -> None:
         port = int(self._port_spin.value())
         url = f"http://localhost:{port}/obs"
-        layout_mode = str(self._url_mode_combo.currentData() or "")
-        if (
-            self._obs_controller is not None
-            and self._obs_controller.is_web_server_running()
-        ):
-            running_url = self._obs_controller.get_web_server_url(
-                layout_mode or None
-            )
-            if running_url:
-                url = running_url
-        elif layout_mode:
-            url = f"{url}?layout={layout_mode}"
+        data = str(self._url_mode_combo.currentData() or "")
+        if data.startswith("scene:"):
+            scene_id = data.split(":", 1)[1]
+            url = f"{url}?scene={scene_id}"
+            if (
+                self._obs_controller is not None
+                and self._obs_controller.is_web_server_running()
+            ):
+                running_url = self._obs_controller.get_scene_urls().get(scene_id)
+                if running_url:
+                    url = running_url
+        else:
+            layout_mode = data
+            if (
+                self._obs_controller is not None
+                and self._obs_controller.is_web_server_running()
+            ):
+                running_url = self._obs_controller.get_web_server_url(
+                    layout_mode or None
+                )
+                if running_url:
+                    url = running_url
+            elif layout_mode:
+                url = f"{url}?layout={layout_mode}"
         self._web_url_label.setText(url)
         self._web_url_label.setToolTip(url)
 
     def _open_in_browser(self) -> None:
-        if self._obs_controller:
-            layout_mode = str(self._url_mode_combo.currentData() or "")
-            self._obs_controller.open_in_browser(layout_mode or None)
+        if not self._obs_controller:
+            return
+        data = str(self._url_mode_combo.currentData() or "")
+        if data.startswith("scene:"):
+            self._obs_controller.open_scene_in_browser(data.split(":", 1)[1])
+            return
+        self._obs_controller.open_in_browser(data or None)
 
     def _select_mode(self, mode: str) -> None:
         self._current_mode = mode
@@ -660,8 +687,300 @@ class ObsSettingsDialog(QDialog):
         self._ndi_status_label.setText(label)
         self._ndi_status_label.setToolTip(detail)
 
+    # ── Remote OBS control (obs-websocket 5.x) ─────────────────────────
+
+    def _create_remote_section(self, content_layout: QVBoxLayout) -> None:
+        remote = getattr(self._settings, "remote", None)
+
+        frame = QFrame()
+        frame.setStyleSheet(f"""
+            QFrame {{
+                background: {Colors.BG_PRIMARY};
+                border: 1px solid {Colors.BORDER_DEFAULT};
+                border-radius: 10px;
+            }}
+        """)
+        lay = QVBoxLayout(frame)
+        lay.setContentsMargins(16, 16, 16, 16)
+        lay.setSpacing(12)
+
+        title = QLabel("Contrôle OBS (WebSocket)")
+        title.setStyleSheet(
+            f"font-size: {Typography.SIZE_SECTION}px; font-weight: 600;"
+            f" color: {Colors.TEXT_PRIMARY}; background: transparent; border: none;"
+        )
+        lay.addWidget(title)
+
+        self._remote_enabled = QCheckBox("Piloter OBS depuis Project-On")
+        self._remote_enabled.setChecked(bool(remote and remote.enabled))
+        self._remote_enabled.setStyleSheet(
+            f"font-size: {Typography.SIZE_CONTROL}px; color: {Colors.TEXT_SECONDARY};"
+            " background: transparent; border: none;"
+        )
+        lay.addWidget(self._remote_enabled)
+
+        endpoint_row = QHBoxLayout()
+        endpoint_row.setSpacing(10)
+        host_label = QLabel("Hôte")
+        host_label.setStyleSheet("background: transparent; border: none;")
+        endpoint_row.addWidget(host_label)
+        self._remote_host = QLineEdit(getattr(remote, "host", "127.0.0.1"))
+        self._remote_host.setFixedWidth(120)
+        endpoint_row.addWidget(self._remote_host)
+        port_label = QLabel("Port")
+        port_label.setStyleSheet("background: transparent; border: none;")
+        endpoint_row.addWidget(port_label)
+        self._remote_port = QSpinBox()
+        self._remote_port.setRange(1024, 65535)
+        self._remote_port.setValue(getattr(remote, "port", 4455))
+        endpoint_row.addWidget(self._remote_port)
+        pwd_label = QLabel("Mot de passe")
+        pwd_label.setStyleSheet("background: transparent; border: none;")
+        endpoint_row.addWidget(pwd_label)
+        self._remote_password = QLineEdit(getattr(remote, "password", ""))
+        self._remote_password.setEchoMode(QLineEdit.EchoMode.Password)
+        self._remote_password.setPlaceholderText("si défini dans OBS")
+        endpoint_row.addWidget(self._remote_password, 1)
+        lay.addLayout(endpoint_row)
+
+        status_row = QHBoxLayout()
+        status_row.setSpacing(10)
+        self._remote_status_dot = QFrame()
+        self._remote_status_dot.setFixedSize(10, 10)
+        self._remote_status_dot.setStyleSheet(
+            f"background: {Colors.ACCENT_DANGER}; border-radius: 5px;"
+        )
+        status_row.addWidget(self._remote_status_dot)
+        self._remote_status_label = QLabel("Déconnecté")
+        self._remote_status_label.setStyleSheet(
+            f"font-size: {Typography.SIZE_CONTROL}px; color: {Colors.TEXT_SECONDARY};"
+            " background: transparent; border: none;"
+        )
+        status_row.addWidget(self._remote_status_label, 1)
+
+        self._remote_connect_btn = QPushButton("Connecter")
+        self._remote_connect_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._remote_connect_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: {Colors.ACCENT_PRIMARY};
+                border: 1px solid {Colors.ACCENT_PRIMARY};
+                border-radius: 6px;
+                padding: 6px 14px;
+                color: {Colors.PROJECT_BUTTON_TEXT};
+                font-size: {Typography.SIZE_CONTROL}px;
+                font-weight: 600;
+            }}
+            QPushButton:hover {{ background: {Colors.ACCENT_SECONDARY}; }}
+        """)
+        self._remote_connect_btn.clicked.connect(self._connect_remote)
+        status_row.addWidget(self._remote_connect_btn)
+
+        load_scenes_btn = QPushButton("Charger les scènes OBS")
+        load_scenes_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        load_scenes_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: transparent;
+                border: 1px solid {Colors.BORDER_DEFAULT};
+                border-radius: 6px;
+                padding: 6px 14px;
+                color: {Colors.TEXT_SECONDARY};
+                font-size: {Typography.SIZE_CONTROL}px;
+            }}
+            QPushButton:hover {{
+                border-color: {Colors.ACCENT_PRIMARY};
+                color: {Colors.TEXT_PRIMARY};
+            }}
+        """)
+        load_scenes_btn.clicked.connect(self._load_obs_scenes)
+        status_row.addWidget(load_scenes_btn)
+        lay.addLayout(status_row)
+
+        self._remote_live_combo = QComboBox()
+        self._remote_live_combo.setEditable(True)
+        self._remote_live_combo.setCurrentText(
+            getattr(remote, "scene_on_live", "") or ""
+        )
+        lay.addWidget(
+            SettingRow(
+                "Scène OBS quand on projette",
+                self._remote_live_combo,
+                "Bascule OBS sur cette scène dès qu'une slide passe en direct.",
+            )
+        )
+
+        self._remote_hide_combo = QComboBox()
+        self._remote_hide_combo.setEditable(True)
+        self._remote_hide_combo.setCurrentText(
+            getattr(remote, "scene_on_hide", "") or ""
+        )
+        lay.addWidget(
+            SettingRow(
+                "Scène OBS quand on masque",
+                self._remote_hide_combo,
+                "Ex. une scène caméra seul ou un écran d'accueil.",
+            )
+        )
+
+        source_row = QHBoxLayout()
+        source_row.setSpacing(10)
+        self._remote_target_scene = QComboBox()
+        self._remote_target_scene.setEditable(True)
+        source_row.addWidget(self._remote_target_scene, 1)
+        create_source_btn = QPushButton("Créer la source Project-On")
+        create_source_btn.setToolTip(
+            "Ajoute une source Navigateur pointant vers la diffusion Project-On"
+            " dans la scène choisie (1920 × 1080)."
+        )
+        create_source_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        create_source_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: transparent;
+                border: 1px solid {Colors.BORDER_DEFAULT};
+                border-radius: 6px;
+                padding: 6px 14px;
+                color: {Colors.TEXT_SECONDARY};
+                font-size: {Typography.SIZE_CONTROL}px;
+            }}
+            QPushButton:hover {{
+                border-color: {Colors.ACCENT_PRIMARY};
+                color: {Colors.TEXT_PRIMARY};
+            }}
+        """)
+        create_source_btn.clicked.connect(self._create_remote_source)
+        source_row.addWidget(create_source_btn)
+        lay.addLayout(source_row)
+
+        content_layout.addWidget(frame)
+
+        self._remote_enabled.toggled.connect(self._update_remote_controls)
+        self._update_remote_controls()
+        self._update_remote_status()
+
+        if self._remote_client is not None:
+            self._remote_client.scenesLoaded.connect(self._on_scenes_loaded)
+            self._remote_client.connected.connect(self._update_remote_status)
+            self._remote_client.disconnected.connect(self._update_remote_status)
+            self._remote_client.errorOccurred.connect(self._on_remote_error)
+
+    def _update_remote_controls(self, *_args) -> None:
+        enabled = self._remote_enabled.isChecked()
+        for w in (
+            self._remote_host,
+            self._remote_port,
+            self._remote_password,
+            self._remote_connect_btn,
+            self._remote_live_combo,
+            self._remote_hide_combo,
+            self._remote_target_scene,
+        ):
+            w.setEnabled(enabled)
+
+    def _remote_from_widgets(self, enabled: bool | None = None):
+        from app.utils.settings import ObsRemoteSettings
+
+        return ObsRemoteSettings(
+            enabled=self._remote_enabled.isChecked()
+            if enabled is None
+            else enabled,
+            host=self._remote_host.text().strip() or "127.0.0.1",
+            port=self._remote_port.value(),
+            password=self._remote_password.text(),
+            scene_on_live=self._remote_live_combo.currentText().strip(),
+            scene_on_hide=self._remote_hide_combo.currentText().strip(),
+        )
+
+    def _connect_remote(self) -> None:
+        if self._remote_client is None:
+            return
+        if self._remote_client.is_connected():
+            self._remote_client.disconnect_from_obs()
+            self._update_remote_status()
+            return
+        self._remote_client.apply_settings(
+            self._remote_from_widgets(enabled=True)
+        )
+        self._remote_client.connect_to_obs()
+        self._remote_status_label.setText("Connexion…")
+        self._remote_status_dot.setStyleSheet(
+            f"background: {Colors.ACCENT_WARNING}; border-radius: 5px;"
+        )
+
+    def _load_obs_scenes(self) -> None:
+        if self._remote_client is None:
+            return
+        if not self._remote_client.is_connected():
+            self._remote_status_label.setText(
+                "Connectez-vous d'abord pour charger les scènes."
+            )
+            return
+        self._remote_client.get_scenes()
+
+    def _on_scenes_loaded(self, scene_names: list) -> None:
+        for combo in (
+            self._remote_live_combo,
+            self._remote_hide_combo,
+            self._remote_target_scene,
+        ):
+            current = combo.currentText()
+            combo.blockSignals(True)
+            combo.clear()
+            combo.addItem("")
+            combo.addItems([str(n) for n in scene_names])
+            idx = combo.findText(current)
+            if idx >= 0:
+                combo.setCurrentIndex(idx)
+            else:
+                combo.setCurrentText(current)
+            combo.blockSignals(False)
+        self._remote_status_label.setText(
+            f"{len(scene_names)} scènes OBS chargées."
+        )
+
+    def _on_remote_error(self, message: str) -> None:
+        self._remote_status_label.setText(f"Erreur : {message}")
+
+    def _create_remote_source(self) -> None:
+        if self._remote_client is None:
+            return
+        scene = self._remote_target_scene.currentText().strip()
+        if not scene:
+            self._remote_status_label.setText(
+                "Choisissez la scène OBS cible d'abord."
+            )
+            return
+        if not self._remote_client.is_connected():
+            self._remote_status_label.setText(
+                "Connectez-vous d'abord pour créer la source."
+            )
+            return
+        if self._obs_controller is not None:
+            url = self._obs_controller.get_web_server_url()
+        else:
+            url = f"http://localhost:{self._settings.web_port}/obs"
+        self._remote_client.create_browser_source(scene, url)
+        self._remote_status_label.setText(
+            f"Source Project-On ajoutée à « {scene} »."
+        )
+
+    def _update_remote_status(self, *_args) -> None:
+        if self._remote_client is None:
+            return
+        if self._remote_client.is_connected():
+            self._remote_status_dot.setStyleSheet(
+                f"background: {Colors.ACCENT_SUCCESS}; border-radius: 5px;"
+            )
+            self._remote_status_label.setText("OBS connecté (WebSocket)")
+            self._remote_connect_btn.setText("Déconnecter")
+        else:
+            self._remote_status_dot.setStyleSheet(
+                f"background: {Colors.ACCENT_DANGER}; border-radius: 5px;"
+            )
+            self._remote_status_label.setText("Déconnecté")
+            self._remote_connect_btn.setText("Connecter")
+
     def _update_server_status(self) -> None:
         """Update the server status display."""
+        self._update_remote_status()
         if self._obs_controller is None:
             return
 
@@ -679,11 +998,17 @@ class ObsSettingsDialog(QDialog):
             self._status_label.setText(tr("server_not_started"))
 
     def get_settings(self) -> ObsSettings:
+        try:
+            remote = self._remote_from_widgets()
+        except Exception:
+            remote = getattr(self._settings, "remote", None)
         return ObsSettings(
             mode=self._current_mode,
             web_port=self._port_spin.value(),
             ndi_source_name=self._ndi_name_edit.text().strip() or tr("app_name"),
             output=self._settings.output,
+            scenes=self._settings.scenes,
+            remote=remote,
         )
 
     @classmethod
@@ -691,9 +1016,10 @@ class ObsSettingsDialog(QDialog):
         cls,
         settings: ObsSettings,
         obs_controller: ObsController | None = None,
+        remote_client=None,
         parent: QWidget | None = None,
     ) -> ObsSettings | None:
-        dialog = cls(settings, obs_controller, parent)
+        dialog = cls(settings, obs_controller, remote_client, parent)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             return dialog.get_settings()
         return None

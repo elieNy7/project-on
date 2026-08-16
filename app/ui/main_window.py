@@ -83,6 +83,13 @@ class MainWindow(QMainWindow):
         )
         self._obs = ObsController(settings=self._settings.obs)
 
+        # Remote OBS control (obs-websocket 5.x) — scene switching on live/hide
+        from app.utils.obs_websocket import ObsRemoteClient
+
+        self._obs_remote = ObsRemoteClient(self._settings.obs.remote, parent=self)
+        if self._settings.obs.remote.enabled:
+            self._obs_remote.connect_to_obs()
+
         # Connect slide changes to OBS controller
         self._project_controller.currentSlideChanged.connect(
             self._on_slide_changed_for_obs
@@ -597,7 +604,7 @@ class MainWindow(QMainWindow):
         self._safe_write_json(out, cfg)
 
     def _write_obs_config(self) -> None:
-        cfg = self._settings.obs.output.to_obs_config()
+        cfg = self._settings.obs.to_full_obs_config()
         out = self._presentation_dir / "obs-config.json"
         self._safe_write_json(out, cfg)
 
@@ -704,38 +711,44 @@ class MainWindow(QMainWindow):
         from app.ui.obs_settings_dialog import ObsSettingsDialog
 
         updated = ObsSettingsDialog.edit(
-            self._settings.obs, obs_controller=self._obs, parent=self
+            self._settings.obs,
+            obs_controller=self._obs,
+            remote_client=self._obs_remote,
+            parent=self,
         )
         if updated is None:
             return
         self._settings.obs = updated
         self._settings.save(self._settings_path)
         self._obs.update_settings(updated)
+        self._obs_remote.apply_settings(updated.remote)
         self._refresh_settings_details()
 
     def _open_obs_output_settings(self) -> None:
         from app.ui.obs_output_settings_dialog import ObsOutputSettingsDialog
 
-        # Create dialog instance instead of using static edit() to connect signals for live preview
-        dlg = ObsOutputSettingsDialog(self._settings.obs.output, parent=self)
+        original_obs = copy.deepcopy(self._settings.obs)
+        # The dialog edits a deep copy (base style + per-scene styles) and
+        # broadcasts it live; cancel restores the pre-dialog state.
+        dlg = ObsOutputSettingsDialog(self._settings.obs, parent=self)
 
-        # Connect live updates
-        def on_live_update(new_settings):
-            self._obs.update_output_settings(new_settings)
+        def on_live_update(new_obs_settings):
+            self._settings.obs = new_obs_settings
+            self._obs.update_settings(new_obs_settings)
 
-        dlg.settingsChanged.connect(on_live_update)
+        dlg.obsSettingsChanged.connect(on_live_update)
 
         if dlg.exec() == QDialog.DialogCode.Accepted:
-            updated = dlg.get_settings()
-            self._settings.obs.output = updated
+            self._settings.obs = dlg.get_obs_settings()
             self._settings.save(self._settings_path)
             self._write_obs_config()
-            # Final update
-            self._obs.update_output_settings(updated)
+            self._obs.update_settings(self._settings.obs)
             self._refresh_settings_details()
         else:
-            # Revert to original settings if cancelled
-            self._obs.update_output_settings(self._settings.obs.output)
+            # Revert to the pre-dialog state if cancelled
+            self._settings.obs = original_obs
+            self._obs.update_settings(original_obs)
+            self._write_obs_config()
 
     def _open_appearance_settings(self) -> None:
         from app.ui.appearance_settings_dialog import AppearanceSettingsDialog
@@ -900,6 +913,7 @@ class MainWindow(QMainWindow):
             self._obs.update_slide(slide.text, slide.reference, slide.source, hidden, img)
         else:
             self._obs.update_slide("", "", "custom", True, "")
+        self._obs_remote.notify_live(hidden)
 
     def _toggle_hide(self) -> None:
         """Toggle hide state via keyboard shortcut."""
@@ -915,6 +929,7 @@ class MainWindow(QMainWindow):
             self._obs.update_slide(slide.text, slide.reference, slide.source, hidden, img)
         else:
             self._obs.update_slide("", "", "custom", True, "")
+        self._obs_remote.notify_live(hidden)
 
     def _on_slide_changed_for_obs(self, slide) -> None:
         """Update OBS when the current slide changes."""
@@ -924,6 +939,7 @@ class MainWindow(QMainWindow):
         else:
             img = slide.image_path or slide.background or ""
             self._obs.update_slide(slide.text, slide.reference, slide.source, hidden, img)
+        self._obs_remote.notify_live(hidden)
 
     # ── New feature handlers ───────────────────────────────────────────────
 
@@ -1007,4 +1023,6 @@ class MainWindow(QMainWindow):
         # Stop OBS server threads so Python can exit completely
         if hasattr(self, "_obs") and self._obs:
             self._obs.stop()
+        if hasattr(self, "_obs_remote") and self._obs_remote:
+            self._obs_remote.disconnect_from_obs()
         event.accept()

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import math
 import re
 
@@ -13,7 +14,9 @@ from PyQt6.QtWidgets import (
     QDoubleSpinBox,
     QFrame,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
+    QMessageBox,
     QPushButton,
     QScrollArea,
     QSlider,
@@ -26,7 +29,7 @@ from PyQt6.QtWidgets import (
 from app.ui.icons import app_icon
 from app.ui.theme import Colors, Radius, Typography, get_scroll_area_style
 from app.utils.fonts import get_available_fonts
-from app.utils.settings import ObsOutputSettings
+from app.utils.settings import ObsScene, ObsOutputSettings, ObsSettings, scene_slug
 from app.utils.translations import tr
 
 
@@ -519,18 +522,23 @@ class NavButton(QPushButton):
 
 class ObsOutputSettingsDialog(QDialog):
     settingsChanged = pyqtSignal(ObsOutputSettings)
+    # Full OBS settings (base style + named scenes) — used for live updates.
+    obsSettingsChanged = pyqtSignal(object)
 
     def __init__(
-        self, settings: ObsOutputSettings, parent: QWidget | None = None
+        self, obs_settings: ObsSettings, parent: QWidget | None = None
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle("Paramètres de diffusion OBS")
         self.setMinimumSize(820, 600)
-        self.resize(900, 680)
+        self.resize(980, 700)
         self.setStyleSheet(DIALOG_STYLE)
-        
+
         self._initializing = True  # Block signals during creation
-        self._settings = settings
+        # Work on a private copy: live updates broadcast it, cancel restores
+        # the caller's object untouched.
+        self._obs_settings = copy.deepcopy(obs_settings)
+        self._scene_index = -1  # -1 = base style, otherwise index in scenes
         self._nav_buttons = []
 
         # Background type/image/fit are chosen in the Projection settings dialog
@@ -538,6 +546,7 @@ class ObsOutputSettingsDialog(QDialog):
         # carry them through verbatim — otherwise editing any field here would
         # reset them to defaults and the OBS overlay would drop the background
         # image and revert to the coloured gradient.
+        settings = self._active_output()
         self._bg_mode = settings.bg_mode
         self._bg_image = settings.bg_image
         self._bg_image_fit = settings.bg_image_fit
@@ -635,6 +644,9 @@ class ObsOutputSettingsDialog(QDialog):
         # Stacked widget for pages
         self._stack = QStackedWidget()
         self._stack.setStyleSheet("background: transparent;")
+
+        # Scene selector bar (base style vs per-OBS-scene styles)
+        self._create_scene_bar(content_layout)
 
         # Create all pages
         self._create_layout_page(settings)
@@ -781,6 +793,241 @@ class ObsOutputSettingsDialog(QDialog):
         scroll.setWidget(widget)
         return self._stack.addWidget(scroll)
 
+    # ── Scene management ───────────────────────────────────────────────
+
+    def _active_output(self) -> ObsOutputSettings:
+        """The output style currently being edited (base or a named scene)."""
+        if 0 <= self._scene_index < len(self._obs_settings.scenes):
+            return self._obs_settings.scenes[self._scene_index].output
+        return self._obs_settings.output
+
+    def _create_scene_bar(self, layout: QVBoxLayout) -> None:
+        bar = QFrame()
+        bar.setStyleSheet(f"""
+            QFrame {{
+                background: {Colors.BG_SECONDARY};
+                border: 1px solid {Colors.BORDER_DEFAULT};
+                border-radius: 10px;
+            }}
+        """)
+        bar_layout = QVBoxLayout(bar)
+        bar_layout.setContentsMargins(14, 10, 14, 10)
+        bar_layout.setSpacing(6)
+
+        top_row = QHBoxLayout()
+        top_row.setSpacing(8)
+
+        label = QLabel("Style édité :")
+        label.setStyleSheet(
+            f"font-size: {Typography.SIZE_CONTROL}px; color: {Colors.TEXT_SECONDARY}; background: transparent;"
+        )
+        top_row.addWidget(label)
+
+        self._scene_combo = QComboBox()
+        self._scene_combo.setMinimumWidth(220)
+        self._refresh_scene_combo()
+        top_row.addWidget(self._scene_combo, 1)
+
+        btn_style = f"""
+            QPushButton {{
+                background: {Colors.BG_ELEVATED};
+                border: 1px solid {Colors.BORDER_DEFAULT};
+                border-radius: 6px;
+                padding: 6px 10px;
+                color: {Colors.TEXT_SECONDARY};
+                font-size: {Typography.SIZE_CONTROL}px;
+            }}
+            QPushButton:hover {{
+                background: {Colors.SURFACE_HOVER};
+                border-color: {Colors.ACCENT_PRIMARY};
+                color: {Colors.TEXT_PRIMARY};
+            }}
+        """
+        add_btn = QPushButton("＋ Scène")
+        add_btn.setToolTip("Créer un style indépendant pour une scène OBS")
+        add_btn.setStyleSheet(btn_style)
+        add_btn.clicked.connect(self._add_scene)
+        top_row.addWidget(add_btn)
+
+        self._rename_btn = QPushButton("Renommer")
+        self._rename_btn.setStyleSheet(btn_style)
+        self._rename_btn.clicked.connect(self._rename_scene)
+        top_row.addWidget(self._rename_btn)
+
+        self._dup_btn = QPushButton("Dupliquer")
+        self._dup_btn.setStyleSheet(btn_style)
+        self._dup_btn.clicked.connect(self._duplicate_scene)
+        top_row.addWidget(self._dup_btn)
+
+        self._del_btn = QPushButton("Supprimer")
+        self._del_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: {Colors.BG_ELEVATED};
+                border: 1px solid {Colors.BORDER_DEFAULT};
+                border-radius: 6px;
+                padding: 6px 10px;
+                color: {Colors.ACCENT_DANGER};
+                font-size: {Typography.SIZE_CONTROL}px;
+            }}
+            QPushButton:hover {{
+                background: {Colors.SURFACE_HOVER};
+                border-color: {Colors.ACCENT_DANGER};
+            }}
+        """)
+        self._del_btn.clicked.connect(self._delete_scene)
+        top_row.addWidget(self._del_btn)
+
+        bar_layout.addLayout(top_row)
+
+        self._scene_url_label = QLabel("")
+        self._scene_url_label.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse
+        )
+        self._scene_url_label.setStyleSheet(
+            f"font-size: {Typography.SIZE_META}px; color: {Colors.TEXT_MUTED}; background: transparent;"
+        )
+        bar_layout.addWidget(self._scene_url_label)
+
+        copy_btn = QPushButton("Copier l'URL de la scène")
+        copy_btn.setStyleSheet(btn_style)
+        copy_btn.clicked.connect(self._copy_scene_url)
+        self._scene_copy_btn = copy_btn
+        bar_layout.addWidget(copy_btn)
+
+        self._scene_combo.currentIndexChanged.connect(self._on_scene_selected)
+        self._update_scene_bar_state()
+        layout.addWidget(bar)
+
+    def _refresh_scene_combo(self) -> None:
+        self._scene_combo.blockSignals(True)
+        self._scene_combo.clear()
+        self._scene_combo.addItem("Style de base (toutes scènes)", -1)
+        for i, scene in enumerate(self._obs_settings.scenes):
+            self._scene_combo.addItem(f"Scène : {scene.name}", i)
+        idx = self._scene_combo.findData(self._scene_index)
+        if idx >= 0:
+            self._scene_combo.setCurrentIndex(idx)
+        self._scene_combo.blockSignals(False)
+
+    def _update_scene_bar_state(self) -> None:
+        scene_selected = 0 <= self._scene_index < len(self._obs_settings.scenes)
+        for btn in (self._rename_btn, self._dup_btn, self._del_btn):
+            btn.setEnabled(scene_selected)
+        self._scene_copy_btn.setVisible(scene_selected)
+        if scene_selected:
+            scene = self._obs_settings.scenes[self._scene_index]
+            self._scene_url_label.setText(
+                f"URL OBS : http://127.0.0.1:{self._obs_settings.web_port}"
+                f"/obs?scene={scene.id}"
+            )
+            self._scene_url_label.setVisible(True)
+        else:
+            self._scene_url_label.setText(
+                "Le style de base s'applique aux sources sans paramètre ?scene=."
+            )
+            self._scene_url_label.setVisible(True)
+
+    def _on_scene_selected(self, combo_index: int) -> None:
+        data = self._scene_combo.itemData(combo_index)
+        new_index = int(data) if isinstance(data, int) else -1
+        if new_index == self._scene_index:
+            return
+        # Commit the widgets onto the previously edited output before switching.
+        self.get_settings()
+        self._scene_index = new_index
+        out = self._active_output()
+        self._bg_mode = out.bg_mode
+        self._bg_image = out.bg_image
+        self._bg_image_fit = out.bg_image_fit
+        self._apply_settings_to_widgets(out)
+        self._update_scene_bar_state()
+
+    def _add_scene(self) -> None:
+        name, ok = QInputDialog.getText(
+            self, "Nouvelle scène", "Nom de la scène OBS (ex. Louange, Prédication) :"
+        )
+        if not ok or not name.strip():
+            return
+        name = name.strip()
+        existing_ids = [s.id for s in self._obs_settings.scenes]
+        scene = ObsScene(
+            id=scene_slug(name, existing_ids),
+            name=name,
+            output=copy.deepcopy(self._obs_settings.output),
+        )
+        self.get_settings()  # commit current edits first
+        self._obs_settings.scenes.append(scene)
+        self._scene_index = len(self._obs_settings.scenes) - 1
+        self._refresh_scene_combo()
+        self._update_scene_bar_state()
+        self._on_change()
+
+    def _rename_scene(self) -> None:
+        if not 0 <= self._scene_index < len(self._obs_settings.scenes):
+            return
+        scene = self._obs_settings.scenes[self._scene_index]
+        name, ok = QInputDialog.getText(
+            self, "Renommer la scène", "Nouveau nom :", text=scene.name
+        )
+        if not ok or not name.strip():
+            return
+        scene.name = name.strip()
+        self._refresh_scene_combo()
+        self._update_scene_bar_state()
+
+    def _duplicate_scene(self) -> None:
+        if not 0 <= self._scene_index < len(self._obs_settings.scenes):
+            return
+        self.get_settings()  # commit current edits first
+        src = self._obs_settings.scenes[self._scene_index]
+        existing_ids = [s.id for s in self._obs_settings.scenes]
+        clone = ObsScene(
+            id=scene_slug(src.id, existing_ids),
+            name=f"{src.name} (copie)",
+            output=copy.deepcopy(src.output),
+        )
+        self._obs_settings.scenes.append(clone)
+        self._scene_index = len(self._obs_settings.scenes) - 1
+        self._refresh_scene_combo()
+        self._update_scene_bar_state()
+        self._on_change()
+
+    def _delete_scene(self) -> None:
+        if not 0 <= self._scene_index < len(self._obs_settings.scenes):
+            return
+        scene = self._obs_settings.scenes[self._scene_index]
+        confirm = QMessageBox.question(
+            self,
+            "Supprimer la scène",
+            f"Supprimer le style « {scene.name} » ?\n"
+            "Les sources OBS qui utilisent son URL reviendront au style de base.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+        self._obs_settings.scenes.pop(self._scene_index)
+        self._scene_index = -1
+        out = self._active_output()
+        self._bg_mode = out.bg_mode
+        self._bg_image = out.bg_image
+        self._bg_image_fit = out.bg_image_fit
+        self._apply_settings_to_widgets(out)
+        self._refresh_scene_combo()
+        self._update_scene_bar_state()
+        self._on_change()
+
+    def _copy_scene_url(self) -> None:
+        if not 0 <= self._scene_index < len(self._obs_settings.scenes):
+            return
+        scene = self._obs_settings.scenes[self._scene_index]
+        url = (
+            f"http://127.0.0.1:{self._obs_settings.web_port}"
+            f"/obs?scene={scene.id}"
+        )
+        from PyQt6.QtWidgets import QApplication
+
+        QApplication.clipboard().setText(url)
+
     def _on_change(self, *_args) -> None:
         """Trigger debounced settings changed signal."""
         if getattr(self, "_initializing", True):
@@ -816,6 +1063,7 @@ class ObsOutputSettingsDialog(QDialog):
         try:
             settings = self.get_settings()
             self.settingsChanged.emit(settings)
+            self.obsSettingsChanged.emit(self._obs_settings)
         except Exception:
             pass
 
@@ -1419,6 +1667,18 @@ class ObsOutputSettingsDialog(QDialog):
             "Animation appliquée lors du changement de slide",
         )
 
+        self._animation_style = QComboBox()
+        self._animation_style.addItem("Bloc (tout le texte)", "block")
+        self._animation_style.addItem("Mot à mot (broadcast)", "words")
+        idx = self._animation_style.findData(settings.animation_style)
+        if idx >= 0:
+            self._animation_style.setCurrentIndex(idx)
+        transition_section.addRow(
+            "Révélation du texte",
+            self._animation_style,
+            "Mot à mot : les mots apparaissent en cascade, style habillage TV",
+        )
+
         self._animation_direction = QComboBox()
         self._animation_direction.addItem("Vers le haut", "up")
         self._animation_direction.addItem("Vers le bas", "down")
@@ -1451,6 +1711,7 @@ class ObsOutputSettingsDialog(QDialog):
             self._animation_type.setEnabled(enabled)
             self._animation_duration.setEnabled(enabled)
             self._animation_direction.setEnabled(allow_direction)
+            self._animation_style.setEnabled(enabled)
 
         self._animation_enabled.toggled.connect(_update_transition_controls)
         self._animation_type.currentIndexChanged.connect(_update_transition_controls)
@@ -1463,88 +1724,105 @@ class ObsOutputSettingsDialog(QDialog):
 
     def _reset_defaults(self) -> None:
         """Reset all fields to default values."""
-        defaults = ObsOutputSettings()
+        self._apply_settings_to_widgets(ObsOutputSettings())
+
+    def _apply_settings_to_widgets(self, values: ObsOutputSettings) -> None:
+        """Populate every widget from an output style (base or scene)."""
+        self._initializing = True  # Block signals during repopulation
         # Position & Layout
         self._layout_mode.setCurrentIndex(
-            self._layout_mode.findData(defaults.layout_mode)
+            self._layout_mode.findData(values.layout_mode)
         )
         self._panel_side.setCurrentIndex(
-            self._panel_side.findData(defaults.panel_side)
+            self._panel_side.findData(values.panel_side)
         )
-        self._safe_area.setValue(defaults.safe_area_percent)
+        self._safe_area.setValue(values.safe_area_percent)
         self._background_dimmer.setValue(
-            int(round(defaults.background_dimmer * 100))
+            int(round(values.background_dimmer * 100))
         )
         self._position_combo.setCurrentIndex(
-            self._position_combo.findData(defaults.position)
+            self._position_combo.findData(values.position)
         )
-        self._align_combo.setCurrentIndex(self._align_combo.findData(defaults.align))
+        self._align_combo.setCurrentIndex(self._align_combo.findData(values.align))
         self._band_align_combo.setCurrentIndex(
-            self._band_align_combo.findData(defaults.band_align)
+            self._band_align_combo.findData(values.band_align)
         )
-        self._offset_x.setValue(defaults.offset_x)
-        self._offset_y.setValue(defaults.offset_y)
-        self._edge_margin.setValue(defaults.edge_margin)
-        self._show_kicker.setChecked(defaults.show_kicker)
-        self._show_accent_bar.setChecked(defaults.show_accent_bar)
+        self._offset_x.setValue(values.offset_x)
+        self._offset_y.setValue(values.offset_y)
+        self._edge_margin.setValue(values.edge_margin)
+        self._show_kicker.setChecked(values.show_kicker)
+        self._show_accent_bar.setChecked(values.show_accent_bar)
         self._accent_mode.setCurrentIndex(
-            self._accent_mode.findData(defaults.accent_mode)
+            self._accent_mode.findData(values.accent_mode)
         )
-        self._accent_color_btn.set_color(defaults.accent_color)
-        self._max_width.setValue(defaults.max_width)
-        self._padding_h.setValue(defaults.padding_horizontal)
-        self._padding_v.setValue(defaults.padding_vertical)
-        self._border_radius.setValue(defaults.border_radius)
-        self._uniform_text_size.setChecked(defaults.uniform_text_size)
-        self._auto_fit.setChecked(defaults.auto_fit)
-        self._min_text_size.setValue(defaults.min_text_size)
-        self._max_lines.setValue(defaults.max_lines)
+        self._accent_color_btn.set_color(values.accent_color)
+        self._max_width.setValue(values.max_width)
+        self._padding_h.setValue(values.padding_horizontal)
+        self._padding_v.setValue(values.padding_vertical)
+        self._border_radius.setValue(values.border_radius)
+        self._uniform_text_size.setChecked(values.uniform_text_size)
+        self._auto_fit.setChecked(values.auto_fit)
+        self._min_text_size.setValue(values.min_text_size)
+        self._max_lines.setValue(values.max_lines)
         self._reference_style.setCurrentIndex(
-            self._reference_style.findData(defaults.reference_style)
+            self._reference_style.findData(values.reference_style)
         )
         # Text
-        idx = self._font_combo.findData(defaults.font_family)
+        idx = self._font_combo.findData(values.font_family)
         if idx >= 0:
             self._font_combo.setCurrentIndex(idx)
         self._font_weight.setCurrentIndex(
-            self._font_weight.findData(defaults.font_weight)
+            self._font_weight.findData(values.font_weight)
         )
-        self._text_size.setValue(defaults.text_size)
-        self._ref_size.setValue(defaults.ref_size)
-        self._show_ref.setChecked(defaults.show_reference)
-        self._letter_spacing.setValue(defaults.letter_spacing)
-        self._line_height.setValue(defaults.line_height)
+        self._text_size.setValue(values.text_size)
+        self._ref_size.setValue(values.ref_size)
+        self._show_ref.setChecked(values.show_reference)
+        self._letter_spacing.setValue(values.letter_spacing)
+        self._line_height.setValue(values.line_height)
         # Colors & Background
-        self._bg_enabled.setChecked(defaults.bg_enabled)
-        self._bg_color_btn.set_color(defaults.bg_color)
-        self._bg_gradient_enabled.setChecked(defaults.bg_gradient_enabled)
-        self._bg_color_2_btn.set_color(defaults.bg_color_2)
-        self._bg_gradient_angle.setValue(defaults.bg_gradient_angle)
-        self._bg_opacity.setValue(int(defaults.bg_opacity * 100))
-        self._bg_blur.setChecked(defaults.bg_blur)
-        self._bg_blur_amount.setValue(defaults.bg_blur_amount)
-        self._text_color_btn.set_color(defaults.text_color)
-        self._ref_color_btn.set_color(defaults.ref_color)
-        self._overall_opacity.setValue(int(defaults.opacity * 100))
+        self._bg_enabled.setChecked(values.bg_enabled)
+        self._bg_color_btn.set_color(values.bg_color)
+        self._bg_gradient_enabled.setChecked(values.bg_gradient_enabled)
+        self._bg_color_2_btn.set_color(values.bg_color_2)
+        self._bg_gradient_angle.setValue(values.bg_gradient_angle)
+        self._bg_opacity.setValue(int(values.bg_opacity * 100))
+        self._bg_blur.setChecked(values.bg_blur)
+        self._bg_blur_amount.setValue(values.bg_blur_amount)
+        self._text_color_btn.set_color(values.text_color)
+        self._ref_color_btn.set_color(values.ref_color)
+        self._overall_opacity.setValue(int(values.opacity * 100))
         # Effects
-        self._text_shadow.setChecked(defaults.text_shadow)
-        self._shadow_color_btn.set_color(defaults.shadow_color)
-        self._shadow_blur.setValue(defaults.shadow_blur)
-        self._text_stroke.setChecked(defaults.text_stroke)
-        self._stroke_color_btn.set_color(defaults.stroke_color)
-        self._stroke_width.setValue(defaults.stroke_width)
-        self._animation_enabled.setChecked(defaults.animation_enabled)
+        self._text_shadow.setChecked(values.text_shadow)
+        self._shadow_color_btn.set_color(values.shadow_color)
+        self._shadow_blur.setValue(values.shadow_blur)
+        self._text_stroke.setChecked(values.text_stroke)
+        self._stroke_color_btn.set_color(values.stroke_color)
+        self._stroke_width.setValue(values.stroke_width)
+        self._animation_enabled.setChecked(values.animation_enabled)
         self._animation_type.setCurrentIndex(
-            self._animation_type.findData(defaults.animation_type)
+            self._animation_type.findData(values.animation_type)
+        )
+        self._animation_style.setCurrentIndex(
+            self._animation_style.findData(values.animation_style)
         )
         self._animation_direction.setCurrentIndex(
-            self._animation_direction.findData(defaults.animation_direction)
+            self._animation_direction.findData(values.animation_direction)
         )
-        self._animation_duration.setValue(defaults.animation_duration)
+        self._animation_duration.setValue(values.animation_duration)
         # Professional
         self._text_transform.setCurrentIndex(
-            self._text_transform.findData(defaults.text_transform)
+            self._text_transform.findData(values.text_transform)
         )
+        # Refresh dependent enablement (mirrors _update_transition_controls)
+        anim_enabled = self._animation_enabled.isChecked()
+        anim_type = str(self._animation_type.currentData() or "fade")
+        self._animation_type.setEnabled(anim_enabled)
+        self._animation_duration.setEnabled(anim_enabled)
+        self._animation_style.setEnabled(anim_enabled)
+        self._animation_direction.setEnabled(
+            anim_enabled and anim_type in ("slide", "reveal")
+        )
+        self._initializing = False
         self._on_change()
 
     def get_settings(self) -> ObsOutputSettings:
@@ -1553,65 +1831,71 @@ class ObsOutputSettingsDialog(QDialog):
             font = self._font_combo.currentData() or self._font_combo.currentText()
         except Exception:
             font = "Google Sans"
-        return ObsOutputSettings(
-            layout_mode=self._layout_mode.currentData() or "lower_third",
-            font_family=str(font).strip() or "Google Sans",
-            text_size=self._text_size.value(),
-            ref_size=self._ref_size.value(),
-            align=self._align_combo.currentData() or "center",
-            show_reference=self._show_ref.isChecked(),
-            position=self._position_combo.currentData() or "bottom",
-            band_align=self._band_align_combo.currentData() or "center",
-            offset_x=self._offset_x.value(),
-            offset_y=self._offset_y.value(),
-            edge_margin=self._edge_margin.value(),
-            safe_area_percent=self._safe_area.value(),
-            panel_side=self._panel_side.currentData() or "left",
-            show_kicker=self._show_kicker.isChecked(),
-            show_accent_bar=self._show_accent_bar.isChecked(),
-            accent_mode=self._accent_mode.currentData() or "auto",
-            accent_color=self._accent_color_btn.color(),
-            bg_enabled=self._bg_enabled.isChecked(),
-            bg_color=self._bg_color_btn.color(),
-            bg_gradient_enabled=self._bg_gradient_enabled.isChecked(),
-            bg_color_2=self._bg_color_2_btn.color(),
-            bg_gradient_angle=self._bg_gradient_angle.value(),
-            bg_opacity=self._bg_opacity.value() / 100.0,
-            text_color=self._text_color_btn.color(),
-            ref_color=self._ref_color_btn.color(),
-            opacity=self._overall_opacity.value() / 100.0,
-            # Professional styling
-            text_shadow=self._text_shadow.isChecked(),
-            shadow_color=self._shadow_color_btn.color(),
-            shadow_blur=self._shadow_blur.value(),
-            text_stroke=self._text_stroke.isChecked(),
-            stroke_color=self._stroke_color_btn.color(),
-            stroke_width=self._stroke_width.value(),
-            letter_spacing=self._letter_spacing.value(),
-            line_height=self._line_height.value(),
-            padding_horizontal=self._padding_h.value(),
-            padding_vertical=self._padding_v.value(),
-            max_width=self._max_width.value(),
-            auto_fit=self._auto_fit.isChecked(),
-            uniform_text_size=self._uniform_text_size.isChecked(),
-            min_text_size=self._min_text_size.value(),
-            max_lines=self._max_lines.value(),
-            reference_style=self._reference_style.currentData() or "badge",
-            background_dimmer=self._background_dimmer.value() / 100.0,
-            border_radius=self._border_radius.value(),
-            animation_enabled=self._animation_enabled.isChecked(),
-            animation_type=self._animation_type.currentData() or "blur",
-            animation_direction=self._animation_direction.currentData() or "up",
-            animation_duration=self._animation_duration.value(),
-            font_weight=self._font_weight.currentData() or "normal",
-            text_transform=self._text_transform.currentData() or "none",
-            bg_blur=self._bg_blur.isChecked(),
-            bg_blur_amount=self._bg_blur_amount.value(),
-            # Preserved from the incoming settings (edited elsewhere)
-            bg_mode=self._bg_mode,
-            bg_image=self._bg_image,
-            bg_image_fit=self._bg_image_fit,
-        )
+        out = self._active_output()
+        out.layout_mode = self._layout_mode.currentData() or "lower_third"
+        out.font_family = str(font).strip() or "Google Sans"
+        out.text_size = self._text_size.value()
+        out.ref_size = self._ref_size.value()
+        out.align = self._align_combo.currentData() or "center"
+        out.show_reference = self._show_ref.isChecked()
+        out.position = self._position_combo.currentData() or "bottom"
+        out.band_align = self._band_align_combo.currentData() or "center"
+        out.offset_x = self._offset_x.value()
+        out.offset_y = self._offset_y.value()
+        out.edge_margin = self._edge_margin.value()
+        out.safe_area_percent = self._safe_area.value()
+        out.panel_side = self._panel_side.currentData() or "left"
+        out.show_kicker = self._show_kicker.isChecked()
+        out.show_accent_bar = self._show_accent_bar.isChecked()
+        out.accent_mode = self._accent_mode.currentData() or "auto"
+        out.accent_color = self._accent_color_btn.color()
+        out.bg_enabled = self._bg_enabled.isChecked()
+        out.bg_color = self._bg_color_btn.color()
+        out.bg_gradient_enabled = self._bg_gradient_enabled.isChecked()
+        out.bg_color_2 = self._bg_color_2_btn.color()
+        out.bg_gradient_angle = self._bg_gradient_angle.value()
+        out.bg_opacity = self._bg_opacity.value() / 100.0
+        out.text_color = self._text_color_btn.color()
+        out.ref_color = self._ref_color_btn.color()
+        out.opacity = self._overall_opacity.value() / 100.0
+        # Professional styling
+        out.text_shadow = self._text_shadow.isChecked()
+        out.shadow_color = self._shadow_color_btn.color()
+        out.shadow_blur = self._shadow_blur.value()
+        out.text_stroke = self._text_stroke.isChecked()
+        out.stroke_color = self._stroke_color_btn.color()
+        out.stroke_width = self._stroke_width.value()
+        out.letter_spacing = self._letter_spacing.value()
+        out.line_height = self._line_height.value()
+        out.padding_horizontal = self._padding_h.value()
+        out.padding_vertical = self._padding_v.value()
+        out.max_width = self._max_width.value()
+        out.auto_fit = self._auto_fit.isChecked()
+        out.uniform_text_size = self._uniform_text_size.isChecked()
+        out.min_text_size = self._min_text_size.value()
+        out.max_lines = self._max_lines.value()
+        out.reference_style = self._reference_style.currentData() or "badge"
+        out.background_dimmer = self._background_dimmer.value() / 100.0
+        out.border_radius = self._border_radius.value()
+        out.animation_enabled = self._animation_enabled.isChecked()
+        out.animation_type = self._animation_type.currentData() or "blur"
+        out.animation_direction = self._animation_direction.currentData() or "up"
+        out.animation_style = self._animation_style.currentData() or "block"
+        out.animation_duration = self._animation_duration.value()
+        out.font_weight = self._font_weight.currentData() or "normal"
+        out.text_transform = self._text_transform.currentData() or "none"
+        out.bg_blur = self._bg_blur.isChecked()
+        out.bg_blur_amount = self._bg_blur_amount.value()
+        # Preserved from the incoming settings (edited elsewhere)
+        out.bg_mode = self._bg_mode
+        out.bg_image = self._bg_image
+        out.bg_image_fit = self._bg_image_fit
+        return out
+
+    def get_obs_settings(self) -> ObsSettings:
+        """Full OBS settings including any edits made to the active style."""
+        self.get_settings()  # commit widget values
+        return self._obs_settings
 
     def _create_preset_buttons(self, layout: QVBoxLayout):
         """Create a grid of preset style buttons."""
@@ -1634,12 +1918,13 @@ class ObsOutputSettingsDialog(QDialog):
                     "border_radius": 22,
                     "show_kicker": True,
                     "show_accent_bar": True,
-                    "bg_color": "rgba(8, 15, 28, 0.82)",
-                    "bg_color_2": "rgba(3, 8, 18, 0.90)",
+                    "bg_color": "rgba(7, 12, 22, 0.90)",
+                    "bg_color_2": "rgba(2, 6, 14, 0.92)",
                     "bg_gradient_enabled": True,
-                    "text_color": "rgba(255, 255, 255, 0.96)",
+                    "text_color": "rgba(255, 255, 255, 0.97)",
                     "text_transform": "none",
                     "animation_type": "auto",
+                    "animation_style": "words",
                 },
             ),
             (
@@ -1766,8 +2051,8 @@ class ObsOutputSettingsDialog(QDialog):
                 "Église — Culte",
                 {
                     "bg_enabled": True,
-                    "bg_color": "rgba(10, 18, 32, 0.80)",
-                    "bg_color_2": "rgba(4, 9, 18, 0.90)",
+                    "bg_color": "rgba(8, 14, 26, 0.88)",
+                    "bg_color_2": "rgba(3, 7, 15, 0.92)",
                     "bg_gradient_enabled": True,
                     "text_color": "rgba(255, 255, 255, 0.97)",
                     "text_shadow": True,
@@ -1826,6 +2111,7 @@ class ObsOutputSettingsDialog(QDialog):
                     "text_size": 56,
                     "font_weight": "bold",
                     "text_transform": "uppercase",
+                    "animation_style": "words",
                 },
             ),
         ]
@@ -1867,6 +2153,7 @@ class ObsOutputSettingsDialog(QDialog):
             ("align", self._align_combo),
             ("reference_style", self._reference_style),
             ("animation_type", self._animation_type),
+            ("animation_style", self._animation_style),
         ):
             if key in params:
                 idx = combo.findData(params[key])
@@ -1930,9 +2217,9 @@ class ObsOutputSettingsDialog(QDialog):
 
     @classmethod
     def edit(
-        cls, settings: ObsOutputSettings, parent: QWidget | None = None
-    ) -> ObsOutputSettings | None:
-        dialog = cls(settings, parent)
+        cls, obs_settings: ObsSettings, parent: QWidget | None = None
+    ) -> ObsSettings | None:
+        dialog = cls(obs_settings, parent)
         if dialog.exec() == QDialog.DialogCode.Accepted:
-            return dialog.get_settings()
+            return dialog.get_obs_settings()
         return None

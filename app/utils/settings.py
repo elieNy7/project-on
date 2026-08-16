@@ -29,13 +29,13 @@ class ObsOutputSettings:
     accent_mode: str = "auto"  # auto (per-source colour) | custom
     accent_color: str = "#74a7f8"  # used when accent_mode == "custom"
     bg_enabled: bool = True  # show/hide background band
-    bg_color: str = "rgba(8, 15, 28, 0.86)"
-    bg_opacity: float = 0.82  # background-specific opacity 0.0-1.0
-    text_color: str = "rgba(255, 255, 255, 0.96)"
-    ref_color: str = "rgba(255, 245, 222, 0.82)"
+    bg_color: str = "rgba(7, 12, 22, 0.90)"
+    bg_opacity: float = 0.88  # background-specific opacity 0.0-1.0
+    text_color: str = "rgba(255, 255, 255, 0.97)"
+    ref_color: str = "rgba(255, 247, 226, 0.94)"
     # Professional text styling
     text_shadow: bool = True
-    shadow_color: str = "rgba(0, 0, 0, 0.56)"
+    shadow_color: str = "rgba(0, 0, 0, 0.66)"
     shadow_blur: int = 14  # pixels
     text_stroke: bool = False
     stroke_color: str = "rgba(0, 0, 0, 0.8)"
@@ -65,13 +65,14 @@ class ObsOutputSettings:
     opacity: float = 1.0  # overall opacity 0.0-1.0
     # Gradient support
     bg_gradient_enabled: bool = True
-    bg_color_2: str = "rgba(3, 8, 18, 0.90)"
+    bg_color_2: str = "rgba(2, 6, 14, 0.92)"
     bg_gradient_angle: int = 135  # degrees
     bg_mode: str = "color"  # "color" or "image" (mutually exclusive background)
     bg_image: str = ""  # background image path (used only when bg_mode == "image")
     bg_image_fit: str = "cover"  # "cover" (remplir) or "contain" (contenir)
     # Animation refinement
     animation_direction: str = "up"  # up|down|left|right
+    animation_style: str = "block"  # block|words (word-by-word broadcast reveal)
 
     def to_obs_config(self) -> dict[str, Any]:
         layout_mode = str(self.layout_mode or "lower_third").lower()
@@ -109,15 +110,15 @@ class ObsOutputSettings:
             "accent_mode": "custom" if self.accent_mode == "custom" else "auto",
             "accent_color": str(self.accent_color or "#74a7f8"),
             "bg_enabled": bool(self.bg_enabled),
-            "bg_color": str(self.bg_color or "rgba(8, 15, 28, 0.86)"),
+            "bg_color": str(self.bg_color or "rgba(7, 12, 22, 0.90)"),
             "bg_opacity": float(
-                self.bg_opacity if self.bg_opacity is not None else 0.82
+                self.bg_opacity if self.bg_opacity is not None else 0.88
             ),
-            "text_color": str(self.text_color or "rgba(255, 255, 255, 0.96)"),
-            "ref_color": str(self.ref_color or "rgba(255, 245, 222, 0.82)"),
+            "text_color": str(self.text_color or "rgba(255, 255, 255, 0.97)"),
+            "ref_color": str(self.ref_color or "rgba(255, 247, 226, 0.94)"),
             # Professional styling
             "text_shadow": bool(self.text_shadow),
-            "shadow_color": str(self.shadow_color or "rgba(0, 0, 0, 0.56)"),
+            "shadow_color": str(self.shadow_color or "rgba(0, 0, 0, 0.66)"),
             "shadow_blur": int(
                 self.shadow_blur if self.shadow_blur is not None else 14
             ),
@@ -175,7 +176,7 @@ class ObsOutputSettings:
             ),
             "opacity": float(self.opacity if self.opacity is not None else 1.0),
             "bg_gradient_enabled": bool(self.bg_gradient_enabled),
-            "bg_color_2": str(self.bg_color_2 or "rgba(3, 8, 18, 0.90)"),
+            "bg_color_2": str(self.bg_color_2 or "rgba(2, 6, 14, 0.92)"),
             "bg_gradient_angle": int(
                 self.bg_gradient_angle
                 if self.bg_gradient_angle is not None
@@ -185,7 +186,63 @@ class ObsOutputSettings:
             "bg_image": str(self.bg_image or ""),
             "bg_image_fit": "contain" if self.bg_image_fit == "contain" else "cover",
             "animation_direction": str(self.animation_direction or "up"),
+            "animation_style": (
+                "words" if self.animation_style == "words" else "block"
+            ),
         }
+
+
+@dataclass
+class ObsScene:
+    """A named OBS scene with its own full output style.
+
+    The scene ``id`` (slug) is used in the browser-source URL (?scene=<id>)
+    so each OBS scene can render a different look from the same server.
+    """
+
+    id: str = ""
+    name: str = ""
+    output: ObsOutputSettings = field(default_factory=ObsOutputSettings)
+
+
+def scene_slug(name: str, existing_ids: list[str] | None = None) -> str:
+    """Build a URL-safe, unique scene id from a display name.
+
+    Accents are stripped ("Prédication" -> "predication") and the result is
+    suffixed with a counter when it collides with an existing id.
+    """
+    import re
+    import unicodedata
+
+    normalized = unicodedata.normalize("NFKD", str(name or "")).encode(
+        "ascii", "ignore"
+    ).decode("ascii")
+    slug = re.sub(r"[^a-z0-9]+", "-", normalized.lower()).strip("-")
+    if not slug:
+        slug = "scene"
+    taken = set(existing_ids or [])
+    if slug not in taken:
+        return slug
+    counter = 2
+    while f"{slug}-{counter}" in taken:
+        counter += 1
+    return f"{slug}-{counter}"
+
+
+@dataclass
+class ObsRemoteSettings:
+    """Remote control of OBS through obs-websocket 5.x.
+
+    Lets Project-On switch OBS scenes when the operator projects/hides, and
+    create the Project-On browser source automatically.
+    """
+
+    enabled: bool = False
+    host: str = "127.0.0.1"
+    port: int = 4455
+    password: str = ""
+    scene_on_live: str = ""  # OBS scene switched to when a slide goes live
+    scene_on_hide: str = ""  # OBS scene switched to when the output is hidden
 
 
 @dataclass
@@ -194,6 +251,18 @@ class ObsSettings:
     web_port: int = 8080
     ndi_source_name: str = "Project-On"
     output: ObsOutputSettings = field(default_factory=ObsOutputSettings)
+    scenes: list[ObsScene] = field(default_factory=list)
+    remote: ObsRemoteSettings = field(default_factory=ObsRemoteSettings)
+
+    def to_full_obs_config(self) -> dict[str, Any]:
+        """Base broadcast config plus one style payload per named scene."""
+        config = self.output.to_obs_config()
+        config["scenes"] = {
+            scene.id: scene.output.to_obs_config()
+            for scene in self.scenes
+            if scene.id
+        }
+        return config
 
 
 @dataclass
@@ -401,6 +470,69 @@ def _gb(d: dict, key: str, default: bool) -> bool:
     return bool(d[key]) if key in d else default
 
 
+def _read_obs_output(d: dict, out: ObsOutputSettings) -> ObsOutputSettings:
+    """Populate ``out`` from a serialized ObsOutputSettings dict."""
+    if not isinstance(d, dict):
+        return out
+    out.layout_mode = _gs(d, "layout_mode", out.layout_mode)
+    out.font_family = _gs(d, "font_family", out.font_family)
+    out.text_size = _gi(d, "text_size", out.text_size)
+    out.ref_size = _gi(d, "ref_size", out.ref_size)
+    out.align = _gs(d, "align", out.align)
+    out.show_reference = _gb(d, "show_reference", out.show_reference)
+    out.position = _gs(d, "position", out.position)
+    out.band_align = _gs(d, "band_align", out.band_align)
+    out.offset_x = _gi(d, "offset_x", out.offset_x)
+    out.offset_y = _gi(d, "offset_y", out.offset_y)
+    out.edge_margin = _gi(d, "edge_margin", out.edge_margin)
+    out.safe_area_percent = _gi(d, "safe_area_percent", out.safe_area_percent)
+    out.panel_side = _gs(d, "panel_side", out.panel_side)
+    out.show_kicker = _gb(d, "show_kicker", out.show_kicker)
+    out.show_accent_bar = _gb(d, "show_accent_bar", out.show_accent_bar)
+    out.accent_mode = _gs(d, "accent_mode", out.accent_mode)
+    out.accent_color = _gs(d, "accent_color", out.accent_color)
+    out.bg_enabled = _gb(d, "bg_enabled", out.bg_enabled)
+    out.bg_color = _gs(d, "bg_color", out.bg_color)
+    out.bg_opacity = _gf(d, "bg_opacity", out.bg_opacity)
+    out.text_color = _gs(d, "text_color", out.text_color)
+    out.ref_color = _gs(d, "ref_color", out.ref_color)
+    out.text_shadow = _gb(d, "text_shadow", out.text_shadow)
+    out.shadow_color = _gs(d, "shadow_color", out.shadow_color)
+    out.shadow_blur = _gi(d, "shadow_blur", out.shadow_blur)
+    out.text_stroke = _gb(d, "text_stroke", out.text_stroke)
+    out.stroke_color = _gs(d, "stroke_color", out.stroke_color)
+    out.stroke_width = _gi(d, "stroke_width", out.stroke_width)
+    out.letter_spacing = _gi(d, "letter_spacing", out.letter_spacing)
+    out.line_height = _gf(d, "line_height", out.line_height)
+    out.padding_horizontal = _gi(d, "padding_horizontal", out.padding_horizontal)
+    out.padding_vertical = _gi(d, "padding_vertical", out.padding_vertical)
+    out.max_width = _gi(d, "max_width", out.max_width)
+    out.auto_fit = _gb(d, "auto_fit", out.auto_fit)
+    out.uniform_text_size = _gb(d, "uniform_text_size", out.uniform_text_size)
+    out.min_text_size = _gi(d, "min_text_size", out.min_text_size)
+    out.max_lines = _gi(d, "max_lines", out.max_lines)
+    out.reference_style = _gs(d, "reference_style", out.reference_style)
+    out.background_dimmer = _gf(d, "background_dimmer", out.background_dimmer)
+    out.border_radius = _gi(d, "border_radius", out.border_radius)
+    out.animation_enabled = _gb(d, "animation_enabled", out.animation_enabled)
+    out.animation_type = _gs(d, "animation_type", out.animation_type)
+    out.animation_duration = _gi(d, "animation_duration", out.animation_duration)
+    out.font_weight = _gs(d, "font_weight", out.font_weight)
+    out.text_transform = _gs(d, "text_transform", out.text_transform)
+    out.bg_blur = _gb(d, "bg_blur", out.bg_blur)
+    out.bg_blur_amount = _gi(d, "bg_blur_amount", out.bg_blur_amount)
+    out.opacity = _gf(d, "opacity", out.opacity)
+    out.bg_gradient_enabled = _gb(d, "bg_gradient_enabled", out.bg_gradient_enabled)
+    out.bg_color_2 = _gs(d, "bg_color_2", out.bg_color_2)
+    out.bg_gradient_angle = _gi(d, "bg_gradient_angle", out.bg_gradient_angle)
+    out.bg_mode = _gs(d, "bg_mode", out.bg_mode)
+    out.bg_image = _gs(d, "bg_image", out.bg_image)
+    out.bg_image_fit = _gs(d, "bg_image_fit", out.bg_image_fit)
+    out.animation_direction = _gs(d, "animation_direction", out.animation_direction)
+    out.animation_style = _gs(d, "animation_style", out.animation_style)
+    return out
+
+
 @dataclass
 class AppSettings:
     projection: ProjectionSettings = field(default_factory=ProjectionSettings)
@@ -521,119 +653,36 @@ class AppSettings:
             obs.web_port = _gi(o, "web_port", obs.web_port)
             obs.ndi_source_name = _gs(o, "ndi_source_name", obs.ndi_source_name)
 
-            out = o.get("output")
-            if isinstance(out, dict):
-                obs.output.layout_mode = _gs(
-                    out, "layout_mode", obs.output.layout_mode
-                )
-                obs.output.font_family = _gs(out, "font_family", obs.output.font_family)
-                obs.output.text_size = _gi(out, "text_size", obs.output.text_size)
-                obs.output.ref_size = _gi(out, "ref_size", obs.output.ref_size)
-                obs.output.align = _gs(out, "align", obs.output.align)
-                obs.output.show_reference = _gb(
-                    out, "show_reference", obs.output.show_reference
-                )
-                obs.output.position = _gs(out, "position", obs.output.position)
-                obs.output.band_align = _gs(out, "band_align", obs.output.band_align)
-                obs.output.offset_x = _gi(out, "offset_x", obs.output.offset_x)
-                obs.output.offset_y = _gi(out, "offset_y", obs.output.offset_y)
-                obs.output.edge_margin = _gi(
-                    out, "edge_margin", obs.output.edge_margin
-                )
-                obs.output.safe_area_percent = _gi(
-                    out, "safe_area_percent", obs.output.safe_area_percent
-                )
-                obs.output.panel_side = _gs(
-                    out, "panel_side", obs.output.panel_side
-                )
-                obs.output.show_kicker = _gb(out, "show_kicker", obs.output.show_kicker)
-                obs.output.show_accent_bar = _gb(
-                    out, "show_accent_bar", obs.output.show_accent_bar
-                )
-                obs.output.accent_mode = _gs(out, "accent_mode", obs.output.accent_mode)
-                obs.output.accent_color = _gs(
-                    out, "accent_color", obs.output.accent_color
-                )
-                obs.output.bg_enabled = _gb(out, "bg_enabled", obs.output.bg_enabled)
-                obs.output.bg_color = _gs(out, "bg_color", obs.output.bg_color)
-                obs.output.bg_opacity = _gf(out, "bg_opacity", obs.output.bg_opacity)
-                obs.output.text_color = _gs(out, "text_color", obs.output.text_color)
-                obs.output.ref_color = _gs(out, "ref_color", obs.output.ref_color)
-                obs.output.text_shadow = _gb(out, "text_shadow", obs.output.text_shadow)
-                obs.output.shadow_color = _gs(
-                    out, "shadow_color", obs.output.shadow_color
-                )
-                obs.output.shadow_blur = _gi(out, "shadow_blur", obs.output.shadow_blur)
-                obs.output.text_stroke = _gb(out, "text_stroke", obs.output.text_stroke)
-                obs.output.stroke_color = _gs(
-                    out, "stroke_color", obs.output.stroke_color
-                )
-                obs.output.stroke_width = _gi(
-                    out, "stroke_width", obs.output.stroke_width
-                )
-                obs.output.letter_spacing = _gi(
-                    out, "letter_spacing", obs.output.letter_spacing
-                )
-                obs.output.line_height = _gf(out, "line_height", obs.output.line_height)
-                obs.output.padding_horizontal = _gi(
-                    out, "padding_horizontal", obs.output.padding_horizontal
-                )
-                obs.output.padding_vertical = _gi(
-                    out, "padding_vertical", obs.output.padding_vertical
-                )
-                obs.output.max_width = _gi(out, "max_width", obs.output.max_width)
-                obs.output.auto_fit = _gb(out, "auto_fit", obs.output.auto_fit)
-                obs.output.uniform_text_size = _gb(
-                    out, "uniform_text_size", obs.output.uniform_text_size
-                )
-                obs.output.min_text_size = _gi(
-                    out, "min_text_size", obs.output.min_text_size
-                )
-                obs.output.max_lines = _gi(
-                    out, "max_lines", obs.output.max_lines
-                )
-                obs.output.reference_style = _gs(
-                    out, "reference_style", obs.output.reference_style
-                )
-                obs.output.background_dimmer = _gf(
-                    out, "background_dimmer", obs.output.background_dimmer
-                )
-                obs.output.border_radius = _gi(
-                    out, "border_radius", obs.output.border_radius
-                )
-                obs.output.animation_enabled = _gb(
-                    out, "animation_enabled", obs.output.animation_enabled
-                )
-                obs.output.animation_type = _gs(
-                    out, "animation_type", obs.output.animation_type
-                )
-                obs.output.animation_duration = _gi(
-                    out, "animation_duration", obs.output.animation_duration
-                )
-                obs.output.font_weight = _gs(out, "font_weight", obs.output.font_weight)
-                obs.output.text_transform = _gs(
-                    out, "text_transform", obs.output.text_transform
-                )
-                obs.output.bg_blur = _gb(out, "bg_blur", obs.output.bg_blur)
-                obs.output.bg_blur_amount = _gi(
-                    out, "bg_blur_amount", obs.output.bg_blur_amount
-                )
-                obs.output.opacity = _gf(out, "opacity", obs.output.opacity)
-                obs.output.bg_gradient_enabled = _gb(
-                    out, "bg_gradient_enabled", obs.output.bg_gradient_enabled
-                )
-                obs.output.bg_color_2 = _gs(out, "bg_color_2", obs.output.bg_color_2)
-                obs.output.bg_gradient_angle = _gi(
-                    out, "bg_gradient_angle", obs.output.bg_gradient_angle
-                )
-                obs.output.bg_mode = _gs(out, "bg_mode", obs.output.bg_mode)
-                obs.output.bg_image = _gs(out, "bg_image", obs.output.bg_image)
-                obs.output.bg_image_fit = _gs(
-                    out, "bg_image_fit", obs.output.bg_image_fit
-                )
-                obs.output.animation_direction = _gs(
-                    out, "animation_direction", obs.output.animation_direction
-                )
+            _read_obs_output(o.get("output"), obs.output)
+
+            scenes = o.get("scenes")
+            if isinstance(scenes, list):
+                seen_ids: list[str] = []
+                for raw in scenes:
+                    if not isinstance(raw, dict):
+                        continue
+                    scene_name = _gs(raw, "name", "")
+                    scene_id = _gs(raw, "id", "")
+                    if not scene_id:
+                        scene_id = scene_slug(scene_name or "scene", seen_ids)
+                    elif scene_id in seen_ids:
+                        scene_id = scene_slug(scene_id, seen_ids)
+                    seen_ids.append(scene_id)
+                    scene = ObsScene(id=scene_id, name=scene_name or scene_id)
+                    _read_obs_output(raw.get("output"), scene.output)
+                    obs.scenes.append(scene)
+
+            remote_raw = o.get("remote")
+            if isinstance(remote_raw, dict):
+                obs.remote.enabled = _gb(remote_raw, "enabled", obs.remote.enabled)
+                obs.remote.host = _gs(remote_raw, "host", obs.remote.host) or "127.0.0.1"
+                try:
+                    obs.remote.port = int(remote_raw.get("port", obs.remote.port))
+                except (TypeError, ValueError):
+                    pass
+                obs.remote.password = str(remote_raw.get("password") or "")
+                obs.remote.scene_on_live = str(remote_raw.get("scene_on_live") or "")
+                obs.remote.scene_on_hide = str(remote_raw.get("scene_on_hide") or "")
 
         appearance = AppearanceSettings()
         a = payload.get("appearance")

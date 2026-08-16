@@ -19,7 +19,12 @@ from app.ui.preview_panel import PreviewPanel
 from app.ui.projection_window import ProjectionWindow
 from app.ui.settings_dialog import ProjectionSettingsDialog
 from app.utils.obs_controller import ObsController
-from app.utils.settings import AppSettings, ObsOutputSettings, ProjectionSettings
+from app.utils.settings import (
+    AppSettings,
+    ObsOutputSettings,
+    ObsSettings,
+    ProjectionSettings,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -408,7 +413,7 @@ def test_operator_preview_keeps_uniform_size_between_slides() -> None:
 def test_settings_dialogs_expose_auto_grow_as_the_default() -> None:
     app = QApplication.instance() or QApplication([])
     local_dialog = ProjectionSettingsDialog(ProjectionSettings())
-    obs_dialog = ObsOutputSettingsDialog(ObsOutputSettings())
+    obs_dialog = ObsOutputSettingsDialog(ObsSettings())
 
     assert local_dialog._uniform_text_size.isChecked() is True
     assert local_dialog._uniform_text_size.isEnabled() is False
