@@ -22,7 +22,9 @@ class SermonsDao:
 
     @staticmethod
     def _has_column(conn: sqlite3.Connection, table: str, column: str) -> bool:
-        return any(r[1] == column for r in conn.execute(f"PRAGMA table_info({table})"))
+        # Fonction table-valued : nom de table en paramètre lié.
+        rows = conn.execute("SELECT name FROM pragma_table_info(?)", (table,))
+        return any(r[0] == column for r in rows)
 
     @staticmethod
     def _table_exists(conn: sqlite3.Connection, table: str) -> bool:

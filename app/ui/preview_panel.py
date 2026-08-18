@@ -5,6 +5,7 @@ from pathlib import Path
 from PyQt6.QtCore import QSignalBlocker, QSize, Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QFont, QKeySequence, QPixmap, QShortcut
 from PyQt6.QtWidgets import (
+    QDialog,
     QFrame,
     QGraphicsDropShadowEffect,
     QHBoxLayout,
@@ -118,6 +119,8 @@ class PreviewPanel(QFrame):
     nextRequested = pyqtSignal()
     logoRequested = pyqtSignal()
     projectToggled = pyqtSignal(bool)
+    # Texte rapide : (titre, textes, découpage)
+    quickTextRequested = pyqtSignal(str, list, bool)
 
     def __init__(self, parent=None, settings=None) -> None:
         super().__init__(parent)
@@ -195,12 +198,12 @@ class PreviewPanel(QFrame):
         )
         title_wrap.addWidget(title)
 
-        subtitle = QLabel(tr("projection"), self.header)
-        subtitle.setStyleSheet(
+        self._program_title_label = QLabel(tr("projection"), self.header)
+        self._program_title_label.setStyleSheet(
             f"font-size: {Typography.SIZE_META}px; color: {Colors.TEXT_MUTED};"
             "letter-spacing: 0;"
         )
-        title_wrap.addWidget(subtitle)
+        title_wrap.addWidget(self._program_title_label)
         header_lay.addLayout(title_wrap, 1)
         header_lay.addStretch()
 
@@ -420,10 +423,19 @@ class PreviewPanel(QFrame):
         console_layout.addWidget(self._project_button)
         console_layout.addWidget(self._hide_button)
 
+        self._quick_text_button = PreviewControlButton(
+            "plus.svg", tr("quick_text"), self.controls, text=tr("quick_text")
+        )
+        self._quick_text_button.setToolTip(tr("quick_text_tooltip"))
+        self._quick_text_button.clicked.connect(self._on_quick_text_clicked)
+
         controls_layout.addStretch(1)
         controls_layout.addWidget(self._prev_button, 0, Qt.AlignmentFlag.AlignVCenter)
         controls_layout.addWidget(self.console_frame, 0, Qt.AlignmentFlag.AlignVCenter)
         controls_layout.addWidget(self._next_button, 0, Qt.AlignmentFlag.AlignVCenter)
+        controls_layout.addWidget(
+            self._quick_text_button, 0, Qt.AlignmentFlag.AlignVCenter
+        )
         controls_layout.addStretch(1)
 
         # Connections
@@ -471,6 +483,31 @@ class PreviewPanel(QFrame):
         self._live_badge.setVisible(self._project_active and not self._is_hidden)
         self._update_mode_badge()
         self._update_stage_meta()
+
+    def set_program_title(self, title: str) -> None:
+        """Affiche le titre du programme live (sermon, chapitre, cantique…)."""
+        text = str(title or "").strip()
+        self._program_title_label.setText(text if text else tr("projection"))
+        self._program_title_label.setToolTip(text)
+        self._program_title_label.setStyleSheet(
+            f"font-size: {Typography.SIZE_META}px;"
+            f" color: {Colors.TEXT_SECONDARY if text else Colors.TEXT_MUTED};"
+            "letter-spacing: 0;"
+        )
+
+    def _on_quick_text_clicked(self) -> None:
+        """Ouvre le dialogue de texte rapide et demande sa projection."""
+        from app.ui.custom_slide_dialog import CustomSlideDialog
+
+        dialog = CustomSlideDialog(self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        title, _raw = dialog.get_content()
+        texts, split = dialog.get_slides()
+        if texts:
+            self.quickTextRequested.emit(
+                title.strip() or tr("quick_text"), texts, split
+            )
 
     def set_slide(self, reference: str, text: str, image_path: str = "") -> None:
         ref = str(reference or "").strip()

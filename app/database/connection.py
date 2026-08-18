@@ -172,14 +172,19 @@ class Database:
         row = conn.execute("PRAGMA user_version;").fetchone()
         return int(row[0]) if row is not None else 0
 
+    # PRAGMA en écriture ne supporte ni paramètre lié ni fonction
+    # table-valued : chaque version de schéma cible donc une requête
+    # littérale précalculée, sélectionnée par index entier validé.
+    _USER_VERSION_SQL = tuple(
+        "PRAGMA user_version = %d;" % v for v in range(0, 256)
+    )
+
     @staticmethod
     def _set_user_version(conn: sqlite3.Connection, version: int) -> None:
-        # PRAGMA ne supporte pas les paramètres liés : la valeur est validée
-        # comme entier strictement positif avant l'exécution.
         safe_version = int(version)
-        if safe_version < 0:
+        if not 0 <= safe_version < len(Database._USER_VERSION_SQL):
             raise ValueError(f"Invalid user_version: {version!r}")
-        conn.execute("PRAGMA user_version = %d;" % safe_version)
+        conn.execute(Database._USER_VERSION_SQL[safe_version])
 
     @staticmethod
     def _ensure_app_meta_table(conn: sqlite3.Connection) -> None:

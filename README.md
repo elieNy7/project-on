@@ -18,6 +18,8 @@ Sortie OBS (lower-third) · Projection plein écran cinématique · 100 % hors-l
 - **Bible** — navigation livre par livre, recherche et projection du verset avec sa référence.
 - **Cantiques** — bibliothèque organisée par strophes.
 - **Prédications & Exposés** — import et présentation structurée.
+- **Projection directe (sans playlist)** — double-clic, Entrée ou bouton « Projeter » sur un verset, strophe ou paragraphe : tout le document (chapitre, cantique, sermon) devient le programme de lecture, textes longs découpés en parties navigables.
+- **Texte rapide** — projetez une annonce ou un texte libre en un instant depuis l'aperçu.
 - **Sortie OBS · Lower Third** — bandeau « broadcast » personnalisable (position, police, couleurs, dégradé, flou, ombres, contour, préréglages) avec aperçu en direct.
 - **Animation mot à mot (broadcast)** — le texte des slides se révèle mot par mot en cascade, avec entrée de bandeau chorégraphiée (barre d'accent, badge source, référence).
 - **Styles par scène OBS** — plusieurs looks indépendants (louange plein écran, prédication discrète…) via des URL dédiées `?scene=…`, gérés et prévisualisés dans les réglages.
@@ -32,7 +34,7 @@ Sortie OBS (lower-third) · Projection plein écran cinématique · 100 % hors-l
 
 ## ⬇️ Installation (Windows)
 
-1. Téléchargez **`ProjectOn_1.6.0_Setup.exe`** depuis la [dernière version](https://github.com/elieNy7/project-on/releases/latest).
+1. Téléchargez **`ProjectOn_1.7.0_Setup.exe`** depuis la [dernière version](https://github.com/elieNy7/project-on/releases/latest).
 2. Lancez l'installeur (français). Si Windows affiche **SmartScreen**, cliquez sur « Informations complémentaires » → « Exécuter quand même ».
 3. Ouvrez **Project-On**. Tout fonctionne hors-ligne.
 

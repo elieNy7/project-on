@@ -45,7 +45,8 @@ from app.ui.theme import (
 
 class SermonsTab(QFrame):
     sermonSelected = pyqtSignal(object)
-    paragraphActivated = pyqtSignal(str, str)
+    # Payload : {reference, text, sermon_id, sermon_title, sermon_date}
+    paragraphActivated = pyqtSignal(object)
     filtersChanged = pyqtSignal()
     paragraphSearchRequested = pyqtSignal(str)  # query text
 
@@ -54,6 +55,7 @@ class SermonsTab(QFrame):
         self.setStyleSheet("background: transparent;")
 
         self._sermons: list[dict[str, Any]] = []
+        self._current_sermon_id: object = None
         self._current_sermon_title: str = ""
         self._current_sermon_date: str = ""
 
@@ -182,11 +184,11 @@ class SermonsTab(QFrame):
 
         # Add button
         self.add_paragraph_btn = QPushButton(self)
-        self.add_paragraph_btn.setText("Ajouter à la playlist")
-        self.add_paragraph_btn.setIcon(app_icon("plus.svg"))
+        self.add_paragraph_btn.setText("Projeter")
+        self.add_paragraph_btn.setIcon(app_icon("cast.svg"))
         self.add_paragraph_btn.setIconSize(QSize(16, 16))
         self.add_paragraph_btn.setToolTip(
-            "Ajouter le paragraphe sélectionné à la playlist"
+            "Projeter le sermon depuis le paragraphe sélectionné"
         )
         self.add_paragraph_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.add_paragraph_btn.setStyleSheet(get_button_style())
@@ -272,6 +274,7 @@ class SermonsTab(QFrame):
 
         self.sermons_list.currentItemChanged.connect(self._on_sermon_changed)
         self.paragraphs_list.itemDoubleClicked.connect(self._on_paragraph_activated)
+        self.paragraphs_list.itemActivated.connect(self._on_paragraph_activated)
         self.paragraphs_list.currentItemChanged.connect(
             self._on_paragraph_selection_changed
         )
@@ -470,6 +473,9 @@ class SermonsTab(QFrame):
                 item.setData(256, ref)
                 item.setData(257, text)
                 item.setData(258, marker)
+                item.setData(259, self._current_sermon_id)
+                item.setData(260, self._current_sermon_title)
+                item.setData(261, self._current_sermon_date)
                 self.paragraphs_list.addItem(item)
         finally:
             self.paragraphs_list.setUpdatesEnabled(True)
@@ -490,6 +496,7 @@ class SermonsTab(QFrame):
         if current is None:
             return
         sermon_id = current.data(256)
+        self._current_sermon_id = sermon_id
         self._current_sermon_title = str(current.data(257) or "")
         self._current_sermon_date = str(
             current.data(Qt.ItemDataRole.UserRole + 2) or ""
@@ -501,7 +508,15 @@ class SermonsTab(QFrame):
         text = str(item.data(257) or "")
         if not ref and not text:
             return
-        self.paragraphActivated.emit(ref, text)
+        self.paragraphActivated.emit(
+            {
+                "reference": ref,
+                "text": text,
+                "sermon_id": item.data(259),
+                "sermon_title": str(item.data(260) or ""),
+                "sermon_date": str(item.data(261) or ""),
+            }
+        )
 
     def _on_add_paragraph_clicked(self) -> None:
         item = self.paragraphs_list.currentItem()
@@ -609,7 +624,7 @@ class SermonsTab(QFrame):
         """)
 
         copy_action = menu.addAction("Copier le texte")
-        add_action = menu.addAction("Ajouter à la playlist")
+        add_action = menu.addAction("Projeter")
 
         action = menu.exec(self.paragraphs_list.mapToGlobal(pos))
 
@@ -678,6 +693,9 @@ class SermonsTab(QFrame):
             item.setData(256, ref)
             item.setData(257, text)
             item.setData(258, marker)
+            item.setData(259, r.get("sermon_id"))
+            item.setData(260, sermon_title)
+            item.setData(261, str(r.get("sermon_date", "") or ""))
             self.paragraphs_list.addItem(item)
 
         if results:
