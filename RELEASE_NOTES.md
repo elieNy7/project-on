@@ -1,3 +1,33 @@
+# Project-On 1.7.0
+
+Cette mise à jour simplifie radicalement le poste opérateur : la playlist disparaît au profit d'une **projection directe depuis la bibliothèque**. L'interface passe à trois sections (Bibliothèque, Aperçu, barre d'état) et chaque élément d'une liste — verset, strophe, paragraphe de sermon ou d'exposé — se projette immédiatement, en gardant le découpage des textes longs en plusieurs parties navigables.
+
+## Nouveautés de cette version
+
+- **Interface à 3 sections** : Bibliothèque et Aperçu côte à côte, plus de panneau playlist — l'écran est plus large pour les listes et l'aperçu gagne en place.
+- **Projection directe** : double-clic, touche Entrée ou bouton « Projeter » sur un verset / paragraphe / strophe — la slide passe immédiatement en direct.
+- **Programme de lecture intelligent** : projeter un paragraphe de sermon charge tout le sermon (les flèches suivent le déroulé complet) ; un verset charge le chapitre ; une strophe charge le cantique ; un paragraphe d'exposé charge le chapitre entier. La sélection multiple projette uniquement la sélection.
+- **Découpage conservé** : les textes longs restent divisés en slides équilibrées « référence (2/4) », navigables pendant la projection avec les flèches ou les boutons de l'aperçu.
+- **Recherche globale projetable** : double-clic sur un résultat de recherche de paragraphe → le sermon d'origine complet est rechargé et démarre au bon paragraphe.
+- **Titre du programme en direct** : l'aperçu affiche le nom du sermon/chapitre/cantique en lecture, avec compteur « n / total ».
+- **Texte rapide** : un bouton dans l'aperçu permet de projeter immédiatement une annonce ou un texte libre (avec ou sans découpage).
+- **Raccourcis épurés** : suppression des raccourcis playlist (Suppr, Ctrl+Z, Ctrl+↑/↓, Ctrl+D) ; documentation mise à jour.
+- **Données préservées** : la base de données et les anciennes playlists ne sont ni modifiées ni supprimées.
+
+## Installation
+
+Téléchargez **`ProjectOn_1.7.0_Setup.exe`** ci-dessous et lancez-le.
+Si Windows affiche **SmartScreen** : « Informations complémentaires » → « Exécuter quand même ».
+Si l'installeur est bloqué (erreur 4551), utilisez **`ProjectOn_1.7.0_Portable.zip`** : décompressez et lancez `Project-On.exe`.
+
+Windows 10 / 11 (64 bits) · ~500 Mo · fonctionne hors-ligne.
+
+## Crédits
+
+Silhouettes aigle / lion / agneau : game-icons.net (Lorc, Delapouite) — CC BY 3.0.
+
+---
+
 # Project-On 1.6.0
 
 Cette mise à jour fait passer la diffusion OBS de Project-On au niveau professionnel : habillage TV repensé, animation du texte mot à mot, styles indépendants par scène OBS et pilotage de OBS depuis le poste opérateur via WebSocket. Les versions précédentes restent compatible : vos réglages existants sont conservés tels quels.

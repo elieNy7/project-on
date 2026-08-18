@@ -130,10 +130,10 @@ class BibleTab(QFrame):
         )
 
         # Add button
-        self.add_verse_btn = QPushButton(tr("add_to_playlist"), self)
-        self.add_verse_btn.setIcon(app_icon("plus.svg"))
+        self.add_verse_btn = QPushButton(tr("project"), self)
+        self.add_verse_btn.setIcon(app_icon("cast.svg"))
         self.add_verse_btn.setIconSize(QSize(16, 16))
-        self.add_verse_btn.setToolTip(tr("add_verse_tooltip"))
+        self.add_verse_btn.setToolTip(tr("project_verse_tooltip"))
         self.add_verse_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.add_verse_btn.setStyleSheet(get_button_style())
 
@@ -199,6 +199,7 @@ class BibleTab(QFrame):
         self.translation_combo.currentIndexChanged.connect(self._on_translation_changed)
         self.books_list.currentItemChanged.connect(self._on_book_changed)
         self.verses_list.itemDoubleClicked.connect(self._on_verse_activated)
+        self.verses_list.itemActivated.connect(self._on_verse_activated)
         self.verses_list.currentItemChanged.connect(self._on_verse_selection_changed)
         self.add_verse_btn.clicked.connect(self._on_add_verse_clicked)
 

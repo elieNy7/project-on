@@ -26,7 +26,6 @@ from PyQt6.QtWidgets import (
 from app.database.connection import Database
 from app.ui.icons import app_logo_icon
 from app.ui.library_panel import LibraryPanel
-from app.ui.playlist_panel import PlaylistPanel
 from app.ui.preview_panel import PreviewPanel
 from app.ui.projection_window import ProjectionWindow
 from app.ui.status_bar import StatusBar
@@ -108,12 +107,11 @@ class MainWindow(QMainWindow):
         splitter.setStyleSheet(get_splitter_style())
 
         self.library_panel = LibraryPanel(splitter)
-        self.playlist_panel = PlaylistPanel(splitter)
         self.preview_panel = PreviewPanel(splitter, self._settings)
 
         # Apply refined shadows to panels for depth
         is_light_theme = get_theme() == "light"
-        for panel in (self.library_panel, self.playlist_panel, self.preview_panel):
+        for panel in (self.library_panel, self.preview_panel):
             shadow = QGraphicsDropShadowEffect(self)
             shadow.setBlurRadius(28 if is_light_theme else 40)
             shadow.setXOffset(0)
@@ -126,17 +124,15 @@ class MainWindow(QMainWindow):
             panel.setGraphicsEffect(shadow)
 
         splitter.addWidget(self.library_panel)
-        splitter.addWidget(self.playlist_panel)
         splitter.addWidget(self.preview_panel)
 
-        # Balance: Playlist (45%), Library (20%), Preview (35%)
-        splitter.setStretchFactor(0, 20)
+        # Balance: Library (55%), Preview (45%)
+        splitter.setStretchFactor(0, 55)
         splitter.setStretchFactor(1, 45)
-        splitter.setStretchFactor(2, 35)
 
         # Proportional initial sizes
         width = self.width() if self.width() > 800 else 1400
-        splitter.setSizes([int(width * 0.20), int(width * 0.45), int(width * 0.35)])
+        splitter.setSizes([int(width * 0.55), int(width * 0.45)])
 
         root_layout.addWidget(splitter, 1)
 
@@ -155,15 +151,12 @@ class MainWindow(QMainWindow):
         )
         root_layout.addWidget(self.status_bar)
 
-        self.playlist_panel.set_model(self._project_controller.playlist_model)
-
         self._library_controller = LibraryController(
             db=db,
             project_controller=self._project_controller,
             bible_tab=self.library_panel.bible_tab,
             hymns_tab=self.library_panel.hymns_tab,
             sermons_tab=self.library_panel.sermons_tab,
-            playlist_panel=self.playlist_panel,
             expose_tab=self.library_panel.expose_tab,
         )
 
@@ -204,56 +197,18 @@ class MainWindow(QMainWindow):
                 )
             self._refresh_settings_details()
 
-        # Connect playlist panel signals
-        self.playlist_panel.moveRequested.connect(self._project_controller.move_index)
-        self.playlist_panel.duplicateRequested.connect(
-            self._project_controller.duplicate_item
-        )
-
-        self.playlist_panel.slideSelected.connect(
-            self._project_controller.set_current_row
-        )
-        if hasattr(self.playlist_panel, "removeRequested"):
-            self.playlist_panel.removeRequested.connect(
-                self._project_controller.remove_row
-            )
-        if hasattr(self.playlist_panel, "removeIndexRequested"):
-            self.playlist_panel.removeIndexRequested.connect(
-                self._project_controller.remove_index
-            )
-        if hasattr(self.playlist_panel, "folderCreateRequested"):
-            self.playlist_panel.folderCreateRequested.connect(
-                self._on_folder_create_requested
-            )
-        if hasattr(self.playlist_panel, "folderDeleteRequested"):
-            self.playlist_panel.folderDeleteRequested.connect(
-                self._project_controller.delete_folder
-            )
-        if hasattr(self.playlist_panel, "customSlidesRequested"):
-            self.playlist_panel.customSlidesRequested.connect(
-                self._on_custom_slides_requested
-            )
-        if hasattr(self.playlist_panel, "folderRenameRequested"):
-            self.playlist_panel.folderRenameRequested.connect(
-                self._project_controller.rename_folder
-            )
+        # Projection directe : le programme live alimente l'aperçu et la barre d'état
         self._project_controller.currentSlideChanged.connect(
             self._on_current_slide_changed
         )
-        if hasattr(self.playlist_panel, "set_current_row"):
-            self._project_controller.currentRowChanged.connect(
-                self.playlist_panel.set_current_row
-            )
-        if hasattr(self.playlist_panel, "editRequested"):
-            self.playlist_panel.editRequested.connect(
-                self._on_playlist_edit_requested
-            )
-        if hasattr(self.playlist_panel, "undoRequested"):
-            self.playlist_panel.undoRequested.connect(self._undo_playlist)
+        self._project_controller.programChanged.connect(
+            self.preview_panel.set_program_title
+        )
         self.preview_panel.projectToggled.connect(self._toggle_local_projection)
         self.preview_panel.nextRequested.connect(lambda: self._handle_navigation(1))
         self.preview_panel.prevRequested.connect(lambda: self._handle_navigation(-1))
         self.preview_panel.hideToggled.connect(self._on_hide_toggled)
+        self.preview_panel.quickTextRequested.connect(self._on_quick_text_requested)
 
         class _GlobalArrowNavFilter(QObject):
             def __init__(self, owner: MainWindow) -> None:
@@ -288,10 +243,6 @@ class MainWindow(QMainWindow):
         self._global_arrow_nav_filter = _GlobalArrowNavFilter(self)
         QApplication.instance().installEventFilter(self._global_arrow_nav_filter)
 
-        sc = QShortcut(QKeySequence(Qt.Key.Key_Delete), self)
-        sc.setContext(Qt.ShortcutContext.ApplicationShortcut)
-        sc.activated.connect(self._delete_current_playlist_item)
-
         sc = QShortcut(QKeySequence(Qt.Key.Key_B), self)
         sc.setContext(Qt.ShortcutContext.ApplicationShortcut)
         sc.activated.connect(self._toggle_hide)
@@ -301,11 +252,6 @@ class MainWindow(QMainWindow):
         sc_f1 = QShortcut(QKeySequence(Qt.Key.Key_F1), self)
         sc_f1.setContext(Qt.ShortcutContext.ApplicationShortcut)
         sc_f1.activated.connect(self._show_shortcuts_dialog)
-
-        # Ctrl+Z → Undo
-        sc_undo = QShortcut(QKeySequence("Ctrl+Z"), self)
-        sc_undo.setContext(Qt.ShortcutContext.ApplicationShortcut)
-        sc_undo.activated.connect(self._undo_playlist)
 
         # Ctrl+1..5 → Switch library tabs
         for i in range(5):
@@ -416,7 +362,7 @@ class MainWindow(QMainWindow):
 
         - When focus is in the Library panel, arrows/prev-next scroll the relevant list
           (Bible books, Hymns titles, Sermons titles).
-        - Otherwise, they navigate the playlist slides.
+        - Otherwise, they navigate the live program slides.
         """
         fw = QApplication.focusWidget()
         if fw is not None and self.library_panel.isAncestorOf(fw):
@@ -507,10 +453,6 @@ class MainWindow(QMainWindow):
         tabs.setFocus()
         self._focus_search()
 
-    def _focus_playlist(self) -> None:
-        if hasattr(self.playlist_panel, "list_view"):
-            self.playlist_panel.list_view.setFocus()
-
     def _focus_preview(self) -> None:
         if hasattr(self.preview_panel, "slide_view"):
             self.preview_panel.slide_view.setFocus()
@@ -572,11 +514,6 @@ class MainWindow(QMainWindow):
                     return
             except Exception:
                 pass
-
-    def _delete_current_playlist_item(self) -> None:
-        row = self._project_controller.current_row()
-        if row >= 0:
-            self._project_controller.remove_row(row)
 
     def _safe_write_json(self, path: Path, data: dict) -> None:
         """Safely write JSON to a file, handling rapid consecutive accesses on Windows."""
@@ -849,7 +786,7 @@ class MainWindow(QMainWindow):
         self.preview_panel.set_slide(slide.reference, slide.text, image_path=image_path)
         # Update slide counter
         row = self._project_controller.current_row()
-        total = self._project_controller.playlist_model.flat_row_count()
+        total = self._project_controller.program_count
         self.preview_panel.set_slide_counter(row, total)
         self.status_bar.update_slide(slide.source, slide.reference, row, total)
 
@@ -865,39 +802,12 @@ class MainWindow(QMainWindow):
             new_ref, new_text = result
             self._project_controller.update_live_slide(new_ref, new_text)
 
-    def _on_playlist_edit_requested(self, index) -> None:
-        """Edit a playlist item persistently via QuickEditDialog."""
-        from app.ui.quick_edit_dialog import QuickEditDialog
-
-        if not index.isValid():
-            return
-            
-        from app.utils.playlist_model import PlaylistRoles
-        slide = index.data(PlaylistRoles.SlideDataRole)
-        is_folder = index.data(PlaylistRoles.IsFolderRole)
-        
-        if slide is None or is_folder:
-            return
-            
-        result = QuickEditDialog.edit(slide.reference, slide.text, parent=self)
-        if result:
-            new_ref, new_text = result
-            # Persist via controller
-            self._project_controller.update_item_content(index, new_ref, new_text)
-
-    def _on_folder_create_requested(self, name: str) -> None:
-        """Crée un nouveau dossier dans la playlist (toujours à la racine)."""
-        folder_index = self._project_controller.create_folder(name, None)
-        # Select and expand the new folder in the playlist view
-        self.playlist_panel.select_and_expand_folder(folder_index)
-
-    def _on_custom_slides_requested(
+    def _on_quick_text_requested(
         self, title: str, texts: list, split: bool
     ) -> None:
-        """Ajoute une ou plusieurs slides de texte selon le mode de découpage."""
-        parent = self.playlist_panel.get_selected_folder_index()
+        """Projette immédiatement un texte rapide (annonce, texte libre)."""
         self._project_controller.add_custom_slides(
-            title, list(texts), parent, split=split
+            title, list(texts), split=split
         )
 
     def _on_hide_toggled(self, hidden: bool) -> None:
@@ -905,9 +815,7 @@ class MainWindow(QMainWindow):
         self._project_controller.slide_writer.set_hidden(hidden)
         self.status_bar.set_hidden(hidden)
         # Also update OBS
-        slide = self._project_controller.playlist_model.slide_at(
-            self._project_controller.current_row()
-        )
+        slide = self._project_controller.current_slide()
         if slide:
             img = slide.image_path or slide.background or ""
             self._obs.update_slide(slide.text, slide.reference, slide.source, hidden, img)
@@ -921,9 +829,7 @@ class MainWindow(QMainWindow):
         self.preview_panel.set_hidden(hidden)
         self.status_bar.set_hidden(hidden)
         # Also update OBS
-        slide = self._project_controller.playlist_model.slide_at(
-            self._project_controller.current_row()
-        )
+        slide = self._project_controller.current_slide()
         if slide:
             img = slide.image_path or slide.background or ""
             self._obs.update_slide(slide.text, slide.reference, slide.source, hidden, img)
@@ -965,10 +871,6 @@ class MainWindow(QMainWindow):
             parent=self,
         )
         dialog.exec()
-
-    def _undo_playlist(self) -> None:
-        if not self._project_controller.undo():
-            QMessageBox.information(self, "Project-On", tr("nothing_to_undo"))
 
     def _toggle_local_projection(self, checked: bool | None = None) -> None:
         """Toggle the local projection window."""

@@ -102,6 +102,20 @@ _translations: dict[str, dict[str, str]] = {
     "sermons": {"fr": "Prédications", "en": "Sermons"},
     "settings": {"fr": "Paramètres", "en": "Settings"},
     "add_to_playlist": {"fr": "Ajouter à la playlist", "en": "Add to playlist"},
+    "project": {"fr": "Projeter", "en": "Project"},
+    "quick_text": {"fr": "Texte rapide", "en": "Quick text"},
+    "quick_text_tooltip": {
+        "fr": "Saisir un texte libre (annonce, verset improvisé) et le projeter immédiatement",
+        "en": "Type free text (announcement) and project it immediately",
+    },
+    "project_verse_tooltip": {
+        "fr": "Projeter le chapitre depuis le verset sélectionné",
+        "en": "Project the chapter from the selected verse",
+    },
+    "project_stanza_tooltip": {
+        "fr": "Projeter le cantique depuis la strophe sélectionnée",
+        "en": "Project the hymn from the selected stanza",
+    },
     "add_verse_tooltip": {
         "fr": "Ajouter le verset sélectionné à la playlist",
         "en": "Add selected verse to playlist",
@@ -289,21 +303,14 @@ _translations: dict[str, dict[str, str]] = {
         "fr": "Masquer / Afficher la projection",
         "en": "Toggle projection visibility",
     },
-    "shortcut_delete": {
-        "fr": "Supprimer l'élément sélectionné",
-        "en": "Delete selected item",
-    },
     "shortcut_search": {
-        "fr": "Rechercher dans la playlist",
-        "en": "Search in playlist",
+        "fr": "Rechercher dans l'onglet actif",
+        "en": "Search in the active tab",
     },
-    "shortcut_undo": {"fr": "Annuler la dernière action", "en": "Undo last action"},
-    "shortcut_move_up": {"fr": "Déplacer l'élément vers le haut", "en": "Move item up"},
-    "shortcut_move_down": {
-        "fr": "Déplacer l'élément vers le bas",
-        "en": "Move item down",
+    "shortcut_project_activated": {
+        "fr": "Projeter l'élément sélectionné",
+        "en": "Project the selected item",
     },
-    "shortcut_duplicate": {"fr": "Dupliquer l'élément", "en": "Duplicate item"},
     "shortcut_help": {"fr": "Afficher les raccourcis", "en": "Show shortcuts"},
     "shortcut_tab_bible": {"fr": "Onglet Bible", "en": "Bible tab"},
     "shortcut_tab_hymns": {"fr": "Onglet Cantiques", "en": "Hymns tab"},

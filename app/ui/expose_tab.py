@@ -154,10 +154,10 @@ class ExposeTab(QFrame):
         """)
 
         # Add button
-        self.add_btn = QPushButton("Ajouter à la playlist", self)
-        self.add_btn.setIcon(app_icon("plus.svg"))
+        self.add_btn = QPushButton("Projeter", self)
+        self.add_btn.setIcon(app_icon("cast.svg"))
         self.add_btn.setIconSize(QSize(16, 16))
-        self.add_btn.setToolTip("Ajouter le paragraphe sélectionné à la playlist")
+        self.add_btn.setToolTip("Projeter le chapitre depuis le paragraphe sélectionné")
         self.add_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.add_btn.setStyleSheet(get_button_style())
 
@@ -219,6 +219,7 @@ class ExposeTab(QFrame):
         # Signals
         self.chapters_list.currentItemChanged.connect(self._on_chapter_changed)
         self.paragraphs_list.itemDoubleClicked.connect(self._on_paragraph_activated)
+        self.paragraphs_list.itemActivated.connect(self._on_paragraph_activated)
         self.paragraphs_list.currentItemChanged.connect(
             self._on_paragraph_selection_changed
         )

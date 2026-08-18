@@ -1,6 +1,5 @@
 """Regression tests for the application typography hierarchy."""
 
-from app.ui.playlist_delegate import PlaylistDelegate
 from app.ui.theme import (
     Typography,
     build_app_stylesheet,
@@ -27,11 +26,3 @@ def test_global_styles_separate_filters_from_body_copy() -> None:
     assert f"font-size: {Typography.SIZE_FILTER}px" in get_input_style()
     assert f"font-size: {Typography.SIZE_FILTER}px" in get_combo_style()
     assert f"font-size: {Typography.SIZE_NUMBER}px" in app_style
-
-
-def test_playlist_uses_the_shared_typography_roles() -> None:
-    assert PlaylistDelegate.TAG_FONT_SIZE == Typography.SIZE_NUMBER
-    assert PlaylistDelegate.REFERENCE_FONT_SIZE == Typography.SIZE_FILTER
-    assert PlaylistDelegate.TEXT_FONT_SIZE == Typography.SIZE_BODY
-    assert PlaylistDelegate.FOLDER_HEIGHT >= 42
-    assert PlaylistDelegate.SLIDE_MIN_HEIGHT >= 76

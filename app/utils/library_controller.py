@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 import re
-import sqlite3
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -52,13 +51,11 @@ class LibraryController(QObject):
         bible_tab: QObject,
         hymns_tab: QObject,
         sermons_tab: QObject,
-        playlist_panel: QObject | None = None,
         expose_tab: QObject | None = None,
     ) -> None:
         super().__init__()
         self._db = db
         self._project = project_controller
-        self._playlist_panel = playlist_panel
 
         self._bible_dao = BibleDao(db)
         self._hymns_dao = HymnsDao(db)
@@ -80,6 +77,16 @@ class LibraryController(QObject):
         self._sermons_loaded = False
         self._expose_loaded = False
         self._pool = QThreadPool.globalInstance()
+
+        # Caches du programme de projection : la liste affichée dans chaque
+        # onglet devient directement le programme live (découpage conservé).
+        self._current_verses: list[dict[str, Any]] = []
+        self._current_verses_title: str = ""
+        self._current_sermon_paragraphs: list[dict[str, Any]] = []
+        self._current_sermon_program_title: str = ""
+        self._current_stanzas: list[dict[str, Any]] = []
+        self._current_hymn_program_title: str = ""
+        self._current_expose_pages: list[int] = []
 
         self._wire()
         self.refresh_all()
@@ -242,28 +249,31 @@ class LibraryController(QObject):
                 }
             )
 
+        self._current_verses = prepared
+        self._current_verses_title = f"{book_name} {self._current_chapter}".strip()
         self._bible_tab.set_verses(prepared)
 
-    def _get_selected_folder_index(self):
-        """Retourne l'index du dossier sélectionné dans la playlist."""
-        if self._playlist_panel is not None and hasattr(
-            self._playlist_panel, "get_selected_folder_index"
-        ):
-            return self._playlist_panel.get_selected_folder_index()
-        return None
-
     def on_bible_verse_activated(self, reference: str, text: str) -> None:
-        parent = self._get_selected_folder_index()
-        self._project.add_to_playlist(
-            "bible", self._clean_text(reference), self._clean_text(text), parent
+        """Projette le chapitre courant depuis le verset cliqué."""
+        ref = self._clean_text(reference)
+        entries = [(p["reference"], p["text"]) for p in self._current_verses]
+        focus = next(
+            (i for i, (entry_ref, _t) in enumerate(entries) if entry_ref == ref), 0
+        )
+        if not entries:
+            entries = [(ref, self._clean_text(text))]
+        self._project.load_program(
+            "bible", self._current_verses_title or ref, entries, focus_entry=focus
         )
 
     def on_bible_verses_activated(self, verses: list) -> None:
-        """Handle multi-verse selection from the Bible tab."""
-        parent = self._get_selected_folder_index()
-        for ref, text in verses:
-            self._project.add_to_playlist(
-                "bible", self._clean_text(ref), self._clean_text(text), parent
+        """Projette la sélection multiple de versets."""
+        entries = [
+            (self._clean_text(ref), self._clean_text(text)) for ref, text in verses
+        ]
+        if entries:
+            self._project.load_program(
+                "bible", self._current_verses_title or "Bible", entries
             )
 
     def refresh_sermons(self) -> None:
@@ -341,33 +351,115 @@ class LibraryController(QObject):
             return self._sermons_dao.list_paragraphs(sermon_id, lang)
 
         def _on_done(paragraphs):
-            if paragraphs is None:
-                paragraphs = []
-            prepared: list[dict[str, Any]] = []
-            for p in paragraphs:
-                no = int(p["paragraph_no"])
-                marker = str(p.get("marker") or p.get("para_id") or f"¶{no}").strip()
-                ref = self._format_sermon_reference(sermon_date, sermon_title, marker)
-
-                prepared.append(
-                    {
-                        "reference": ref,
-                        "ref": ref,
-                        "text": self._clean_text(p["text"]),
-                        "paragraph_no": no,
-                        "para_id": marker,
-                        "marker": marker,
-                    },
-                )
+            prepared = self._prepare_sermon_entries(paragraphs, sermon_title, sermon_date)
+            self._current_sermon_paragraphs = prepared
+            self._current_sermon_program_title = self._format_sermon_reference(
+                sermon_date, sermon_title, ""
+            ).strip(" -")
             self._sermons_tab.set_paragraphs(prepared)
 
         self._pool.start(_DbWorker(_fetch, _on_done))
 
-    def on_sermon_paragraph_activated(self, reference: str, text: str) -> None:
-        parent = self._get_selected_folder_index()
-        self._project.add_to_playlist(
-            "sermon", self._clean_text(reference), self._clean_text(text), parent
+    def _prepare_sermon_entries(
+        self, paragraphs: list[dict[str, Any]], sermon_title: str, sermon_date: str
+    ) -> list[dict[str, Any]]:
+        """Met en forme les paragraphes d'un sermon pour l'affichage/projection."""
+        prepared: list[dict[str, Any]] = []
+        for p in paragraphs or []:
+            no = int(p["paragraph_no"])
+            marker = str(p.get("marker") or p.get("para_id") or f"¶{no}").strip()
+            ref = self._format_sermon_reference(sermon_date, sermon_title, marker)
+
+            prepared.append(
+                {
+                    "reference": ref,
+                    "ref": ref,
+                    "text": self._clean_text(p["text"]),
+                    "paragraph_no": no,
+                    "para_id": marker,
+                    "marker": marker,
+                },
+            )
+        return prepared
+
+    @staticmethod
+    def _find_entry_index(
+        entries: list[tuple[str, str]], reference: str
+    ) -> int:
+        """Index de l'entrée correspondant à la référence cliquée.
+
+        Retombe sur le marqueur seul (dernier segment après « - ») lorsque la
+        référence complète diffère (ex. résultat de recherche global).
+        """
+        for i, (ref, _text) in enumerate(entries):
+            if ref == reference:
+                return i
+        marker = reference.rsplit(" - ", 1)[-1].strip()
+        for i, (ref, _text) in enumerate(entries):
+            if ref.rsplit(" - ", 1)[-1].strip() == marker:
+                return i
+        return 0
+
+    def on_sermon_paragraph_activated(self, payload: dict) -> None:
+        """Projette tout le sermon courant depuis le paragraphe cliqué.
+
+        Fonctionne aussi depuis un résultat de recherche globale : le sermon
+        d'origine est alors rechargé en arrière-plan avant projection.
+        """
+        ref = self._clean_text(payload.get("reference", ""))
+        text = self._clean_text(payload.get("text", ""))
+        sermon_id = payload.get("sermon_id")
+
+        same_sermon = (
+            sermon_id is not None
+            and self._current_sermon_paragraphs
+            and str(sermon_id) == str(self._current_sermon_id)
         )
+        if same_sermon or (sermon_id is None and self._current_sermon_paragraphs):
+            entries = [
+                (p["reference"], p["text"]) for p in self._current_sermon_paragraphs
+            ]
+            focus = self._find_entry_index(entries, ref)
+            self._project.load_program(
+                "sermon",
+                self._current_sermon_program_title or ref,
+                entries,
+                focus_entry=focus,
+            )
+            return
+
+        if sermon_id is None:
+            if text:
+                self._project.load_program("sermon", ref, [(ref, text)])
+            return
+
+        # Résultat de recherche : recharger le sermon complet en arrière-plan
+        sermon_title = self._clean_text(payload.get("sermon_title", ""))
+        sermon_date = self._clean_text(payload.get("sermon_date", ""))
+        lang = self._current_sermon_language
+
+        def _fetch():
+            return self._sermons_dao.list_paragraphs(sermon_id, lang)
+
+        def _on_done(paragraphs):
+            prepared = self._prepare_sermon_entries(paragraphs, sermon_title, sermon_date)
+            self._current_sermon_id = sermon_id
+            self._current_sermon_paragraphs = prepared
+            self._current_sermon_program_title = self._format_sermon_reference(
+                sermon_date, sermon_title, ""
+            ).strip(" -")
+            entries = [(p["reference"], p["text"]) for p in prepared]
+            if not entries and text:
+                entries = [(ref, text)]
+            focus = self._find_entry_index(entries, ref)
+            self._project.load_program(
+                "sermon",
+                self._current_sermon_program_title or sermon_title or ref,
+                entries,
+                focus_entry=focus,
+            )
+
+        self._pool.start(_DbWorker(_fetch, _on_done))
 
     def on_paragraph_search(self, query: str) -> None:
         """Search across all paragraphs in background thread."""
@@ -429,6 +521,7 @@ class LibraryController(QObject):
             if pages is None:
                 pages = []
             self._expose_tab.set_pages(pages)
+            self._current_expose_pages = [int(p) for p in pages]
             if pages:
                 self.on_expose_page_selected(pages[0])
             else:
@@ -486,37 +579,55 @@ class LibraryController(QObject):
     def on_expose_paragraph_activated(
         self, reference: str, text: str, title: str = ""
     ) -> None:
-        parent = self._get_selected_folder_index()
+        """Projette tout le chapitre exposé courant depuis le paragraphe cliqué.
 
-        # Enrich reference: "Chapter Title - Page X ¶Y"
-        enriched_ref = reference
+        Les paragraphes de toutes les pages du chapitre sont rechargés en
+        arrière-plan (dans l'ordre des pages) pour former le programme live.
+        """
+        ref = self._clean_text(reference)
+        chapter_title = self._clean_text(title) or ref
 
-        # Parse reference (e.g., "9-1" or "p11-1" or "SERMON ... §20")
-        # Standardize format: Page-Para
-        m = re.search(r"(\d+)-(\d+)", reference)
+        ch_id = self._current_expose_chapter_id
+        pages = list(self._current_expose_pages)
 
-        if m:
-            page = m.group(1)
-            para = m.group(2)
-            if title:
-                enriched_ref = f"{title} - Page {page}-¶{para}"
-            else:
-                enriched_ref = f"Page {page}-¶{para}"
-        else:
-            # Try searching for § followed by numbers
-            m_para = re.search(r"(?:§|¶|p)(\d+)", reference)
-            if m_para:
-                para_num = m_para.group(1)
-                if title:
-                    enriched_ref = f"{title} - ¶{para_num}"
+        def _fetch():
+            all_rows: list[dict[str, Any]] = []
+            for page in pages:
+                rows = self._sermons_dao.list_expose_page_paragraphs(ch_id, page)
+                all_rows.extend(rows or [])
+            return all_rows
+
+        def _on_done(rows):
+            entries: list[tuple[str, str]] = []
+            raw_refs: list[str] = []
+            for p in rows or []:
+                raw_ref = str(p.get("ref", ""))
+                marker = str(p.get("marker") or p.get("para_id") or raw_ref)
+                m = re.search(r"(\d+)-(\d+)", raw_ref)
+                if m:
+                    enriched = f"{chapter_title} - Page {m.group(1)}-¶{m.group(2)}"
+                elif marker:
+                    enriched = f"{chapter_title} - {marker}"
                 else:
-                    enriched_ref = f"¶{para_num}"
-            elif title and title not in reference:
-                enriched_ref = f"{title} - {reference}"
+                    enriched = chapter_title
+                entries.append((enriched, self._clean_text(p.get("text", ""))))
+                raw_refs.append(raw_ref)
 
-        self._project.add_to_playlist(
-            "sermon", self._clean_text(enriched_ref), self._clean_text(text), parent
-        )
+            if not entries and text:
+                entries = [(ref, text)]
+                raw_refs = [ref]
+
+            focus = 0
+            for i, raw in enumerate(raw_refs):
+                if raw == ref:
+                    focus = i
+                    break
+
+            self._project.load_program(
+                "sermon", chapter_title, entries, focus_entry=focus
+            )
+
+        self._pool.start(_DbWorker(_fetch, _on_done))
 
     def refresh_hymns(self) -> None:
         def _fetch():
@@ -558,10 +669,22 @@ class LibraryController(QObject):
 
         hymn_title = (hymn or {}).get("title") or self._hymns_tab.current_hymn_title() or ""
         hymn_number = (hymn or {}).get("number") or ""
+        prepared = self._prepare_hymn_stanzas(stanzas, hymn_number, hymn_title)
+
+        self._current_stanzas = prepared
+        self._current_hymn_program_title = self._format_hymn_reference(
+            hymn_number, hymn_title, ""
+        ).strip(" -")
+        self._hymns_tab.set_stanzas(prepared)
+
+    def _prepare_hymn_stanzas(
+        self, stanzas: list[dict[str, Any]], hymn_number: str, hymn_title: str
+    ) -> list[dict[str, Any]]:
+        """Met en forme les strophes pour l'affichage/projection."""
         prepared: list[dict[str, Any]] = []
         verse_no = 0
         chorus_no = 0
-        for s in stanzas:
+        for s in stanzas or []:
             full_text = s["text"]
             label = str(s.get("label") or "")
             is_chorus = bool(s.get("is_chorus"))
@@ -587,64 +710,47 @@ class LibraryController(QObject):
                     "stanza_no": int(s["stanza_no"]),
                 }
             )
-
-        self._hymns_tab.set_stanzas(prepared)
+        return prepared
 
     def on_hymn_stanza_activated(self, reference: str, text: str) -> None:
-        parent = self._get_selected_folder_index()
-        self._project.add_to_playlist(
-            "hymn", self._clean_text(reference), self._clean_text(text), parent
+        """Projette tout le cantique courant depuis la strophe cliquée."""
+        ref = self._clean_text(reference)
+        entries = [(p["reference"], p["text"]) for p in self._current_stanzas]
+        focus = self._find_entry_index(entries, ref)
+        if not entries:
+            entries = [(ref, self._clean_text(text))]
+        self._project.load_program(
+            "hymn", self._current_hymn_program_title or ref, entries, focus_entry=focus
         )
 
     def on_hymn_stanzas_activated(self, stanzas: list[tuple[str, str]]) -> None:
-        """Handle multiple stanzas activation."""
-        parent = self._get_selected_folder_index()
-        for ref, text in stanzas:
-            self._project.add_to_playlist(
-                "hymn", self._clean_text(ref), self._clean_text(text), parent
+        """Projette la sélection multiple de strophes."""
+        entries = [
+            (self._clean_text(ref), self._clean_text(text)) for ref, text in stanzas
+        ]
+        if entries:
+            self._project.load_program(
+                "hymn", self._current_hymn_program_title or "Cantique", entries
             )
 
     def on_hymn_activated(self, hymn_id: int) -> None:
-        """Add all stanzas of a hymn to the playlist."""
+        """Projette tout le cantique sélectionné."""
         stanzas = self._hymns_dao.list_stanzas(hymn_id)
         hymn = self._hymns_dao.get_hymn(hymn_id)
         hymn_title = hymn["title"] if hymn else ""
         hymn_number = hymn.get("number", "") if hymn else ""
-        parent = self._get_selected_folder_index()
+        program_title = self._format_hymn_reference(hymn_number, hymn_title, "").strip(" -")
 
-        verse_no = 0
-        chorus_no = 0
-        entries: list[tuple[str, str]] = []
-        for s in stanzas:
-            full_text = s["text"]
-            label = str(s.get("label") or "")
-            is_chorus = bool(s.get("is_chorus"))
-            if not label:
-                if is_chorus:
-                    chorus_no += 1
-                    label = "Refrain" if chorus_no == 1 else f"Refrain {chorus_no}"
-                else:
-                    verse_no += 1
-                    label = f"Strophe {verse_no}"
-            else:
-                if is_chorus:
-                    chorus_no += 1
-                else:
-                    verse_no += 1
-            ref = self._format_hymn_reference(hymn_number, hymn_title, label)
-            entries.append((self._clean_text(ref), self._clean_text(full_text)))
+        self._current_hymn_id = int(hymn_id)
+        self._current_stanzas = self._prepare_hymn_stanzas(stanzas, hymn_number, hymn_title)
+        self._current_hymn_program_title = program_title
 
-        try:
-            self._project.add_many_to_playlist("hymn", entries, parent)
-        except sqlite3.OperationalError as exc:
-            if "locked" not in str(exc).lower():
-                raise
-            QMessageBox.warning(
-                None,
-                "Base de données occupée",
-                "La base de données est momentanément verrouillée.\n\n"
-                "Attendez la fin des imports, sauvegardes ou optimisations en cours, puis réessayez.",
-            )
+        entries = [
+            (p["reference"], self._clean_text(p["text"]))
+            for p in self._current_stanzas
+        ]
+        if entries:
+            self._project.load_program("hymn", program_title or "Cantique", entries)
 
     def on_import_pptx_file(self) -> None:
         file_path, _ = QFileDialog.getOpenFileName(

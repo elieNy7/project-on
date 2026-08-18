@@ -116,9 +116,10 @@ class HymnsTab(QFrame):
         )
 
         # Add Button
-        self.add_btn = QPushButton(tr("add_to_playlist"), self)
-        self.add_btn.setIcon(app_icon("plus.svg"))
+        self.add_btn = QPushButton(tr("project"), self)
+        self.add_btn.setIcon(app_icon("cast.svg"))
         self.add_btn.setIconSize(QSize(16, 16))
+        self.add_btn.setToolTip(tr("project_stanza_tooltip"))
         self.add_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.add_btn.setStyleSheet(get_button_style())
 
@@ -203,6 +204,7 @@ class HymnsTab(QFrame):
         # Connections
         self.hymns_list.currentItemChanged.connect(self._on_hymn_changed)
         self.stanzas_list.itemDoubleClicked.connect(self._on_stanza_double_clicked)
+        self.stanzas_list.itemActivated.connect(self._on_stanza_double_clicked)
         self.stanzas_list.currentItemChanged.connect(self._on_stanza_selection_changed)
         self.add_btn.clicked.connect(self._on_add_clicked)
         self.delete_btn.clicked.connect(self._on_delete_clicked)
