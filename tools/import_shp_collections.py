@@ -9,9 +9,16 @@ Leur mise en page fournit trois signaux fiables que ce script utilise ensemble:
 
 L'import ne segmente donc jamais sur une simple ligne vide. Les en-tetes/pieds de
 page Kosher et les informations d'export sont exclus par leur position et leur
-libelle. Par defaut le script analyse et valide seulement. ``--apply`` est requis
-pour remplacer uniquement les sermons SHP, tout en conservant Expose, VGR, BSS
-et toute autre traduction deja presente.
+libelle. Le titre, le lieu et la date proviennent toujours du bandeau imprime
+(16 pt blanc), jamais de l'en-tete repete : le titre stocke est donc exactement
+celui du PDF, coquilles comprises. Par defaut le script analyse et valide
+seulement. ``--apply`` est requis pour remplacer uniquement les sermons SHP,
+tout en conservant Expose, VGR, BSS et toute autre traduction deja presente.
+``--apply --metadata-only`` importe le catalogue seul (titre exact, date, lieu)
+sans le texte des paragraphes.
+
+Apres l'import, l'application recalcule les metadonnees de recherche : la
+traduction SHP garde toujours son titre PDF exact comme titre canonique.
 """
 
 from __future__ import annotations
@@ -650,6 +657,7 @@ def apply_import(
     results: list[FileExtraction],
     backup_dir: Path | None,
     vacuum: bool,
+    metadata_only: bool = False,
 ) -> dict[str, Any]:
     if not db_path.exists():
         raise ExtractionError(f"Base de donnees introuvable: {db_path}")
@@ -752,6 +760,10 @@ def apply_import(
                 ),
             )
             sermon_id = int(cursor.lastrowid)
+            if metadata_only:
+                # Mode catalogue : seul le titre exact, la date et le lieu
+                # sont importes; le texte reste dans les PDF sources.
+                continue
             rows = []
             for ordinal, paragraph in enumerate(sermon.paragraphs, start=1):
                 marker = f"§{paragraph.marker}"
@@ -846,7 +858,9 @@ def apply_import(
         connection.close()
 
     expected_sermons = len(sermons)
-    expected_paragraphs = sum(len(sermon.paragraphs) for sermon in sermons)
+    expected_paragraphs = (
+        0 if metadata_only else sum(len(sermon.paragraphs) for sermon in sermons)
+    )
     if actual["expose_sermons"] != expose_before:
         raise ExtractionError("Le nombre de chapitres Expose a change apres l'import")
     if actual["expose_paragraphs"] != expose_paragraphs_before:
@@ -869,6 +883,7 @@ def apply_import(
         "backup_path": str(backup_path) if backup_path else None,
         "database_path": str(db_path),
         "integrity_check": integrity,
+        "metadata_only": metadata_only,
         **actual,
     }
 
@@ -935,6 +950,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Applique le nettoyage/import. Sans cette option: analyse seulement.",
     )
     parser.add_argument(
+        "--metadata-only",
+        action="store_true",
+        help=(
+            "Avec --apply : n'importe que le catalogue (titre exact du PDF, "
+            "date, lieu) sans le texte des paragraphes."
+        ),
+    )
+    parser.add_argument(
         "--no-backup",
         action="store_true",
         help="N'enregistre pas la copie de securite de la base avant l'import.",
@@ -957,6 +980,8 @@ def main(argv: list[str] | None = None) -> int:
         raise ExtractionError(
             "--apply exige le corpus complet; retirez --years pour eviter une base partielle"
         )
+    if args.metadata_only and not args.apply:
+        raise ExtractionError("--metadata-only n'a de sens qu'avec --apply")
     pdfs = discover_pdfs(source, years)
     print(f"Analyse de {len(pdfs)} PDF SHP avec {max(1, args.workers)} worker(s)...")
     results = extract_corpus(pdfs, max(1, args.workers))
@@ -971,6 +996,7 @@ def main(argv: list[str] | None = None) -> int:
             results=results,
             backup_dir=backup_dir,
             vacuum=not args.no_vacuum,
+            metadata_only=args.metadata_only,
         )
         print(json.dumps(applied, ensure_ascii=False, indent=2), flush=True)
 

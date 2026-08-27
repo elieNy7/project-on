@@ -209,6 +209,7 @@ class MainWindow(QMainWindow):
         self.preview_panel.prevRequested.connect(lambda: self._handle_navigation(-1))
         self.preview_panel.hideToggled.connect(self._on_hide_toggled)
         self.preview_panel.quickTextRequested.connect(self._on_quick_text_requested)
+        self.preview_panel.quickEditRequested.connect(self._on_quick_edit_requested)
 
         class _GlobalArrowNavFilter(QObject):
             def __init__(self, owner: MainWindow) -> None:
@@ -428,92 +429,6 @@ class MainWindow(QMainWindow):
             self._project_controller.prev_slide()
         else:
             self._project_controller.next_slide()
-
-    def _switch_library_tab(self, delta: int) -> None:
-        tabs = getattr(self.library_panel, "tabs", None)
-        if tabs is None:
-            return
-        count = int(tabs.count())
-        if count <= 0:
-            return
-        idx = int(tabs.currentIndex())
-        tabs.setCurrentIndex((idx + int(delta)) % count)
-
-    def _set_library_tab(self, index: int) -> None:
-        tabs = getattr(self.library_panel, "tabs", None)
-        if tabs is None:
-            return
-        if 0 <= int(index) < int(tabs.count()):
-            tabs.setCurrentIndex(int(index))
-
-    def _focus_library(self) -> None:
-        tabs = getattr(self.library_panel, "tabs", None)
-        if tabs is None:
-            return
-        tabs.setFocus()
-        self._focus_search()
-
-    def _focus_preview(self) -> None:
-        if hasattr(self.preview_panel, "slide_view"):
-            self.preview_panel.slide_view.setFocus()
-
-    def _focus_search(self) -> None:
-        tabs = getattr(self.library_panel, "tabs", None)
-        if tabs is None:
-            return
-        current = tabs.currentWidget()
-        if current is None:
-            return
-        # Bible
-        if hasattr(current, "search"):
-            try:
-                current.search.setFocus()
-                if hasattr(current.search, "selectAll"):
-                    current.search.selectAll()
-                return
-            except Exception:
-                pass
-
-    def _activate_current(self) -> None:
-        tabs = getattr(self.library_panel, "tabs", None)
-        if tabs is None:
-            return
-        current = tabs.currentWidget()
-        if current is None:
-            return
-
-        # Bible: add selected verse
-        if hasattr(current, "verses_list") and hasattr(
-            current, "_on_add_verse_clicked"
-        ):
-            try:
-                if current.verses_list.hasFocus():
-                    current._on_add_verse_clicked()
-                    return
-            except Exception:
-                pass
-
-        # Sermons: add selected paragraph
-        if hasattr(current, "paragraphs_list") and hasattr(
-            current, "_on_add_paragraph_clicked"
-        ):
-            try:
-                if current.paragraphs_list.hasFocus():
-                    current._on_add_paragraph_clicked()
-                    return
-            except Exception:
-                pass
-
-        # Hymns: add all stanzas of selected hymn or selected stanza
-        if hasattr(current, "stanzas_list") and hasattr(
-            current, "_on_add_stanza_clicked"
-        ):
-            try:
-                if current.stanzas_list.hasFocus() or current.hymns_list.hasFocus():
-                    current._on_add_stanza_clicked()
-                    return
-            except Exception:
-                pass
 
     def _safe_write_json(self, path: Path, data: dict) -> None:
         """Safely write JSON to a file, handling rapid consecutive accesses on Windows."""
@@ -791,11 +706,12 @@ class MainWindow(QMainWindow):
         self.status_bar.update_slide(slide.source, slide.reference, row, total)
 
     def _on_quick_edit_requested(self) -> None:
-        """Open a dialog to quickly edit the current displayed slide."""
+        """Éditer rapidement la slide affichée en direct (référence + texte)."""
         from app.ui.quick_edit_dialog import QuickEditDialog
 
-        ref = self.preview_panel.get_current_reference()
-        text = self.preview_panel.slide_view.text()
+        slide = self._project_controller.current_slide()
+        ref = slide.reference if slide else ""
+        text = slide.text if slide else ""
 
         result = QuickEditDialog.edit(ref, text, parent=self)
         if result:

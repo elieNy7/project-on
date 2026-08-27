@@ -1,3 +1,33 @@
+# Project-On 1.7.1
+
+Cette version est une passe complète de finition sur le poste opérateur : corrections de défauts d'interface accumulés, retour d'une fonction perdue et harmonisation visuelle. Aucune donnée n'est modifiée ; tous les réglages existants sont conservés.
+
+## Nouveautés et corrections
+
+- **Édition rapide de retour** : le bouton crayon dans la console de l'aperçu permet de corriger la référence ou le texte de la slide en direct (utile pour rectifier une faute pendant le culte). Le bouton n'est actif que lorsqu'une slide est chargée.
+- **État vide du moniteur** : quand aucun programme n'est chargé, l'écran d'aperçu affiche une invite claire « Prêt à projeter » au lieu d'un cadre noir silencieux.
+- **Badge LIVE réparé** : la taille de police du badge « LIVE / PREVIEW » était cassée par une erreur de feuille de style (texte brut au lieu d'une valeur) ; les couleurs passent désormais par la palette du thème (vert quand le direct est actif).
+- **Touche Espace corrigée** : Espace masque/affiche la sortie uniquement lorsque le focus n'est pas sur un bouton, un champ ou une liste — les boutons reçoivent de nouveau leur Espace (activation au clavier possible).
+- **Bouton « Texte rapide » complet** : le libellé n'est plus tronqué (« TEXTE RAPIDE » s'affiche en entier, largeur mesurée en majuscules).
+- **Filtres Prédications** : retrait des emojis des listes « Toutes années / Sans date / Toutes traductions » qui s'affichaient en carrés et tronquaient les libellés.
+- **Bibliothèque Bible** : l'intitulé de la liste affiche « Livres » (et non plus « Bible »), avec un texte d'aide dédié dans l'aperçu de verset.
+- **Barre latérale** : suppression du double branding — l'en-tête porte la marque, le pied affiche la version réelle de l'application.
+- **Barre d'état** : la pastille compteur « n / total » disparaît quand il n'y a rien à compter.
+- **Titres de prédications exacts** : la traduction SHP affiche désormais le titre imprimé dans le bandeau du PDF, à la lettre (fin des titres fusionnés ou recasés comme « LA COMMUNION » devenu « Communion », ou « EXPERIENCES 1/2/3 » réduits à un seul titre). Le lieu est de nouveau pris en compte dans la recherche.
+- **Exposé des Sept Âges (VGR)** : la lecture biblique d'ouverture de chaque chapitre (référence « Apocalypse x.y-z » + versets) forme un seul paragraphe, calculée sur trois signaux (référence, nombre de versets annoncé, longueur). Les résidus de mise en page sont purgés (« … aux Églises. SARDES » etc.) — 1 681 paragraphes revalidés en 1 616.
+- **Import SHP en mode catalogue** : nouvelle option `--metadata-only` pour n'importer que le titre exact, la date et le lieu sans le texte.
+- **Maintenance de la base** : nouvel outil `tools/rebuild_sermon_metadata.py` (titres canoniques, index de recherche, ANALYZE, compactage) ; correction de la resynchronisation de l'index après import (lignes orphelines détectées et éliminées — 418 299 paragraphes synchronisés).
+- **Fiabilité** : suppression du doublon complet de la classe `LibraryPanel` (la seconde définition écrasait la première en silence), nettoyage du code mort hérité de l'ancienne UI à onglets et de la feuille de style `style.qss` jamais chargée.
+
+## Installation
+
+Téléchargez **`ProjectOn_1.7.1_Setup.exe`** ci-dessous et lancez-le.
+Si Windows affiche **SmartScreen** : « Informations complémentaires » → « Exécuter quand même ».
+
+Windows 10 / 11 (64 bits) · fonctionne hors-ligne.
+
+---
+
 # Project-On 1.7.0
 
 Cette mise à jour simplifie radicalement le poste opérateur : la playlist disparaît au profit d'une **projection directe depuis la bibliothèque**. L'interface passe à trois sections (Bibliothèque, Aperçu, barre d'état) et chaque élément d'une liste — verset, strophe, paragraphe de sermon ou d'exposé — se projette immédiatement, en gardant le découpage des textes longs en plusieurs parties navigables.

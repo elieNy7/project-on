@@ -81,7 +81,7 @@ class BibleTab(QFrame):
         self.books_list.setVerticalScrollMode(QListWidget.ScrollMode.ScrollPerPixel)
 
         # Title label above books
-        books_label = QLabel(tr("bible"), self)
+        books_label = QLabel(tr("books"), self)
         books_label.setObjectName("PanelTitle")
 
         # Chapter bar — wraps over multiple rows so every number stays visible
@@ -120,11 +120,7 @@ class BibleTab(QFrame):
         self.verse_preview = QPlainTextEdit(self)
         self.verse_preview.setReadOnly(True)
         self.verse_preview.setMaximumHeight(COMPACT_PREVIEW_BOX_HEIGHT)
-        self.verse_preview.setPlaceholderText(
-            tr("preview_placeholder")
-            if hasattr(tr, "preview_placeholder")
-            else "Aperçu..."
-        )
+        self.verse_preview.setPlaceholderText(tr("verse_preview_placeholder"))
         self.verse_preview.setStyleSheet(
             get_preview_text_style()
         )

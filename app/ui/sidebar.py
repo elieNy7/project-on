@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import (
 
 from app.ui.icons import app_icon
 from app.ui.theme import Colors, Radius, Spacing, Typography
+from app.version import __version__
 
 
 class SidebarButton(QPushButton):
@@ -133,10 +134,7 @@ class Sidebar(QFrame):
         self._build_header()
 
         # Separator
-        separator = QFrame(self)
-        separator.setFrameShape(QFrame.Shape.HLine)
-        separator.setStyleSheet(f"background: {Colors.BORDER_SUBTLE}; max-height: 1px;")
-        self._layout.addWidget(separator)
+        self._layout.addWidget(self._make_separator())
 
         self._nav_container = QWidget(self)
         self._nav_layout = QVBoxLayout(self._nav_container)
@@ -146,47 +144,30 @@ class Sidebar(QFrame):
         self._layout.addStretch(1)
 
         # Bottom separator
-        sep2 = QFrame(self)
-        sep2.setFrameShape(QFrame.Shape.HLine)
-        sep2.setStyleSheet(f"background: {Colors.BORDER_SUBTLE}; max-height: 1px;")
-        self._layout.addWidget(sep2)
+        self._layout.addWidget(self._make_separator())
 
-        # Footer with version info
-        footer_widget = QWidget(self)
-        footer_layout = QVBoxLayout(footer_widget)
-        footer_layout.setContentsMargins(0, 4, 0, 0)
-        footer_layout.setSpacing(0)
-
-        self._footer = QLabel("Project-On", self)
+        # Footer — la marque vit dans l'en-tête ; ici seulement la version.
+        self._footer = QLabel(f"Version {__version__}", self)
         self._footer.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._footer.setStyleSheet(
             f"""
             QLabel {{
-                color: {Colors.TEXT_MUTED};
-                font-size: {Typography.SIZE_2XS}px;
-                padding: 4px;
-                letter-spacing: 1px;
-                font-weight: {Typography.WEIGHT_BOLD};
-            }}
-            """
-        )
-
-        self._footer_sub = QLabel("Presentation Software", self)
-        self._footer_sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._footer_sub.setStyleSheet(
-            f"""
-            QLabel {{
                 color: {Colors.TEXT_DISABLED};
                 font-size: {Typography.SIZE_2XS}px;
-                padding: 0 4px 4px 4px;
+                padding: 4px;
                 letter-spacing: 0.5px;
+                font-weight: {Typography.WEIGHT_MEDIUM};
             }}
             """
         )
+        self._layout.addWidget(self._footer)
 
-        footer_layout.addWidget(self._footer)
-        footer_layout.addWidget(self._footer_sub)
-        self._layout.addWidget(footer_widget)
+    @staticmethod
+    def _make_separator() -> QFrame:
+        sep = QFrame()
+        sep.setFixedHeight(1)
+        sep.setStyleSheet(f"background: {Colors.BORDER_SUBTLE}; border: none;")
+        return sep
 
     def _build_header(self) -> None:
         header = QFrame(self)

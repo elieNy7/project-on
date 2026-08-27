@@ -67,7 +67,7 @@ class HymnsTab(QFrame):
         self.search.setStyleSheet(get_input_style())
 
         # Import button (with menu)
-        self.import_btn = QPushButton(" Importer", self)
+        self.import_btn = QPushButton(tr("import"), self)
         self.import_btn.setIcon(app_icon("upload.svg"))
         self.import_btn.setIconSize(QSize(16, 16))
         self.import_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -89,7 +89,7 @@ class HymnsTab(QFrame):
         self.import_btn.setMenu(import_menu)
 
         # Labels (Consistency with Bible design)
-        hymns_label = QLabel(tr("hymns") if hasattr(tr, "hymns") else "Cantiques", self)
+        hymns_label = QLabel(tr("hymns"), self)
         hymns_label.setObjectName("PanelTitle")
 
         # Hymns list

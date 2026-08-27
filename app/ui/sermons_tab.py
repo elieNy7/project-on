@@ -336,8 +336,8 @@ class SermonsTab(QFrame):
         self.year_combo.blockSignals(True)
         try:
             self.year_combo.clear()
-            self.year_combo.addItem("📅 Toutes années", None)
-            self.year_combo.addItem("❓ Sans date", "nodate")
+            self.year_combo.addItem("Toutes années", None)
+            self.year_combo.addItem("Sans date", "nodate")
             for y in years:
                 yi = int(y)
                 label = "00" if yi == 0 else str(yi)
@@ -365,7 +365,7 @@ class SermonsTab(QFrame):
         self.translator_combo.blockSignals(True)
         try:
             self.translator_combo.clear()
-            self.translator_combo.addItem("👤 Toutes traductions", None)
+            self.translator_combo.addItem("Toutes traductions", None)
             for t in translators:
                 label = str(t)
                 self.translator_combo.addItem(label, label)

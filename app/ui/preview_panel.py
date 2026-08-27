@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QSizePolicy,
     QVBoxLayout,
+    QWidget,
 )
 
 from app.ui.icons import app_icon
@@ -64,9 +65,13 @@ class PreviewControlButton(QPushButton):
         self.setIconSize(QSize(16, 16))
         self.setToolTip(tooltip)
         if text:
-            self.setMinimumWidth(132)
             self.setFixedHeight(40)
             padding = "padding: 0 16px;"
+            # La feuille de style passe le libellé en MAJUSCULES au rendu ;
+            # mesurer la version uppercase pour ne jamais tronquer le texte.
+            self.ensurePolished()
+            upper_width = self.fontMetrics().horizontalAdvance(text.upper())
+            self.setMinimumWidth(max(132, upper_width + 16 * 2 + 20 + 8))
         else:
             self.setFixedSize(40, 40)
             padding = ""
@@ -117,8 +122,9 @@ class PreviewPanel(QFrame):
     hideToggled = pyqtSignal(bool)
     prevRequested = pyqtSignal()
     nextRequested = pyqtSignal()
-    logoRequested = pyqtSignal()
     projectToggled = pyqtSignal(bool)
+    # Édition rapide de la slide en direct
+    quickEditRequested = pyqtSignal()
     # Texte rapide : (titre, textes, découpage)
     quickTextRequested = pyqtSignal(str, list, bool)
 
@@ -211,21 +217,8 @@ class PreviewPanel(QFrame):
         self._mode_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._mode_badge.setFixedHeight(24)
         self._mode_badge.setMinimumWidth(72)
-        self._mode_badge.setStyleSheet(
-            f"""
-            QLabel {{
-                background: rgba(109,180,255,0.14);
-                border: none;
-                border-radius: 10px;
-                padding: 4px 10px;
-                min-width: 56px;
-                color: {Colors.ACCENT_PRIMARY};
-                font-size: {Typography.SIZE_NUMBER}px;
-                font-weight: 800;
-                letter-spacing: 0;
-            }}
-            """
-        )
+        self._mode_badge.setMaximumWidth(120)
+        self._update_mode_badge()
         header_lay.addWidget(self._mode_badge, 0, Qt.AlignmentFlag.AlignVCenter)
 
         # ── Slide screen ──────────────────────────────────────────
@@ -296,6 +289,42 @@ class PreviewPanel(QFrame):
         self.slide_view.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.slide_view.setWordWrap(True)
         frame_layout.addWidget(self.slide_view, 1)
+
+        # Empty state — shown when nothing is loaded on the program
+        self._empty_state = QWidget(self._slide_frame)
+        self._empty_state.setStyleSheet("background: transparent;")
+        empty_lay = QVBoxLayout(self._empty_state)
+        empty_lay.setContentsMargins(0, 0, 0, 0)
+        empty_lay.setSpacing(10)
+        empty_lay.addStretch(1)
+
+        empty_icon = QLabel(self._empty_state)
+        empty_icon.setPixmap(app_icon("monitor.svg", Colors.TEXT_MUTED).pixmap(42, 42))
+        empty_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        empty_icon.setStyleSheet("background: transparent;")
+        empty_lay.addWidget(empty_icon)
+
+        empty_title = QLabel(tr("stage_empty"), self._empty_state)
+        empty_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        empty_title.setStyleSheet(
+            f"background: transparent; color: {Colors.TEXT_SECONDARY};"
+            f" font-size: {Typography.SIZE_SECTION}px; font-weight: 600;"
+        )
+        empty_lay.addWidget(empty_title)
+
+        empty_hint = QLabel(tr("stage_empty_hint"), self._empty_state)
+        empty_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        empty_hint.setWordWrap(True)
+        empty_hint.setStyleSheet(
+            f"background: transparent; color: {Colors.TEXT_MUTED};"
+            f" font-size: {Typography.SIZE_META}px;"
+        )
+        empty_lay.addWidget(empty_hint)
+        empty_lay.addStretch(1)
+        # Au démarrage aucun programme n'est chargé : montrer l'invite tout de suite.
+        self._empty_state.setVisible(True)
+        self.slide_view.setVisible(False)
+        frame_layout.addWidget(self._empty_state, 1)
 
         # Image display (shown instead of text for image slides)
         self._image_label = QLabel("", self._slide_frame)
@@ -423,6 +452,16 @@ class PreviewPanel(QFrame):
         console_layout.addWidget(self._project_button)
         console_layout.addWidget(self._hide_button)
 
+        # Édition rapide de la slide en direct (utile pour corriger une faute
+        # pendant le culte) — active seulement quand du contenu est chargé.
+        self._edit_button = PreviewControlButton(
+            "edit-3.svg", tr("quick_edit"), self.console_frame
+        )
+        self._edit_button.setToolTip(tr("quick_edit"))
+        self._edit_button.setEnabled(False)
+        self._edit_button.clicked.connect(self.quickEditRequested.emit)
+        console_layout.addWidget(self._edit_button)
+
         self._quick_text_button = PreviewControlButton(
             "plus.svg", tr("quick_text"), self.controls, text=tr("quick_text")
         )
@@ -444,9 +483,10 @@ class PreviewPanel(QFrame):
         self._hide_button.clicked.connect(self._on_hide_clicked)
         self._project_button.toggled.connect(self.projectToggled.emit)
 
-        # Shortcut
+        # Shortcut — Espace masque/affiche la sortie, sauf quand le focus est
+        # sur un contrôle interactif (le bouton focalisé doit recevoir son Espace).
         self._hide_shortcut = QShortcut(QKeySequence(Qt.Key.Key_Space), self)
-        self._hide_shortcut.activated.connect(self._toggle_hide)
+        self._hide_shortcut.activated.connect(self._on_space_shortcut)
 
         # Main Layout
         layout = QVBoxLayout(self)
@@ -521,15 +561,19 @@ class PreviewPanel(QFrame):
             self._image_label.setVisible(True)
             self.slide_view.setVisible(False)
             self._refresh_image_pixmap()
+            self._empty_state.setVisible(False)
         else:
             self._current_image_path = ""
             self._image_label.setVisible(False)
             self._image_label.clear()
-            self.slide_view.setVisible(True)
+            has_text = bool(body or ref)
+            self.slide_view.setVisible(has_text)
+            self._empty_state.setVisible(not has_text)
             self.slide_view.setText(body)
             self._ref_label.setText(ref)
 
         self._update_stage_meta()
+        self._edit_button.setEnabled(self._has_content)
         self._apply_slide_text_style()
 
     def _refresh_image_pixmap(self) -> None:
@@ -565,18 +609,18 @@ class PreviewPanel(QFrame):
         if self._project_active:
             self._mode_badge.setText("LIVE")
             self._mode_badge.setStyleSheet(
-                """
-                QLabel {
-                    background: rgba(62,207,115,0.18);
+                f"""
+                QLabel {{
+                    background: {Colors.ACCENT_SUCCESS_GLOW};
                     border: none;
                     border-radius: 10px;
                     padding: 4px 10px;
                     min-width: 56px;
-                    color: #dfffe9;
+                    color: {Colors.ACCENT_SUCCESS};
                     font-size: {Typography.SIZE_NUMBER}px;
                     font-weight: 800;
                     letter-spacing: 0;
-                }
+                }}
                 """
             )
         else:
@@ -584,12 +628,12 @@ class PreviewPanel(QFrame):
             self._mode_badge.setStyleSheet(
                 f"""
                 QLabel {{
-                    background: rgba(109,180,255,0.14);
+                    background: {Colors.ACCENT_SECONDARY_GLOW};
                     border: none;
                     border-radius: 10px;
                     padding: 4px 10px;
                     min-width: 56px;
-                    color: {Colors.TEXT_PRIMARY};
+                    color: {Colors.TEXT_SECONDARY};
                     font-size: {Typography.SIZE_NUMBER}px;
                     font-weight: 800;
                     letter-spacing: 0;
@@ -636,6 +680,37 @@ class PreviewPanel(QFrame):
     def _toggle_hide(self) -> None:
         self._hide_button.setChecked(not self._hide_button.isChecked())
         self._on_hide_clicked()
+
+    def _on_space_shortcut(self) -> None:
+        """Laisse l'Espace activer le contrôle focalisé (bouton, champ, liste)."""
+        from PyQt6.QtWidgets import (
+            QApplication,
+            QAbstractButton,
+            QComboBox,
+            QPlainTextEdit,
+            QSpinBox,
+            QTextEdit,
+            QLineEdit,
+            QListWidget,
+            QTreeWidget,
+        )
+
+        fw = QApplication.focusWidget()
+        if isinstance(
+            fw,
+            (
+                QAbstractButton,
+                QComboBox,
+                QLineEdit,
+                QTextEdit,
+                QPlainTextEdit,
+                QSpinBox,
+                QListWidget,
+                QTreeWidget,
+            ),
+        ):
+            return
+        self._toggle_hide()
 
     def _apply_slide_text_style(self) -> None:
         base_size = 16

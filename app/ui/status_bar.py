@@ -101,12 +101,13 @@ class StatusBar(QFrame):
         self._obs_pill.setToolTip("OBS : non connect\u00e9")
         layout.addWidget(self._obs_pill)
 
-        # Separator
-        sep2 = QLabel("\u00b7", self)
-        sep2.setStyleSheet(
+        # Separator — visible seulement avec le compteur de slide
+        self._counter_sep = QLabel("\u00b7", self)
+        self._counter_sep.setStyleSheet(
             f"color: {Colors.TEXT_DISABLED}; background: transparent; font-size: {Typography.SIZE_NUMBER}px;"
         )
-        layout.addWidget(sep2)
+        layout.addWidget(self._counter_sep)
+        self._counter_sep.hide()
 
         # Slide counter
         self._counter_label = QLabel("", self)
@@ -120,6 +121,7 @@ class StatusBar(QFrame):
             padding: 1px 8px;
         """)
         layout.addWidget(self._counter_label)
+        self._counter_label.hide()
 
     # ── Public API ──
 
@@ -147,8 +149,17 @@ class StatusBar(QFrame):
 
         if total > 0 and row >= 0:
             self._counter_label.setText(f"{row + 1} / {total}")
+            self._counter_label.show()
+            self._counter_sep.show()
         else:
-            self._counter_label.setText("")
+            self._counter_label.hide()
+            self._counter_sep.hide()
+
+    def clear_slide(self) -> None:
+        self._source_pill.hide()
+        self._slide_label.setText("")
+        self._counter_label.hide()
+        self._counter_sep.hide()
 
     def set_hidden(self, hidden: bool) -> None:
         self._hidden = hidden
@@ -176,8 +187,3 @@ class StatusBar(QFrame):
         else:
             self._obs_pill.set_accent(Colors.TEXT_DISABLED)
             self._obs_pill.setToolTip("OBS : non connect\u00e9")
-
-    def clear_slide(self) -> None:
-        self._source_pill.hide()
-        self._slide_label.setText("")
-        self._counter_label.setText("")

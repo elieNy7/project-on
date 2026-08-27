@@ -615,7 +615,8 @@ class Database:
         grouped: dict[tuple[str, str], list[sqlite3.Row]] = {}
         rows = conn.execute(
             """
-            SELECT id, date, title, tradition, language, canonical_title, title_search
+            SELECT id, date, title, tradition, language, location,
+                   canonical_title, title_search
             FROM sermon
             """
         ).fetchall()
@@ -627,14 +628,22 @@ class Database:
 
         updates: list[tuple[str, str, int]] = []
         for items in grouped.values():
-            canonical = self._choose_canonical_title(items)
+            # La traduction SHP doit afficher le titre exact imprimé dans le
+            # bandeau du PDF : son titre canonique est toujours son propre
+            # titre, jamais celui d'une autre traduction ni une casse réécrite.
+            shared_canonical = self._choose_canonical_title(items)
             for row in items:
+                if str(row["tradition"] or "").upper() == "SHP":
+                    canonical = str(row["title"] or "")
+                else:
+                    canonical = shared_canonical
                 search_parts = [
                     canonical,
                     row["title"],
                     row["date"],
                     row["tradition"],
                     row["language"],
+                    row["location"],
                 ]
                 title_search = self._search_key(" ".join(str(p or "") for p in search_parts))
                 if (
