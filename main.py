@@ -169,6 +169,25 @@ def main() -> int:
     db = Database.default()
     db.initialize()
 
+    # Appliquer le pack de données éditorial (Exposé corrigé) aux bases
+    # existantes, puis resynchroniser titres/index — une seule fois par pack.
+    try:
+        if is_frozen():
+            from app.utils.app_paths import app_db_path as _app_db_path
+            from app.utils.app_paths import is_frozen as _is_frozen
+            from app.utils.app_paths import resource_root as _resource_root
+            from app.utils.app_paths import upgrade_data_pack as _upgrade_pack
+
+            if _upgrade_pack(_app_db_path(), _resource_root() / "data" / "project_on.db"):
+                splash.set_progress(40, "Mise a jour du contenu...")
+                with db.connect() as _conn:
+                    db._ensure_sermon_search_metadata(_conn)
+                    _conn.commit()
+    except Exception:
+        import logging
+
+        logging.getLogger(__name__).exception("Data pack upgrade failed")
+
     splash.set_progress(65, "Chargement des modules...")
     try:
         from app.ui.main_window import MainWindow  # type: ignore

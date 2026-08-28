@@ -297,3 +297,108 @@ def ensure_data_initialized() -> None:
                 shutil.copy2(src_file, dst_file)
             except Exception as e:
                 log.error("Error copying initial data file %s: %s", src_file.name, e)
+
+
+# Version du pack de données éditorial embarqué dans l'installeur.
+# 2 = Exposé des Sept Âges corrigé (lectures bibliques fusionnées en un seul
+# paragraphe, résidus de mise en page purgés). Incrémenter à chaque fois que
+# le contenu embarqué doit converger vers les bases déjà installées : les
+# chapitres « BK-AGES-% » sont alors remplacés depuis la base embarquée, une
+# seule fois, sans toucher aux cantiques, playlists et réglages de l'utilisateur.
+DATA_PACK_VERSION = 2
+
+
+def upgrade_data_pack(target_path: Path, bundled_path: Path) -> bool:
+    """Remplace les chapitres de l'Exposé (dates ``BK-AGES-%``) par ceux du pack.
+
+    Les bases utilisateur ne sont jamais écrasées, mais le contenu éditorial
+    corrigé doit converger : si la base cible porte un ``data_pack_version``
+    antérieur à :data:`DATA_PACK_VERSION`, les lignes BK-AGES sont remplacées
+    depuis la base embarquée dans une transaction atomique. Retourne True si
+    une migration a été appliquée.
+    """
+    import sqlite3
+
+    if not target_path.is_file() or not bundled_path.is_file():
+        return False
+    connection = None
+    try:
+        connection = sqlite3.connect(target_path, timeout=120.0)
+        row = connection.execute(
+            "SELECT value FROM app_meta WHERE key = 'data_pack_version'"
+        ).fetchone()
+        if row is not None:
+            try:
+                if int(row[0]) >= DATA_PACK_VERSION:
+                    return False
+            except (TypeError, ValueError):
+                pass
+
+        connection.execute("BEGIN IMMEDIATE")
+        connection.execute("ATTACH DATABASE ? AS pack", (str(bundled_path),))
+        connection.execute(
+            """
+            DELETE FROM sermon_paragraph
+            WHERE sermon_id IN (
+                SELECT id FROM sermon WHERE date LIKE 'BK-AGES-%'
+            )
+            """
+        )
+        connection.execute("DELETE FROM sermon WHERE date LIKE 'BK-AGES-%'")
+        connection.execute(
+            """
+            INSERT INTO sermon (title, date, tradition, language, source_path,
+                                sort_key, location, canonical_title, title_search)
+            SELECT title, date, tradition, language, source_path,
+                   sort_key, location, canonical_title, title_search
+            FROM pack.sermon
+            WHERE date LIKE 'BK-AGES-%'
+            """
+        )
+        # Les identifiants du pack ne correspondent pas à ceux de la base
+        # cible : remapper les paragraphes sur les nouveaux ids de sermons
+        # (date + tradition identifient un chapitre de façon unique).
+        connection.execute(
+            "CREATE TEMP TABLE _pack_map "
+            "(old_id INTEGER PRIMARY KEY, new_id INTEGER NOT NULL)"
+        )
+        connection.execute(
+            """
+            INSERT INTO _pack_map (old_id, new_id)
+            SELECT p.id, s.id
+            FROM pack.sermon p
+            JOIN sermon s ON s.date = p.date AND s.tradition = p.tradition
+            WHERE p.date LIKE 'BK-AGES-%'
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO sermon_paragraph (sermon_id, paragraph_no, ref, text, marker)
+            SELECT m.new_id, p.paragraph_no, p.ref, p.text, p.marker
+            FROM pack.sermon_paragraph p
+            JOIN _pack_map m ON m.old_id = p.sermon_id
+            """
+        )
+        connection.execute("DROP TABLE _pack_map")
+        connection.execute(
+            """
+            INSERT INTO app_meta (key, value) VALUES ('data_pack_version', ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value
+            """,
+            (str(DATA_PACK_VERSION),),
+        )
+        connection.execute("COMMIT")
+        connection.execute("DETACH DATABASE pack")
+        log.info("Data pack v%s appliqué à %s", DATA_PACK_VERSION, target_path)
+        return True
+    except sqlite3.Error as error:
+        log.error("Data pack upgrade impossible : %s", error)
+        try:
+            if connection is not None:
+                connection.execute("ROLLBACK")
+        except sqlite3.Error:
+            pass
+        return False
+    finally:
+        if connection is not None:
+            connection.close()

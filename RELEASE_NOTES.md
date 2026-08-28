@@ -1,3 +1,22 @@
+# Project-On 1.7.4
+
+**Correction de l'Exposé appliquée automatiquement aux installations existantes** : la 1.7.3 incluait l'Exposé des Sept Âges corrigé (lectures bibliques fusionnées en un seul paragraphe, résidus de mise en page purgés) dans l'installeur, mais les ordinateurs qui avaient déjà Project-On gardaient leur ancien Exposé — la base utilisateur n'est jamais écrasée (cantiques, playlists et réglages préservés). Désormais, au premier démarrage, l'application applique le pack de données corrigé aux bases existantes.
+
+## Corrections
+
+- **Pack de données** : au premier démarrage, les chapitres de l'Exposé des Sept Âges (VGR) sont remplacés par la version corrigée — lectures bibliques d'ouverture en un seul paragraphe, plus aucun résidu de mise en page (« … aux Églises. SARDES » etc.). Les cantiques importés, playlists et réglages sont conservés.
+- **Titres exacts garantis sur toutes les installations** (correctif 1.7.3 consolidé) : toute base dont les titres canoniques SHP diffèrent des titres des PDF est recalculée au démarrage.
+- La base de données corrigée reste incluse dans l'installeur pour les installations fraîches.
+- Installeur et application signés numériquement (éditeur « Elie Nyembo / Project-On », horodatage DigiCert).
+
+## Installation
+
+Téléchargez **`ProjectOn_1.7.4_Setup.exe`** ci-dessous et installez-le par-dessus la version existante, puis lancez Project-On une fois : la correction de l'Exposé et des titres s'applique au démarrage (le premier lancement peut prendre une minute de plus, le temps de resynchroniser l'index de recherche).
+
+Windows 10 / 11 (64 bits) · fonctionne hors-ligne.
+
+---
+
 # Project-On 1.7.3
 
 **Correctif important pour les mises à jour** : sur les ordinateurs où une ancienne version de Project-On était déjà installée, la 1.7.2 pouvait encore afficher les anciens titres de prédications. La cause est corrigée : la vérification « données prêtes » du démarrage détecte désormais une base dont les titres SHP diffèrent des titres des PDF et le recalcul s'applique alors automatiquement, sans ré-import ni réinstallation.
