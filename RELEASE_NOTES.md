@@ -1,3 +1,24 @@
+# Project-On 1.7.2
+
+Cette version accompagne la grande mise à jour des données : **la base de données corrigée est incluse dans l'installeur**. À la première installation, les prédications et l'Exposé des Sept Âges sont déjà exacts, sans aucun ré-import manuel.
+
+## Nouveautés de cette version
+
+- **Base de données corrigée incluse** : titres de prédications SHP exacts comme imprimés dans les PDF (« LA COMMUNION », « EXPERIENCES 1 / 2 / 3 » distincts…), lieu réintégré dans la recherche, index de recherche resynchronisé (418 299 paragraphes).
+- **Exposé des Sept Âges (VGR) corrigé** : la lecture biblique d'ouverture de chaque chapitre forme un seul paragraphe, et les résidus de mise en page des PDF (titres de section collés type « … aux Églises. SARDES ») sont purgés.
+- **Mise à jour automatique des bases existantes** : au premier démarrage, l'application recalcule les titres canoniques des bases déjà présentes — les installations antérieures affichent les titres exacts sans ré-import.
+- **Installeur signé numériquement** : éditeur « Elie Nyembo / Project-On » vérifié avec horodatage DigiCert.
+- **Fiabilité** : 108 tests validés (interface, projection, scènes OBS, import SHP, fusion de lecture de l'Exposé).
+
+## Installation
+
+Téléchargez **`ProjectOn_1.7.2_Setup.exe`** ci-dessous et lancez-le.
+Si Windows affiche **SmartScreen** : « Informations complémentaires » → « Exécuter quand même ».
+
+Windows 10 / 11 (64 bits) · fonctionne hors-ligne.
+
+---
+
 # Project-On 1.7.1
 
 Cette version est une passe complète de finition sur le poste opérateur : corrections de défauts d'interface accumulés, retour d'une fonction perdue et harmonisation visuelle. Aucune donnée n'est modifiée ; tous les réglages existants sont conservés.
