@@ -1,3 +1,21 @@
+# Project-On 1.7.3
+
+**Correctif important pour les mises à jour** : sur les ordinateurs où une ancienne version de Project-On était déjà installée, la 1.7.2 pouvait encore afficher les anciens titres de prédications. La cause est corrigée : la vérification « données prêtes » du démarrage détecte désormais une base dont les titres SHP diffèrent des titres des PDF et le recalcul s'applique alors automatiquement, sans ré-import ni réinstallation.
+
+## Corrections
+
+- **Titres exacts garantis sur toutes les installations** : au premier démarrage, une base existante dont les titres canoniques SHP diffèrent des titres source est recalculée automatiquement.
+- La base de données corrigée reste incluse dans l'installeur (titres SHP exacts, Exposé VGR avec lectures bibliques fusionnées et résidus purgés, index resynchronisé).
+- Installeur et application signés numériquement (éditeur « Elie Nyembo / Project-On », horodatage DigiCert).
+
+## Installation
+
+Téléchargez **`ProjectOn_1.7.3_Setup.exe`** ci-dessous et installez-le par-dessus la version existante, puis lancez Project-On une fois : les titres se mettent à jour au démarrage.
+
+Windows 10 / 11 (64 bits) · fonctionne hors-ligne.
+
+---
+
 # Project-On 1.7.2
 
 Cette version accompagne la grande mise à jour des données : **la base de données corrigée est incluse dans l'installeur**. À la première installation, les prédications et l'Exposé des Sept Âges sont déjà exacts, sans aucun ré-import manuel.

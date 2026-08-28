@@ -34,7 +34,7 @@ Sortie OBS (lower-third) · Projection plein écran cinématique · 100 % hors-l
 
 ## ⬇️ Installation (Windows)
 
-1. Téléchargez **`ProjectOn_1.7.2_Setup.exe`** depuis la [dernière version](https://github.com/elieNy7/project-on/releases/latest).
+1. Téléchargez **`ProjectOn_1.7.3_Setup.exe`** depuis la [dernière version](https://github.com/elieNy7/project-on/releases/latest).
 2. Lancez l'installeur (français). Si Windows affiche **SmartScreen**, cliquez sur « Informations complémentaires » → « Exécuter quand même ».
 3. Ouvrez **Project-On**. Tout fonctionne hors-ligne.
 
