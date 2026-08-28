@@ -22,10 +22,10 @@ class DatabaseConfig:
 class Database:
     _HTML_TAG_RE = re.compile(r"<[^>]+>")
     _STARTUP_MAINTENANCE_KEY = "startup_maintenance_version"
-    # v9 : recalcul des titres canoniques — la traduction SHP doit afficher le
-    # titre exact du PDF (règle introduite après la 1.7.0) ; force la
-    # resynchronisation des bases existantes au premier démarrage.
-    _STARTUP_MAINTENANCE_VERSION = "9"
+    # v10 : la garde « données prêtes » détecte désormais les titres canoniques
+    # SHP qui diffèrent du titre source — force le recalcul sur les bases
+    # existantes (les installs 1.7.2 marquées v9 sont reprises aussi).
+    _STARTUP_MAINTENANCE_VERSION = "10"
     _VACUUM_KEY = "vacuum_version"
     _VACUUM_VERSION = "2"
 
@@ -291,6 +291,18 @@ class Database:
                 LIMIT 1
                 """
             ).fetchone()
+            # La traduction SHP doit afficher le titre exact du PDF : un titre
+            # canonique qui diffère du titre source signifie une base antérieure
+            # à cette règle — les métadonnées doivent être recalculées.
+            shp_canonical_mismatch = conn.execute(
+                """
+                SELECT 1
+                FROM sermon
+                WHERE tradition = 'SHP'
+                  AND COALESCE(canonical_title, '') <> COALESCE(title, '')
+                LIMIT 1
+                """
+            ).fetchone()
         except sqlite3.Error:
             return False
 
@@ -304,6 +316,7 @@ class Database:
             and missing_hymn_meta is None
             and missing_markers is None
             and missing_labels is None
+            and shp_canonical_mismatch is None
         )
 
     def _apply_migration_v1(self, conn: sqlite3.Connection) -> None:
