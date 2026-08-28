@@ -22,7 +22,10 @@ class DatabaseConfig:
 class Database:
     _HTML_TAG_RE = re.compile(r"<[^>]+>")
     _STARTUP_MAINTENANCE_KEY = "startup_maintenance_version"
-    _STARTUP_MAINTENANCE_VERSION = "8"
+    # v9 : recalcul des titres canoniques — la traduction SHP doit afficher le
+    # titre exact du PDF (règle introduite après la 1.7.0) ; force la
+    # resynchronisation des bases existantes au premier démarrage.
+    _STARTUP_MAINTENANCE_VERSION = "9"
     _VACUUM_KEY = "vacuum_version"
     _VACUUM_VERSION = "2"
 
