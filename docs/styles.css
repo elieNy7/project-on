@@ -140,6 +140,17 @@ a:hover { color: var(--gold-strong); }
   color: var(--gold-strong);
 }
 
+.btn-donate {
+  background: transparent;
+  color: #e8b070;
+  border-color: rgba(232, 176, 112, 0.45);
+}
+.btn-donate:hover {
+  background: rgba(232, 176, 112, 0.10);
+  border-color: #e8b070;
+  color: #f0c48f;
+}
+
 .btn-sm { padding: 8px 16px; font-size: 14px; }
 .btn-lg { padding: 14px 26px; font-size: 15.5px; }
 

@@ -170,6 +170,31 @@ class AboutDialog(QDialog):
 
         c_layout.addStretch()
 
+        # Bouton « Soutenir le projet » — ouvre la page de don.
+        donate_btn = QPushButton("Soutenir le projet — faire un don", content)
+        donate_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        donate_btn.setIcon(app_icon("sparkles.svg", "#dfc477"))
+        donate_btn.setToolTip(
+            "Project-On est gratuit. Un don aide à le maintenir en vie — merci !"
+        )
+        donate_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: rgba(223, 196, 119, 0.10);
+                border: 1px solid rgba(223, 196, 119, 0.35);
+                border-radius: {Radius.MD}px;
+                padding: 10px 18px;
+                color: #dfc477;
+                font-size: {Typography.SIZE_CONTROL}px;
+                font-weight: {Typography.WEIGHT_SEMIBOLD};
+            }}
+            QPushButton:hover {{
+                background: rgba(223, 196, 119, 0.18);
+                border-color: rgba(223, 196, 119, 0.55);
+            }}
+        """)
+        donate_btn.clicked.connect(self._open_donate_page)
+        c_layout.addWidget(donate_btn)
+
         # Copyright & website
         copyright_label = QLabel("© 2025 Onzième Heure Tab. Tous droits réservés.", content)
         copyright_label.setStyleSheet(f"""
@@ -239,6 +264,15 @@ class AboutDialog(QDialog):
         close_btn.clicked.connect(self.accept)
         footer_layout.addWidget(close_btn)
         layout.addWidget(footer)
+
+    def _open_donate_page(self) -> None:
+        """Ouvre la page de don dans le navigateur par défaut."""
+        from PyQt6.QtCore import QUrl
+        from PyQt6.QtGui import QDesktopServices
+
+        from app.utils.constants import DONATE_URL
+
+        QDesktopServices.openUrl(QUrl(DONATE_URL))
 
     @classmethod
     def show_about(cls, parent: QWidget | None = None) -> None:

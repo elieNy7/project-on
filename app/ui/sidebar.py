@@ -146,6 +146,38 @@ class Sidebar(QFrame):
         # Bottom separator
         self._layout.addWidget(self._make_separator())
 
+        # Bouton « Soutenir » — ouvre la page de don dans le navigateur.
+        self.donate_button = QPushButton("Soutenir le projet", self)
+        self.donate_button.setObjectName("DonateButton")
+        self.donate_button.setIcon(app_icon("sparkles.svg", Colors.TEXT_SECONDARY))
+        self.donate_button.setIconSize(QSize(15, 15))
+        self.donate_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.donate_button.setMinimumHeight(38)
+        self.donate_button.setToolTip(
+            "Project-On est gratuit. Un don aide à le maintenir en vie — "
+            "merci ! (ouverture dans le navigateur)"
+        )
+        self.donate_button.setStyleSheet(f"""
+            QPushButton {{
+                text-align: left;
+                padding: 8px 12px 8px 12px;
+                border: 1px solid {Colors.BORDER_DEFAULT};
+                border-radius: {Radius.MD}px;
+                background: transparent;
+                color: {Colors.TEXT_SECONDARY};
+                font-family: {Typography.PRIMARY_FAMILY};
+                font-size: {Typography.SIZE_MD}px;
+                font-weight: {Typography.WEIGHT_SEMIBOLD};
+            }}
+            QPushButton:hover {{
+                background: {Colors.ACCENT_GLOW};
+                border-color: {Colors.ACCENT_GLOW_STRONG};
+                color: {Colors.ACCENT_LIGHT};
+            }}
+        """)
+        self.donate_button.clicked.connect(self._open_donate_page)
+        self._layout.addWidget(self.donate_button)
+
         # Footer — la marque vit dans l'en-tête ; ici seulement la version.
         self._footer = QLabel(f"Version {__version__}", self)
         self._footer.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -167,6 +199,16 @@ class Sidebar(QFrame):
         sep = QFrame()
         sep.setFixedHeight(1)
         sep.setStyleSheet(f"background: {Colors.BORDER_SUBTLE}; border: none;")
+        return sep
+
+    def _open_donate_page(self) -> None:
+        """Ouvre la page de don dans le navigateur par défaut."""
+        from PyQt6.QtCore import QUrl
+        from PyQt6.QtGui import QDesktopServices
+
+        from app.utils.constants import DONATE_URL
+
+        QDesktopServices.openUrl(QUrl(DONATE_URL))
         return sep
 
     def _build_header(self) -> None:

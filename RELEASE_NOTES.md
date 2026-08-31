@@ -1,3 +1,20 @@
+# Project-On 1.8.2
+
+**Soutenez le projet ❤** — Project-On est et restera gratuit. Un nouveau bouton « Soutenir le projet » fait désormais le lien vers la page de dons, pour celles et ceux qui souhaitent aider le développement d'un coup de pouce libre.
+
+## Nouveautés
+
+- **Bouton « Soutenir le projet »** dans la barre latérale et dans la fenêtre « À propos » : ouvre la page de dons dans votre navigateur (aucune donnée n'est collectée, aucun paiement intégré — juste un lien).
+- Le site web propose aussi le don depuis la page d'accueil.
+
+## Installation
+
+Téléchargez **`ProjectOn_1.8.2_Setup.exe`** ci-dessous et installez-le par-dessus la version existante : cantiques, playlists, réglages et base sont conservés.
+
+Windows 10 / 11 (64 bits) · fonctionne hors-ligne.
+
+---
+
 # Project-On 1.8.1
 
 **L'ajout à la playlist passe à la vitesse supérieure : en série.** Composez une playlist de culte en quelques clics — une plage de versets, une série de paragraphes, un cantique entier.

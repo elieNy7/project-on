@@ -20,3 +20,8 @@ DB_MMAP_SIZE_BYTES: int = 268_435_456  # 256 MB
 LOG_MAX_BYTES: int = 5_000_000   # 5 MB par fichier tournant
 LOG_BACKUP_COUNT: int = 5        # nombre de fichiers de rotation conservés
 CRASH_LOG_MAX_COUNT: int = 20    # nombre de rapports de crash conservés
+
+# ── Soutien du projet ─────────────────────────────────────────────────────────
+# Lien de don ouvert par le bouton « Soutenir » (sidebar, À propos, site).
+# Remplacer par Ko-fi / PayPal.me / GitHub Sponsors selon le canal retenu.
+DONATE_URL: str = "https://github.com/sponsors/elieNy7"
