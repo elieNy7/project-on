@@ -209,7 +209,6 @@ class Sidebar(QFrame):
         from app.utils.constants import DONATE_URL
 
         QDesktopServices.openUrl(QUrl(DONATE_URL))
-        return sep
 
     def _build_header(self) -> None:
         header = QFrame(self)
