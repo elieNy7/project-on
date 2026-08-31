@@ -20,6 +20,7 @@ _SHORTCUTS: list[tuple[str, str]] = [
     # (translation_key, shortcut_display)
     ("shortcut_nav_next", "→  /  ↓"),
     ("shortcut_nav_prev", "←  /  ↑"),
+    ("shortcut_jump_edges", "Home  /  End"),
     ("shortcut_hide", "B  /  Space"),
     ("shortcut_search", "Ctrl+F"),
     ("shortcut_project_activated", "Enter  /  Double-clic"),
@@ -28,7 +29,8 @@ _SHORTCUTS: list[tuple[str, str]] = [
     ("shortcut_tab_hymns", "Ctrl+2"),
     ("shortcut_tab_sermons", "Ctrl+3"),
     ("shortcut_tab_expose", "Ctrl+4"),
-    ("shortcut_tab_settings", "Ctrl+5"),
+    ("shortcut_tab_playlist", "Ctrl+5"),
+    ("shortcut_tab_settings", "Ctrl+6"),
     ("shortcut_projection", "F5"),
     ("shortcut_preflight", "Ctrl+Shift+D"),
     ("shortcut_escape", "Escape"),

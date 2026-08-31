@@ -225,25 +225,32 @@ class MainWindow(QMainWindow):
                     return False
 
                 key = event.key()
-                if key not in (
+
+                # Don't steal arrows when editing text / numbers
+                fw = QApplication.focusWidget()
+                if isinstance(fw, (QLineEdit, QTextEdit, QPlainTextEdit, QSpinBox)):
+                    pass
+                elif key in (
                     int(Qt.Key.Key_Up),
                     int(Qt.Key.Key_Down),
                     int(Qt.Key.Key_Left),
                     int(Qt.Key.Key_Right),
                 ):
-                    return False
-
-                # Don't steal arrows when editing text / numbers
-                fw = QApplication.focusWidget()
-                if isinstance(fw, (QLineEdit, QTextEdit, QPlainTextEdit, QSpinBox)):
-                    return False
-
-                if key in (int(Qt.Key.Key_Up), int(Qt.Key.Key_Left)):
-                    self._owner._handle_navigation(-1)
+                    if key in (int(Qt.Key.Key_Up), int(Qt.Key.Key_Left)):
+                        self._owner._handle_navigation(-1)
+                    else:
+                        self._owner._handle_navigation(1)
                     return True
+                elif key == int(Qt.Key.Key_Home):
+                    if not self._owner._is_text_or_list_focus():
+                        self._owner._jump_live_to_edge(to_start=True)
+                        return True
+                elif key == int(Qt.Key.Key_End):
+                    if not self._owner._is_text_or_list_focus():
+                        self._owner._jump_live_to_edge(to_start=False)
+                        return True
 
-                self._owner._handle_navigation(1)
-                return True
+                return False
 
         self._global_arrow_nav_filter = _GlobalArrowNavFilter(self)
         QApplication.instance().installEventFilter(self._global_arrow_nav_filter)
@@ -258,8 +265,9 @@ class MainWindow(QMainWindow):
         sc_f1.setContext(Qt.ShortcutContext.ApplicationShortcut)
         sc_f1.activated.connect(self._show_shortcuts_dialog)
 
-        # Ctrl+1..5 → Switch library tabs
-        for i in range(5):
+        # Ctrl+1..6 → Switch library tabs (Bible, Cantiques, Prédications,
+        # Exposés, Playlists, Paramètres)
+        for i in range(6):
             sc_tab = QShortcut(QKeySequence(f"Ctrl+{i + 1}"), self)
             sc_tab.setContext(Qt.ShortcutContext.ApplicationShortcut)
             sc_tab.activated.connect(
@@ -433,6 +441,31 @@ class MainWindow(QMainWindow):
             self._project_controller.prev_slide()
         else:
             self._project_controller.next_slide()
+
+    @staticmethod
+    def _is_text_or_list_focus() -> bool:
+        """Home/End restent natifs dans les champs et les listes."""
+        from PyQt6.QtWidgets import QAbstractItemView, QComboBox
+
+        fw = QApplication.focusWidget()
+        return isinstance(
+            fw,
+            (
+                QLineEdit,
+                QTextEdit,
+                QPlainTextEdit,
+                QSpinBox,
+                QComboBox,
+                QAbstractItemView,
+            ),
+        )
+
+    def _jump_live_to_edge(self, to_start: bool) -> None:
+        """Home / End : aller au premier ou au dernier slide du programme live."""
+        count = self._project_controller.program_count
+        if count <= 0:
+            return
+        self._project_controller.set_current_row(0 if to_start else count - 1)
 
     def _safe_write_json(self, path: Path, data: dict) -> None:
         """Safely write JSON to a file, handling rapid consecutive accesses on Windows."""
@@ -703,6 +736,12 @@ class MainWindow(QMainWindow):
             return
         image_path = slide.image_path or slide.background or ""
         self.preview_panel.set_slide(slide.reference, slide.text, image_path=image_path)
+        # Bandeau « Suivant » : le slide à venir, sans changer l'écran.
+        peek = self._project_controller.peek_next_slide()
+        if peek is not None:
+            self.preview_panel.set_next_slide(peek.reference, peek.text)
+        else:
+            self.preview_panel.set_next_slide("", "")
         # Update slide counter
         row = self._project_controller.current_row()
         total = self._project_controller.program_count

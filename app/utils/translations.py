@@ -325,6 +325,10 @@ _translations: dict[str, dict[str, str]] = {
     "shortcut_key": {"fr": "Raccourci", "en": "Shortcut"},
     "shortcut_nav_next": {"fr": "Slide suivant", "en": "Next slide"},
     "shortcut_nav_prev": {"fr": "Slide précédent", "en": "Previous slide"},
+    "shortcut_jump_edges": {
+        "fr": "Premier / dernier slide du programme",
+        "en": "First / last program slide",
+    },
     "shortcut_hide": {
         "fr": "Masquer / Afficher la projection",
         "en": "Toggle projection visibility",
@@ -342,6 +346,7 @@ _translations: dict[str, dict[str, str]] = {
     "shortcut_tab_hymns": {"fr": "Onglet Cantiques", "en": "Hymns tab"},
     "shortcut_tab_sermons": {"fr": "Onglet Prédications", "en": "Sermons tab"},
     "shortcut_tab_expose": {"fr": "Onglet Exposé", "en": "Exposé tab"},
+    "shortcut_tab_playlist": {"fr": "Onglet Playlists", "en": "Playlists tab"},
     "shortcut_tab_settings": {"fr": "Onglet Paramètres", "en": "Settings tab"},
     "shortcut_projection": {
         "fr": "Ouvrir / Fermer la projection",

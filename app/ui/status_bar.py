@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PyQt6.QtCore import QSize
+from PyQt6.QtCore import QSize, QTime, QTimer
 from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel
 
 from app.ui.icons import app_icon
@@ -95,11 +95,10 @@ class StatusBar(QFrame):
 
         layout.addStretch(1)
 
-        # OBS connection indicator
-        self._obs_pill = _StatusPill("obs.svg", "OBS", self)
-        self._obs_pill.set_accent(Colors.TEXT_DISABLED)
-        self._obs_pill.setToolTip("OBS : non connect\u00e9")
-        layout.addWidget(self._obs_pill)
+        # Local clock (HH:MM)
+        self._clock_pill = _StatusPill("clock.svg", "", self)
+        self._clock_pill.setToolTip("Heure locale")
+        layout.addWidget(self._clock_pill)
 
         # Separator — visible seulement avec le compteur de slide
         self._counter_sep = QLabel("\u00b7", self)
@@ -108,6 +107,12 @@ class StatusBar(QFrame):
         )
         layout.addWidget(self._counter_sep)
         self._counter_sep.hide()
+
+        # OBS connection indicator
+        self._obs_pill = _StatusPill("obs.svg", "OBS", self)
+        self._obs_pill.set_accent(Colors.TEXT_DISABLED)
+        self._obs_pill.setToolTip("OBS : non connect\u00e9")
+        layout.addWidget(self._obs_pill)
 
         # Slide counter
         self._counter_label = QLabel("", self)
@@ -122,6 +127,13 @@ class StatusBar(QFrame):
         """)
         layout.addWidget(self._counter_label)
         self._counter_label.hide()
+
+        # Clock + stopwatch refresh (1 s : suffisant pour HH:MM / MM:SS)
+        self._clock_timer = QTimer(self)
+        self._clock_timer.setInterval(1000)
+        self._clock_timer.timeout.connect(self._tick_time)
+        self._clock_timer.start()
+        self._tick_time()
 
     # ── Public API ──
 
@@ -151,6 +163,9 @@ class StatusBar(QFrame):
             self._counter_label.setText(f"{row + 1} / {total}")
             self._counter_label.show()
             self._counter_sep.show()
+            self._counter_label.setToolTip(
+                f"Slide {row + 1} sur {total} — Home : début · End : fin"
+            )
         else:
             self._counter_label.hide()
             self._counter_sep.hide()
@@ -187,3 +202,9 @@ class StatusBar(QFrame):
         else:
             self._obs_pill.set_accent(Colors.TEXT_DISABLED)
             self._obs_pill.setToolTip("OBS : non connect\u00e9")
+
+    # ── Internes ──
+
+    def _tick_time(self) -> None:
+        """Rafraîchit l'horloge locale."""
+        self._clock_pill.set_text(QTime.currentTime().toString("HH:mm"))

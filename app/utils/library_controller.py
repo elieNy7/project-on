@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import re
 from collections.abc import Callable
@@ -171,6 +172,10 @@ class LibraryController(QObject):
             self._playlist_tab.itemUpdateRequested.connect(self.on_playlist_item_update)
             self._playlist_tab.itemDeleteRequested.connect(self.on_playlist_item_delete)
             self._playlist_tab.itemMoveRequested.connect(self.on_playlist_item_move)
+            self._playlist_tab.folderExportRequested.connect(
+                self.on_playlist_folder_export
+            )
+            self._playlist_tab.importRequested.connect(self.on_playlist_import)
 
         # « Ajouter à la playlist » depuis Bible / Cantiques / Sermons / Exposé.
         for tab in (self._bible_tab, self._hymns_tab, self._sermons_tab, self._expose_tab):
@@ -1249,6 +1254,116 @@ class LibraryController(QObject):
         if self._current_playlist_folder_id == int(folder_id):
             self._refresh_playlist_items()
         self.refresh_playlists(select_id=int(folder_id))
+
+    def _build_playlist_export(self, folder_id: int) -> dict[str, Any] | None:
+        """Construit le dictionnaire d'export JSON (None si playlist vide)."""
+        from app.version import __version__
+
+        folder = self._playlist_dao.get_folder(int(folder_id))
+        if folder is None:
+            return None
+        items = self._playlist_dao.list_items(int(folder_id))
+        if not items:
+            return None
+        return {
+            "app": "Project-On",
+            "format": 1,
+            "app_version": __version__,
+            "name": str(folder.get("name") or "Playlist"),
+            "items": [
+                {
+                    "reference": self._clean_text(it.get("reference") or ""),
+                    "text": str(it.get("text") or ""),
+                }
+                for it in items
+            ],
+        }
+
+    @staticmethod
+    def _read_playlist_file(path: str) -> tuple[str, list[tuple[str, str]]]:
+        """Lit un fichier d'export .json → (nom de playlist, entrées).
+
+        Lève ``ValueError`` si le format est invalide.
+        """
+        payload = json.loads(Path(path).read_text(encoding="utf-8"))
+        if not isinstance(payload, dict) or not isinstance(payload.get("items"), list):
+            raise ValueError("format de playlist invalide")
+        entries = [
+            (str(it.get("reference") or ""), str(it.get("text") or ""))
+            for it in payload["items"]
+            if isinstance(it, dict) and str(it.get("text") or "").strip()
+        ]
+        return str(payload.get("name") or Path(path).stem), entries
+
+    def on_playlist_folder_export(self, folder_id: int) -> None:
+        """Exporte une playlist en .json (partage entre ordinateurs)."""
+        payload = self._build_playlist_export(int(folder_id))
+        if payload is None:
+            name = str((self._playlist_dao.get_folder(int(folder_id)) or {}).get("name") or "Playlist")
+            QMessageBox.information(
+                self._playlist_tab,
+                "Export de la playlist",
+                f"La playlist « {name} » est vide : rien à exporter.",
+            )
+            return
+        target, _filter = QFileDialog.getSaveFileName(
+            self._playlist_tab,
+            "Exporter la playlist",
+            f"{payload['name']}.json",
+            "Playlist Project-On (*.json)",
+        )
+        if not target:
+            return
+        try:
+            Path(target).write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+        except OSError as exc:
+            QMessageBox.warning(
+                self._playlist_tab,
+                "Export de la playlist",
+                f"Impossible d'écrire le fichier :\n{exc}",
+            )
+            return
+        QMessageBox.information(
+            self._playlist_tab,
+            "Export de la playlist",
+            f"{len(payload['items'])} slide(s) exporté(s) vers :\n{target}",
+        )
+
+    def on_playlist_import(self) -> None:
+        """Importe une playlist depuis un fichier .json exporté."""
+        source, _filter = QFileDialog.getOpenFileName(
+            self._playlist_tab,
+            "Importer une playlist",
+            "",
+            "Playlist Project-On (*.json);;Tous les fichiers (*)",
+        )
+        if not source:
+            return
+        try:
+            name, entries = self._read_playlist_file(source)
+        except (OSError, ValueError) as exc:
+            QMessageBox.warning(
+                self._playlist_tab,
+                "Import de playlist",
+                f"Fichier illisible ou invalide :\n{exc}",
+            )
+            return
+        if not entries:
+            QMessageBox.information(
+                self._playlist_tab,
+                "Import de playlist",
+                "La playlist ne contient aucun slide exploitable.",
+            )
+            return
+        name = self._clean_text(name) or "Playlist importée"
+        self._commit_to_playlist(None, name, entries)
+        QMessageBox.information(
+            self._playlist_tab,
+            "Import de playlist",
+            f"{len(entries)} slide(s) importé(s) dans « {name} ».",
+        )
 
     def on_playlist_play(self, item_id: Any) -> None:
         """Projette la playlist du dossier courant, depuis le slide demandé.

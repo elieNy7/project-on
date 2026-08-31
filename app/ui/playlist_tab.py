@@ -256,6 +256,8 @@ class PlaylistTab(QFrame):
     folderCreateRequested = pyqtSignal(str)
     folderRenameRequested = pyqtSignal(int, str)
     folderDeleteRequested = pyqtSignal(int)
+    folderExportRequested = pyqtSignal(int)
+    importRequested = pyqtSignal()
     itemCreateRequested = pyqtSignal(int, str, str)  # folder_id, référence, texte
     itemUpdateRequested = pyqtSignal(int, str, str)  # item_id, référence, texte
     itemDeleteRequested = pyqtSignal(int)
@@ -290,6 +292,18 @@ class PlaylistTab(QFrame):
         self.new_folder_btn.setToolTip("Créer une nouvelle playlist")
         self.new_folder_btn.clicked.connect(self._on_new_folder_clicked)
 
+        self.import_btn = QPushButton("Importer", self)
+        self.import_btn.setIcon(app_icon("upload.svg"))
+        self.import_btn.setIconSize(QSize(14, 14))
+        self.import_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.import_btn.setStyleSheet(get_button_style())
+        self.import_btn.setFixedHeight(36)
+        self.import_btn.setToolTip(
+            "Importer une playlist exportée (fichier .json) — "
+            "pratique pour partager un culte entre deux ordinateurs"
+        )
+        self.import_btn.clicked.connect(self.importRequested.emit)
+
         left_widget = QWidget()
         left_widget.setStyleSheet("background: transparent;")
         left = QVBoxLayout(left_widget)
@@ -297,7 +311,12 @@ class PlaylistTab(QFrame):
         left.setSpacing(Spacing.SM)
         left.addWidget(folders_label)
         left.addWidget(self.folders_list, 1)
-        left.addWidget(self.new_folder_btn)
+        folders_buttons = QHBoxLayout()
+        folders_buttons.setContentsMargins(0, 0, 0, 0)
+        folders_buttons.setSpacing(Spacing.SM)
+        folders_buttons.addWidget(self.new_folder_btn, 1)
+        folders_buttons.addWidget(self.import_btn)
+        left.addLayout(folders_buttons)
 
         # ── Droite : slides de la playlist ───────────────────────────────
         self.info_label = QLabel("", self)
@@ -315,14 +334,26 @@ class PlaylistTab(QFrame):
         self.preview = QPlainTextEdit(self)
         self.preview.setReadOnly(True)
         self.preview.setPlaceholderText("Aperçu du slide sélectionné…")
-        self.preview.setMaximumHeight(96)
+        self.preview.setMinimumHeight(96)
         self.preview.setStyleSheet(f"""
             {get_preview_text_style()}
             QPlainTextEdit {{
                 font-family: {Typography.FAMILY};
-                font-size: {Typography.SIZE_BODY}px;
+                font-size: {Typography.SIZE_BODY + 1}px;
+                line-height: 1.5;
             }}
         """)
+
+        # Liste / aperçu séparés verticalement : l'opérateur agrandit
+        # l'aperçu selon ses besoins (défaut ~1/4 de la hauteur).
+        self.list_preview_splitter = QSplitter(Qt.Orientation.Vertical, self)
+        self.list_preview_splitter.addWidget(self.items_list)
+        self.list_preview_splitter.addWidget(self.preview)
+        self.list_preview_splitter.setStretchFactor(0, 3)
+        self.list_preview_splitter.setStretchFactor(1, 1)
+        self.list_preview_splitter.setHandleWidth(1)
+        self.list_preview_splitter.setStyleSheet(get_splitter_style())
+        self.list_preview_splitter.setSizes([560, 190])
 
         # Barre d'actions
         self.new_item_btn = QPushButton("Nouveau slide", self)
@@ -391,8 +422,7 @@ class PlaylistTab(QFrame):
         right.setContentsMargins(Spacing.SM, 0, 0, 0)
         right.setSpacing(Spacing.SM)
         right.addWidget(self.info_label)
-        right.addWidget(self.items_list, 1)
-        right.addWidget(self.preview)
+        right.addWidget(self.list_preview_splitter, 1)
         right.addWidget(actions_frame)
 
         # ── Splitter ─────────────────────────────────────────────────────
@@ -557,11 +587,19 @@ class PlaylistTab(QFrame):
         if item is None:
             return
         self.folders_list.setCurrentItem(item)
+        folder_id = int(item.data(256))
         menu = QMenu(self)
+        menu.setStyleSheet(get_menu_style())
+        act_export = menu.addAction(
+            app_icon("download.svg"), "Exporter vers un fichier…"
+        )
+        menu.addSeparator()
         act_rename = menu.addAction(app_icon("edit-3.svg"), "Renommer")
         act_delete = menu.addAction(app_icon("trash.svg"), "Supprimer")
         chosen = menu.exec(self.folders_list.mapToGlobal(pos))
-        if chosen is act_rename:
+        if chosen is act_export:
+            self.folderExportRequested.emit(folder_id)
+        elif chosen is act_rename:
             self._on_rename_folder_clicked()
         elif chosen is act_delete:
             self._on_delete_folder_clicked()

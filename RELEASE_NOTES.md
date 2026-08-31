@@ -1,3 +1,25 @@
+# Project-On 1.8.0
+
+**La passe « régie professionnelle »** : Project-On gagne les outils des régies de projection pro — aperçu du slide à venir, sauts rapides dans le programme, horloge à l'écran, playlists partageables entre ordinateurs. Basé sur vos retours : le chronomètre de culte n'a pas été ajouté et le bouton « Texte rapide » disparaît de la barre d'Aperçu pour laisser place nette.
+
+## Nouveautés
+
+- **Bandeau « SUIVANT »** sous l'Aperçu : pendant que le slide en cours est à l'écran, vous voyez en permanence le slide qui vient après (référence + début du texte). Fini les mauvaises surprises à la transition.
+- **Sauts rapides dans le programme** : `Home` va au premier slide du programme en cours, `End` au dernier — pratique pour revenir au début d'un cantique ou sauter à la fin.
+- **Horloge dans la barre d'état** : l'heure locale reste visible en permanence pendant le culte.
+- **Raccourcis d'onglets corrigés** : 6 onglets, 6 raccourcis — `Ctrl+5` ouvre Playlists, `Ctrl+6` ouvre Paramètres (la liste F1 est à jour).
+- **Playlists partageables** : clic droit sur une playlist → **« Exporter vers un fichier… »** (fichier `.json`) ; bouton **« Importer »** pour charger une playlist exportée sur un autre ordinateur. Idéal pour préparer le culte chez soi et le projeter à l'église.
+- **Aperçu des playlists agrandi** : la zone d'aperçu du slide est désormais redimensionnable (tirez la séparation liste/aperçu) et plus haute par défaut.
+- **Barre d'Aperçu épurée** : le bouton « Texte rapide » est retiré — la préparation de slides libres se fait depuis l'onglet Playlists.
+
+## Installation
+
+Téléchargez **`ProjectOn_1.8.0_Setup.exe`** ci-dessous et installez-le par-dessus la version existante : cantiques, playlists, réglages et base sont conservés.
+
+Windows 10 / 11 (64 bits) · fonctionne hors-ligne.
+
+---
+
 # Project-On 1.7.6
 
 **La section Playlists arrive** : préparez un culte entier à l'avance — annonces, versets, cantiques, extraits de prédications — regroupés en playlists, puis projetez-les en enchaînement. Rien d'autre ne change : toutes les fonctionnalités des versions précédentes sont conservées à l'identique.

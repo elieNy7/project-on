@@ -395,6 +395,60 @@ class PreviewPanel(QFrame):
 
         self._slide_frame.resizeEvent = self._on_slide_resize
 
+        # ── Panneau « Suivant » : le slide qui viendra après celui en direct ──
+        self._next_frame = QFrame(self)
+        self._next_frame.setObjectName("NextSlideBar")
+        self._next_frame.setStyleSheet(f"""
+            QFrame#NextSlideBar {{
+                background: {Colors.BG_TERTIARY};
+                border: 1px solid {Colors.BORDER_SUBTLE};
+                border-radius: {Radius.MD}px;
+            }}
+        """)
+        self._next_frame.setFixedHeight(40)
+        next_lay = QHBoxLayout(self._next_frame)
+        next_lay.setContentsMargins(14, 0, 14, 0)
+        next_lay.setSpacing(10)
+
+        next_badge = QLabel("SUIVANT", self._next_frame)
+        next_badge.setStyleSheet(
+            f"""
+            color: {Colors.ACCENT_LIGHT};
+            background: {Colors.ACCENT_GLOW};
+            border: none;
+            border-radius: 8px;
+            padding: 2px 8px;
+            font-size: {Typography.SIZE_2XS}px;
+            font-weight: 800;
+            letter-spacing: 0.6px;
+            """
+        )
+        next_lay.addWidget(next_badge)
+
+        self._next_ref_label = QLabel("", self._next_frame)
+        self._next_ref_label.setStyleSheet(
+            f"""
+            color: {Colors.ACCENT_LIGHT};
+            background: transparent;
+            font-size: {Typography.SIZE_META}px;
+            font-weight: 700;
+            """
+        )
+        self._next_ref_label.setMaximumWidth(260)
+        next_lay.addWidget(self._next_ref_label)
+
+        self._next_text_label = QLabel("", self._next_frame)
+        self._next_text_label.setStyleSheet(
+            f"""
+            color: {Colors.TEXT_MUTED};
+            background: transparent;
+            font-size: {Typography.SIZE_META}px;
+            """
+        )
+        next_lay.addWidget(self._next_text_label, 1)
+
+        self._next_frame.hide()
+
         # ── Controls bar ──────────────────────────────────────────
         self.controls = QFrame(self)
         self.controls.setStyleSheet(f"""
@@ -474,19 +528,10 @@ class PreviewPanel(QFrame):
         self._edit_button.clicked.connect(self.quickEditRequested.emit)
         console_layout.addWidget(self._edit_button)
 
-        self._quick_text_button = PreviewControlButton(
-            "plus.svg", tr("quick_text"), self.controls, text=tr("quick_text")
-        )
-        self._quick_text_button.setToolTip(tr("quick_text_tooltip"))
-        self._quick_text_button.clicked.connect(self._on_quick_text_clicked)
-
         controls_layout.addStretch(1)
         controls_layout.addWidget(self._prev_button, 0, Qt.AlignmentFlag.AlignVCenter)
         controls_layout.addWidget(self.console_frame, 0, Qt.AlignmentFlag.AlignVCenter)
         controls_layout.addWidget(self._next_button, 0, Qt.AlignmentFlag.AlignVCenter)
-        controls_layout.addWidget(
-            self._quick_text_button, 0, Qt.AlignmentFlag.AlignVCenter
-        )
         controls_layout.addStretch(1)
 
         # Connections
@@ -506,10 +551,26 @@ class PreviewPanel(QFrame):
         layout.setSpacing(10)
         layout.addWidget(self.header)
         layout.addWidget(self._slide_frame, 1)
+        layout.addWidget(self._next_frame)
         layout.addWidget(self.controls)
 
         # Position initiale de la référence conforme aux réglages courants.
         self.set_settings(self._settings)
+
+    # ──────────────────────────────────────────────────────────────
+    def set_next_slide(self, reference: str, text: str) -> None:
+        """Affiche le slide à venir dans le bandeau « SUIVANT » (ou le masque)."""
+        ref = str(reference or "").strip()
+        body = " ".join(str(text or "").split())
+        if not ref and not body:
+            self._next_frame.hide()
+            return
+        self._next_ref_label.setText(ref)
+        self._next_ref_label.setVisible(bool(ref))
+        if len(body) > 90:
+            body = body[:87] + "…"
+        self._next_text_label.setText(body)
+        self._next_frame.show()
 
     # ──────────────────────────────────────────────────────────────
     def _slide_screen_style(self, background: str) -> str:
@@ -549,20 +610,6 @@ class PreviewPanel(QFrame):
             f" color: {Colors.TEXT_SECONDARY if text else Colors.TEXT_MUTED};"
             "letter-spacing: 0;"
         )
-
-    def _on_quick_text_clicked(self) -> None:
-        """Ouvre le dialogue de texte rapide et demande sa projection."""
-        from app.ui.custom_slide_dialog import CustomSlideDialog
-
-        dialog = CustomSlideDialog(self)
-        if dialog.exec() != QDialog.DialogCode.Accepted:
-            return
-        title, _raw = dialog.get_content()
-        texts, split = dialog.get_slides()
-        if texts:
-            self.quickTextRequested.emit(
-                title.strip() or tr("quick_text"), texts, split
-            )
 
     # ── Position de la référence (haut / bas) ─────────────────────────
     def _on_ref_pos_clicked(self, checked: bool) -> None:
