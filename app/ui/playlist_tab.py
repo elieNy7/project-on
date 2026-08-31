@@ -33,6 +33,7 @@ from app.ui.theme import (
     get_button_style,
     get_input_style,
     get_list_style,
+    get_menu_style,
     get_preview_text_style,
     get_splitter_style,
     item_hover_color,

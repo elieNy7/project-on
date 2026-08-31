@@ -620,6 +620,29 @@ class LibraryController(QObject):
 
         self._pool.start(_DbWorker(_fetch, _on_done))
 
+    def _expose_book_prefix(self, ch_id: int | None) -> str:
+        """Titre de l'ouvrage d'Exposé selon la tradition du chapitre."""
+        tradition = "VGR"
+        if ch_id is not None:
+            try:
+                with self._db.connect() as conn:
+                    row = conn.execute(
+                        "SELECT tradition FROM sermon WHERE id = ?", (int(ch_id),)
+                    ).fetchone()
+                if row is not None and str(row["tradition"] or "").strip():
+                    tradition = str(row["tradition"]).strip().upper()
+            except Exception:
+                pass
+        if tradition == "SHP":
+            return "Exposé SHP"
+        return "Exposé des Sept Âges"
+
+    def _expose_full_reference(self, ch_id: int | None, chapter_title: str) -> str:
+        """Référence projetée d'un exposé : « <ouvrage> — <chapitre> »."""
+        prefix = self._expose_book_prefix(ch_id)
+        chapter = (chapter_title or "").strip()
+        return f"{prefix} — {chapter}" if chapter else prefix
+
     def on_expose_paragraph_activated(
         self, reference: str, text: str, title: str = ""
     ) -> None:
@@ -627,11 +650,14 @@ class LibraryController(QObject):
 
         Les paragraphes de toutes les pages du chapitre sont rechargés en
         arrière-plan (dans l'ordre des pages) pour former le programme live.
-        La référence projetée reste le titre du chapitre — la position
-        « Page/¶ » n'a d'intérêt que pour l'opérateur, pas pour l'écran.
+        La référence projetée porte le titre de l'ouvrage et du chapitre —
+        la position « Page/¶ » n'a d'intérêt que pour l'opérateur.
         """
         ref = self._clean_text(reference)
         chapter_title = self._clean_text(title) or ref
+        full_reference = self._expose_full_reference(
+            self._current_expose_chapter_id, chapter_title
+        )
 
         ch_id = self._current_expose_chapter_id
         pages = list(self._current_expose_pages)
@@ -649,11 +675,11 @@ class LibraryController(QObject):
             raw_refs: list[str] = []
             for p in rows or []:
                 raw_ref = str(p.get("ref", ""))
-                entries.append((chapter_title, self._clean_text(p.get("text", ""))))
+                entries.append((full_reference, self._clean_text(p.get("text", ""))))
                 raw_refs.append(raw_ref)
 
             if not entries and text:
-                entries = [(chapter_title, text)]
+                entries = [(full_reference, text)]
                 raw_refs = [ref]
 
             focus = 0
@@ -677,10 +703,11 @@ class LibraryController(QObject):
         if not body:
             return
         self._live_expose_chapter_id = self._current_expose_chapter_id
+        full_reference = self._expose_full_reference(
+            self._current_expose_chapter_id, chapter_title
+        )
         self._project.load_program(
-            "sermon", chapter_title or self._clean_text(reference), [
-                (chapter_title or self._clean_text(reference), body)
-            ]
+            "sermon", chapter_title or full_reference, [(full_reference, body)]
         )
 
     def live_expose_chapter_id(self) -> int | None:

@@ -118,6 +118,23 @@ class ExposeTab(QFrame):
             f"font-size: {Typography.SIZE_META}px; color: {Colors.TEXT_MUTED};",
         )
 
+        # Titre du chapitre courant — visible partout : en-tête, aperçu,
+        # référence projetée.
+        self.chapter_header_label = QLabel("", self)
+        self.chapter_header_label.setStyleSheet(
+            f"""
+            font-size: {Typography.SIZE_SECTION}px;
+            font-weight: 800;
+            color: {Colors.ACCENT_LIGHT};
+            background: {Colors.BG_TERTIARY};
+            border: 1px solid {Colors.BORDER_SUBTLE};
+            border-radius: {Radius.MD}px;
+            padding: 6px 12px;
+            """
+        )
+        self.chapter_header_label.setWordWrap(True)
+        self.chapter_header_label.hide()
+
         # Search Bar
         self.search_input = QLineEdit(self)
         self.search_input.setPlaceholderText("Rechercher dans l'Exposé...")
@@ -212,6 +229,7 @@ class ExposeTab(QFrame):
         filter_layout.addWidget(self.btn_refresh)
 
         right.addWidget(self.filter_container)
+        right.addWidget(self.chapter_header_label)
         right.addWidget(self.paragraphs_list, 1)
         right.addWidget(self.paragraph_preview)
         right.addWidget(self.add_btn)
@@ -281,6 +299,8 @@ class ExposeTab(QFrame):
         # Hide page bar when searching
         self.page_scroll.setVisible(False)
         self.page_info_label.setText(f"{len(paragraphs)} résultats")
+        self.chapter_header_label.setText("Résultats de recherche")
+        self.chapter_header_label.show()
 
         for p in paragraphs:
             text = str(p.get("text", ""))
@@ -417,6 +437,7 @@ class ExposeTab(QFrame):
         self.paragraph_preview.clear()
         total = len(paragraphs)
         self.page_info_label.setText(f"{total} paragraphes")
+        self._update_chapter_header()
         for p in paragraphs:
             text = str(p.get("text", ""))
 
@@ -445,6 +466,15 @@ class ExposeTab(QFrame):
     def current_chapter_title(self) -> str:
         return self._current_chapter_title
 
+    def _update_chapter_header(self) -> None:
+        """Affiche le titre du chapitre courant au-dessus des paragraphes."""
+        title = (self._current_chapter_title or "").strip()
+        if title:
+            self.chapter_header_label.setText(title)
+            self.chapter_header_label.show()
+        else:
+            self.chapter_header_label.hide()
+
     # ── Private slots ─────────────────────────────────────────────────────
 
     def _on_chapter_changed(
@@ -457,6 +487,7 @@ class ExposeTab(QFrame):
         chapter_id = current.data(256)
         self._current_chapter_id = chapter_id
         self._current_chapter_title = str(current.data(257) or "")
+        self._update_chapter_header()
         self.chapterSelected.emit(chapter_id)
 
     def _on_paragraph_activated(self, item: QListWidgetItem) -> None:
@@ -536,10 +567,10 @@ class ExposeTab(QFrame):
             return
         ref = str(current.data(256) or "")
         text = str(current.data(257) or "")
-        if ref:
-            self.paragraph_preview.setPlainText(f"{ref}\n\n{text}")
-        else:
-            self.paragraph_preview.setPlainText(text)
+        # Le titre du chapitre mène l'aperçu (data 258 = titre, en recherche).
+        title = str(current.data(258) or self._current_chapter_title or "").strip()
+        header = f"{title}\n{ref}" if ref else title
+        self.paragraph_preview.setPlainText(f"{header}\n\n{text}" if header else text)
 
     def _on_search_changed(self, text: str) -> None:
         if not text.strip():

@@ -8,6 +8,7 @@
 - **Sauts rapides dans le programme** : `Home` va au premier slide du programme en cours, `End` au dernier — pratique pour revenir au début d'un cantique ou sauter à la fin.
 - **Horloge dans la barre d'état** : l'heure locale reste visible en permanence pendant le culte.
 - **Raccourcis d'onglets corrigés** : 6 onglets, 6 raccourcis — `Ctrl+5` ouvre Playlists, `Ctrl+6` ouvre Paramètres (la liste F1 est à jour).
+- **Référence des Exposés complète** : la référence projetée d'un paragraphe de l'Exposé affiche désormais le titre de l'ouvrage et du chapitre — ex. « **Exposé des Sept Âges — L'Âge de l'église de Sardes** » (et « Exposé SHP — … » pour la version Shekinah).
 - **Playlists partageables** : clic droit sur une playlist → **« Exporter vers un fichier… »** (fichier `.json`) ; bouton **« Importer »** pour charger une playlist exportée sur un autre ordinateur. Idéal pour préparer le culte chez soi et le projeter à l'église.
 - **Aperçu des playlists agrandi** : la zone d'aperçu du slide est désormais redimensionnable (tirez la séparation liste/aperçu) et plus haute par défaut.
 - **Barre d'Aperçu épurée** : le bouton « Texte rapide » est retiré — la préparation de slides libres se fait depuis l'onglet Playlists.

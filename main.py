@@ -172,9 +172,10 @@ def main() -> int:
     # Appliquer le pack de données éditorial (Exposé corrigé) aux bases
     # existantes, puis resynchroniser titres/index — une seule fois par pack.
     try:
-        if is_frozen():
+        from app.utils.app_paths import is_frozen as _is_frozen
+
+        if _is_frozen():
             from app.utils.app_paths import app_db_path as _app_db_path
-            from app.utils.app_paths import is_frozen as _is_frozen
             from app.utils.app_paths import resource_root as _resource_root
             from app.utils.app_paths import upgrade_data_pack as _upgrade_pack
 
