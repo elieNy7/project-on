@@ -5,6 +5,7 @@ from typing import Any
 from PyQt6.QtCore import QModelIndex, QRect, QSize, Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QFont, QFontMetrics, QPainter
 from PyQt6.QtWidgets import (
+    QComboBox,
     QDialog,
     QDialogButtonBox,
     QFrame,
@@ -120,8 +121,83 @@ class PlaylistItemDelegate(QStyledItemDelegate):
         return QSize(option.rect.width(), 52)
 
 
+class AddToPlaylistDialog(QDialog):
+    """Choisit la playlist de destination pour de nouveaux slides.
+
+    Propose les playlists existantes et la création d'une nouvelle à la volée.
+    """
+
+    NEW_SENTINEL = "__new_playlist__"
+
+    def __init__(self, folders: list[dict[str, Any]], count: int, parent=None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Ajouter à la playlist")
+        self.setMinimumWidth(400)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(Spacing.LG, Spacing.LG, Spacing.LG, Spacing.LG)
+        layout.setSpacing(Spacing.SM)
+
+        summary = QLabel(
+            f"Ajouter {count} slide{'s' if count > 1 else ''} à :", self
+        )
+        summary.setStyleSheet(
+            f"font-size: {Typography.SIZE_BODY}px; color: {Colors.TEXT_PRIMARY};"
+        )
+        layout.addWidget(summary)
+
+        self.folder_combo = QComboBox(self)
+        self.folder_combo.setStyleSheet(get_input_style())
+        self.folder_combo.setFixedHeight(36)
+        for folder in folders:
+            self.folder_combo.addItem(str(folder.get("name", "")), int(folder["id"]))
+        self.folder_combo.insertSeparator(self.folder_combo.count())
+        self.folder_combo.addItem("＋ Nouvelle playlist…", self.NEW_SENTINEL)
+        layout.addWidget(self.folder_combo)
+
+        self.name_input = QLineEdit(self)
+        self.name_input.setPlaceholderText("Nom de la nouvelle playlist")
+        self.name_input.setStyleSheet(get_input_style())
+        self.name_input.setFixedHeight(36)
+        self.name_input.hide()
+        layout.addWidget(self.name_input)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel,
+            parent=self,
+        )
+        buttons.accepted.connect(self._on_accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+        self.folder_combo.currentIndexChanged.connect(self._on_combo_changed)
+        if folders:
+            self.folder_combo.setCurrentIndex(0)
+        else:
+            self._on_combo_changed()
+
+    def _on_combo_changed(self, *_args) -> None:
+        is_new = self.folder_combo.currentData() == self.NEW_SENTINEL
+        self.name_input.setVisible(is_new)
+        if is_new:
+            self.name_input.setFocus()
+
+    def _on_accept(self) -> None:
+        folder_id, new_name = self.selected_folder()
+        if folder_id is None and not new_name:
+            self.name_input.setFocus()
+            return
+        self.accept()
+
+    def selected_folder(self) -> tuple[int | None, str]:
+        """(folder_id existant, nom de nouvelle playlist) — id est None si création."""
+        data = self.folder_combo.currentData()
+        if data == self.NEW_SENTINEL:
+            return None, self.name_input.text().strip()
+        return (int(data) if data is not None else None), ""
+
+
 class _SlideDialog(QDialog):
-    """Création / édition d'un slide de playlist (titre + texte)."""
 
     def __init__(self, parent=None, reference: str = "", text: str = "") -> None:
         super().__init__(parent)

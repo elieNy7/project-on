@@ -56,6 +56,7 @@ class ExposeTab(QFrame):
     pageSelected = pyqtSignal(int)
     paragraphActivated = pyqtSignal(str, str, str)
     paragraphSoloRequested = pyqtSignal(str, str, str)
+    addToPlaylistRequested = pyqtSignal(list)  # list of (ref, text) tuples
     searchRequested = pyqtSignal(str)
     translatorChanged = pyqtSignal(str)
 
@@ -476,11 +477,17 @@ class ExposeTab(QFrame):
         menu.setStyleSheet(get_menu_style())
         act_chapter = menu.addAction(app_icon("cast.svg"), "Projeter le chapitre à partir d'ici")
         act_solo = menu.addAction(app_icon("mic.svg"), "Projeter ce paragraphe seulement")
+        act_playlist = menu.addAction(app_icon("plus.svg"), "Ajouter à la playlist")
         chosen = menu.exec(self.paragraphs_list.mapToGlobal(pos))
         if chosen is act_solo:
             self._emit_solo(item)
         elif chosen is act_chapter:
             self._on_paragraph_activated(item)
+        elif chosen is act_playlist:
+            payload = [
+                (str(item.data(256) or ""), str(item.data(257) or ""))
+            ]
+            self.addToPlaylistRequested.emit(payload)
 
     def _emit_solo(self, item: QListWidgetItem) -> None:
         ref = str(item.data(256) or "")

@@ -49,6 +49,7 @@ class SermonsTab(QFrame):
     paragraphActivated = pyqtSignal(object)
     filtersChanged = pyqtSignal()
     paragraphSearchRequested = pyqtSignal(str)  # query text
+    addToPlaylistRequested = pyqtSignal(list)  # list of (ref, text) tuples
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -625,6 +626,7 @@ class SermonsTab(QFrame):
 
         copy_action = menu.addAction("Copier le texte")
         add_action = menu.addAction("Projeter")
+        playlist_action = menu.addAction("Ajouter à la playlist")
 
         action = menu.exec(self.paragraphs_list.mapToGlobal(pos))
 
@@ -632,6 +634,9 @@ class SermonsTab(QFrame):
             self._on_copy_paragraph()
         elif action == add_action:
             self._on_paragraph_activated(item)
+        elif action == playlist_action:
+            payload = [(str(item.data(256) or ""), str(item.data(257) or ""))]
+            self.addToPlaylistRequested.emit(payload)
 
     # ── Paragraph global search ──────────────────────────────────────
 

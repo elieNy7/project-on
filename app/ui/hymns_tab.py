@@ -46,6 +46,7 @@ class HymnsTab(QFrame):
     hymnActivated = pyqtSignal(int)  # Add entire hymn
     stanzaActivated = pyqtSignal(str, str)  # Ref, Text
     stanzasActivated = pyqtSignal(list)  # List of (Ref, Text)
+    addToPlaylistRequested = pyqtSignal(list)  # List of (Ref, Text)
     importPptxFileRequested = pyqtSignal()
     importPptxFolderRequested = pyqtSignal()
     importPdfFileRequested = pyqtSignal()
@@ -106,6 +107,10 @@ class HymnsTab(QFrame):
         self.stanzas_list.setWordWrap(False)
         self.stanzas_list.setItemDelegate(HymnStanzaDelegate(self.stanzas_list))
         self.stanzas_list.setVerticalScrollMode(QListWidget.ScrollMode.ScrollPerPixel)
+        self.stanzas_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.stanzas_list.customContextMenuRequested.connect(
+            self._on_stanzas_context_menu
+        )
 
         # Preview box
         self.preview_box = QPlainTextEdit(self)
@@ -284,6 +289,40 @@ class HymnsTab(QFrame):
         if isinstance(data, tuple) and len(data) == 2:
             ref, content = data
             self.stanzaActivated.emit(ref, content)
+
+    def _on_stanzas_context_menu(self, pos) -> None:
+        """Menu contextuel : ajouter à la playlist (strophes ou cantique)."""
+        if self.stanzas_list.count() == 0:
+            return
+        selected = self.stanzas_list.selectedItems()
+        if not selected and self.stanzas_list.currentItem() is not None:
+            selected = [self.stanzas_list.currentItem()]
+        if not selected:
+            return
+
+        menu = QMenu(self)
+        menu.setStyleSheet(get_menu_style())
+        act_selection = menu.addAction(
+            f"Ajouter à la playlist ({len(selected)} strophe"
+            f"{'s' if len(selected) > 1 else ''})"
+        )
+        act_all = menu.addAction("Ajouter tout le cantique à la playlist")
+        chosen = menu.exec(self.stanzas_list.mapToGlobal(pos))
+
+        source = (
+            selected
+            if chosen is act_selection
+            else self.stanzas_list.findItems("*", Qt.MatchFlag.MatchWildcard)
+            if chosen is act_all
+            else []
+        )
+        payload = []
+        for item in source:
+            data = item.data(Qt.ItemDataRole.UserRole)
+            if isinstance(data, tuple) and len(data) == 2:
+                payload.append((str(data[0]), str(data[1])))
+        if payload:
+            self.addToPlaylistRequested.emit(payload)
 
     def _on_add_clicked(self) -> None:
         """Add selected stanzas when several are selected; otherwise add the hymn."""

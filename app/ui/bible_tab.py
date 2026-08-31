@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QListWidget,
     QListWidgetItem,
+    QMenu,
     QPlainTextEdit,
     QPushButton,
     QScrollArea,
@@ -52,6 +53,7 @@ class BibleTab(QFrame):
     verseActivated = pyqtSignal(str, str)
     versesActivated = pyqtSignal(list)  # list of (ref, text) tuples
     searchRequested = pyqtSignal(str)
+    addToPlaylistRequested = pyqtSignal(list)  # list of (ref, text) tuples
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -115,6 +117,10 @@ class BibleTab(QFrame):
         self.verses_list.setVerticalScrollMode(QListWidget.ScrollMode.ScrollPerPixel)
         self.verses_list.setTextElideMode(Qt.TextElideMode.ElideRight)
         # self.verses_list.setUniformItemSizes(True) # Disabled for flexible delegate height
+        self.verses_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.verses_list.customContextMenuRequested.connect(
+            self._on_verses_context_menu
+        )
 
         # Verse preview (Modernized)
         self.verse_preview = QPlainTextEdit(self)
@@ -382,6 +388,41 @@ class BibleTab(QFrame):
         if not ref and not text:
             return
         self.verseActivated.emit(ref, text)
+
+    def _on_verses_context_menu(self, pos) -> None:
+        """Menu contextuel : ajouter à la playlist (sélection ou chapitre)."""
+        if self.verses_list.count() == 0:
+            return
+        selected = self.verses_list.selectedItems()
+        if not selected and self.verses_list.currentItem() is not None:
+            selected = [self.verses_list.currentItem()]
+        if not selected:
+            return
+
+        menu = QMenu(self)
+        act_selection = menu.addAction(
+            f"Ajouter à la playlist ({len(selected)} verset"
+            f"{'s' if len(selected) > 1 else ''})"
+        )
+        act_chapter = menu.addAction("Ajouter tout le chapitre à la playlist")
+        chosen = menu.exec(self.verses_list.mapToGlobal(pos))
+        if chosen is act_selection:
+            payload = [
+                (str(i.data(256) or ""), str(i.data(257) or "")) for i in selected
+            ]
+        elif chosen is act_chapter:
+            payload = [
+                (
+                    str(self.verses_list.item(i).data(256) or ""),
+                    str(self.verses_list.item(i).data(257) or ""),
+                )
+                for i in range(self.verses_list.count())
+            ]
+        else:
+            return
+        payload = [(ref, text) for ref, text in payload if ref or text]
+        if payload:
+            self.addToPlaylistRequested.emit(payload)
 
     def _on_add_verse_clicked(self) -> None:
         selected = self.verses_list.selectedItems()

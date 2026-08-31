@@ -172,6 +172,11 @@ class LibraryController(QObject):
             self._playlist_tab.itemDeleteRequested.connect(self.on_playlist_item_delete)
             self._playlist_tab.itemMoveRequested.connect(self.on_playlist_item_move)
 
+        # « Ajouter à la playlist » depuis Bible / Cantiques / Sermons / Exposé.
+        for tab in (self._bible_tab, self._hymns_tab, self._sermons_tab, self._expose_tab):
+            if tab is not None and hasattr(tab, "addToPlaylistRequested"):
+                tab.addToPlaylistRequested.connect(self.on_add_to_playlist)
+
         self._hymns_tab.hymnSelected.connect(self.on_hymn_selected)
         self._hymns_tab.stanzaActivated.connect(self.on_hymn_stanza_activated)
         if hasattr(self._hymns_tab, "stanzasActivated"):
@@ -1193,6 +1198,57 @@ class LibraryController(QObject):
             int(items[target]["id"]), int(items[index]["sort_order"]), folder_id
         )
         self._refresh_playlist_items()
+
+    def _show_add_to_playlist_dialog(self, folders: list, count: int):
+        """Ouvre le dialogue de destination (couture de test : sous-classer)."""
+        from app.ui.playlist_tab import AddToPlaylistDialog
+
+        return AddToPlaylistDialog(folders, count, parent=self._playlist_tab)
+
+    def on_add_to_playlist(self, entries: list) -> None:
+        """Ajoute des éléments (référence, texte) à une playlist choisie.
+
+        Appelé depuis les menus « Ajouter à la playlist » de la Bible, des
+        cantiques, des sermons et de l'Exposé. Un dialogue permet de choisir
+        la playlist de destination ou d'en créer une à la volée.
+        """
+        if self._playlist_tab is None:
+            return
+        cleaned = [
+            (self._clean_text(ref), self._clean_text(text))
+            for ref, text in entries or []
+            if self._clean_text(ref) or self._clean_text(text)
+        ]
+        if not cleaned:
+            return
+
+        from PyQt6.QtWidgets import QDialog
+
+        dialog = self._show_add_to_playlist_dialog(
+            self._playlist_dao.list_folders(), len(cleaned)
+        )
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        folder_id, new_name = dialog.selected_folder()
+        self._commit_to_playlist(folder_id, new_name, cleaned)
+
+    def _commit_to_playlist(
+        self, folder_id: int | None, new_name: str, entries: list[tuple[str, str]]
+    ) -> None:
+        """Écrit les entrées (référence, texte) dans la playlist visée.
+
+        ``folder_id=None`` crée une playlist nommée ``new_name``.
+        """
+        if folder_id is None:
+            if not new_name:
+                return
+            folder_id = self._playlist_dao.create_folder(new_name)
+        self._playlist_dao.add_items(
+            [("custom", ref, text) for ref, text in entries], folder_id=int(folder_id)
+        )
+        if self._current_playlist_folder_id == int(folder_id):
+            self._refresh_playlist_items()
+        self.refresh_playlists(select_id=int(folder_id))
 
     def on_playlist_play(self, item_id: Any) -> None:
         """Projette la playlist du dossier courant, depuis le slide demandé.

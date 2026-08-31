@@ -1,6 +1,6 @@
 # Project-On 1.7.6
 
-**La section Playlists arrive** : préparez un culte entier à l'avance — annonces, versets, textes — regroupés en playlists, puis projetez-les en enchaînement. Rien d'autre ne change : toutes les fonctionnalités des versions précédentes sont conservées à l'identique.
+**La section Playlists arrive** : préparez un culte entier à l'avance — annonces, versets, cantiques, extraits de prédications — regroupés en playlists, puis projetez-les en enchaînement. Rien d'autre ne change : toutes les fonctionnalités des versions précédentes sont conservées à l'identique.
 
 ## Nouveautés
 
@@ -9,6 +9,11 @@
   - ajoutez des **slides** (titre + texte) à chaque playlist, modifiez-les, réordonnez-les d'un clic (↑ / ↓) ;
   - **double-clic sur un slide** (ou bouton « Projeter ») : la playlist est projetée **à partir de ce slide** — la navigation suivant/précédent enchaîne les slides suivants, avec le découpage automatique des textes longs ;
   - un aperçu du slide sélectionné reste visible pendant la préparation.
+- **Liée à la bibliothèque — « Ajouter à la playlist »** dans les menus contextuels (clic droit) :
+  - **Bible** : ajoutez le(s) verset(s) sélectionné(s) ou tout le chapitre ;
+  - **Cantiques** : ajoutez la/les strophe(s) sélectionnée(s) ou tout le cantique ;
+  - **Prédications** et **Exposés** : ajoutez le paragraphe choisi.
+  - Un dialogue permet de choisir la playlist de destination ou d'en créer une à la volée.
 - Les slides de playlist utilisent le même rendu que le reste de l'application : position de la référence (haut/bas), styles et transitions s'appliquent tels quels.
 
 ## Installation
