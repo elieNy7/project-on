@@ -158,6 +158,7 @@ class MainWindow(QMainWindow):
             hymns_tab=self.library_panel.hymns_tab,
             sermons_tab=self.library_panel.sermons_tab,
             expose_tab=self.library_panel.expose_tab,
+            playlist_tab=self.library_panel.playlist_tab,
         )
 
         # Lazy-load sermons & expose when their tab is first shown

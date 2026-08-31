@@ -101,6 +101,7 @@ _translations: dict[str, dict[str, str]] = {
     "hymns": {"fr": "Cantiques", "en": "Hymns"},
     "sermons": {"fr": "Prédications", "en": "Sermons"},
     "expose": {"fr": "Exposés", "en": "Exposés"},
+    "playlist": {"fr": "Playlists", "en": "Playlists"},
     "settings": {"fr": "Paramètres", "en": "Settings"},
     "books": {"fr": "Livres", "en": "Books"},
     "stage_empty": {"fr": "Prêt à projeter", "en": "Ready to project"},

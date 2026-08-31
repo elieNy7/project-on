@@ -508,6 +508,9 @@ class PreviewPanel(QFrame):
         layout.addWidget(self._slide_frame, 1)
         layout.addWidget(self.controls)
 
+        # Position initiale de la référence conforme aux réglages courants.
+        self.set_settings(self._settings)
+
     # ──────────────────────────────────────────────────────────────
     def _slide_screen_style(self, background: str) -> str:
         return f"""

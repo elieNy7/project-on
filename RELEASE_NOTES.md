@@ -1,3 +1,24 @@
+# Project-On 1.7.6
+
+**La section Playlists arrive** : préparez un culte entier à l'avance — annonces, versets, textes — regroupés en playlists, puis projetez-les en enchaînement. Rien d'autre ne change : toutes les fonctionnalités des versions précédentes sont conservées à l'identique.
+
+## Nouveautés
+
+- **Nouvel onglet « Playlists »** dans la bibliothèque, entre Exposés et Paramètres :
+  - créez autant de **playlists** que besoin (ex. « Culte du dimanche », « Louange »), renommez-les ou supprimez-les ;
+  - ajoutez des **slides** (titre + texte) à chaque playlist, modifiez-les, réordonnez-les d'un clic (↑ / ↓) ;
+  - **double-clic sur un slide** (ou bouton « Projeter ») : la playlist est projetée **à partir de ce slide** — la navigation suivant/précédent enchaîne les slides suivants, avec le découpage automatique des textes longs ;
+  - un aperçu du slide sélectionné reste visible pendant la préparation.
+- Les slides de playlist utilisent le même rendu que le reste de l'application : position de la référence (haut/bas), styles et transitions s'appliquent tels quels.
+
+## Installation
+
+Téléchargez **`ProjectOn_1.7.6_Setup.exe`** ci-dessous et installez-le par-dessus la version existante : cantiques, playlists existantes, réglages et base sont conservés.
+
+Windows 10 / 11 (64 bits) · fonctionne hors-ligne.
+
+---
+
 # Project-On 1.7.5
 
 **La position de la référence se choisit en un clic** et l'onglet Exposé (VGR) gagne en confort de pilotage. Les nouveautés sont incluses dans l'installeur : une seule installation met à jour tout, sur le poste comme sur les nouveaux ordinateurs.

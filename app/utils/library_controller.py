@@ -36,6 +36,7 @@ class _DbWorker(QRunnable):
 
 from app.database.dao_bible import BibleDao
 from app.database.dao_hymns import HymnsDao
+from app.database.dao_playlist import PlaylistDao
 from app.database.dao_sermons import SermonsDao
 from app.ui.pdf_import_dialog import PdfImportDialog
 from app.utils.pdf_parser import HAS_FITZ, parse_hymns_from_pdf
@@ -52,6 +53,7 @@ class LibraryController(QObject):
         hymns_tab: QObject,
         sermons_tab: QObject,
         expose_tab: QObject | None = None,
+        playlist_tab: QObject | None = None,
     ) -> None:
         super().__init__()
         self._db = db
@@ -60,11 +62,13 @@ class LibraryController(QObject):
         self._bible_dao = BibleDao(db)
         self._hymns_dao = HymnsDao(db)
         self._sermons_dao = SermonsDao(db)
+        self._playlist_dao = PlaylistDao(db)
 
         self._bible_tab = bible_tab
         self._hymns_tab = hymns_tab
         self._sermons_tab = sermons_tab
         self._expose_tab = expose_tab
+        self._playlist_tab = playlist_tab
 
         self._current_translation_id: int | None = None
         self._current_book_id: int | None = None
@@ -90,6 +94,7 @@ class LibraryController(QObject):
         # Programme live en cours = chapitre d'Exposé ? Sert au suivi du
         # paragraphe projeté dans l'onglet Exposé (None sinon).
         self._live_expose_chapter_id: int | None = None
+        self._current_playlist_folder_id: int | None = None
 
         self._wire()
         self.refresh_all()
@@ -149,6 +154,24 @@ class LibraryController(QObject):
             self._expose_tab.searchRequested.connect(self.on_expose_search)
             self._expose_tab.translatorChanged.connect(self.refresh_expose)
 
+        if self._playlist_tab is not None:
+            self._playlist_tab.folderSelected.connect(self.on_playlist_folder_selected)
+            self._playlist_tab.itemActivated.connect(self.on_playlist_play)
+            self._playlist_tab.playRequested.connect(self.on_playlist_play)
+            self._playlist_tab.folderCreateRequested.connect(
+                self.on_playlist_folder_create
+            )
+            self._playlist_tab.folderRenameRequested.connect(
+                self.on_playlist_folder_rename
+            )
+            self._playlist_tab.folderDeleteRequested.connect(
+                self.on_playlist_folder_delete
+            )
+            self._playlist_tab.itemCreateRequested.connect(self.on_playlist_item_create)
+            self._playlist_tab.itemUpdateRequested.connect(self.on_playlist_item_update)
+            self._playlist_tab.itemDeleteRequested.connect(self.on_playlist_item_delete)
+            self._playlist_tab.itemMoveRequested.connect(self.on_playlist_item_move)
+
         self._hymns_tab.hymnSelected.connect(self.on_hymn_selected)
         self._hymns_tab.stanzaActivated.connect(self.on_hymn_stanza_activated)
         if hasattr(self._hymns_tab, "stanzasActivated"):
@@ -177,6 +200,7 @@ class LibraryController(QObject):
         self.refresh_hymns()
         self.refresh_sermons()
         self.refresh_expose()
+        self.refresh_playlists()
         self._sermons_loaded = True
         self._expose_loaded = True
 
@@ -1068,3 +1092,148 @@ class LibraryController(QObject):
                         (sort_key, hymn_id),
                     )
             conn.commit()
+
+    # ── Playlists ─────────────────────────────────────────────────────────
+
+    def refresh_playlists(self, select_id: int | None = None) -> None:
+        """Recharge la liste des playlists (dossiers) en arrière-plan."""
+        if self._playlist_tab is None:
+            return
+
+        def _fetch():
+            return self._playlist_dao.list_folders()
+
+        def _on_done(folders):
+            if folders is None:
+                folders = []
+            if hasattr(self._playlist_tab, "set_folders"):
+                self._playlist_tab.set_folders(folders, select_id=select_id)
+
+        self._pool.start(_DbWorker(_fetch, _on_done))
+
+    def _refresh_playlist_items(self) -> None:
+        """Recharge les slides du dossier de playlist courant."""
+        folder_id = self._current_playlist_folder_id
+        if self._playlist_tab is None:
+            return
+
+        def _fetch():
+            if folder_id is None:
+                return []
+            return self._playlist_dao.list_items(folder_id)
+
+        def _on_done(items):
+            if items is None:
+                items = []
+            if hasattr(self._playlist_tab, "set_items"):
+                self._playlist_tab.set_items(items)
+
+        self._pool.start(_DbWorker(_fetch, _on_done))
+
+    def on_playlist_folder_selected(self, folder_id: Any) -> None:
+        self._current_playlist_folder_id = (
+            int(folder_id) if folder_id is not None else None
+        )
+        self._refresh_playlist_items()
+
+    def on_playlist_folder_create(self, name: str) -> None:
+        clean = self._clean_text(name)
+        if not clean:
+            return
+        new_id = self._playlist_dao.create_folder(clean)
+        self.refresh_playlists(select_id=new_id)
+
+    def on_playlist_folder_rename(self, folder_id: int, new_name: str) -> None:
+        clean = self._clean_text(new_name)
+        if not clean:
+            return
+        self._playlist_dao.rename_folder(int(folder_id), clean)
+        self.refresh_playlists(select_id=int(folder_id))
+
+    def on_playlist_folder_delete(self, folder_id: int) -> None:
+        # Les items du dossier partent avec lui (FK ON DELETE CASCADE).
+        self._playlist_dao.delete_folder(int(folder_id))
+        if self._current_playlist_folder_id == int(folder_id):
+            self._current_playlist_folder_id = None
+        self.refresh_playlists()
+
+    def on_playlist_item_create(self, folder_id: int, reference: str, text: str) -> None:
+        self._playlist_dao.add_item(
+            "custom", self._clean_text(reference), self._clean_text(text),
+            folder_id=int(folder_id),
+        )
+        self._refresh_playlist_items()
+
+    def on_playlist_item_update(self, item_id: int, reference: str, text: str) -> None:
+        self._playlist_dao.update_item(
+            int(item_id), self._clean_text(reference), self._clean_text(text)
+        )
+        self._refresh_playlist_items()
+
+    def on_playlist_item_delete(self, item_id: int) -> None:
+        self._playlist_dao.delete_item(int(item_id))
+        self._refresh_playlist_items()
+
+    def on_playlist_item_move(self, item_id: int, delta: int) -> None:
+        """Échange l'ordre du slide avec son voisin (haut/bas)."""
+        folder_id = self._current_playlist_folder_id
+        if folder_id is None:
+            return
+        items = self._playlist_dao.list_items(folder_id)
+        index = next(
+            (i for i, it in enumerate(items) if int(it["id"]) == int(item_id)), None
+        )
+        target = index + int(delta) if index is not None else None
+        if index is None or not 0 <= target < len(items):
+            return
+        self._playlist_dao.update_item_sort_order(
+            int(items[index]["id"]), int(items[target]["sort_order"]), folder_id
+        )
+        self._playlist_dao.update_item_sort_order(
+            int(items[target]["id"]), int(items[index]["sort_order"]), folder_id
+        )
+        self._refresh_playlist_items()
+
+    def on_playlist_play(self, item_id: Any) -> None:
+        """Projette la playlist du dossier courant, depuis le slide demandé.
+
+        ``item_id=None`` (ou id introuvable) démarre au premier slide. Chaque
+        slide peut être découpé en plusieurs parties ; la navigation
+        suivant/précédent enchaîne naturellement les slides suivants.
+        """
+        folder_id = self._current_playlist_folder_id
+        if folder_id is None:
+            return
+        folder = self._playlist_dao.get_folder(folder_id)
+        title = str((folder or {}).get("name") or "Playlist")
+
+        def _fetch():
+            return self._playlist_dao.list_items(folder_id)
+
+        def _on_done(items):
+            self._live_expose_chapter_id = None
+            entries = [
+                (
+                    self._clean_text(it.get("reference") or title),
+                    self._clean_text(it.get("text") or ""),
+                )
+                for it in items or []
+            ]
+            entries = [(ref, text) for ref, text in entries if text]
+            if not entries:
+                return
+            focus = 0
+            if item_id is not None:
+                position = 0
+                for it in items or []:
+                    if not self._clean_text(it.get("text") or ""):
+                        continue
+                    if int(it["id"]) == int(item_id):
+                        focus = position
+                        break
+                    position += 1
+            self._project.load_program(
+                "custom", title, entries, focus_entry=focus
+            )
+
+        self._pool.start(_DbWorker(_fetch, _on_done))
