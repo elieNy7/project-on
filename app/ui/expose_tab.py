@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import re
 from typing import Any
 
-from PyQt6.QtCore import QEvent, QSize, Qt, QTimer, pyqtSignal
+from PyQt6.QtCore import QEvent, QSignalBlocker, QSize, Qt, QTimer, pyqtSignal
 from PyQt6.QtWidgets import (
+    QAbstractItemView,
     QComboBox,
     QFrame,
     QHBoxLayout,
@@ -11,6 +13,7 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QListWidget,
     QListWidgetItem,
+    QMenu,
     QPlainTextEdit,
     QPushButton,
     QScrollArea,
@@ -35,6 +38,7 @@ from app.ui.theme import (
     get_combo_style,
     get_input_style,
     get_list_style,
+    get_menu_style,
     get_preview_text_style,
     get_scroll_area_style,
     get_splitter_style,
@@ -51,6 +55,7 @@ class ExposeTab(QFrame):
     chapterSelected = pyqtSignal(object)
     pageSelected = pyqtSignal(int)
     paragraphActivated = pyqtSignal(str, str, str)
+    paragraphSoloRequested = pyqtSignal(str, str, str)
     searchRequested = pyqtSignal(str)
     translatorChanged = pyqtSignal(str)
 
@@ -138,6 +143,12 @@ class ExposeTab(QFrame):
             QListWidget.ScrollMode.ScrollPerPixel
         )
         self.paragraphs_list.setTextElideMode(Qt.TextElideMode.ElideRight)
+        self.paragraphs_list.setContextMenuPolicy(
+            Qt.ContextMenuPolicy.CustomContextMenu
+        )
+        self.paragraphs_list.customContextMenuRequested.connect(
+            self._on_paragraph_context_menu
+        )
 
         self.paragraph_preview = QPlainTextEdit(self)
         self.paragraph_preview.setReadOnly(True)
@@ -154,10 +165,13 @@ class ExposeTab(QFrame):
         """)
 
         # Add button
-        self.add_btn = QPushButton("Projeter", self)
+        self.add_btn = QPushButton("Projeter le chapitre", self)
         self.add_btn.setIcon(app_icon("cast.svg"))
         self.add_btn.setIconSize(QSize(16, 16))
-        self.add_btn.setToolTip("Projeter le chapitre depuis le paragraphe sélectionné")
+        self.add_btn.setToolTip(
+            "Projeter le chapitre entier à partir du paragraphe sélectionné "
+            "(clic droit sur un paragraphe pour d'autres options)"
+        )
         self.add_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.add_btn.setStyleSheet(get_button_style())
 
@@ -451,6 +465,53 @@ class ExposeTab(QFrame):
         if not ref and not text:
             return
         self.paragraphActivated.emit(ref, text, title)
+
+    def _on_paragraph_context_menu(self, pos) -> None:
+        """Menu contextuel : projeter le chapitre ou le paragraphe seul."""
+        item = self.paragraphs_list.itemAt(pos)
+        if item is None:
+            return
+        self.paragraphs_list.setCurrentItem(item)
+        menu = QMenu(self)
+        menu.setStyleSheet(get_menu_style())
+        act_chapter = menu.addAction(app_icon("cast.svg"), "Projeter le chapitre à partir d'ici")
+        act_solo = menu.addAction(app_icon("mic.svg"), "Projeter ce paragraphe seulement")
+        chosen = menu.exec(self.paragraphs_list.mapToGlobal(pos))
+        if chosen is act_solo:
+            self._emit_solo(item)
+        elif chosen is act_chapter:
+            self._on_paragraph_activated(item)
+
+    def _emit_solo(self, item: QListWidgetItem) -> None:
+        ref = str(item.data(256) or "")
+        text = str(item.data(257) or "")
+        title = str(item.data(258) or self._current_chapter_title or "")
+        if not text:
+            return
+        self.paragraphSoloRequested.emit(ref, text, title)
+
+    def highlight_live_entry(self, entry_index: int | None) -> None:
+        """Surligne le paragraphe actuellement projeté (sans changer l'aperçu).
+
+        Sélectionne la ligne correspondante dans la liste, la rend visible
+        et met à jour la page active dans la barre de pages.
+        """
+        if entry_index is None:
+            return
+        count = self.paragraphs_list.count()
+        if not 0 <= entry_index < count:
+            return
+        item = self.paragraphs_list.item(entry_index)
+        with QSignalBlocker(self.paragraphs_list):
+            self.paragraphs_list.setCurrentRow(entry_index)
+        self.paragraphs_list.scrollToItem(
+            item, QAbstractItemView.ScrollHint.EnsureVisible
+        )
+        # Page correspondante dans la barre (ref « 45-3 » → page 45).
+        ref = str(item.data(256) or "")
+        m = re.match(r"^(\d+)-", ref)
+        if m:
+            self.set_current_page(int(m.group(1)))
 
     def _on_add_clicked(self) -> None:
         item = self.paragraphs_list.currentItem()

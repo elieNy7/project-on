@@ -13,7 +13,7 @@
   "content_width": 94,
   "content_height": 86,
   "show_reference": true,
-  "reference_position": "bottom",
+  "reference_position": "top",
   "uppercase": true,
   "text_color": "rgba(255,255,255,0.92)",
   "ref_color": "rgba(255, 255, 255, 0.78)",

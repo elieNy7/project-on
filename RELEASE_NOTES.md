@@ -1,3 +1,22 @@
+# Project-On 1.7.5
+
+**La position de la référence se choisit en un clic** et l'onglet Exposé (VGR) gagne en confort de pilotage. Les nouveautés sont incluses dans l'installeur : une seule installation met à jour tout, sur le poste comme sur les nouveaux ordinateurs.
+
+## Nouveautés
+
+- **Position de la référence au choix** : un nouveau bouton dans la barre de l'Aperçu bascule la référence biblique **au-dessus** ou **en dessous** du texte, en direct, pendant la projection — sans ouvrir les paramètres. L'aperçu reflète immédiatement la position et le choix est mémorisé pour les prochaines sessions. (Le réglage complet reste disponible dans Paramètres → Affichage.)
+- **Exposé VGR — écran plus propre** : la référence projetée d'un chapitre de l'Exposé affiche désormais **le titre du chapitre seul** (ex. « L'Église de Sardes ») au lieu de « titre - Page X-¶Y » : plus de bruit visuel pour l'assemblée.
+- **Exposé VGR — suivi en direct** : pendant la navigation (suivant/précédent), le paragraphe en projection est **surligné automatiquement** dans la liste et la page correspondante s'active dans la barre de pages — l'opérateur ne perd jamais le fil.
+- **Exposé VGR — projection ciblée** : un **clic droit** sur un paragraphe propose « Projeter ce paragraphe seulement » en plus du classique « Projeter le chapitre à partir d'ici ». Le bouton principal est renommé « Projeter le chapitre » pour lever toute ambiguïté.
+
+## Installation
+
+Téléchargez **`ProjectOn_1.7.5_Setup.exe`** ci-dessous et installez-le par-dessus la version existante : cantiques, playlists, réglages et base sont conservés.
+
+Windows 10 / 11 (64 bits) · fonctionne hors-ligne.
+
+---
+
 # Project-On 1.7.4
 
 **Correction de l'Exposé appliquée automatiquement aux installations existantes** : la 1.7.3 incluait l'Exposé des Sept Âges corrigé (lectures bibliques fusionnées en un seul paragraphe, résidus de mise en page purgés) dans l'installeur, mais les ordinateurs qui avaient déjà Project-On gardaient leur ancien Exposé — la base utilisateur n'est jamais écrasée (cantiques, playlists et réglages préservés). Désormais, au premier démarrage, l'application applique le pack de données corrigé aux bases existantes.

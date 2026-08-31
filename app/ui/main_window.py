@@ -210,6 +210,9 @@ class MainWindow(QMainWindow):
         self.preview_panel.hideToggled.connect(self._on_hide_toggled)
         self.preview_panel.quickTextRequested.connect(self._on_quick_text_requested)
         self.preview_panel.quickEditRequested.connect(self._on_quick_edit_requested)
+        self.preview_panel.referencePositionToggled.connect(
+            self._on_reference_position_toggled
+        )
 
         class _GlobalArrowNavFilter(QObject):
             def __init__(self, owner: MainWindow) -> None:
@@ -704,6 +707,32 @@ class MainWindow(QMainWindow):
         total = self._project_controller.program_count
         self.preview_panel.set_slide_counter(row, total)
         self.status_bar.update_slide(slide.source, slide.reference, row, total)
+        self._sync_expose_highlight(row)
+
+    def _sync_expose_highlight(self, row: int) -> None:
+        """Suit la projection dans l'onglet Exposé quand un chapitre est en direct."""
+        try:
+            chapter_id = self._library_controller.live_expose_chapter_id()
+        except AttributeError:
+            return
+        if chapter_id is None:
+            return
+        entry = self._project_controller.entry_index_for_row(row)
+        expose_tab = getattr(self.library_panel, "expose_tab", None)
+        if expose_tab is not None and hasattr(expose_tab, "highlight_live_entry"):
+            expose_tab.highlight_live_entry(entry)
+
+    def _on_reference_position_toggled(self, top: bool) -> None:
+        """Bouton rapide Réf haut/bas : persiste et applique immédiatement."""
+        self._settings.projection.reference_position = "top" if top else "bottom"
+        self._settings.save(self._settings_path)
+        self._write_presentation_config()
+        cfg = self._settings.projection.to_presentation_config()
+        if self._projection_window is not None and self._projection_window.isVisible():
+            try:
+                self._projection_window._apply_config(cfg)
+            except Exception:
+                pass
 
     def _on_quick_edit_requested(self) -> None:
         """Éditer rapidement la slide affichée en direct (référence + texte)."""

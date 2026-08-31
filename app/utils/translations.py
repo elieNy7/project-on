@@ -173,6 +173,19 @@ _translations: dict[str, dict[str, str]] = {
     "obs": {"fr": "OBS", "en": "OBS"},
     "clear_live": {"fr": "Effacer", "en": "Clear"},
     "quick_edit": {"fr": "Modifier", "en": "Quick Edit"},
+    "reference_position": {"fr": "Position référence", "en": "Reference position"},
+    "reference_position_tooltip": {
+        "fr": "Position de la référence : en haut ou en bas du texte",
+        "en": "Reference position: above or below the text",
+    },
+    "reference_position_tooltip_top": {
+        "fr": "Référence affichée au-dessus du texte — cliquer pour la mettre en bas",
+        "en": "Reference shown above the text — click to move it below",
+    },
+    "reference_position_tooltip_bottom": {
+        "fr": "Référence affichée sous le texte — cliquer pour la mettre en haut",
+        "en": "Reference shown below the text — click to move it above",
+    },
     "logo_mode": {"fr": "Logo", "en": "Logo"},
     # ===== SETTINGS =====
     "settings_title": {"fr": "Paramètres", "en": "Settings"},

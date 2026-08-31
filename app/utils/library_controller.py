@@ -87,6 +87,9 @@ class LibraryController(QObject):
         self._current_stanzas: list[dict[str, Any]] = []
         self._current_hymn_program_title: str = ""
         self._current_expose_pages: list[int] = []
+        # Programme live en cours = chapitre d'Exposé ? Sert au suivi du
+        # paragraphe projeté dans l'onglet Exposé (None sinon).
+        self._live_expose_chapter_id: int | None = None
 
         self._wire()
         self.refresh_all()
@@ -139,6 +142,10 @@ class LibraryController(QObject):
             self._expose_tab.paragraphActivated.connect(
                 self.on_expose_paragraph_activated
             )
+            if hasattr(self._expose_tab, "paragraphSoloRequested"):
+                self._expose_tab.paragraphSoloRequested.connect(
+                    self.on_expose_paragraph_solo
+                )
             self._expose_tab.searchRequested.connect(self.on_expose_search)
             self._expose_tab.translatorChanged.connect(self.refresh_expose)
 
@@ -255,6 +262,7 @@ class LibraryController(QObject):
 
     def on_bible_verse_activated(self, reference: str, text: str) -> None:
         """Projette le chapitre courant depuis le verset cliqué."""
+        self._live_expose_chapter_id = None
         ref = self._clean_text(reference)
         entries = [(p["reference"], p["text"]) for p in self._current_verses]
         focus = next(
@@ -268,6 +276,7 @@ class LibraryController(QObject):
 
     def on_bible_verses_activated(self, verses: list) -> None:
         """Projette la sélection multiple de versets."""
+        self._live_expose_chapter_id = None
         entries = [
             (self._clean_text(ref), self._clean_text(text)) for ref, text in verses
         ]
@@ -406,6 +415,7 @@ class LibraryController(QObject):
         Fonctionne aussi depuis un résultat de recherche globale : le sermon
         d'origine est alors rechargé en arrière-plan avant projection.
         """
+        self._live_expose_chapter_id = None
         ref = self._clean_text(payload.get("reference", ""))
         text = self._clean_text(payload.get("text", ""))
         sermon_id = payload.get("sermon_id")
@@ -583,6 +593,8 @@ class LibraryController(QObject):
 
         Les paragraphes de toutes les pages du chapitre sont rechargés en
         arrière-plan (dans l'ordre des pages) pour former le programme live.
+        La référence projetée reste le titre du chapitre — la position
+        « Page/¶ » n'a d'intérêt que pour l'opérateur, pas pour l'écran.
         """
         ref = self._clean_text(reference)
         chapter_title = self._clean_text(title) or ref
@@ -598,23 +610,16 @@ class LibraryController(QObject):
             return all_rows
 
         def _on_done(rows):
+            self._live_expose_chapter_id = ch_id
             entries: list[tuple[str, str]] = []
             raw_refs: list[str] = []
             for p in rows or []:
                 raw_ref = str(p.get("ref", ""))
-                marker = str(p.get("marker") or p.get("para_id") or raw_ref)
-                m = re.search(r"(\d+)-(\d+)", raw_ref)
-                if m:
-                    enriched = f"{chapter_title} - Page {m.group(1)}-¶{m.group(2)}"
-                elif marker:
-                    enriched = f"{chapter_title} - {marker}"
-                else:
-                    enriched = chapter_title
-                entries.append((enriched, self._clean_text(p.get("text", ""))))
+                entries.append((chapter_title, self._clean_text(p.get("text", ""))))
                 raw_refs.append(raw_ref)
 
             if not entries and text:
-                entries = [(ref, text)]
+                entries = [(chapter_title, text)]
                 raw_refs = [ref]
 
             focus = 0
@@ -628,6 +633,25 @@ class LibraryController(QObject):
             )
 
         self._pool.start(_DbWorker(_fetch, _on_done))
+
+    def on_expose_paragraph_solo(
+        self, reference: str, text: str, title: str = ""
+    ) -> None:
+        """Projette uniquement le paragraphe sélectionné de l'Exposé."""
+        chapter_title = self._clean_text(title)
+        body = self._clean_text(text)
+        if not body:
+            return
+        self._live_expose_chapter_id = self._current_expose_chapter_id
+        self._project.load_program(
+            "sermon", chapter_title or self._clean_text(reference), [
+                (chapter_title or self._clean_text(reference), body)
+            ]
+        )
+
+    def live_expose_chapter_id(self) -> int | None:
+        """Chapitre d'Exposé actuellement en projection (None si autre programme)."""
+        return self._live_expose_chapter_id
 
     def refresh_hymns(self) -> None:
         def _fetch():
@@ -714,6 +738,7 @@ class LibraryController(QObject):
 
     def on_hymn_stanza_activated(self, reference: str, text: str) -> None:
         """Projette tout le cantique courant depuis la strophe cliquée."""
+        self._live_expose_chapter_id = None
         ref = self._clean_text(reference)
         entries = [(p["reference"], p["text"]) for p in self._current_stanzas]
         focus = self._find_entry_index(entries, ref)
@@ -725,6 +750,7 @@ class LibraryController(QObject):
 
     def on_hymn_stanzas_activated(self, stanzas: list[tuple[str, str]]) -> None:
         """Projette la sélection multiple de strophes."""
+        self._live_expose_chapter_id = None
         entries = [
             (self._clean_text(ref), self._clean_text(text)) for ref, text in stanzas
         ]
@@ -735,6 +761,7 @@ class LibraryController(QObject):
 
     def on_hymn_activated(self, hymn_id: int) -> None:
         """Projette tout le cantique sélectionné."""
+        self._live_expose_chapter_id = None
         stanzas = self._hymns_dao.list_stanzas(hymn_id)
         hymn = self._hymns_dao.get_hymn(hymn_id)
         hymn_title = hymn["title"] if hymn else ""

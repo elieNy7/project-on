@@ -127,6 +127,8 @@ class PreviewPanel(QFrame):
     quickEditRequested = pyqtSignal()
     # Texte rapide : (titre, textes, découpage)
     quickTextRequested = pyqtSignal(str, list, bool)
+    # Position de la référence sur la projection : True = en haut
+    referencePositionToggled = pyqtSignal(bool)
 
     def __init__(self, parent=None, settings=None) -> None:
         super().__init__(parent)
@@ -452,6 +454,16 @@ class PreviewPanel(QFrame):
         console_layout.addWidget(self._project_button)
         console_layout.addWidget(self._hide_button)
 
+        # Position de la référence (en haut / en bas) — réglage rapide, sans
+        # passer par le dialogue des réglages de projection.
+        self._ref_pos_button = PreviewControlButton(
+            "chevron-down.svg", tr("reference_position"), self.console_frame
+        )
+        self._ref_pos_button.setCheckable(True)
+        self._ref_pos_button.setToolTip(tr("reference_position_tooltip"))
+        self._ref_pos_button.clicked.connect(self._on_ref_pos_clicked)
+        console_layout.addWidget(self._ref_pos_button)
+
         # Édition rapide de la slide en direct (utile pour corriger une faute
         # pendant le culte) — active seulement quand du contenu est chargé.
         self._edit_button = PreviewControlButton(
@@ -548,6 +560,41 @@ class PreviewPanel(QFrame):
             self.quickTextRequested.emit(
                 title.strip() or tr("quick_text"), texts, split
             )
+
+    # ── Position de la référence (haut / bas) ─────────────────────────
+    def _on_ref_pos_clicked(self, checked: bool) -> None:
+        self._apply_ref_position(checked)
+        self.referencePositionToggled.emit(checked)
+
+    def set_reference_position(self, top: bool) -> None:
+        """Synchronise le bouton et l'aperçu avec la position demandée."""
+        with QSignalBlocker(self._ref_pos_button):
+            self._ref_pos_button.setChecked(bool(top))
+        self._apply_ref_position(bool(top))
+
+    def _apply_ref_position(self, top: bool) -> None:
+        icon = "chevron-up.svg" if top else "chevron-down.svg"
+        self._ref_pos_button.setIcon(app_icon(icon, Colors.TEXT_PRIMARY))
+        tooltip = (
+            tr("reference_position_tooltip_top")
+            if top
+            else tr("reference_position_tooltip_bottom")
+        )
+        self._ref_pos_button.setToolTip(tooltip)
+        self._move_ref_label(top)
+
+    def _move_ref_label(self, top: bool) -> None:
+        """Place la référence de l'aperçu en haut ou en bas de l'écran."""
+        lay = self._slide_frame.layout()
+        if lay is None:
+            return
+        lay.removeWidget(self._ref_label)
+        if top:
+            # Juste sous la rangée de badges LIVE / statut.
+            lay.insertWidget(lay.indexOf(self._stage_top) + 1, self._ref_label, 0)
+        else:
+            # Juste au-dessus de la barre de pied (scène / compteur).
+            lay.insertWidget(lay.indexOf(self._stage_footer), self._ref_label, 0)
 
     def set_slide(self, reference: str, text: str, image_path: str = "") -> None:
         ref = str(reference or "").strip()
@@ -675,6 +722,12 @@ class PreviewPanel(QFrame):
     def set_settings(self, settings) -> None:
         """Refresh the operator preview from the active application settings."""
         self._settings = settings
+        reference_position = ""
+        if settings is not None and hasattr(settings, "projection"):
+            reference_position = str(
+                getattr(settings.projection, "reference_position", "") or ""
+            ).lower()
+        self.set_reference_position(reference_position == "top")
         self._apply_slide_text_style()
 
     def _toggle_hide(self) -> None:

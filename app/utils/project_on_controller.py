@@ -35,6 +35,7 @@ class ProjectOnController(QObject):
         self._program_slides: list[Slide] = []
         self._program_title: str = ""
         self._current_row = -1
+        self._entry_start_rows: list[int | None] = []
 
     # ── Properties ─────────────────────────────────────────────────────────
 
@@ -110,6 +111,7 @@ class ProjectOnController(QObject):
 
         self._program_slides = slides
         self._program_title = self._clean_text(title)
+        self._entry_start_rows = entry_start_rows
 
         focus = entry_start_rows[focus_entry] if 0 <= focus_entry < len(entry_start_rows) else None
         if focus is None:
@@ -177,6 +179,23 @@ class ProjectOnController(QObject):
 
     def current_row(self) -> int:
         return self._current_row
+
+    def entry_index_for_row(self, row: int) -> int | None:
+        """Index de l'entrée d'origine qui produit la slide ``row``.
+
+        Permet à l'interface de retrouver l'élément de bibliothèque
+        (paragraphe de sermon/exposé, strophe…) correspondant à la slide
+        affichée. ``None`` si la slide ne correspond à aucune entrée.
+        """
+        if not 0 <= row < len(self._program_slides):
+            return None
+        entry = None
+        for i, start in enumerate(self._entry_start_rows):
+            if start is not None and start <= row:
+                entry = i
+            elif start is not None and start > row:
+                break
+        return entry
 
     def next_slide(self) -> None:
         if not self._program_slides:
