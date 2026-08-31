@@ -291,33 +291,22 @@ class HymnsTab(QFrame):
             self.stanzaActivated.emit(ref, content)
 
     def _on_stanzas_context_menu(self, pos) -> None:
-        """Menu contextuel : ajouter à la playlist (strophes ou cantique)."""
+        """Menu contextuel : l'ajout à la playlist prend toujours le cantique entier."""
         if self.stanzas_list.count() == 0:
             return
-        selected = self.stanzas_list.selectedItems()
-        if not selected and self.stanzas_list.currentItem() is not None:
-            selected = [self.stanzas_list.currentItem()]
-        if not selected:
-            return
+        if self.stanzas_list.currentItem() is None:
+            self.stanzas_list.setCurrentRow(0)
 
         menu = QMenu(self)
         menu.setStyleSheet(get_menu_style())
-        act_selection = menu.addAction(
-            f"Ajouter à la playlist ({len(selected)} strophe"
-            f"{'s' if len(selected) > 1 else ''})"
-        )
         act_all = menu.addAction("Ajouter tout le cantique à la playlist")
         chosen = menu.exec(self.stanzas_list.mapToGlobal(pos))
+        if chosen is not act_all:
+            return
 
-        source = (
-            selected
-            if chosen is act_selection
-            else self.stanzas_list.findItems("*", Qt.MatchFlag.MatchWildcard)
-            if chosen is act_all
-            else []
-        )
         payload = []
-        for item in source:
+        for row in range(self.stanzas_list.count()):
+            item = self.stanzas_list.item(row)
             data = item.data(Qt.ItemDataRole.UserRole)
             if isinstance(data, tuple) and len(data) == 2:
                 payload.append((str(data[0]), str(data[1])))

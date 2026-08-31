@@ -358,6 +358,8 @@ class BibleTab(QFrame):
             item = QListWidgetItem(display)
             item.setData(256, ref)
             item.setData(257, text)
+            if no is not None:
+                item.setData(258, int(no))
             self.verses_list.addItem(item)
 
         if verses:
@@ -404,12 +406,15 @@ class BibleTab(QFrame):
             f"Ajouter à la playlist ({len(selected)} verset"
             f"{'s' if len(selected) > 1 else ''})"
         )
+        act_range = menu.addAction("Ajouter une plage de versets…")
         act_chapter = menu.addAction("Ajouter tout le chapitre à la playlist")
         chosen = menu.exec(self.verses_list.mapToGlobal(pos))
         if chosen is act_selection:
             payload = [
                 (str(i.data(256) or ""), str(i.data(257) or "")) for i in selected
             ]
+        elif chosen is act_range:
+            payload = self._verses_range_payload()
         elif chosen is act_chapter:
             payload = [
                 (
@@ -423,6 +428,30 @@ class BibleTab(QFrame):
         payload = [(ref, text) for ref, text in payload if ref or text]
         if payload:
             self.addToPlaylistRequested.emit(payload)
+
+    def _verses_range_payload(self) -> list[tuple[str, str]]:
+        """Construit l'ajout en série « versets 1 à N » via un dialogue."""
+        from PyQt6.QtWidgets import QDialog
+
+        from app.ui.range_dialog import RangeDialog
+
+        count = self.verses_list.count()
+        if count == 0:
+            return []
+        dialog = RangeDialog(
+            "Ajouter une plage de versets à la playlist",
+            count,
+            parent=self,
+            noun="verset",
+        )
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return []
+        start, end = dialog.values()
+        payload = []
+        for i in range(start - 1, min(end, count)):
+            item = self.verses_list.item(i)
+            payload.append((str(item.data(256) or ""), str(item.data(257) or "")))
+        return payload
 
     def _on_add_verse_clicked(self) -> None:
         selected = self.verses_list.selectedItems()

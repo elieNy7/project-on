@@ -1,3 +1,21 @@
+# Project-On 1.8.1
+
+**L'ajout à la playlist passe à la vitesse supérieure : en série.** Composez une playlist de culte en quelques clics — une plage de versets, une série de paragraphes, un cantique entier.
+
+## Nouveautés
+
+- **Bible — plages de versets** : clic droit dans la liste des versets → « **Ajouter une plage de versets…** » et indiquez « du 1 au 4 » : les versets demandés rejoignent la playlist en un seul ajout.
+- **Prédications et Exposés — plages de paragraphes** : clic droit → « **Ajouter une plage de paragraphes…** » — « du 1 au 4 » ajoute la série complète, dans l'ordre.
+- **Cantiques — toujours le cantique entier** : l'ajout à la playlist depuis un cantique ajoute désormais **toutes les strophes**, dans l'ordre du cantique — plus besoin de sélectionner.
+
+## Installation
+
+Téléchargez **`ProjectOn_1.8.1_Setup.exe`** ci-dessous et installez-le par-dessus la version existante : cantiques, playlists, réglages et base sont conservés.
+
+Windows 10 / 11 (64 bits) · fonctionne hors-ligne.
+
+---
+
 # Project-On 1.8.0
 
 **La passe « régie professionnelle »** : Project-On gagne les outils des régies de projection pro — aperçu du slide à venir, sauts rapides dans le programme, horloge à l'écran, playlists partageables entre ordinateurs. Basé sur vos retours : le chronomètre de culte n'a pas été ajouté et le bouton « Texte rapide » disparaît de la barre d'Aperçu pour laisser place nette.

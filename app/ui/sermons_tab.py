@@ -627,6 +627,7 @@ class SermonsTab(QFrame):
         copy_action = menu.addAction("Copier le texte")
         add_action = menu.addAction("Projeter")
         playlist_action = menu.addAction("Ajouter à la playlist")
+        playlist_range_action = menu.addAction("Ajouter une plage de paragraphes…")
 
         action = menu.exec(self.paragraphs_list.mapToGlobal(pos))
 
@@ -637,6 +638,34 @@ class SermonsTab(QFrame):
         elif action == playlist_action:
             payload = [(str(item.data(256) or ""), str(item.data(257) or ""))]
             self.addToPlaylistRequested.emit(payload)
+        elif action == playlist_range_action:
+            payload = self._paragraphs_range_payload()
+            if payload:
+                self.addToPlaylistRequested.emit(payload)
+
+    def _paragraphs_range_payload(self) -> list[tuple[str, str]]:
+        """Ajout en série « paragraphes 1 à N » (positions dans la liste)."""
+        from PyQt6.QtWidgets import QDialog
+
+        from app.ui.range_dialog import RangeDialog
+
+        count = self.paragraphs_list.count()
+        if count == 0:
+            return []
+        dialog = RangeDialog(
+            "Ajouter une plage de paragraphes à la playlist",
+            count,
+            parent=self,
+            noun="paragraphe",
+        )
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return []
+        start, end = dialog.values()
+        payload = []
+        for i in range(start - 1, min(end, count)):
+            item = self.paragraphs_list.item(i)
+            payload.append((str(item.data(256) or ""), str(item.data(257) or "")))
+        return payload
 
     # ── Paragraph global search ──────────────────────────────────────
 
