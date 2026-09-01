@@ -14,6 +14,8 @@ class SlideWriter:
         self._slide_path = presentation_dir / "slide.json"
         self._hidden = False
         self._last_slide: Slide | None = None
+        self._video_playing = False
+        self._video_reset = False
 
     @property
     def slide_path(self) -> Path:
@@ -36,7 +38,25 @@ class SlideWriter:
 
     def write(self, slide: Slide) -> None:
         self._last_slide = slide
+        # Une nouvelle slide repart en pause : la lecture vidéo est manuelle.
+        self._video_playing = False
         self._write_current()
+
+    def set_video_playing(self, playing: bool) -> None:
+        """Commande play/pause pour la vidéo en direct (controlée par l'opérateur)."""
+        self._video_playing = bool(playing)
+        self._write_current()
+
+    def set_video_reset(self) -> None:
+        """Stop : remet la vidéo au début et en pause (une seule écriture)."""
+        self._video_playing = False
+        self._video_reset = True
+        self._write_current()
+        self._video_reset = False
+
+    @property
+    def video_playing(self) -> bool:
+        return self._video_playing
 
     def _write_current(self) -> None:
         self._presentation_dir.mkdir(parents=True, exist_ok=True)
@@ -48,18 +68,25 @@ class SlideWriter:
                 "source": "",
                 "background": "",
                 "image": "",
+                "video": "",
+                "video_playing": False,
+                "video_reset": False,
                 "hidden": True,
             }
         else:
             text = self._last_slide.text
             if self._last_slide.source == "hymn":
                 text = strip_hymn_projection_label(text)
+            has_video = bool(self._last_slide.video_path)
             payload = {
                 "reference": self._last_slide.reference,
                 "text": text,
                 "source": self._last_slide.source,
                 "background": self._last_slide.background or "",
                 "image": self._last_slide.image_path or "",
+                "video": self._last_slide.video_path or "",
+                "video_playing": self._video_playing if has_video else False,
+                "video_reset": self._video_reset if has_video else False,
                 "hidden": False,
             }
 

@@ -207,6 +207,30 @@ def backgrounds_dir() -> Path:
     return d
 
 
+def media_dir() -> Path:
+    """Return the user media library directory (images + vidéos)."""
+    d = user_data_dir() / "media"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def import_media_file(source: str | Path) -> Path | None:
+    """Copie un média dans la bibliothèque utilisateur (dédupliqué).
+
+    Retourne le chemin de la copie, ou None si la source est absente.
+    Un fichier de même nom et même taille déjà présent est réutilisé.
+    """
+    import shutil
+
+    src = Path(str(source))
+    if not src.is_file():
+        return None
+    dest = media_dir() / src.name
+    if not dest.exists() or dest.stat().st_size != src.stat().st_size:
+        shutil.copy2(src, dest)
+    return dest
+
+
 def seed_default_backgrounds() -> None:
     """Copy the bundled default backgrounds into the user backgrounds folder.
 

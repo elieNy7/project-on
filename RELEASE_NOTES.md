@@ -1,3 +1,25 @@
+# Project-On 1.9.0
+
+**Project-On s'élargit : images et vidéos** 🎬 — un nouvel onglet **Médias** permet d'importer vos photos et vidéos, de les projeter plein écran, de les ajouter à vos playlists et de les envoyer vers OBS. Composez maintenant des cultes complets mêlant versets, cantiques, prédications, images d'annonce et clips vidéo.
+
+## Nouveautés
+
+- **Onglet « Médias »** dans la bibliothèque (Ctrl+5) : galerie de miniatures, import d'**images** (png, jpg, webp, bmp, gif) et de **vidéos** (mp4, webm, mov, mkv, avi) — les fichiers sont copiés dans la bibliothèque Project-On, plus besoin de refaire les imports.
+- **Projection plein écran** : double-clic sur une image ou une vidéo pour la projeter. Les images s'affichent seules, sans voile.
+- **Vidéo à contrôle manuel** : la vidéo s'affiche prête (en pause) et vous lancez la lecture quand vous voulez avec le bouton **Lecture / Pause** de l'Aperçu — **Stop** revient au début. Navigation suivant/précédent : la vidéo se coupe proprement.
+- **Médias dans les playlists** : clic droit → « Ajouter à la playlist » ; dans une playlist, les vidéos se lancent à la main, les diapositives textuelles s'enchaînent normalement.
+- **OBS** : les vidéos sont servies au navigateur OBS (`api/video`, lecture/pause pilotés depuis l'application).
+- **Titre des Exposés dans les playlists** : les paragraphes d'Exposé ajoutés à une playlist portent désormais le titre de leur chapitre (plus de marqueurs bruts « 45-3 »).
+- Raccourcis mis à jour : 7 onglets — **Ctrl+5 = Médias**, Ctrl+6 = Playlists, Ctrl+7 = Paramètres.
+
+## Installation
+
+Téléchargez **`ProjectOn_1.9.0_Setup.exe`** ci-dessous et installez-le par-dessus la version existante : cantiques, playlists, réglages et base sont conservés.
+
+Windows 10 / 11 (64 bits) · fonctionne hors-ligne.
+
+---
+
 # Project-On 1.8.2
 
 **Soutenez le projet ❤** — Project-On est et restera gratuit. Un nouveau bouton « Soutenir le projet » fait désormais le lien vers la page de dons, pour celles et ceux qui souhaitent aider le développement d'un coup de pouce libre.

@@ -7,6 +7,7 @@ notifications are sent OUTSIDE the data lock to prevent deadlocks.
 
 import json
 import queue
+import re
 import socket
 import sys
 import threading
@@ -161,6 +162,22 @@ class ObsWebServer:
                     else:
                         self.send_error(404)
 
+                elif path == "api/video":
+                    with server_ref._data_lock:
+                        video_path = str(
+                            server_ref._slide.get("video_path", "") or ""
+                        )
+                    if not video_path:
+                        self.send_error(404)
+                        return
+                    target = Path(video_path)
+                    if target.is_file():
+                        # Range basique : le navigateur OBS demande souvent
+                        # « bytes=0- » avant de streamer.
+                        self._video_file(target, self.headers.get("Range", ""))
+                    else:
+                        self.send_error(404)
+
                 elif path == "api/bg-image":
                     with server_ref._data_lock:
                         bg_path = server_ref._config.get("bg_image", "")
@@ -311,6 +328,11 @@ class ObsWebServer:
                 ".ttf": "font/ttf",
                 ".woff": "font/woff",
                 ".woff2": "font/woff2",
+                ".mp4": "video/mp4",
+                ".webm": "video/webm",
+                ".mov": "video/quicktime",
+                ".mkv": "video/x-matroska",
+                ".avi": "video/x-msvideo",
             }
 
             def _file(self, fpath: Path, ctype: str | None = None):
@@ -332,6 +354,51 @@ class ObsWebServer:
                     self.wfile.write(body)
                 except Exception as exc:
                     self.send_error(500, str(exc))
+
+            def _video_file(self, fpath: Path, range_header: str = ""):
+                """Sert une vidéo avec support Range (lecture navigateur OBS)."""
+                if not fpath.is_file():
+                    self.send_error(404)
+                    return
+                ctype = self._MIME.get(
+                    fpath.suffix.lower(), "video/mp4"
+                )
+                total = fpath.stat().st_size
+                start, end = 0, total - 1
+                m = re.match(r"bytes=(\d*)-(\d*)", range_header or "")
+                if m and (m.group(1) or m.group(2)):
+                    if m.group(1):
+                        start = int(m.group(1))
+                    if m.group(2):
+                        end = min(int(m.group(2)), total - 1)
+                    else:
+                        end = total - 1
+                if start > end or start >= total:
+                    self.send_response(416)
+                    self.send_header("Content-Range", f"bytes */{total}")
+                    self.end_headers()
+                    return
+                try:
+                    with fpath.open("rb") as fh:
+                        fh.seek(start)
+                        chunk = fh.read(end - start + 1)
+                    if start > 0 or end < total - 1:
+                        self.send_response(206)
+                        self.send_header(
+                            "Content-Range", f"bytes {start}-{end}/{total}"
+                        )
+                    else:
+                        self.send_response(200)
+                    self.send_header("Content-Type", ctype)
+                    self.send_header("Content-Length", str(len(chunk)))
+                    self.send_header("Accept-Ranges", "bytes")
+                    self.send_header("Access-Control-Allow-Origin", "*")
+                    self.send_header("Cache-Control", "no-cache")
+                    self.end_headers()
+                    self.wfile.write(chunk)
+                except Exception:
+                    # Client déconnecté en cours de stream : non bloquant.
+                    pass
 
             def _json(self, obj: Any):
                 try:
@@ -390,7 +457,7 @@ class ObsWebServer:
         self._broadcast_update()
 
     def update_slide(
-        self, text: str, reference: str, source: str = "custom", hidden: bool = False, image_path: str = ""
+        self, text: str, reference: str, source: str = "custom", hidden: bool = False, image_path: str = "", video_path: str = "", video_playing: bool = False
     ) -> None:
         """Update slide. Polling clients will pick it up on next interval."""
         slide = {
@@ -399,6 +466,8 @@ class ObsWebServer:
             "source": source,
             "hidden": hidden,
             "image_path": image_path,
+            "video_path": video_path,
+            "video_playing": bool(video_playing),
         }
         with self._data_lock:
             self._slide = slide.copy()

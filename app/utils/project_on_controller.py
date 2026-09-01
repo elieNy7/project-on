@@ -70,6 +70,7 @@ class ProjectOnController(QObject):
         entries: list[tuple[str, str]],
         focus_entry: int = 0,
         split: bool = True,
+        entry_visuals: list[str] | None = None,
     ) -> int:
         """Charge un programme de projection et projette l'entrée demandée.
 
@@ -77,14 +78,38 @@ class ProjectOnController(QObject):
         les textes longs sont découpés en parties « réf (i/n) ». Le programme
         précédent est remplacé, puis la première partie de ``focus_entry``
         passe en direct.
+
+        ``entry_visuals`` (optionnel, même longueur que ``entries``) associe
+        à chaque entrée un média : image ou vidéo (décision par extension).
+        Une entrée à visuel produit une slide unique sans découpage —
+        ``source`` bascule sur ``image``/``video``.
         """
         slides: list[Slide] = []
         entry_start_rows: list[int | None] = []
-        for reference, text in entries:
+        for index, (reference, text) in enumerate(entries):
             ref_clean = self._clean_text(reference)
             text_clean = self._clean_text(text)
-            if source == "hymn":
+            visual = ""
+            if entry_visuals is not None and index < len(entry_visuals):
+                visual = str(entry_visuals[index] or "").strip()
+            if source == "hymn" and not visual:
                 text_clean = strip_hymn_projection_label(text_clean)
+
+            if visual:
+                # Média : une slide unique, jamais découpée.
+                from app.utils.media_utils import is_video_file
+
+                slides.append(
+                    Slide(
+                        source="video" if is_video_file(visual) else "image",
+                        reference=ref_clean,
+                        text="",
+                        image_path=None if is_video_file(visual) else visual,
+                        video_path=visual if is_video_file(visual) else None,
+                    )
+                )
+                entry_start_rows.append(len(slides) - 1)
+                continue
 
             if split:
                 chunks = self._split_text(text_clean)
@@ -133,6 +158,39 @@ class ProjectOnController(QObject):
             return -1
         return self.load_program("custom", title, entries, split=split)
 
+    def load_media(self, path: str, name: str = "") -> int:
+        """Projette immédiatement un média (image ou vidéo) plein écran."""
+        from app.utils.media_utils import is_media_file
+
+        if not is_media_file(path):
+            return -1
+        from app.utils.media_utils import media_kind
+
+        label = name or Path(path).stem
+        return self.load_program(
+            "image" if media_kind(path) == "image" else "video",
+            label,
+            [(label, "")],
+            entry_visuals=[path],
+        )
+
+    def set_video_playing(self, playing: bool) -> None:
+        """Play/pause de la vidéo en direct (contrôle manuel opérateur)."""
+        slide = self.current_slide()
+        if slide is None or not slide.video_path:
+            return
+        self.slide_writer.set_video_playing(bool(playing))
+        # Re-émettre la slide : l'aperçu et l'OBS suivent l'état de lecture.
+        self.currentSlideChanged.emit(slide)
+
+    def restart_video(self) -> None:
+        """Stop : remet la vidéo en direct au début, en pause."""
+        slide = self.current_slide()
+        if slide is None or not slide.video_path:
+            return
+        self.slide_writer.set_video_reset()
+        self.currentSlideChanged.emit(slide)
+
     @staticmethod
     def _clean_text(value: object) -> str:
         from app.utils.text_utils import clean_text
@@ -163,6 +221,7 @@ class ProjectOnController(QObject):
                 text=strip_hymn_projection_label(slide.text),
                 background=slide.background,
                 image_path=slide.image_path,
+                video_path=slide.video_path,
             )
         elif slide.source == "hymn":
             presentation_slide = Slide(
@@ -171,6 +230,7 @@ class ProjectOnController(QObject):
                 text=strip_hymn_projection_label(slide.text),
                 background=slide.background,
                 image_path=slide.image_path,
+                video_path=slide.video_path,
             )
 
         self._slide_writer.write(presentation_slide)
@@ -245,6 +305,7 @@ class ProjectOnController(QObject):
             text=text_clean,
             image_path=current_slide.image_path,
             background=current_slide.background,
+            video_path=current_slide.video_path,
         )
         self._slide_writer.write(edited)
         self.currentSlideChanged.emit(edited)

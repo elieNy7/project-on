@@ -159,6 +159,7 @@ class MainWindow(QMainWindow):
             sermons_tab=self.library_panel.sermons_tab,
             expose_tab=self.library_panel.expose_tab,
             playlist_tab=self.library_panel.playlist_tab,
+            media_tab=self.library_panel.media_tab,
         )
 
         # Lazy-load sermons & expose when their tab is first shown
@@ -214,6 +215,7 @@ class MainWindow(QMainWindow):
         self.preview_panel.referencePositionToggled.connect(
             self._on_reference_position_toggled
         )
+        self.preview_panel.videoControlRequested.connect(self._on_video_control)
 
         class _GlobalArrowNavFilter(QObject):
             def __init__(self, owner: MainWindow) -> None:
@@ -265,9 +267,9 @@ class MainWindow(QMainWindow):
         sc_f1.setContext(Qt.ShortcutContext.ApplicationShortcut)
         sc_f1.activated.connect(self._show_shortcuts_dialog)
 
-        # Ctrl+1..6 → Switch library tabs (Bible, Cantiques, Prédications,
-        # Exposés, Playlists, Paramètres)
-        for i in range(6):
+        # Ctrl+1..7 → Switch library tabs (Bible, Cantiques, Prédications,
+        # Exposés, Médias, Playlists, Paramètres)
+        for i in range(7):
             sc_tab = QShortcut(QKeySequence(f"Ctrl+{i + 1}"), self)
             sc_tab.setContext(Qt.ShortcutContext.ApplicationShortcut)
             sc_tab.activated.connect(
@@ -735,7 +737,13 @@ class MainWindow(QMainWindow):
             self.status_bar.clear_slide()
             return
         image_path = slide.image_path or slide.background or ""
-        self.preview_panel.set_slide(slide.reference, slide.text, image_path=image_path)
+        self.preview_panel.set_slide(
+            slide.reference,
+            slide.text,
+            image_path=image_path,
+            video_path=slide.video_path or "",
+            video_playing=self._project_controller.slide_writer.video_playing,
+        )
         # Bandeau « Suivant » : le slide à venir, sans changer l'écran.
         peek = self._project_controller.peek_next_slide()
         if peek is not None:
@@ -774,6 +782,15 @@ class MainWindow(QMainWindow):
             except Exception:
                 pass
 
+    def _on_video_control(self, command: str) -> None:
+        """Boutons Lecture / Pause / Stop de la vidéo en direct."""
+        if command == "play":
+            self._project_controller.set_video_playing(True)
+        elif command == "pause":
+            self._project_controller.set_video_playing(False)
+        elif command == "stop":
+            self._project_controller.restart_video()
+
     def _on_quick_edit_requested(self) -> None:
         """Éditer rapidement la slide affichée en direct (référence + texte)."""
         from app.ui.quick_edit_dialog import QuickEditDialog
@@ -803,7 +820,15 @@ class MainWindow(QMainWindow):
         slide = self._project_controller.current_slide()
         if slide:
             img = slide.image_path or slide.background or ""
-            self._obs.update_slide(slide.text, slide.reference, slide.source, hidden, img)
+            self._obs.update_slide(
+                slide.text,
+                slide.reference,
+                slide.source,
+                hidden,
+                img,
+                video_path=slide.video_path or "",
+                video_playing=self._project_controller.slide_writer.video_playing,
+            )
         else:
             self._obs.update_slide("", "", "custom", True, "")
         self._obs_remote.notify_live(hidden)
@@ -817,7 +842,15 @@ class MainWindow(QMainWindow):
         slide = self._project_controller.current_slide()
         if slide:
             img = slide.image_path or slide.background or ""
-            self._obs.update_slide(slide.text, slide.reference, slide.source, hidden, img)
+            self._obs.update_slide(
+                slide.text,
+                slide.reference,
+                slide.source,
+                hidden,
+                img,
+                video_path=slide.video_path or "",
+                video_playing=self._project_controller.slide_writer.video_playing,
+            )
         else:
             self._obs.update_slide("", "", "custom", True, "")
         self._obs_remote.notify_live(hidden)
@@ -829,7 +862,15 @@ class MainWindow(QMainWindow):
             self._obs.update_slide("", "", "custom", True, "")
         else:
             img = slide.image_path or slide.background or ""
-            self._obs.update_slide(slide.text, slide.reference, slide.source, hidden, img)
+            self._obs.update_slide(
+                slide.text,
+                slide.reference,
+                slide.source,
+                hidden,
+                img,
+                video_path=slide.video_path or "",
+                video_playing=self._project_controller.slide_writer.video_playing,
+            )
         self._obs_remote.notify_live(hidden)
 
     # ── New feature handlers ───────────────────────────────────────────────

@@ -79,6 +79,7 @@ class Database:
                 self._set_user_version(conn, 7)
                 current_version = 7
             self._ensure_playlist_tables(conn)
+            self._ensure_media_tables(conn)
             # Cheap and idempotent: drop dead weight indexes on every launch.
             indexes_dropped = self._drop_obsolete_indexes(conn)
             maintenance_ran = False
@@ -1000,6 +1001,24 @@ class Database:
     def _ensure_playlist_tables(self, conn: sqlite3.Connection) -> None:
         """S'assure que les tables playlist existent (pour les bases existantes)."""
         self._apply_migration_v3(conn)
+
+    def _ensure_media_tables(self, conn: sqlite3.Connection) -> None:
+        """S'assure que la table des médias existe (idempotent, bases existantes)."""
+        conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS media_item (
+                id INTEGER PRIMARY KEY,
+                name TEXT NOT NULL,
+                path TEXT NOT NULL UNIQUE,
+                kind TEXT NOT NULL DEFAULT 'image',
+                sort_order INTEGER DEFAULT 0,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_media_item_sort
+                ON media_item (sort_order, id);
+            """,
+        )
 
     def _import_bible_json_translations(self, conn: sqlite3.Connection) -> None:
         json_dir = bible_json_dir()

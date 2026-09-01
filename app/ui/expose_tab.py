@@ -518,9 +518,10 @@ class ExposeTab(QFrame):
         elif chosen is act_chapter:
             self._on_paragraph_activated(item)
         elif chosen is act_playlist:
-            payload = [
-                (str(item.data(256) or ""), str(item.data(257) or ""))
-            ]
+            # La référence de playlist porte le TITRE du chapitre, pas le
+            # marqueur brut « 45-3 » — c'est elle qui s'affiche en projection.
+            chapter = str(self._current_chapter_title or item.data(256) or "")
+            payload = [(chapter, str(item.data(257) or ""))]
             self.addToPlaylistRequested.emit(payload)
         elif chosen is act_playlist_range:
             payload = self._paragraphs_range_payload()
@@ -545,10 +546,12 @@ class ExposeTab(QFrame):
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return []
         start, end = dialog.values()
+        chapter = str(self._current_chapter_title or "").strip()
         payload = []
         for i in range(start - 1, min(end, count)):
             item = self.paragraphs_list.item(i)
-            payload.append((str(item.data(256) or ""), str(item.data(257) or "")))
+            reference = chapter or str(item.data(256) or "")
+            payload.append((reference, str(item.data(257) or "")))
         return payload
 
     def _emit_solo(self, item: QListWidgetItem) -> None:

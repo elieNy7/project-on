@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-SourceType = Literal["bible", "sermon", "hymn", "custom", "image"]
+SourceType = Literal["bible", "sermon", "hymn", "custom", "image", "video"]
 
 
 @dataclass(frozen=True)
@@ -13,3 +13,4 @@ class Slide:
     text: str
     background: str | None = None
     image_path: str | None = None
+    video_path: str | None = None

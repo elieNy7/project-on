@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import (
 from app.ui.bible_tab import BibleTab
 from app.ui.expose_tab import ExposeTab
 from app.ui.hymns_tab import HymnsTab
+from app.ui.media_tab import MediaTab
 from app.ui.playlist_tab import PlaylistTab
 from app.ui.sermons_tab import SermonsTab
 from app.ui.settings_tab import SettingsTab
@@ -41,6 +42,7 @@ class LibraryPanel(QFrame):
         self.sidebar.addTab(tr("hymns"), "music.svg")
         self.sidebar.addTab(tr("sermons"), "mic.svg")
         self.sidebar.addTab(tr("expose"), "file-text.svg")
+        self.sidebar.addTab(tr("media"), "image.svg")
         self.sidebar.addTab(tr("playlist"), "play.svg")
         self.sidebar.addTab(tr("settings"), "settings.svg")
 
@@ -53,6 +55,7 @@ class LibraryPanel(QFrame):
         self.hymns_tab = HymnsTab(self)
         self.sermons_tab = SermonsTab(self)
         self.expose_tab = ExposeTab(self)
+        self.media_tab = MediaTab(self)
         self.playlist_tab = PlaylistTab(self)
         self.settings_tab = SettingsTab(self)
 
@@ -60,6 +63,7 @@ class LibraryPanel(QFrame):
         self.stack.addWidget(self.hymns_tab)
         self.stack.addWidget(self.sermons_tab)
         self.stack.addWidget(self.expose_tab)
+        self.stack.addWidget(self.media_tab)
         self.stack.addWidget(self.playlist_tab)
         self.stack.addWidget(self.settings_tab)
 

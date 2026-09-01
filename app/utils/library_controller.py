@@ -37,6 +37,7 @@ class _DbWorker(QRunnable):
 
 from app.database.dao_bible import BibleDao
 from app.database.dao_hymns import HymnsDao
+from app.database.dao_media import MediaDao
 from app.database.dao_playlist import PlaylistDao
 from app.database.dao_sermons import SermonsDao
 from app.ui.pdf_import_dialog import PdfImportDialog
@@ -55,6 +56,7 @@ class LibraryController(QObject):
         sermons_tab: QObject,
         expose_tab: QObject | None = None,
         playlist_tab: QObject | None = None,
+        media_tab: QObject | None = None,
     ) -> None:
         super().__init__()
         self._db = db
@@ -64,12 +66,14 @@ class LibraryController(QObject):
         self._hymns_dao = HymnsDao(db)
         self._sermons_dao = SermonsDao(db)
         self._playlist_dao = PlaylistDao(db)
+        self._media_dao = MediaDao(db)
 
         self._bible_tab = bible_tab
         self._hymns_tab = hymns_tab
         self._sermons_tab = sermons_tab
         self._expose_tab = expose_tab
         self._playlist_tab = playlist_tab
+        self._media_tab = media_tab
 
         self._current_translation_id: int | None = None
         self._current_book_id: int | None = None
@@ -177,6 +181,16 @@ class LibraryController(QObject):
             )
             self._playlist_tab.importRequested.connect(self.on_playlist_import)
 
+        if self._media_tab is not None:
+            self._media_tab.importRequested.connect(self.on_media_import)
+            self._media_tab.itemActivated.connect(self.on_media_item_activated)
+            self._media_tab.itemDeleteRequested.connect(self.on_media_delete)
+            self._media_tab.itemRenameRequested.connect(self.on_media_rename)
+            self._media_tab.refreshRequested.connect(self.refresh_media)
+            self._media_tab.mediaAddToPlaylistRequested.connect(
+                self.on_media_add_to_playlist
+            )
+
         # « Ajouter à la playlist » depuis Bible / Cantiques / Sermons / Exposé.
         for tab in (self._bible_tab, self._hymns_tab, self._sermons_tab, self._expose_tab):
             if tab is not None and hasattr(tab, "addToPlaylistRequested"):
@@ -211,6 +225,7 @@ class LibraryController(QObject):
         self.refresh_sermons()
         self.refresh_expose()
         self.refresh_playlists()
+        self.refresh_media()
         self._sermons_loaded = True
         self._expose_loaded = True
 
@@ -1410,28 +1425,143 @@ class LibraryController(QObject):
 
         def _on_done(items):
             self._live_expose_chapter_id = None
-            entries = [
-                (
-                    self._clean_text(it.get("reference") or title),
-                    self._clean_text(it.get("text") or ""),
-                )
-                for it in items or []
-            ]
-            entries = [(ref, text) for ref, text in entries if text]
+            entries: list[tuple[str, str]] = []
+            visuals: list[str] = []
+            for it in items or []:
+                is_media = str(it.get("source") or "") == "media" and str(
+                    it.get("background") or ""
+                ).strip()
+                reference = self._clean_text(it.get("reference") or title)
+                body = "" if is_media else self._clean_text(it.get("text") or "")
+                if is_media or body:
+                    entries.append((reference, body))
+                    visuals.append(str(it.get("background") or "") if is_media else "")
             if not entries:
                 return
             focus = 0
             if item_id is not None:
                 position = 0
                 for it in items or []:
-                    if not self._clean_text(it.get("text") or ""):
+                    if not (
+                        self._clean_text(it.get("text") or "")
+                        or (
+                            str(it.get("source") or "") == "media"
+                            and str(it.get("background") or "").strip()
+                        )
+                    ):
                         continue
                     if int(it["id"]) == int(item_id):
                         focus = position
                         break
                     position += 1
             self._project.load_program(
-                "custom", title, entries, focus_entry=focus
+                "custom", title, entries, focus_entry=focus, entry_visuals=visuals
             )
 
         self._pool.start(_DbWorker(_fetch, _on_done))
+
+    # ── Médias (images + vidéos) ──────────────────────────────────────────
+
+    def refresh_media(self) -> None:
+        """Recharge la galerie de médias en arrière-plan."""
+        if self._media_tab is None:
+            return
+
+        def _fetch():
+            return self._media_dao.list_media()
+
+        def _on_done(items):
+            if items is None:
+                items = []
+            if hasattr(self._media_tab, "set_media"):
+                self._media_tab.set_media(items)
+
+        self._pool.start(_DbWorker(_fetch, _on_done))
+
+    def on_media_import(self, kind: str = "image") -> None:
+        """Importe des fichiers média (copie dans la bibliothèque utilisateur)."""
+        from PyQt6.QtWidgets import QFileDialog
+
+        from app.utils.app_paths import import_media_file
+        from app.utils.media_utils import (
+            IMAGE_FILE_FILTER,
+            MEDIA_FILE_FILTER,
+            VIDEO_FILE_FILTER,
+            media_kind,
+        )
+
+        if self._media_tab is None:
+            return
+        title = (
+            "Importer des images"
+            if kind == "image"
+            else "Importer des vidéos"
+        )
+        file_filter = (
+            IMAGE_FILE_FILTER
+            if kind == "image"
+            else VIDEO_FILE_FILTER if kind == "video" else MEDIA_FILE_FILTER
+        )
+        paths, _filter = QFileDialog.getOpenFileNames(
+            self._media_tab, title, "", file_filter
+        )
+        if not paths:
+            return
+        imported = 0
+        for path in paths:
+            dest = import_media_file(path)
+            if dest is None:
+                continue
+            self._media_dao.add_media(
+                dest.stem, str(dest), media_kind(str(dest))
+            )
+            imported += 1
+        if imported:
+            self.refresh_media()
+
+    def on_media_item_activated(self, media_id: int) -> None:
+        """Projette immédiatement le média double-cliqué."""
+        media = self._media_dao.get_media(int(media_id))
+        if media is None:
+            return
+        self._live_expose_chapter_id = None
+        self._project.load_media(str(media["path"]), str(media["name"] or ""))
+
+    def on_media_delete(self, media_id: int) -> None:
+        """Retire le média de la bibliothèque (le fichier reste sur disque)."""
+        self._media_dao.delete_media(int(media_id))
+        self.refresh_media()
+
+    def on_media_rename(self, media_id: int, new_name: str) -> None:
+        clean = self._clean_text(new_name)
+        if not clean:
+            return
+        self._media_dao.rename_media(int(media_id), clean)
+        self.refresh_media()
+
+    def on_media_add_to_playlist(self, payload: dict) -> None:
+        """Ajoute un média (image/vidéo) à une playlist choisie."""
+        path = str((payload or {}).get("path") or "").strip()
+        name = self._clean_text((payload or {}).get("name") or "")
+        if not path or self._playlist_tab is None:
+            return
+        cleaned = [(name or "Média", "")]  # texte vide : entrée purement visuelle
+
+        dialog = self._show_add_to_playlist_dialog(
+            self._playlist_dao.list_folders(), len(cleaned)
+        )
+        from PyQt6.QtWidgets import QDialog
+
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        folder_id, new_name = dialog.selected_folder()
+        if folder_id is None:
+            if not new_name:
+                return
+            folder_id = self._playlist_dao.create_folder(new_name)
+        self._playlist_dao.add_item(
+            "media", name or "Média", "", folder_id=int(folder_id), background=path
+        )
+        if self._current_playlist_folder_id == int(folder_id):
+            self._refresh_playlist_items()
+        self.refresh_playlists(select_id=int(folder_id))

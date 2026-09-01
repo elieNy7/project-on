@@ -221,6 +221,12 @@ class _QuietStubTab(QObject):
     def set_books(self, *_a) -> None:
         pass
 
+    def set_current_chapter(self, *_a) -> None:
+        pass
+
+    def current_book_name(self, *_a) -> str:
+        return ""
+
     def set_chapters(self, *_a) -> None:
         pass
 

@@ -101,6 +101,7 @@ _translations: dict[str, dict[str, str]] = {
     "hymns": {"fr": "Cantiques", "en": "Hymns"},
     "sermons": {"fr": "Prédications", "en": "Sermons"},
     "expose": {"fr": "Exposés", "en": "Exposés"},
+    "media": {"fr": "Médias", "en": "Media"},
     "playlist": {"fr": "Playlists", "en": "Playlists"},
     "settings": {"fr": "Paramètres", "en": "Settings"},
     "books": {"fr": "Livres", "en": "Books"},
@@ -186,6 +187,17 @@ _translations: dict[str, dict[str, str]] = {
     "reference_position_tooltip_bottom": {
         "fr": "Référence affichée sous le texte — cliquer pour la mettre en haut",
         "en": "Reference shown below the text — click to move it above",
+    },
+    "video_play": {"fr": "Lecture", "en": "Play"},
+    "video_pause": {"fr": "Pause", "en": "Pause"},
+    "video_stop": {"fr": "Stop", "en": "Stop"},
+    "video_play_tooltip": {
+        "fr": "Lancer / mettre en pause la vidéo projetée",
+        "en": "Play / pause the projected video",
+    },
+    "video_stop_tooltip": {
+        "fr": "Arrêter la vidéo et revenir au début",
+        "en": "Stop the video and return to the beginning",
     },
     "logo_mode": {"fr": "Logo", "en": "Logo"},
     # ===== SETTINGS =====
@@ -346,6 +358,7 @@ _translations: dict[str, dict[str, str]] = {
     "shortcut_tab_hymns": {"fr": "Onglet Cantiques", "en": "Hymns tab"},
     "shortcut_tab_sermons": {"fr": "Onglet Prédications", "en": "Sermons tab"},
     "shortcut_tab_expose": {"fr": "Onglet Exposé", "en": "Exposé tab"},
+    "shortcut_tab_media": {"fr": "Onglet Médias", "en": "Media tab"},
     "shortcut_tab_playlist": {"fr": "Onglet Playlists", "en": "Playlists tab"},
     "shortcut_tab_settings": {"fr": "Onglet Paramètres", "en": "Settings tab"},
     "shortcut_projection": {

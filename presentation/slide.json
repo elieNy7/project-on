@@ -1,8 +1,11 @@
 {
-  "reference": "",
+  "reference": "Clip bienvenue",
   "text": "",
-  "source": "",
+  "source": "video",
   "background": "",
   "image": "",
-  "hidden": true
+  "video": "C:\\Users\\ELIENY~1\\AppData\\Local\\Temp\\tmphm6k2tnj\\clip_bienvenue.mp4",
+  "video_playing": false,
+  "video_reset": false,
+  "hidden": false
 }

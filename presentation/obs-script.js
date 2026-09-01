@@ -688,11 +688,42 @@ async function setSlide(payload) {
     const hasText = payload && payload.text && payload.text.trim().length > 0;
     const imagePath = (payload && (payload.image || payload.image_path)) || '';
     const hasImage = !!(imagePath && imagePath.trim().length > 0);
+    const videoPath = (payload && payload.video) || '';
+    const videoPlaying = !!(payload && payload.video_playing);
+    const hasVideo = videoPath.trim().length > 0;
     if (imgContainer) {
-        imgContainer.classList.toggle('image-only', hasImage && !hasText);
+        imgContainer.classList.toggle('image-only', hasImage && !hasText && !hasVideo);
     }
 
-    if (!payload || payload.hidden || (!hasText && !hasImage)) {
+    // ── Vidéo plein écran (contrôle manuel depuis l'application) ──────
+    const videoEl = document.getElementById('video-container');
+    if (videoEl) {
+        const videoBaseUrl = window.location.protocol === 'file:' ? 'http://127.0.0.1:8080' : '';
+        const currentFile = videoEl.dataset.file || '';
+        if (!hasVideo) {
+            if (currentFile) {
+                videoEl.pause();
+                videoEl.removeAttribute('src');
+                videoEl.load();
+                videoEl.dataset.file = '';
+            }
+            videoEl.classList.remove('visible');
+        } else {
+            if (currentFile !== videoPath) {
+                videoEl.dataset.file = videoPath;
+                videoEl.src = `${videoBaseUrl}/api/video?ts=${Date.now()}`;
+                videoEl.load();
+            }
+            videoEl.classList.add('visible');
+            if (videoPlaying && videoEl.paused) {
+                videoEl.play().catch(() => {});
+            } else if (!videoPlaying && !videoEl.paused) {
+                videoEl.pause();
+            }
+        }
+    }
+
+    if (!payload || payload.hidden || (!hasText && !hasImage && !hasVideo)) {
         if (textPanelVisible) {
             await animateElement(innerWrapper, 'out', transition, localToken);
         }
@@ -712,7 +743,7 @@ async function setSlide(payload) {
 
     if (imgContainer) {
         resetAnimatedState(imgContainer);
-        if (hasImage) {
+        if (hasImage && !hasVideo) {
             const baseUrl = window.location.protocol === 'file:' ? 'http://127.0.0.1:8080' : '';
             imgContainer.style.backgroundImage = `url('${baseUrl}/api/image?ts=${Date.now()}')`;
             imgContainer.classList.add('visible');
