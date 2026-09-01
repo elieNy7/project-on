@@ -24,6 +24,7 @@ sys.path.insert(0, str(ROOT))
 
 LIGHT = "--light" in sys.argv
 
+from PyQt6.QtGui import QPixmap  # noqa: E402
 from PyQt6.QtWidgets import QApplication  # noqa: E402
 
 from app.database.connection import Database  # noqa: E402
@@ -78,7 +79,8 @@ def main() -> None:
             (1, "06-app-hymns.png"),         # Cantiques
             (2, "07-app-sermons.png"),       # Prédications
             (3, "08-app-expose.png"),        # Exposés
-            (4, "09-app-playlists.png"),     # Playlists
+            (4, "10-app-media.png"),         # Médias
+            (5, "09-app-playlists.png"),     # Playlists
         ]
         if LIGHT:
             # Passe claire : une seule capture (sans écraser le thème sombre).
@@ -134,17 +136,56 @@ def main() -> None:
                 )
                 demo_ids = [f1, f2]
 
+            # Médias de démonstration (images générées, retirées après).
+            from app.database.dao_media import MediaDao
+            from app.utils.app_paths import media_dir
+
+            media_dao = MediaDao(win._project_controller.db)
+            demo_media_files: list[Path] = []
+            demo_media_ids: list[int] = []
+            if not media_dao.list_media():
+                from PyQt6.QtGui import QColor, QFont, QPainter
+
+                demo_specs = [
+                    ("Annonce repas", "#1d4ed8", "#93c5fd"),
+                    ("Crèche — scène", "#7c2d12", "#fdba74"),
+                ]
+                for name, c1, c2 in demo_specs:
+                    pm = QPixmap(480, 270)
+                    pm.fill(QColor(c1))
+                    painter = QPainter(pm)
+                    painter.setPen(QColor(c2))
+                    painter.setFont(QFont("Segoe UI", 22, QFont.Weight.Bold))
+                    painter.drawText(pm.rect(), 0x0084, name)
+                    painter.end()
+                    fpath = media_dir() / f"demo-{name.lower().replace(' ', '-')}.png"
+                    pm.save(str(fpath), "PNG")
+                    demo_media_files.append(fpath)
+                    demo_media_ids.append(
+                        media_dao.add_media(name, str(fpath), "image")
+                    )
+
             for index, name in tabs:
                 win.library_panel.sidebar.setCurrentIndex(index)
-                drain(2.2 if index in (1, 2, 3) else 1.2)
-                if index == 4 and demo_ids:
+                drain(2.2 if index in (1, 2, 3, 4) else 1.2)
+                if index == 4 and demo_media_ids:
+                    win._library_controller.refresh_media()
+                    drain(1.5)
+                if index == 5 and demo_ids:
                     win._library_controller.refresh_playlists()
                     drain(1.5)
                 grab(win, name)
 
-            # Retrait des playlists de démonstration.
+            # Retrait des données de démonstration.
             for fid in demo_ids:
                 dao.delete_folder(fid)
+            for mid in demo_media_ids:
+                media_dao.delete_media(mid)
+            for fpath in demo_media_files:
+                try:
+                    fpath.unlink()
+                except OSError:
+                    pass
 
         if LIGHT:
             win.close()
@@ -177,22 +218,18 @@ def main() -> None:
         cfg = win._settings.projection.to_presentation_config()
 
         writer = SlideWriter(presentation_dir=presentation_dir)
+        from app.utils.models import Slide
+
         writer.write(
-            type(
-                "S",
-                (),
-                {
-                    "source": "bible",
-                    "reference": "Jean 3:16",
-                    "text": (
-                        "Car Dieu a tant aimé le monde qu'il a donné son Fils "
-                        "unique, afin que quiconque croit en lui ne périsse "
-                        "point, mais qu'il ait la vie éternelle."
-                    ),
-                    "background": "",
-                    "image_path": "",
-                },
-            )()
+            Slide(
+                source="bible",
+                reference="Jean 3:16",
+                text=(
+                    "Car Dieu a tant aimé le monde qu'il a donné son Fils "
+                    "unique, afin que quiconque croit en lui ne périsse "
+                    "point, mais qu'il ait la vie éternelle."
+                ),
+            )
         )
 
         proj = ProjectionWindow(presentation_dir)
