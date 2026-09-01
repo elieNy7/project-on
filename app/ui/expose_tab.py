@@ -518,15 +518,28 @@ class ExposeTab(QFrame):
         elif chosen is act_chapter:
             self._on_paragraph_activated(item)
         elif chosen is act_playlist:
-            # La référence de playlist porte le TITRE du chapitre, pas le
-            # marqueur brut « 45-3 » — c'est elle qui s'affiche en projection.
+            # La référence de playlist porte le TITRE du chapitre + la
+            # position Page/¶ — c'est elle qui s'affiche en projection.
             chapter = str(self._current_chapter_title or item.data(256) or "")
-            payload = [(chapter, str(item.data(257) or ""))]
+            payload = [
+                (self._playlist_reference(chapter, str(item.data(256) or "")),
+                 str(item.data(257) or ""))
+            ]
             self.addToPlaylistRequested.emit(payload)
         elif chosen is act_playlist_range:
             payload = self._paragraphs_range_payload()
             if payload:
                 self.addToPlaylistRequested.emit(payload)
+
+    @staticmethod
+    def _playlist_reference(chapter: str, raw_ref: str) -> str:
+        """Référence playlist d'un paragraphe : « titre · Page X §Y »."""
+        m = re.match(r"^(\d+)-(\d+)$", raw_ref.strip())
+        if m and chapter:
+            return f"{chapter} · Page {m.group(1)} §{m.group(2)}"
+        if m:
+            return f"Page {m.group(1)} §{m.group(2)}"
+        return chapter or raw_ref
 
     def _paragraphs_range_payload(self) -> list[tuple[str, str]]:
         """Ajout en série « paragraphes 1 à N » (positions dans la liste)."""
@@ -550,7 +563,9 @@ class ExposeTab(QFrame):
         payload = []
         for i in range(start - 1, min(end, count)):
             item = self.paragraphs_list.item(i)
-            reference = chapter or str(item.data(256) or "")
+            reference = self._playlist_reference(
+                chapter, str(item.data(256) or "")
+            )
             payload.append((reference, str(item.data(257) or "")))
         return payload
 

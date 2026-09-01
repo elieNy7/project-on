@@ -690,7 +690,14 @@ class LibraryController(QObject):
             raw_refs: list[str] = []
             for p in rows or []:
                 raw_ref = str(p.get("ref", ""))
-                entries.append((full_reference, self._clean_text(p.get("text", ""))))
+                entry_reference = full_reference
+                m = re.search(r"(\d+)-(\d+)", raw_ref)
+                if m:
+                    # « ¶ » est filtré par clean_text → utiliser « § ».
+                    entry_reference = (
+                        f"{full_reference} · Page {m.group(1)} §{m.group(2)}"
+                    )
+                entries.append((entry_reference, self._clean_text(p.get("text", ""))))
                 raw_refs.append(raw_ref)
 
             if not entries and text:
@@ -713,14 +720,18 @@ class LibraryController(QObject):
         self, reference: str, text: str, title: str = ""
     ) -> None:
         """Projette uniquement le paragraphe sélectionné de l'Exposé."""
-        chapter_title = self._clean_text(title)
         body = self._clean_text(text)
         if not body:
             return
-        self._live_expose_chapter_id = self._current_expose_chapter_id
+        chapter_title = self._clean_text(title)
         full_reference = self._expose_full_reference(
             self._current_expose_chapter_id, chapter_title
         )
+        # Position page/§ si le marqueur brut la porte (« 45-3 »).
+        m = re.search(r"(\d+)-(\d+)", self._clean_text(reference))
+        if m:
+            full_reference += f" · Page {m.group(1)} §{m.group(2)}"
+        self._live_expose_chapter_id = self._current_expose_chapter_id
         self._project.load_program(
             "sermon", chapter_title or full_reference, [(full_reference, body)]
         )

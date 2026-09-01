@@ -157,6 +157,12 @@ class ProjectionWindow(QWidget):
         self._active_display_screen = ""
         self._stage_accent = QColor(109, 180, 255, 210)
         self._stage_accent_soft = QColor(109, 180, 255, 42)
+        # Lecture vidéo (créée paresseusement à la première slide vidéo).
+        self._video_widget: Any = None
+        self._media_player: Any = None
+        self._audio_output: Any = None
+        self._active_video_path = ""
+        self._multimedia_available = True
 
         self._main_layout = QVBoxLayout(self)
         self._main_layout.setContentsMargins(0, 0, 0, 0)
@@ -549,6 +555,9 @@ class ProjectionWindow(QWidget):
         """Handle screen resize."""
         super().resizeEvent(event)
 
+        if self._video_widget is not None:
+            self._video_widget.setGeometry(self.rect())
+
         if not hasattr(self, "_config") or not getattr(self, "_config", None):
             return
 
@@ -558,6 +567,74 @@ class ProjectionWindow(QWidget):
         # screen/geometry change immediately re-computes them.
         if self._current_slide:
             self._render_slide_content(self._current_slide)
+
+    # ── Lecture vidéo (QMediaPlayer, contrôle manuel opérateur) ───────────
+
+    def _ensure_video_stack(self) -> bool:
+        """Crée paresseusement le lecteur ; False si QtMultimedia manque."""
+        if self._media_player is not None:
+            return self._multimedia_available
+        try:
+            from PyQt6.QtMultimedia import QAudioOutput, QMediaPlayer
+            from PyQt6.QtMultimediaWidgets import QVideoWidget
+        except Exception as exc:  # pragma: no cover - dépend de l'install
+            print(f"[video] QtMultimedia indisponible : {exc}")
+            self._multimedia_available = False
+            return False
+
+        self._video_widget = QVideoWidget(self)
+        self._video_widget.hide()
+        self._audio_output = QAudioOutput(self)
+        self._audio_output.setVolume(1.0)
+        self._media_player = QMediaPlayer(self)
+        self._media_player.setAudioOutput(self._audio_output)
+        self._media_player.setVideoOutput(self._video_widget)
+        self._media_player.mediaStatusChanged.connect(self._on_media_status)
+        return True
+
+    def _show_video(self, path: str) -> None:
+        """Passe en mode vidéo plein écran : contenu texte masqué, source chargée EN PAUSE."""
+        if not self._ensure_video_stack():
+            return
+        from PyQt6.QtCore import QUrl
+
+        self._content_shell.setVisible(False)
+        if path != self._active_video_path:
+            self._active_video_path = path
+            self._media_player.setSource(QUrl.fromLocalFile(path))
+        self._video_widget.setGeometry(self.rect())
+        self._video_widget.show()
+        self._video_widget.raise_()
+
+    def _hide_video(self) -> None:
+        """Quitte le mode vidéo : stop, masquage, contenu texte restauré."""
+        if self._media_player is not None:
+            self._media_player.stop()
+        self._active_video_path = ""
+        if self._video_widget is not None:
+            self._video_widget.hide()
+
+    def _apply_video_playing(self, playing: bool) -> None:
+        """Applique la commande play/pause de l'opérateur (via slide.json)."""
+        if self._media_player is None or not self._active_video_path:
+            return
+        from PyQt6.QtMultimedia import QMediaPlayer
+
+        state = self._media_player.playbackState()
+        if playing and state != QMediaPlayer.PlaybackState.PlayingState:
+            self._media_player.play()
+        elif not playing and state == QMediaPlayer.PlaybackState.PausedState:
+            pass  # déjà en pause (contrôle manuel par défaut)
+        elif not playing and state == QMediaPlayer.PlaybackState.PlayingState:
+            self._media_player.pause()
+
+    def _on_media_status(self, status) -> None:
+        """Fin de lecture : rembobine et reste en pause sur la première frame."""
+        from PyQt6.QtMultimedia import QMediaPlayer
+
+        if status == QMediaPlayer.MediaStatus.EndOfMedia:
+            self._media_player.pause()
+            self._media_player.setPosition(0)
 
     def _refresh_content_order(
         self,
@@ -841,6 +918,14 @@ class ProjectionWindow(QWidget):
         if not visual and not hidden and self._config.get("bg_mode") == "image":
             visual = str(self._config.get("bg_image") or "")
 
+        video_path = str(slide.get("video") or "").strip()
+        if hidden:
+            video_path = ""
+        if video_path:
+            self._show_video(video_path)
+        elif self._active_video_path:
+            self._hide_video()
+
         if hidden:
             text = ""
             ref = ""
@@ -854,6 +939,15 @@ class ProjectionWindow(QWidget):
             self._begin_transition(slide)
         else:
             self._render_slide_content(slide)
+
+        # Commande play/pause de l'opérateur (portée par slide.json).
+        if bool(slide.get("video_reset")) and video_path and self._media_player:
+            self._media_player.pause()
+            self._media_player.setPosition(0)
+        else:
+            self._apply_video_playing(
+                bool(slide.get("video_playing")) and bool(video_path)
+            )
 
     # ── Slide transition engine ────────────────────────────────────────────
     def _begin_transition(self, slide: dict[str, Any]) -> None:
@@ -978,6 +1072,11 @@ class ProjectionWindow(QWidget):
         show_reference = bool(cfg.get("show_reference", True))
         align = str(cfg.get("align") or "center").lower()
         font_family = self._resolve_font_family(str(cfg.get("font_family") or ""))
+
+        # Média pur (image/vidéo sans texte) : aucun titre projeté à l'écran.
+        video_path = str(slide.get("video") or "").strip()
+        if video_path or (visual_path and not str(slide.get("text") or "").strip()):
+            show_reference = False
 
         # The configured size is the target; auto-scaling only reduces it if needed.
         screen = self.screen()
