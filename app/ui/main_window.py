@@ -783,13 +783,16 @@ class MainWindow(QMainWindow):
                 pass
 
     def _on_video_control(self, command: str) -> None:
-        """Boutons Lecture / Pause / Stop de la vidéo en direct."""
+        """Boutons Lecture / Pause / Stop : projection ET aperçu synchronisés."""
         if command == "play":
             self._project_controller.set_video_playing(True)
+            self.preview_panel.play_video()
         elif command == "pause":
             self._project_controller.set_video_playing(False)
+            self.preview_panel.pause_video()
         elif command == "stop":
             self._project_controller.restart_video()
+            self.preview_panel.stop_video()
 
     def _on_quick_edit_requested(self) -> None:
         """Éditer rapidement la slide affichée en direct (référence + texte)."""

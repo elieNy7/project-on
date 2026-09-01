@@ -129,6 +129,8 @@ class PreviewPanel(QFrame):
     quickTextRequested = pyqtSignal(str, list, bool)
     # Position de la référence sur la projection : True = en haut
     referencePositionToggled = pyqtSignal(bool)
+    # Contrôle vidéo opérateur : "play" | "pause" | "stop"
+    videoControlRequested = pyqtSignal(str)
 
     def __init__(self, parent=None, settings=None) -> None:
         super().__init__(parent)
@@ -243,6 +245,7 @@ class PreviewPanel(QFrame):
         self._slide_frame.setStyleSheet(self._slide_screen_style(self._bg_live))
 
         frame_layout = QVBoxLayout(self._slide_frame)
+        self._frame_layout = frame_layout
         frame_layout.setContentsMargins(18, 18, 18, 16)
         frame_layout.setSpacing(10)
 
@@ -518,6 +521,33 @@ class PreviewPanel(QFrame):
         self._ref_pos_button.clicked.connect(self._on_ref_pos_clicked)
         console_layout.addWidget(self._ref_pos_button)
 
+        # Contrôles vidéo — visibles seulement quand une vidéo est en direct.
+        self._video_play_button = PreviewControlButton(
+            "play.svg", tr("video_play"), self.console_frame, text=tr("video_play")
+        )
+        self._video_play_button.setCheckable(True)
+        self._video_play_button.setToolTip(tr("video_play_tooltip"))
+        self._video_play_button.clicked.connect(self._on_video_play_clicked)
+        console_layout.addWidget(self._video_play_button)
+
+        self._video_stop_button = PreviewControlButton(
+            "x-circle.svg", tr("video_stop"), self.console_frame, text=tr("video_stop")
+        )
+        self._video_stop_button.setToolTip(tr("video_stop_tooltip"))
+        self._video_stop_button.clicked.connect(
+            lambda: self.videoControlRequested.emit("stop")
+        )
+        console_layout.addWidget(self._video_stop_button)
+
+        self._video_play_button.hide()
+        self._video_stop_button.hide()
+
+        # Lecteur vidéo de l'APERÇU (miniature, mutée) — créé paresseusement.
+        self._video_preview = None  # QVideoWidget | False (indisponible)
+        self._video_preview_player = None
+        self._video_preview_audio = None
+        self._video_preview_path = ""
+
         # Édition rapide de la slide en direct (utile pour corriger une faute
         # pendant le culte) — active seulement quand du contenu est chargé.
         self._edit_button = PreviewControlButton(
@@ -646,20 +676,125 @@ class PreviewPanel(QFrame):
             # Juste au-dessus de la barre de pied (scène / compteur).
             lay.insertWidget(lay.indexOf(self._stage_footer), self._ref_label, 0)
 
-    def set_slide(self, reference: str, text: str, image_path: str = "") -> None:
+    # ── Contrôles vidéo (vidéo en direct) ─────────────────────────────
+
+    def _on_video_play_clicked(self, checked: bool) -> None:
+        self.videoControlRequested.emit("play" if checked else "pause")
+
+    def set_video_state(self, has_video: bool, playing: bool) -> None:
+        """Affiche les contrôles vidéo et reflète l'état de lecture."""
+        self._video_play_button.setVisible(bool(has_video))
+        self._video_stop_button.setVisible(bool(has_video))
+        with QSignalBlocker(self._video_play_button):
+            self._video_play_button.setChecked(bool(playing))
+            self._video_play_button.setText(tr("video_pause") if playing else tr("video_play"))
+        if has_video:
+            if playing:
+                self.play_video()
+            else:
+                self.pause_video()
+
+    # ── Lecteur miniature de l'aperçu (muté, ratio = projection) ──────
+
+    def _ensure_video_preview(self) -> bool:
+        """Crée paresseusement le lecteur d'aperçu ; False si QtMultimedia manque."""
+        if self._video_preview is not None:
+            return self._video_preview is not False
+        try:
+            from PyQt6.QtMultimedia import QAudioOutput, QMediaPlayer
+            from PyQt6.QtMultimediaWidgets import QVideoWidget
+        except Exception:
+            self._video_preview = False
+            return False
+
+        widget = QVideoWidget(self._slide_frame)
+        widget.setStyleSheet("background: black; border: none; border-radius: 10px;")
+        # Ratio préservé (letterbox) = exactement ce que voit l'écran projeté,
+        # sans jamais occuper l'écran entier.
+        widget.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        self._frame_layout.insertWidget(
+            self._frame_layout.indexOf(self._stage_footer), widget, 1
+        )
+        widget.hide()
+        self._video_preview = widget
+        self._video_preview_audio = QAudioOutput(self)
+        self._video_preview_audio.setMuted(True)  # le son sort en projection
+        self._video_preview_player = QMediaPlayer(self)
+        self._video_preview_player.setAudioOutput(self._video_preview_audio)
+        self._video_preview_player.setVideoOutput(self._video_preview)
+        return True
+
+    def _show_video_preview(self, path: str) -> bool:
+        if not self._ensure_video_preview():
+            return False
+        from PyQt6.QtCore import QUrl
+
+        if path != self._video_preview_path:
+            self._video_preview_path = path
+            self._video_preview_player.setSource(QUrl.fromLocalFile(path))
+        self._video_preview.show()
+        self._video_preview.raise_()
+        return True
+
+    def _hide_video_preview(self) -> None:
+        self._video_preview_path = ""
+        if self._video_preview_player is not None:
+            self._video_preview_player.stop()
+        if self._video_preview:
+            self._video_preview.hide()
+
+    def play_video(self) -> None:
+        if self._ensure_video_preview() and self._video_preview_path:
+            self._video_preview_player.play()
+
+    def pause_video(self) -> None:
+        if self._ensure_video_preview() and self._video_preview_path:
+            self._video_preview_player.pause()
+
+    def stop_video(self) -> None:
+        if self._ensure_video_preview() and self._video_preview_path:
+            self._video_preview_player.pause()
+            self._video_preview_player.setPosition(0)
+
+    def set_slide(
+        self,
+        reference: str,
+        text: str,
+        image_path: str = "",
+        video_path: str = "",
+        video_playing: bool = False,
+    ) -> None:
         ref = str(reference or "").strip()
         body = str(text or "").strip()
         img = str(image_path or "").strip()
+        vid = str(video_path or "").strip()
         self._current_reference = ref
         self._current_image_path = img
-        self._has_content = bool(ref or body or img)
+        self._has_content = bool(ref or body or img or vid)
 
-        if img and Path(img).is_file():
+        self.set_video_state(bool(vid), bool(video_playing))
+
+        if vid and Path(vid).is_file():
+            self._image_label.setVisible(False)
+            self._image_label.clear()
+            self._empty_state.setVisible(False)
+            if self._show_video_preview(vid):
+                # Cadre vidéo réel : le même ratio que la projection.
+                self.slide_view.setVisible(False)
+                self._ref_label.setText(ref)
+            else:
+                # QtMultimedia absent : repli texte.
+                self.slide_view.setVisible(True)
+                self.slide_view.setText(f"🎬  {ref}")
+                self._ref_label.setText("")
+        elif img and Path(img).is_file():
+            self._hide_video_preview()
             self._image_label.setVisible(True)
             self.slide_view.setVisible(False)
             self._refresh_image_pixmap()
             self._empty_state.setVisible(False)
         else:
+            self._hide_video_preview()
             self._current_image_path = ""
             self._image_label.setVisible(False)
             self._image_label.clear()

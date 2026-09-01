@@ -1,3 +1,19 @@
+# Project-On 1.9.1
+
+**L'Aperçu montre la vidéo** : quand une vidéo est projetée, le panneau d'Aperçu affiche désormais le cadre vidéo réel (au format de la projection, letterbox), avec la lecture/pause synchronisée sur vos boutons — sans jamais prendre tout l'écran. Le son reste coupé dans l'aperçu : c'est l'écran projeté qui parle.
+
+## Amélioration
+
+- **Cadre vidéo dans l'Aperçu** : remplace le simple titre « 🎬 » — vous voyez la vidéo exactement comme elle sera projetée, au ratio conservé, pendant que vous pilotez Lecture / Pause / Stop.
+
+## Installation
+
+Téléchargez **`ProjectOn_1.9.1_Setup.exe`** ci-dessous et installez-le par-dessus la version existante : cantiques, playlists, réglages et base sont conservés.
+
+Windows 10 / 11 (64 bits) · fonctionne hors-ligne.
+
+---
+
 # Project-On 1.9.0
 
 **Project-On s'élargit : images et vidéos** 🎬 — un nouvel onglet **Médias** permet d'importer vos photos et vidéos, de les projeter plein écran, de les ajouter à vos playlists et de les envoyer vers OBS. Composez maintenant des cultes complets mêlant versets, cantiques, prédications, images d'annonce et clips vidéo.
