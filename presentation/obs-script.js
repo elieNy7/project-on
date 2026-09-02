@@ -688,11 +688,32 @@ async function setSlide(payload) {
     const hasText = payload && payload.text && payload.text.trim().length > 0;
     const imagePath = (payload && (payload.image || payload.image_path)) || '';
     const hasImage = !!(imagePath && imagePath.trim().length > 0);
-    const videoPath = (payload && payload.video) || '';
+    const videoPath = (payload && (payload.video || payload.video_path)) || '';
     const videoPlaying = !!(payload && payload.video_playing);
     const hasVideo = videoPath.trim().length > 0;
+    const webUrl = (payload && payload.url) || '';
+    const hasWeb = webUrl.trim().length > 0;
     if (imgContainer) {
-        imgContainer.classList.toggle('image-only', hasImage && !hasText && !hasVideo);
+        imgContainer.classList.toggle('image-only', hasImage && !hasText && !hasVideo && !hasWeb);
+    }
+
+    // ── Page web plein écran (URL des Médias) ─────────────────────────
+    const webEl = document.getElementById('web-container');
+    if (webEl) {
+        const currentUrl = webEl.dataset.url || '';
+        if (!hasWeb) {
+            if (currentUrl) {
+                webEl.dataset.url = '';
+                webEl.removeAttribute('src');
+            }
+            webEl.classList.remove('visible');
+        } else {
+            if (currentUrl !== webUrl) {
+                webEl.dataset.url = webUrl;
+                webEl.src = webUrl;
+            }
+            webEl.classList.add('visible');
+        }
     }
 
     // ── Vidéo plein écran (contrôle manuel depuis l'application) ──────
@@ -700,7 +721,7 @@ async function setSlide(payload) {
     if (videoEl) {
         const videoBaseUrl = window.location.protocol === 'file:' ? 'http://127.0.0.1:8080' : '';
         const currentFile = videoEl.dataset.file || '';
-        if (!hasVideo) {
+        if (!hasVideo || hasWeb) {
             if (currentFile) {
                 videoEl.pause();
                 videoEl.removeAttribute('src');
@@ -723,7 +744,7 @@ async function setSlide(payload) {
         }
     }
 
-    if (!payload || payload.hidden || (!hasText && !hasImage && !hasVideo)) {
+    if (!payload || payload.hidden || (!hasText && !hasImage && !hasVideo && !hasWeb)) {
         if (textPanelVisible) {
             await animateElement(innerWrapper, 'out', transition, localToken);
         }
@@ -743,7 +764,7 @@ async function setSlide(payload) {
 
     if (imgContainer) {
         resetAnimatedState(imgContainer);
-        if (hasImage && !hasVideo) {
+        if (hasImage && !hasVideo && !hasWeb) {
             const baseUrl = window.location.protocol === 'file:' ? 'http://127.0.0.1:8080' : '';
             imgContainer.style.backgroundImage = `url('${baseUrl}/api/image?ts=${Date.now()}')`;
             imgContainer.classList.add('visible');

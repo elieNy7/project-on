@@ -33,7 +33,8 @@ _THUMB_W, _THUMB_H = 168, 110
 class MediaTab(QWidget):
     """Galerie de médias (images + vidéos) : projeter, ajouter à la playlist."""
 
-    importRequested = pyqtSignal(str)  # "image" | "video"
+    importRequested = pyqtSignal(str)  # "image" | "video" | "pptx"
+    webAddRequested = pyqtSignal(str, str)  # url, nom
     itemActivated = pyqtSignal(int)  # projeter le média
     itemDeleteRequested = pyqtSignal(int)
     itemRenameRequested = pyqtSignal(int, str)
@@ -73,12 +74,35 @@ class MediaTab(QWidget):
             lambda: self.importRequested.emit("video")
         )
 
+        self.import_pptx_btn = QPushButton("Importer PowerPoint", self)
+        self.import_pptx_btn.setIcon(app_icon("layout.svg", Colors.TEXT_PRIMARY))
+        self.import_pptx_btn.setToolTip(
+            "Ajouter une présentation PowerPoint : chaque slide est rendue "
+            "en image fidèle (nécessite PowerPoint ou LibreOffice)"
+        )
+        self.import_pptx_btn.clicked.connect(
+            lambda: self.importRequested.emit("pptx")
+        )
+
+        self.add_web_btn = QPushButton("Ajouter un site web", self)
+        self.add_web_btn.setIcon(app_icon("globe.svg", Colors.TEXT_PRIMARY))
+        self.add_web_btn.setToolTip(
+            "Ajouter une page web (URL) projetable plein écran"
+        )
+        self.add_web_btn.clicked.connect(self._on_add_web_clicked)
+
         self.delete_btn = QPushButton(self)
         self.delete_btn.setIcon(app_icon("trash.svg", Colors.TEXT_PRIMARY))
         self.delete_btn.setToolTip("Retirer le média sélectionné de la bibliothèque")
         self.delete_btn.clicked.connect(self._on_delete_clicked)
 
-        for btn in (self.import_images_btn, self.import_videos_btn, self.delete_btn):
+        for btn in (
+            self.import_images_btn,
+            self.import_videos_btn,
+            self.import_pptx_btn,
+            self.add_web_btn,
+            self.delete_btn,
+        ):
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.setStyleSheet(get_button_style())
             header.addWidget(btn)
@@ -152,11 +176,42 @@ class MediaTab(QWidget):
                         Qt.AspectRatioMode.KeepAspectRatioByExpanding,
                         Qt.TransformationMode.SmoothTransformation,
                     )))
-            if item.icon().isNull():
-                tint = "#7dd3fc" if kind == "video" else Colors.TEXT_MUTED
-                item.setIcon(app_icon("play.svg", tint))
+            elif kind == "powerpoint":
+                # Miniature = première slide rendue (si le cache existe).
+                try:
+                    from app.utils.office_renderer import pptx_slides_dir
 
-            label = f"{name}" if kind == "image" else f"▶ {name}"
+                    slides = sorted(pptx_slides_dir(path).glob("slide-*.png"))
+                    if slides:
+                        pixmap = QPixmap(str(slides[0]))
+                        if not pixmap.isNull():
+                            item.setIcon(QIcon(pixmap.scaled(
+                                _THUMB_W,
+                                _THUMB_H,
+                                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                                Qt.TransformationMode.SmoothTransformation,
+                            )))
+                except Exception:
+                    pass
+
+            if item.icon().isNull():
+                if kind == "video":
+                    item.setIcon(app_icon("play.svg", "#7dd3fc"))
+                elif kind == "web":
+                    item.setIcon(app_icon("globe.svg", "#7dd3fc"))
+                elif kind == "powerpoint":
+                    item.setIcon(app_icon("layout.svg", "#fdba74"))
+                else:
+                    item.setIcon(app_icon("image.svg", Colors.TEXT_MUTED))
+
+            if kind == "video":
+                label = f"▶ {name}"
+            elif kind == "web":
+                label = f"🌐 {name}"
+            elif kind == "powerpoint":
+                label = f"PPT · {name}"
+            else:
+                label = name
             item.setText(label)
             self.gallery.addItem(item)
 
@@ -189,6 +244,27 @@ class MediaTab(QWidget):
         media_id = self._current_id()
         if media_id is not None:
             self.itemDeleteRequested.emit(media_id)
+
+    def _on_add_web_clicked(self) -> None:
+        """Saisie d'une URL de page web à ajouter aux médias."""
+        url, ok = QInputDialog.getText(
+            self,
+            "Ajouter un site web",
+            "Adresse de la page (https://…) :",
+        )
+        if not ok:
+            return
+        url = url.strip()
+        if not url:
+            return
+        if not url.startswith(("http://", "https://")):
+            url = "https://" + url
+        name, ok = QInputDialog.getText(
+            self, "Ajouter un site web", "Nom affiché (facultatif) :", text=url
+        )
+        if not ok:
+            return
+        self.webAddRequested.emit(url, name.strip() or url)
 
     def _on_rename_clicked(self) -> None:
         item = self.gallery.currentItem()

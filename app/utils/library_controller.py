@@ -183,6 +183,7 @@ class LibraryController(QObject):
 
         if self._media_tab is not None:
             self._media_tab.importRequested.connect(self.on_media_import)
+            self._media_tab.webAddRequested.connect(self.on_media_add_web)
             self._media_tab.itemActivated.connect(self.on_media_item_activated)
             self._media_tab.itemDeleteRequested.connect(self.on_media_delete)
             self._media_tab.itemRenameRequested.connect(self.on_media_rename)
@@ -1434,6 +1435,30 @@ class LibraryController(QObject):
         def _fetch():
             return self._playlist_dao.list_items(folder_id)
 
+        def _fetch():
+            from app.utils.media_utils import media_kind
+
+            all_rows: list[dict[str, Any]] = []
+            for item in self._playlist_dao.list_items(folder_id):
+                row = dict(item)
+                # Un item PowerPoint développe toutes ses slides rendues.
+                if (
+                    str(item.get("source") or "") == "media"
+                    and media_kind(str(item.get("background") or "")) == "powerpoint"
+                ):
+                    try:
+                        from app.utils.office_renderer import render_pptx_to_images
+
+                        row["_pptx_images"] = [
+                            str(p) for p in render_pptx_to_images(
+                                str(item.get("background"))
+                            )
+                        ]
+                    except Exception:
+                        row["_pptx_images"] = []
+                all_rows.append(row)
+            return all_rows
+
         def _on_done(items):
             self._live_expose_chapter_id = None
             entries: list[tuple[str, str]] = []
@@ -1443,6 +1468,12 @@ class LibraryController(QObject):
                     it.get("background") or ""
                 ).strip()
                 reference = self._clean_text(it.get("reference") or title)
+                pptx_images = it.get("_pptx_images") or []
+                if pptx_images:
+                    for image in pptx_images:
+                        entries.append((reference, ""))
+                        visuals.append(image)
+                    continue
                 body = "" if is_media else self._clean_text(it.get("text") or "")
                 if is_media or body:
                     entries.append((reference, body))
@@ -1453,6 +1484,13 @@ class LibraryController(QObject):
             if item_id is not None:
                 position = 0
                 for it in items or []:
+                    pptx_images = it.get("_pptx_images") or []
+                    if pptx_images:
+                        spans = len(pptx_images)
+                        if int(it["id"]) == int(item_id):
+                            break
+                        position += spans
+                        continue
                     if not (
                         self._clean_text(it.get("text") or "")
                         or (
@@ -1497,6 +1535,7 @@ class LibraryController(QObject):
         from app.utils.media_utils import (
             IMAGE_FILE_FILTER,
             MEDIA_FILE_FILTER,
+            POWERPOINT_FILE_FILTER,
             VIDEO_FILE_FILTER,
             media_kind,
         )
@@ -1507,15 +1546,26 @@ class LibraryController(QObject):
             "Importer des images"
             if kind == "image"
             else "Importer des vidéos"
+            if kind == "video"
+            else "Importer une présentation PowerPoint"
         )
         file_filter = (
             IMAGE_FILE_FILTER
             if kind == "image"
-            else VIDEO_FILE_FILTER if kind == "video" else MEDIA_FILE_FILTER
+            else VIDEO_FILE_FILTER
+            if kind == "video"
+            else POWERPOINT_FILE_FILTER
         )
-        paths, _filter = QFileDialog.getOpenFileNames(
-            self._media_tab, title, "", file_filter
-        )
+        if kind == "pptx":
+            # Une présentation à la fois : le rendu fidèle est coûteux.
+            path, _filter = QFileDialog.getOpenFileName(
+                self._media_tab, title, "", file_filter
+            )
+            paths = [path] if path else []
+        else:
+            paths, _filter = QFileDialog.getOpenFileNames(
+                self._media_tab, title, "", file_filter
+            )
         if not paths:
             return
         imported = 0
@@ -1527,16 +1577,115 @@ class LibraryController(QObject):
                 dest.stem, str(dest), media_kind(str(dest))
             )
             imported += 1
-        if imported:
+        if not imported:
+            return
+        if kind == "pptx":
+            self._render_pptx_in_background(paths[0])
+        else:
             self.refresh_media()
+
+    def _render_pptx_in_background(self, pptx_path: str) -> None:
+        """Rend les slides d'un .pptx en arrière-plan puis rafraîchit la galerie."""
+        if self._media_tab is None:
+            return
+
+        def _fetch():
+            from app.utils.office_renderer import (
+                OfficeRenderError,
+                render_pptx_to_images,
+            )
+
+            try:
+                return True, render_pptx_to_images(pptx_path), ""
+            except OfficeRenderError as exc:
+                return False, None, str(exc)
+            except Exception as exc:  # erreurs COM/LibreOffice variées
+                return False, None, str(exc)
+
+        def _on_done(result):
+            from PyQt6.QtWidgets import QMessageBox
+
+            ok, images, detail = result or (False, None, "")
+            self.refresh_media()
+            if not ok:
+                QMessageBox.warning(
+                    self._media_tab,
+                    "Import PowerPoint",
+                    "Le rendu de la présentation a échoué.\n\n"
+                    f"{detail}\n\nVérifiez que Microsoft PowerPoint ou "
+                    "LibreOffice est installé.",
+                )
+            elif images:
+                QMessageBox.information(
+                    self._media_tab,
+                    "Import PowerPoint",
+                    f"{len(images)} slides rendues et ajoutées aux Médias.",
+                )
+
+        self._pool.start(_DbWorker(_fetch, _on_done))
 
     def on_media_item_activated(self, media_id: int) -> None:
         """Projette immédiatement le média double-cliqué."""
+        from app.utils.media_utils import is_powerpoint_file
+
         media = self._media_dao.get_media(int(media_id))
         if media is None:
             return
+        path = str(media["path"] or "")
+        name = str(media["name"] or "")
+        kind = str(media.get("kind") or "")
         self._live_expose_chapter_id = None
-        self._project.load_media(str(media["path"]), str(media["name"] or ""))
+
+        if kind == "powerpoint" or is_powerpoint_file(path):
+            # Rendu en arrière-plan (cache) puis programme des slides.
+            def _fetch():
+                from app.utils.office_renderer import (
+                    OfficeRenderError,
+                    render_pptx_to_images,
+                )
+
+                try:
+                    return True, render_pptx_to_images(path), ""
+                except OfficeRenderError as exc:
+                    return False, None, str(exc)
+                except Exception as exc:
+                    return False, None, str(exc)
+
+            def _on_done(result):
+                from PyQt6.QtWidgets import QMessageBox
+
+                ok, images, detail = result or (False, None, "")
+                if not ok:
+                    QMessageBox.warning(
+                        self._media_tab,
+                        "Projection PowerPoint",
+                        f"Rendu impossible :\n{detail}",
+                    )
+                    return
+                visuals = [str(p) for p in images or []]
+                entries = [
+                    (f"{name or 'Présentation'} ({i}/{len(visuals)})", "")
+                    for i in range(1, len(visuals) + 1)
+                ]
+                self._project.load_program(
+                    "image", name or "Présentation", entries, entry_visuals=visuals
+                )
+
+            self._pool.start(_DbWorker(_fetch, _on_done))
+            return
+
+        self._project.load_media(path, name)
+
+    def on_media_add_web(self, url: str, name: str = "") -> None:
+        """Ajoute une page web (URL) comme média projetable."""
+        clean_url = str(url or "").strip()
+        if not clean_url:
+            return
+        if not clean_url.startswith(("http://", "https://")):
+            clean_url = "https://" + clean_url
+        display = self._clean_text(name) or clean_url
+        self._media_dao.add_media(display, clean_url, "web")
+        self.refresh_media()
 
     def on_media_delete(self, media_id: int) -> None:
         """Retire le média de la bibliothèque (le fichier reste sur disque)."""

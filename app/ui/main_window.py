@@ -831,6 +831,7 @@ class MainWindow(QMainWindow):
                 img,
                 video_path=slide.video_path or "",
                 video_playing=self._project_controller.slide_writer.video_playing,
+                url=slide.url or "",
             )
         else:
             self._obs.update_slide("", "", "custom", True, "")
@@ -853,6 +854,7 @@ class MainWindow(QMainWindow):
                 img,
                 video_path=slide.video_path or "",
                 video_playing=self._project_controller.slide_writer.video_playing,
+                url=slide.url or "",
             )
         else:
             self._obs.update_slide("", "", "custom", True, "")
@@ -873,6 +875,7 @@ class MainWindow(QMainWindow):
                 img,
                 video_path=slide.video_path or "",
                 video_playing=self._project_controller.slide_writer.video_playing,
+                url=slide.url or "",
             )
         self._obs_remote.notify_live(hidden)
 

@@ -163,6 +163,10 @@ class ProjectionWindow(QWidget):
         self._audio_output: Any = None
         self._active_video_path = ""
         self._multimedia_available = True
+        # Pages web (créées paresseusement à la première slide web).
+        self._web_view: Any = None
+        self._active_web_url = ""
+        self._webengine_available = True
 
         self._main_layout = QVBoxLayout(self)
         self._main_layout.setContentsMargins(0, 0, 0, 0)
@@ -557,6 +561,8 @@ class ProjectionWindow(QWidget):
 
         if self._video_widget is not None:
             self._video_widget.setGeometry(self.rect())
+        if self._web_view is not None:
+            self._web_view.setGeometry(self.rect())
 
         if not hasattr(self, "_config") or not getattr(self, "_config", None):
             return
@@ -635,6 +641,44 @@ class ProjectionWindow(QWidget):
         if status == QMediaPlayer.MediaStatus.EndOfMedia:
             self._media_player.pause()
             self._media_player.setPosition(0)
+
+    # ── Pages web (QWebEngineView, création paresseuse) ───────────────────
+
+    def _ensure_web_stack(self) -> bool:
+        """Crée paresseusement la vue web ; False si QtWebEngine manque."""
+        if self._web_view is not None:
+            return self._webengine_available
+        try:
+            from PyQt6.QtWebEngineWidgets import QWebEngineView
+        except Exception as exc:  # pragma: no cover - dépend de l'install
+            print(f"[web] QtWebEngine indisponible : {exc}")
+            self._webengine_available = False
+            return False
+
+        self._web_view = QWebEngineView(self)
+        self._web_view.hide()
+        return True
+
+    def _show_web(self, url: str) -> None:
+        """Passe en mode web plein écran : contenu et vidéo masqués."""
+        if not self._ensure_web_stack():
+            return
+        from PyQt6.QtCore import QUrl
+
+        self._content_shell.setVisible(False)
+        if self._active_video_path:
+            self._hide_video()
+        if url != self._active_web_url:
+            self._active_web_url = url
+            self._web_view.load(QUrl(url))
+        self._web_view.setGeometry(self.rect())
+        self._web_view.show()
+        self._web_view.raise_()
+
+    def _hide_web(self) -> None:
+        self._active_web_url = ""
+        if self._web_view is not None:
+            self._web_view.hide()
 
     def _refresh_content_order(
         self,
@@ -919,8 +963,14 @@ class ProjectionWindow(QWidget):
             visual = str(self._config.get("bg_image") or "")
 
         video_path = str(slide.get("video") or "").strip()
+        web_url = str(slide.get("url") or "").strip()
         if hidden:
             video_path = ""
+            web_url = ""
+        if web_url:
+            self._show_web(web_url)
+        elif self._active_web_url:
+            self._hide_web()
         if video_path:
             self._show_video(video_path)
         elif self._active_video_path:
@@ -1073,9 +1123,14 @@ class ProjectionWindow(QWidget):
         align = str(cfg.get("align") or "center").lower()
         font_family = self._resolve_font_family(str(cfg.get("font_family") or ""))
 
-        # Média pur (image/vidéo sans texte) : aucun titre projeté à l'écran.
+        # Média pur (image/vidéo/web sans texte) : aucun titre projeté à l'écran.
         video_path = str(slide.get("video") or "").strip()
-        if video_path or (visual_path and not str(slide.get("text") or "").strip()):
+        web_url = str(slide.get("url") or "").strip()
+        if (
+            video_path
+            or web_url
+            or (visual_path and not str(slide.get("text") or "").strip())
+        ):
             show_reference = False
 
         # The configured size is the target; auto-scaling only reduces it if needed.

@@ -71,6 +71,7 @@ class SlideWriter:
                 "video": "",
                 "video_playing": False,
                 "video_reset": False,
+                "url": "",
                 "hidden": True,
             }
         else:
@@ -87,6 +88,7 @@ class SlideWriter:
                 "video": self._last_slide.video_path or "",
                 "video_playing": self._video_playing if has_video else False,
                 "video_reset": self._video_reset if has_video else False,
+                "url": self._last_slide.url or "",
                 "hidden": False,
             }
 

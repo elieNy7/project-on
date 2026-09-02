@@ -1,3 +1,28 @@
+# Project-On 1.10.0
+
+**PowerPoint et pages Web rejoignent les Médias** 🎞️🌐 — projetez vos présentations PowerPoint **avec leur design complet** (chaque slide rendue en image fidèle) et affichez des **pages web** plein écran, directement dans la fenêtre de projection ou via OBS.
+
+## Nouveautés
+
+- **Importer PowerPoint** (.pptx/.ppsx) : chaque slide est rendue en image haute résolution avec tout son design. Le rendu utilise Microsoft PowerPoint s'il est installé (fidélité parfaite) ou LibreOffice (gratuit) automatiquement. Les slides se naviguent avec suivant/précédent, comme le reste.
+- **Ajouter un site web** : saisissez une URL (Bible en ligne, page de l'église…) — la page s'affiche **plein écran dans la projection** et peut être envoyée au navigateur OBS (iframe dédiée).
+- **Dans les playlists** : un PowerPoint ajouté à une playlist développe toutes ses slides dans l'ordre ; les pages web se projettent d'un double-clic.
+- **Médias** : boutons « Importer PowerPoint » et « Ajouter un site web » dans la galerie, miniatures dédiées (PPT ·, 🌐).
+
+## Limites connues
+
+- Le rendu PowerPoint exige Microsoft **PowerPoint** ou **LibreOffice** installés sur la machine (l'application détecte automatiquement l'un ou l'autre et vous guide sinon).
+- Les animations et transitions PowerPoint ne sont pas rejouées : chaque slide est projetée comme une image figée haute résolution.
+- Les pages web nécessitent une connexion internet (les adresses locales fonctionnent aussi).
+
+## Installation
+
+Téléchargez **`ProjectOn_1.10.0_Setup.exe`** ci-dessous et installez-le par-dessus la version existante : cantiques, playlists, réglages et base sont conservés. L'installeur est plus volumineux (~+180 Mo) car il embarque le moteur d'affichage web.
+
+Windows 10 / 11 (64 bits) · fonctionne hors-ligne.
+
+---
+
 # Project-On 1.9.1
 
 **L'Aperçu montre la vidéo** : quand une vidéo est projetée, le panneau d'Aperçu affiche désormais le cadre vidéo réel (au format de la projection, letterbox), avec la lecture/pause synchronisée sur vos boutons — sans jamais prendre tout l'écran. Le son reste coupé dans l'aperçu : c'est l'écran projeté qui parle.

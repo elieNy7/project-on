@@ -94,7 +94,7 @@ class ObsController:
             logger.exception("Failed to apply OBS output config: %s", e)
 
     def update_slide(
-        self, text: str, reference: str, source: str = "custom", hidden: bool = False, image_path: str = "", video_path: str = "", video_playing: bool = False
+        self, text: str, reference: str, source: str = "custom", hidden: bool = False, image_path: str = "", video_path: str = "", video_playing: bool = False, url: str = ""
     ) -> None:
         """Update the current slide content. This is called by the project controller."""
         if source == "hymn":
@@ -109,9 +109,10 @@ class ObsController:
                 "image_path": image_path,
                 "video_path": video_path,
                 "video_playing": bool(video_playing),
+                "url": url,
             }
         self._web_server.update_slide(
-            text, reference, source, hidden, image_path, video_path, video_playing
+            text, reference, source, hidden, image_path, video_path, video_playing, url
         )
 
         # Also update NDI if active (NDI reads from file, but we can trigger a refresh if the sender supports it)

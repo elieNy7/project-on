@@ -99,13 +99,16 @@ class ProjectOnController(QObject):
                 # Média : une slide unique, jamais découpée.
                 from app.utils.media_utils import is_video_file
 
+                is_web = visual.startswith(("http://", "https://"))
+                is_video = is_video_file(visual)
                 slides.append(
                     Slide(
-                        source="video" if is_video_file(visual) else "image",
+                        source="web" if is_web else ("video" if is_video else "image"),
                         reference=ref_clean,
                         text="",
-                        image_path=None if is_video_file(visual) else visual,
-                        video_path=visual if is_video_file(visual) else None,
+                        image_path=None if (is_web or is_video) else visual,
+                        video_path=visual if is_video else None,
+                        url=visual if is_web else None,
                     )
                 )
                 entry_start_rows.append(len(slides) - 1)
@@ -159,16 +162,28 @@ class ProjectOnController(QObject):
         return self.load_program("custom", title, entries, split=split)
 
     def load_media(self, path: str, name: str = "") -> int:
-        """Projette immédiatement un média (image ou vidéo) plein écran."""
-        from app.utils.media_utils import is_media_file
+        """Projette immédiatement un média (image, vidéo ou page web)."""
+        from app.utils.media_utils import is_media_file, is_powerpoint_file
 
-        if not is_media_file(path):
+        is_web = path.startswith(("http://", "https://"))
+        if not is_media_file(path) and not is_web:
             return -1
-        from app.utils.media_utils import media_kind
+        if is_powerpoint_file(path):
+            # Les slides doivent déjà être rendues (cache) : voir
+            # library_controller.on_media_item_activated pour le rendu.
+            from app.utils.office_renderer import render_pptx_to_images
 
+            images = render_pptx_to_images(path)
+            label = name or Path(path).stem
+            return self.load_program(
+                "image",
+                label,
+                [(f"{label} ({i}/{len(images)})", "") for i in range(1, len(images) + 1)],
+                entry_visuals=[str(p) for p in images],
+            )
         label = name or Path(path).stem
         return self.load_program(
-            "image" if media_kind(path) == "image" else "video",
+            "image" if not is_web else "web",
             label,
             [(label, "")],
             entry_visuals=[path],
@@ -222,6 +237,7 @@ class ProjectOnController(QObject):
                 background=slide.background,
                 image_path=slide.image_path,
                 video_path=slide.video_path,
+                url=slide.url,
             )
         elif slide.source == "hymn":
             presentation_slide = Slide(
@@ -231,6 +247,7 @@ class ProjectOnController(QObject):
                 background=slide.background,
                 image_path=slide.image_path,
                 video_path=slide.video_path,
+                url=slide.url,
             )
 
         self._slide_writer.write(presentation_slide)
@@ -306,6 +323,7 @@ class ProjectOnController(QObject):
             image_path=current_slide.image_path,
             background=current_slide.background,
             video_path=current_slide.video_path,
+            url=current_slide.url,
         )
         self._slide_writer.write(edited)
         self.currentSlideChanged.emit(edited)
