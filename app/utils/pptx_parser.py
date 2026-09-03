@@ -101,8 +101,6 @@ def _clean_stanza_text(text: str, title: str) -> str:
             # Case: "Title " -> Empty.
             return ""
 
-        remaining[0] if remaining else ""
-
         # If it starts with non-word separator char (except typical punctuation found in lyrics like '!', '?', ',')
         # Typical lyric punctuation: '!', '?', ',', ';', '’', '\''
 
@@ -466,7 +464,7 @@ def parse_slides_as_hymn(slides: list[str], title: str) -> dict[str, Any] | None
 
     # Build final stanzas: verse, chorus, verse, chorus, ...
     stanzas: list[str] = []
-    for i, verse in enumerate(verses):
+    for verse in verses:
         stanzas.append(verse)
         if chorus_text:
             stanzas.append(f"{chorus_label}\n{chorus_text}")

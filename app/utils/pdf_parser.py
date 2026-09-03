@@ -8,9 +8,12 @@ Supports multiple formats used in the project:
 
 from __future__ import annotations
 
+import logging
 import re
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 try:
     import fitz  # PyMuPDF
@@ -42,32 +45,33 @@ def read_pdf(pdf_path: Path) -> str:
         )
 
     doc = fitz.open(pdf_path)
-    full_text = ""
-    for page in doc:
-        page_text = _extract_page_text_columns(page)
+    try:
+        full_text = ""
+        for page in doc:
+            page_text = _extract_page_text_columns(page)
 
-        # If no text found, try OCR
-        if not page_text.strip() and HAS_OCR:
-            try:
-                # Render page to image
-                pix = page.get_pixmap(
-                    matrix=fitz.Matrix(2, 2)
-                )  # 2x scale for better OCR
-                img_data = pix.tobytes("png")
-                img = Image.open(io.BytesIO(img_data))
+            # If no text found, try OCR
+            if not page_text.strip() and HAS_OCR:
+                try:
+                    # Render page to image
+                    pix = page.get_pixmap(
+                        matrix=fitz.Matrix(2, 2)
+                    )  # 2x scale for better OCR
+                    img_data = pix.tobytes("png")
+                    img = Image.open(io.BytesIO(img_data))
 
-                # Run OCR (French and English by default)
-                # Note: tesseract must be installed on the system
-                config = "--psm 3"  # Fully automatic page segmentation, but no OSD.
-                page_text = pytesseract.image_to_string(
-                    img, lang="fra+eng", config=config
-                )
-            except Exception as e:
-                print(f"OCR Error on page {page.number}: {e}")
+                    # Run OCR (French and English by default)
+                    # Note: tesseract must be installed on the system
+                    config = "--psm 3"  # Fully automatic page segmentation, but no OSD.
+                    page_text = pytesseract.image_to_string(
+                        img, lang="fra+eng", config=config
+                    )
+                except Exception:
+                    logger.exception("OCR échoué sur la page %s", page.number)
 
-        full_text += page_text + "\n"
-
-    doc.close()
+            full_text += page_text + "\n"
+    finally:
+        doc.close()
     # Normalize typographic quotes to ASCII
     full_text = full_text.replace("\u2019", "'")  # right single quotation mark
     full_text = full_text.replace("\u2018", "'")  # left single quotation mark
@@ -916,7 +920,6 @@ def _extract_implicit_refrain(verses: list[str]) -> list[str] | None:
 
     # Build result: strip refrain lines from each verse, interleave
     result: list[str] = []
-    best_refrain.split("\n")
 
     for v in verses:
         lines = v.strip().split("\n")
@@ -1405,9 +1408,9 @@ def _try_split_numbered(block: str) -> list[str]:
     """
     # Match numbered markers at line start: "1. ", "2- ", "1) ", "(1) ", "[1] "
     parts = re.split(r"(?:^|\n)\s*(?:[\[\(]?\d+[\]\)]?)\s*[.\-\)]?\s+", block)
-    # re.split with a capture group interleaves numbers and text:
-    # ['preamble', '1', 'verse1...', '2', 'verse2...', ...]
-    if len(parts) < 3:
+    # No capture group in the pattern: re.split returns the texts only,
+    # ['preamble', 'verse1', 'verse2', ...] — numbers are not interleaved.
+    if len(parts) < 2:
         return [block.strip()] if block.strip() else []
 
     result: list[str] = []
@@ -1415,9 +1418,8 @@ def _try_split_numbered(block: str) -> list[str]:
     preamble = parts[0].strip()
     if preamble:
         result.append(preamble)
-    # Walk pairs: (number, text)
-    for idx in range(1, len(parts) - 1, 2):
-        verse_text = parts[idx + 1].strip() if idx + 1 < len(parts) else ""
+    for part in parts[1:]:
+        verse_text = part.strip()
         if verse_text:
             result.append(verse_text)
     return result or [block.strip()]

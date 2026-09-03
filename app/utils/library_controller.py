@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 from collections.abc import Callable
@@ -11,6 +12,8 @@ from PyQt6.QtCore import QObject, QRunnable, QThreadPool, pyqtSignal, pyqtSlot
 from PyQt6.QtWidgets import QFileDialog, QMessageBox
 
 from app.database.connection import Database
+
+log = logging.getLogger(__name__)
 
 
 class _DbWorker(QRunnable):
@@ -31,6 +34,7 @@ class _DbWorker(QRunnable):
         try:
             result = self._fn()
         except Exception:
+            log.exception("Tâche de base de données échouée (%s)", self._fn)
             result = None
         self._signals.finished.emit(result)
 
@@ -79,12 +83,10 @@ class LibraryController(QObject):
         self._current_book_id: int | None = None
         self._current_chapter: int | None = None
         self._current_sermon_id: int | None = None
-        self._current_sermon_language: str = "en"
+        self._current_sermon_language: str = "fr"
         self._current_hymn_id: int | None = None
         self._current_expose_chapter_id: int | None = None
         self._current_expose_page: int | None = None
-        self._sermons_loaded = False
-        self._expose_loaded = False
         self._pool = QThreadPool.globalInstance()
 
         # Caches du programme de projection : la liste affichée dans chaque
@@ -227,11 +229,6 @@ class LibraryController(QObject):
         self.refresh_expose()
         self.refresh_playlists()
         self.refresh_media()
-        self._sermons_loaded = True
-        self._expose_loaded = True
-
-    def on_tab_shown(self, index: int) -> None:
-        """Called when a library tab becomes visible. Triggers lazy loading."""
 
     def refresh_bible_books(self) -> None:
         translations = []
@@ -360,7 +357,7 @@ class LibraryController(QObject):
             date_to = self._sermons_tab.current_date_to()
 
         searching = title_query is not None
-        self._current_sermon_language = language or "en"
+        self._current_sermon_language = language or "fr"
 
         def _fetch():
             res = {}
@@ -754,26 +751,6 @@ class LibraryController(QObject):
 
         self._pool.start(_DbWorker(_fetch, _on_done))
 
-    @staticmethod
-    def _detect_chorus(text: str) -> tuple[bool, str, str]:
-        """Detect if stanza text is a chorus.
-        Returns (is_chorus, label, original_text).
-        """
-        import re
-
-        stripped = text.strip()
-        m = re.match(
-            r"^(?:Dernier\s+)?(Chœur|Choeur|Refrain|Chorus)\s*[:.\-–—]?\s*",
-            stripped,
-            re.IGNORECASE,
-        )
-        if m:
-            word = m.group(1)
-            label = "Refrain" if word.lower().startswith("ref") else "Chœur"
-            # Return True, the detected label, but keep the ORIGINAL text
-            return True, label, text
-        return False, "", text
-
     def on_hymn_selected(self, hymn_id: int) -> None:
         self._current_hymn_id = int(hymn_id)
         stanzas = self._hymns_dao.list_stanzas(self._current_hymn_id)
@@ -959,24 +936,15 @@ class LibraryController(QObject):
         self.refresh_hymns()
 
     def on_delete_all_hymns(self) -> None:
-        """Delete all hymns from the database."""
-        # Assuming self._main_window and tr() are available or replaced with None and string literals
-        # For this context, I'll use None for parent and string literals for messages.
-        reply = QMessageBox.question(
-            None,  # self._main_window,
-            "Confirmer la suppression",  # tr("confirm_delete"),
-            "Êtes-vous sûr de vouloir supprimer TOUS les cantiques ?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-        )
-        if reply == QMessageBox.StandardButton.Yes:
-            count = self._hymns_dao.delete_all_hymns()
-            self.refresh_hymns()  # Assuming _load_hymns is equivalent to refresh_hymns
-            QMessageBox.information(None, "Succès", f"{count} cantiques supprimés.")
+        """Delete all hymns from the database (legacy signal, shared flow)."""
+        self.on_clear_all_hymns()
 
     def on_scan_hymns_folder(self) -> None:
         """Scan the 'cantiques' folder for PDFs and import them sequentially with dialog."""
-        folder = os.path.join(os.getcwd(), "cantiques")
-        if not os.path.exists(folder):
+        from app.utils.app_paths import app_root
+
+        folder = app_root() / "cantiques"
+        if not folder.exists():
             QMessageBox.warning(
                 None, "Erreur", f"Le dossier 'cantiques' n'existe pas:\n{folder}"
             )
@@ -1433,9 +1401,6 @@ class LibraryController(QObject):
         title = str((folder or {}).get("name") or "Playlist")
 
         def _fetch():
-            return self._playlist_dao.list_items(folder_id)
-
-        def _fetch():
             from app.utils.media_utils import media_kind
 
             all_rows: list[dict[str, Any]] = []
@@ -1488,6 +1453,7 @@ class LibraryController(QObject):
                     if pptx_images:
                         spans = len(pptx_images)
                         if int(it["id"]) == int(item_id):
+                            focus = position
                             break
                         position += spans
                         continue
@@ -1689,6 +1655,22 @@ class LibraryController(QObject):
 
     def on_media_delete(self, media_id: int) -> None:
         """Retire le média de la bibliothèque (le fichier reste sur disque)."""
+        media = None
+        if hasattr(self._media_tab, "selected_media"):
+            media = self._media_tab.selected_media()
+        if media is not None and int(media.get("id") or 0) != int(media_id):
+            media = None
+        name = str((media or {}).get("name") or str(media_id))
+        reply = QMessageBox.question(
+            None,
+            "Supprimer le média",
+            f'Voulez-vous vraiment retirer «\u00a0{name}\u00a0» de la bibliothèque ?\n\n'
+            "Le fichier reste sur le disque.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
         self._media_dao.delete_media(int(media_id))
         self.refresh_media()
 

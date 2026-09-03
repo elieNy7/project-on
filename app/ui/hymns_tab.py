@@ -212,7 +212,8 @@ class HymnsTab(QFrame):
         self.stanzas_list.itemActivated.connect(self._on_stanza_double_clicked)
         self.stanzas_list.currentItemChanged.connect(self._on_stanza_selection_changed)
         self.add_btn.clicked.connect(self._on_add_clicked)
-        self.delete_btn.clicked.connect(self._on_delete_clicked)
+        # NB : delete_btn porte un QMenu (single/tout supprimer) ; ses actions
+        # sont connectées plus haut — un clicked() ne se déclenche jamais.
 
         self._search_timer = QTimer(self)
         self._search_timer.setSingleShot(True)

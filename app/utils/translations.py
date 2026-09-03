@@ -23,7 +23,6 @@ _translations: dict[str, dict[str, str]] = {
     "search": {"fr": "Rechercher...", "en": "Search..."},
     "loading": {"fr": "Chargement...", "en": "Loading..."},
     # ===== PLAYLIST =====
-    "playlist": {"fr": "Playlist", "en": "Playlist"},
     "playlist_empty": {"fr": "Playlist vide", "en": "Empty playlist"},
     "playlist_empty_hint": {
         "fr": "Double-cliquez sur un élément\npour l'ajouter",
@@ -171,7 +170,6 @@ _translations: dict[str, dict[str, str]] = {
     "show_preview": {"fr": "Afficher l'aperçu", "en": "Show preview"},
     "previous": {"fr": "Précédent", "en": "Previous"},
     "next": {"fr": "Suivant", "en": "Next"},
-    "project": {"fr": "Projeter", "en": "Project"},
     "obs": {"fr": "OBS", "en": "OBS"},
     "clear_live": {"fr": "Effacer", "en": "Clear"},
     "quick_edit": {"fr": "Modifier", "en": "Quick Edit"},
@@ -349,6 +347,10 @@ _translations: dict[str, dict[str, str]] = {
         "fr": "Rechercher dans l'onglet actif",
         "en": "Search in the active tab",
     },
+    "shortcut_search_global": {
+        "fr": "Recherche globale de paragraphes",
+        "en": "Global paragraph search",
+    },
     "shortcut_project_activated": {
         "fr": "Projeter l'élément sélectionné",
         "en": "Project the selected item",
@@ -414,9 +416,6 @@ _translations: dict[str, dict[str, str]] = {
         "fr": "Sortie NDI démarrée.\nNom de la source: {name}",
         "en": "NDI output started.\nSource name: {name}",
     },
-    "project": {"fr": "Projeter", "en": "Project"},
-    "hide": {"fr": "Masquer", "en": "Hide"},
-    "show": {"fr": "Afficher", "en": "Show"},
     # ===== CONFERENCE / EVENT SLIDES =====
     "event_slides": {"fr": "Slides événement", "en": "Event slides"},
     "event_type": {"fr": "Type d'événement", "en": "Event type"},
@@ -429,7 +428,6 @@ _translations: dict[str, dict[str, str]] = {
     "event_expo": {"fr": "Salon / Expo", "en": "Trade show / Expo"},
     "slide_format": {"fr": "Format de slide", "en": "Slide format"},
     "slide_kit": {"fr": "Kit événement complet", "en": "Full event kit"},
-    "slide_session": {"fr": "Titre / Session", "en": "Title / Session"},
     "slide_agenda": {"fr": "Agenda", "en": "Agenda"},
     "slide_speaker": {"fr": "Intervenant / Invité", "en": "Speaker / Guest"},
     "slide_panel": {"fr": "Panel / Table ronde", "en": "Panel / Round table"},
@@ -523,7 +521,6 @@ _translations: dict[str, dict[str, str]] = {
     "kit_closing_header": {"fr": "MERCI", "en": "THANK YOU"},
     "kit_closing_default": {"fr": "Merci pour votre participation", "en": "Thank you for your participation"},
     "info_default_footer": {"fr": "Merci de suivre les indications de l'équipe", "en": "Please follow the team's guidance"},
-    "slide_session": {"fr": "Session", "en": "Session"},
     # ===== QUICK EDIT DIALOG =====
     "quick_edit_ref": {"fr": "Référence / Titre :", "en": "Reference / Title :"},
     "quick_edit_text": {"fr": "Texte de la Slide :", "en": "Slide text :"},
@@ -567,8 +564,3 @@ def tr(key: str, **kwargs) -> str:
             pass
 
     return text
-
-
-def t(key: str, **kwargs) -> str:
-    """Alias for tr()."""
-    return tr(key, **kwargs)

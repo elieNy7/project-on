@@ -330,14 +330,47 @@ class HymnsDao:
                 ).fetchone()
             return row is not None
 
+    def _rebuild_fts(self, conn: sqlite3.Connection) -> None:
+        """Recreate the contentless hymn FTS index from ``hymn_stanza``.
+
+        Contentless FTS5 forbids plain DELETE, so removing hymns would leave
+        stale rows whose rowids collide with future inserts (SQLite reuses
+        freed INTEGER PRIMARY KEY values). Rebuilding keeps the index exact.
+        """
+        if not self._table_exists(conn, "hymn_stanza_fts"):
+            return
+        conn.execute("DROP TABLE hymn_stanza_fts")
+        conn.execute(
+            "CREATE VIRTUAL TABLE hymn_stanza_fts USING fts5("
+            "text, hymn_title, hymn_number, label, "
+            "content='', detail=none, "
+            "tokenize='unicode61 remove_diacritics 2')"
+        )
+        conn.execute(
+            """
+            INSERT INTO hymn_stanza_fts
+                (rowid, text, hymn_title, hymn_number, label)
+            SELECT
+                hs.id,
+                hs.text,
+                COALESCE(NULLIF(h.canonical_title, ''), h.title),
+                COALESCE(h.number, ''),
+                COALESCE(NULLIF(hs.label, ''), 'Strophe ' || hs.stanza_no)
+            FROM hymn_stanza hs
+            JOIN hymn h ON h.id = hs.hymn_id
+            """
+        )
+
     def delete_hymn(self, hymn_id: int) -> None:
         with self._db.connect() as conn:
             conn.execute("DELETE FROM hymn_stanza WHERE hymn_id = ?", (hymn_id,))
             conn.execute("DELETE FROM hymn WHERE id = ?", (hymn_id,))
+            self._rebuild_fts(conn)
 
     def delete_all_hymns(self) -> int:
         with self._db.connect() as conn:
             count = conn.execute("SELECT COUNT(*) FROM hymn").fetchone()[0]
             conn.execute("DELETE FROM hymn_stanza")
             conn.execute("DELETE FROM hymn")
+            self._rebuild_fts(conn)
             return count

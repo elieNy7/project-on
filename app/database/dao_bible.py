@@ -106,33 +106,3 @@ class BibleDao:
                 (book_id, chapter),
             ).fetchall()
             return [dict(r) for r in rows]
-
-    def get_verse(
-        self, book_id: int, chapter: int, verse: int
-    ) -> dict[str, Any] | None:
-        with self._db.connect() as conn:
-            row = conn.execute(
-                """
-                SELECT id, book_id, chapter, verse, text
-                FROM bible_verse
-                WHERE book_id = ? AND chapter = ? AND verse = ?
-                """,
-                (book_id, chapter, verse),
-            ).fetchone()
-            return dict(row) if row is not None else None
-
-    def search_verses(self, query: str, limit: int = 100) -> list[dict[str, Any]]:
-        q = f"%{query.strip()}%"
-        with self._db.connect() as conn:
-            rows = conn.execute(
-                """
-                SELECT v.id, v.book_id, v.chapter, v.verse, v.text, b.name AS book_name
-                FROM bible_verse v
-                JOIN bible_book b ON b.id = v.book_id
-                WHERE unaccent(v.text) LIKE unaccent(?)
-                ORDER BY b.sort_order, v.chapter, v.verse
-                LIMIT ?
-                """,
-                (q, int(limit)),
-            ).fetchall()
-            return [dict(r) for r in rows]

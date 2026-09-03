@@ -67,15 +67,6 @@ class PlaylistDao:
             ).fetchone()
             return dict(row) if row else None
 
-    def update_sort_order(self, folder_id: int, sort_order: int) -> bool:
-        """Met à jour l'ordre de tri d'un dossier."""
-        with self._db.connect() as conn:
-            cursor = conn.execute(
-                "UPDATE playlist_folder SET sort_order = ? WHERE id = ?",
-                (sort_order, folder_id),
-            )
-            return cursor.rowcount > 0
-
     def list_items(self, folder_id: int | None = None) -> list[dict[str, Any]]:
         """Liste les slides d'un dossier ou à la racine (folder_id=None)."""
         with self._db.connect() as conn:
@@ -199,15 +190,6 @@ class PlaylistDao:
             cursor = conn.execute(
                 "UPDATE playlist_item SET sort_order = ?, folder_id = ? WHERE id = ?",
                 (sort_order, folder_id, item_id),
-            )
-            return cursor.rowcount > 0
-
-    def update_folder_sort_order(self, folder_id: int, sort_order: int) -> bool:
-        """Met à jour l'ordre de tri d'un dossier."""
-        with self._db.connect() as conn:
-            cursor = conn.execute(
-                "UPDATE playlist_folder SET sort_order = ? WHERE id = ?",
-                (sort_order, folder_id),
             )
             return cursor.rowcount > 0
 

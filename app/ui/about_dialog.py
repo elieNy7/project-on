@@ -108,7 +108,7 @@ class AboutDialog(QDialog):
         # Description
         desc = QLabel(
             "Application professionnelle de projection pour églises et événements. "
-            "Conçue pour la diffusion en direct et la présentation de textes bibliques.",
+            "Conçue pour la diffusion en direct, la présentation de textes bibliques et le pilotage du culte.",
             content,
         )
         desc.setStyleSheet(f"""
@@ -117,10 +117,6 @@ class AboutDialog(QDialog):
             background: transparent;
             line-height: 1.5;
         """)
-        desc.setText(
-            "Application professionnelle de projection pour églises et événements. "
-            "Conçue pour la diffusion en direct, la présentation de textes bibliques et le pilotage du culte."
-        )
         desc.setWordWrap(True)
         desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
         c_layout.addWidget(desc)
@@ -202,7 +198,6 @@ class AboutDialog(QDialog):
             color: {Colors.TEXT_DISABLED};
             background: transparent;
         """)
-        copyright_label.setText("© 2025 Onzième Heure Tab. Tous droits réservés.")
         copyright_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         c_layout.addWidget(copyright_label)
 
@@ -212,7 +207,6 @@ class AboutDialog(QDialog):
             color: {Colors.ACCENT_PRIMARY};
             background: transparent;
         """)
-        website_label.setText("Onzième Heure Tab")
         website_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         c_layout.addWidget(website_label)
 

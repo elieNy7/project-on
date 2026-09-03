@@ -96,67 +96,74 @@ def ordered_pdf_lines(
     page_end: int | None = None,
     column_break: bool = False,
 ) -> list[str]:
+    if not HAS_FITZ:  # pragma: no cover - optional dependency
+        raise ImportError(
+            "PyMuPDF (fitz) est requis pour lire les PDF de cantiques. "
+            "Installez-le avec : pip install pymupdf"
+        )
     doc = fitz.open(pdf_path)
-    end = doc.page_count if page_end is None else min(page_end, doc.page_count)
-    all_lines: list[str] = []
+    try:
+        end = doc.page_count if page_end is None else min(page_end, doc.page_count)
+        all_lines: list[str] = []
 
-    for page_index in range(page_start, end):
-        page = doc[page_index]
-        page_dict = page.get_text("dict")
-        page_width = page.rect.width
-        page_height = page.rect.height
+        for page_index in range(page_start, end):
+            page = doc[page_index]
+            page_dict = page.get_text("dict")
+            page_width = page.rect.width
+            page_height = page.rect.height
 
-        raw_lines: list[dict[str, float | str]] = []
-        for block in page_dict.get("blocks", []):
-            if block.get("type", 0) != 0:
-                continue
-            for line in block.get("lines", []):
-                text = normalize_text(
-                    "".join(span.get("text", "") for span in line.get("spans", []))
-                )
-                if not text or is_header_footer(text):
+            raw_lines: list[dict[str, float | str]] = []
+            for block in page_dict.get("blocks", []):
+                if block.get("type", 0) != 0:
                     continue
-
-                bbox = line["bbox"]
-                sizes = [
-                    float(span.get("size", 0))
-                    for span in line.get("spans", [])
-                    if span.get("text", "").strip()
-                ]
-                size = max(sizes) if sizes else 0
-                x0, y0, x1, y1 = map(float, bbox)
-
-                # Skip visual page numbers, but keep hymn numbers.
-                if re.fullmatch(r"\d{1,4}", text):
-                    if y0 > page_height * 0.92 or size >= 18 or x0 > page_width * 0.85:
+                for line in block.get("lines", []):
+                    text = normalize_text(
+                        "".join(span.get("text", "") for span in line.get("spans", []))
+                    )
+                    if not text or is_header_footer(text):
                         continue
 
-                raw_lines.append(
-                    {"x0": x0, "y0": y0, "x1": x1, "y1": y1, "text": text}
-                )
+                    bbox = line["bbox"]
+                    sizes = [
+                        float(span.get("size", 0))
+                        for span in line.get("spans", [])
+                        if span.get("text", "").strip()
+                    ]
+                    size = max(sizes) if sizes else 0
+                    x0, y0, x1, y1 = map(float, bbox)
 
-        mid_x = page_width / 2
-        left = [ln for ln in raw_lines if (float(ln["x0"]) + float(ln["x1"])) / 2 < mid_x]
-        right = [ln for ln in raw_lines if (float(ln["x0"]) + float(ln["x1"])) / 2 >= mid_x]
-        is_two_column = len(left) >= 6 and len(right) >= 6
+                    # Skip visual page numbers, but keep hymn numbers.
+                    if re.fullmatch(r"\d{1,4}", text):
+                        if y0 > page_height * 0.92 or size >= 18 or x0 > page_width * 0.85:
+                            continue
 
-        if is_two_column:
-            left_lines = lines_to_text_lines(left)
-            right_lines = lines_to_text_lines(right)
-            # A stanza ending at the bottom of the left column and the next one
-            # starting at the top of the right column have no measurable vertical
-            # gap, so force a stanza break at the column boundary when requested.
-            if column_break and left_lines and right_lines:
-                page_lines = left_lines + [""] + right_lines
+                    raw_lines.append(
+                        {"x0": x0, "y0": y0, "x1": x1, "y1": y1, "text": text}
+                    )
+
+            mid_x = page_width / 2
+            left = [ln for ln in raw_lines if (float(ln["x0"]) + float(ln["x1"])) / 2 < mid_x]
+            right = [ln for ln in raw_lines if (float(ln["x0"]) + float(ln["x1"])) / 2 >= mid_x]
+            is_two_column = len(left) >= 6 and len(right) >= 6
+
+            if is_two_column:
+                left_lines = lines_to_text_lines(left)
+                right_lines = lines_to_text_lines(right)
+                # A stanza ending at the bottom of the left column and the next one
+                # starting at the top of the right column have no measurable vertical
+                # gap, so force a stanza break at the column boundary when requested.
+                if column_break and left_lines and right_lines:
+                    page_lines = left_lines + [""] + right_lines
+                else:
+                    page_lines = left_lines + right_lines
             else:
-                page_lines = left_lines + right_lines
-        else:
-            page_lines = lines_to_text_lines(raw_lines)
+                page_lines = lines_to_text_lines(raw_lines)
 
-        all_lines.extend(page_lines)
+            all_lines.extend(page_lines)
 
-    doc.close()
-    return all_lines
+        return all_lines
+    finally:
+        doc.close()
 
 
 def lines_to_text_lines(lines: list[dict[str, float | str]]) -> list[str]:
@@ -313,7 +320,7 @@ def clean_title(title: str) -> str:
     title = re.sub(r"\bM'", "M'", title)
     title = re.sub(r"\bS'", "S'", title)
     title = re.sub(r"\bQu'", "Qu'", title)
-    title = title.replace("Jesus", "Jesus")
+    title = title.replace("Jesus", "Jésus")
     return title.strip()
 
 
@@ -444,11 +451,14 @@ def parse_hymns_from_lines(lines: list[str], source: str) -> list[Hymn]:
         if not sections:
             continue
 
-        seen_number_counts[number] = seen_number_counts.get(number, 0) + 1
-        suffix = "" if seen_number_counts[number] == 1 else f"-{seen_number_counts[number]}"
         number_match = re.fullmatch(r"(\d{1,3})([A-Z]?)", number)
         if number_match is None:
+            # Ne pas consommer de suffixe pour un numéro mal formé : sinon le
+            # prochain cantique valide portant ce numéro recevrait un «-2» fallacieux.
             continue
+
+        seen_number_counts[number] = seen_number_counts.get(number, 0) + 1
+        suffix = "" if seen_number_counts[number] == 1 else f"-{seen_number_counts[number]}"
         formatted_number = f"{int(number_match.group(1)):03d}{number_match.group(2)}"
         source_number = f"{source}-{formatted_number}{suffix}"
         hymns.append(

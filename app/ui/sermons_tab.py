@@ -115,15 +115,6 @@ class SermonsTab(QFrame):
         self.btn_refresh.setObjectName("IconButton")
 
         # Sermons list
-        self._para_search_btn.setIcon(
-            app_icon("search.svg")
-        )  # Using generic search icon
-        self._para_search_btn.setToolTip("Recherche globale dans les paragraphes")
-        self._para_search_btn.setCheckable(True)
-        self._para_search_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._para_search_btn.setObjectName("IconButton")
-
-        # Sermons list
         self.sermons_count_label = QLabel("0 sermons", self)
         self.sermons_count_label.setStyleSheet(
             f"font-size: {Typography.SIZE_META}px; color: {Colors.TEXT_MUTED};"
@@ -410,7 +401,6 @@ class SermonsTab(QFrame):
 
                 item = QListWidgetItem(display)
                 item.setData(256, s["id"])
-                item.setData(257, title)
 
                 # Set Data for Delegate
                 # UserRole = 32
@@ -596,9 +586,20 @@ class SermonsTab(QFrame):
         text = str(item.data(257) or "")
         QApplication.clipboard().setText(text)
 
-        old_text = self._copy_btn.text()
+        # Conserver le libellé d'origine une seule fois : un second clic
+        # pendant l'état « Copié ! » ne doit pas capturer cet état temporaire.
+        if not getattr(self, "_copy_label_changed", False):
+            self._copy_original_label = self._copy_btn.text()
+        self._copy_label_changed = True
         self._copy_btn.setText("Copié !")
-        QTimer.singleShot(1500, lambda: self._copy_btn.setText(old_text))
+        QTimer.singleShot(
+            1500, lambda: self._restore_copy_label()
+        )
+
+    def _restore_copy_label(self) -> None:
+        # Seule l'expiration du dernier délai restaure le libellé d'origine.
+        self._copy_label_changed = False
+        self._copy_btn.setText(getattr(self, "_copy_original_label", "Copier"))
 
     def _on_paragraph_context_menu(self, pos: QPoint) -> None:
         item = self.paragraphs_list.itemAt(pos)

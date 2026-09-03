@@ -220,8 +220,6 @@ def import_media_file(source: str | Path) -> Path | None:
     Retourne le chemin de la copie, ou None si la source est absente.
     Un fichier de même nom et même taille déjà présent est réutilisé.
     """
-    import shutil
-
     src = Path(str(source))
     if not src.is_file():
         return None

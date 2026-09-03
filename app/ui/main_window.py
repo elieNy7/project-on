@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import json
+import logging
 import sys
 import time
 from pathlib import Path
@@ -51,6 +52,8 @@ from app.utils.project_on_controller import ProjectOnController
 from app.utils.settings import AppSettings
 from app.utils.translations import set_language, tr
 from app.version import __version__
+
+log = logging.getLogger(__name__)
 
 
 class MainWindow(QMainWindow):
@@ -130,8 +133,9 @@ class MainWindow(QMainWindow):
         splitter.setStretchFactor(0, 55)
         splitter.setStretchFactor(1, 45)
 
-        # Proportional initial sizes
-        width = self.width() if self.width() > 800 else 1400
+        # Proportional initial sizes (window not yet shown: use the screen)
+        screen = QApplication.primaryScreen()
+        width = screen.availableGeometry().width() if screen else 1400
         splitter.setSizes([int(width * 0.55), int(width * 0.45)])
 
         root_layout.addWidget(splitter, 1)
@@ -160,11 +164,6 @@ class MainWindow(QMainWindow):
             expose_tab=self.library_panel.expose_tab,
             playlist_tab=self.library_panel.playlist_tab,
             media_tab=self.library_panel.media_tab,
-        )
-
-        # Lazy-load sermons & expose when their tab is first shown
-        self.library_panel.tab_bar.currentChanged.connect(
-            self._library_controller.on_tab_shown,
         )
 
         if hasattr(self.library_panel, "settings_tab"):
@@ -336,7 +335,7 @@ class MainWindow(QMainWindow):
         try:
             self._obs.start()
         except Exception as exc:
-            print(f"Unable to start OBS output automatically: {exc}")
+            log.exception("Impossible de démarrer la sortie OBS automatiquement")
         self._poll_obs_status()
 
     def _focus_active_search(self) -> None:
@@ -350,8 +349,11 @@ class MainWindow(QMainWindow):
         ]
         if 0 <= idx < len(tab_widgets):
             tab = tab_widgets[idx]
-            # Chercher le premier QLineEdit nommé 'search'
-            search_widget = getattr(tab, "search", None)
+            # Les onglets nomment leur champ de recherche différemment
+            # («search» ou «search_input») : prendre le premier disponible.
+            search_widget = getattr(tab, "search", None) or getattr(
+                tab, "search_input", None
+            )
             if search_widget is not None:
                 search_widget.setFocus()
                 search_widget.selectAll()
@@ -487,7 +489,7 @@ class MainWindow(QMainWindow):
                         raise
                     time.sleep(0.05)
         except Exception as e:
-            print(f"Error saving config to {path}: {e}")
+            log.exception("Échec d'écriture de la configuration %s", path)
 
     def _write_presentation_config(self) -> None:
         cfg = self._settings.projection.to_presentation_config()
@@ -670,65 +672,6 @@ class MainWindow(QMainWindow):
         from app.ui.about_dialog import AboutDialog
 
         AboutDialog.show_about(self)
-
-    def _show_obs_url(self) -> None:
-        mode = str(self._settings.obs.mode or "web").lower()
-        if mode not in ("web", "ndi"):
-            mode = "web"
-
-        if mode == "web":
-            if not self._obs.is_web_server_running():
-                ok = self._obs.start_web_server()
-                if not ok:
-                    QMessageBox.warning(
-                        self,
-                        tr("server_error"),
-                        tr("server_error_detail"),
-                    )
-                    return
-
-            obs_url = self._obs.get_web_server_url()
-
-            msg = QMessageBox(self)
-            msg.setWindowTitle(tr("obs_server_title"))
-            msg.setIcon(QMessageBox.Icon.Information)
-            msg.setText(tr("obs_server_started"))
-            msg.setInformativeText(f"{tr('obs_url_info')}\n{obs_url}")
-            msg.setStandardButtons(QMessageBox.StandardButton.Ok)
-
-            copy_btn = msg.addButton(tr("copy_url"), QMessageBox.ButtonRole.ActionRole)
-            open_btn = msg.addButton(
-                tr("open_browser"), QMessageBox.ButtonRole.ActionRole
-            )
-            msg.exec()
-
-            if msg.clickedButton() == copy_btn:
-                clipboard = QApplication.clipboard()
-                if clipboard:
-                    clipboard.setText(obs_url)
-            elif msg.clickedButton() == open_btn:
-                self._obs.open_in_browser()
-        else:
-            ok = self._obs.start_ndi()
-            if not ok:
-                ndi_status = self._obs.get_ndi_availability()
-                detail = str(
-                    ndi_status.get("message")
-                    or tr("ndi_runtime_missing")
-                )
-                QMessageBox.warning(
-                    self,
-                    tr("ndi_unavailable_title"),
-                    tr("ndi_unavailable_detail") + "\n\n" + detail,
-                )
-                return
-
-            ndi_name = self._settings.obs.ndi_source_name or "Project-On"
-            QMessageBox.information(
-                self,
-                tr("ndi_active"),
-                tr("ndi_active_detail").format(name=ndi_name),
-            )
 
     def _on_current_slide_changed(self, slide) -> None:
         if slide is None:
@@ -953,7 +896,14 @@ class MainWindow(QMainWindow):
             try:
                 app.removeEventFilter(self._global_arrow_nav_filter)
             except Exception:
-                pass
+                log.exception("Échec du retrait du filtre global de navigation")
+        # Fermer la fenêtre de projection pour ne pas laisser un écran
+        # plein écran zombie après la fermeture de la régie.
+        if getattr(self, "_projection_window", None) is not None:
+            try:
+                self._projection_window.close()
+            except Exception:
+                log.exception("Échec de fermeture de la fenêtre de projection")
         # Stop OBS server threads so Python can exit completely
         if hasattr(self, "_obs") and self._obs:
             self._obs.stop()

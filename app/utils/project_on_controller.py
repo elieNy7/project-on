@@ -5,6 +5,7 @@ from pathlib import Path
 from PyQt6.QtCore import QObject, pyqtSignal
 
 from app.database.connection import Database
+from app.utils.constants import MAX_CHARS_PER_SLIDE, MIN_CHARS_PER_SLIDE
 from app.utils.models import Slide, SourceType
 from app.utils.slide_writer import SlideWriter
 from app.utils.text_utils import strip_hymn_projection_label
@@ -25,8 +26,8 @@ class ProjectOnController(QObject):
     currentRowChanged = pyqtSignal(int)
     programChanged = pyqtSignal(str)
 
-    _MAX_CHARS_PER_SLIDE = 280
-    _MIN_CHARS = 60
+    _MAX_CHARS_PER_SLIDE = MAX_CHARS_PER_SLIDE
+    _MIN_CHARS = MIN_CHARS_PER_SLIDE
 
     def __init__(self, db: Database, presentation_dir: Path) -> None:
         super().__init__()

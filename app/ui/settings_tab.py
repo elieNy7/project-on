@@ -61,16 +61,28 @@ class _OptimizeWorker(QRunnable):
 
     @pyqtSlot()
     def run(self) -> None:
+        conn = None
         try:
             size_before = os.path.getsize(str(self._db_path))
             conn = sqlite3.connect(str(self._db_path))
+            # Laisser VACUUM attendre posément un verrou détenu par l'application
+            # plutôt qu'échouer immédiatement avec « database is locked ».
+            conn.execute("PRAGMA busy_timeout = 10000;")
             conn.execute("VACUUM")
             conn.execute("REINDEX")
             conn.close()
-            size_after  = os.path.getsize(str(self._db_path))
+            conn = None
+            size_after = os.path.getsize(str(self._db_path))
             self._signals.optimize_done.emit(True, size_before - size_after, size_after)
         except Exception:
+            log.exception("Échec de l'optimisation de la base")
             self._signals.optimize_done.emit(False, 0, 0)
+        finally:
+            if conn is not None:
+                try:
+                    conn.close()
+                except sqlite3.Error:
+                    pass
 
 
 class _BackupWorker(QRunnable):
@@ -395,23 +407,24 @@ class SettingsHeader(QFrame):
         badge.setMaximumWidth(160)
         layout.addWidget(badge, 0, Qt.AlignmentFlag.AlignLeft)
 
-        title = QLabel("Paramètres", self)
+        title = QLabel(tr("settings_title"), self)
         title.setStyleSheet(f"""
             font-size: 24px;
             font-weight: {Typography.WEIGHT_BOLD};
             color: {Colors.TEXT_PRIMARY};
             background: transparent;
         """)
-        title.setText(tr("settings_title"))
         layout.addWidget(title)
 
-        subtitle = QLabel("Préférences de diffusion et d'affichage", self)
+        subtitle = QLabel(
+            "Gérez la projection, OBS, l'apparence et les outils de Project-On",
+            self,
+        )
         subtitle.setStyleSheet(f"""
             font-size: {Typography.SIZE_MD}px;
             color: {Colors.TEXT_MUTED};
             background: transparent;
         """)
-        subtitle.setText("Gérez la projection, OBS, l'apparence et les outils de Project-On")
         subtitle.setWordWrap(True)
         layout.addWidget(subtitle)
 
@@ -549,6 +562,10 @@ class SettingsTab(QWidget):
             "database.svg", "#22c55e", data_card,
         )
         data_card.add_item(self._backup_db_item)
+        self._db_size_info = SettingsInfoItem(
+            "Taille de la base", "—", "database.svg", "#38bdf8", data_card
+        )
+        data_card.add_item(self._db_size_info)
         self._open_data_folder_item = SettingsItem(
             "Ouvrir le dossier des données",
             "Accéder aux paramètres, sauvegardes et fichiers de travail",
@@ -578,12 +595,12 @@ class SettingsTab(QWidget):
         shortcuts = [
             ("Ctrl+F",    "Recherche dans l'onglet actif"),
             ("Ctrl+G",    "Recherche globale paragraphes"),
-            ("Ctrl+1..5", "Changer d'onglet"),
-            ("Ctrl+Z",    "Annuler (playlist)"),
+            ("Ctrl+1..7", "Changer d'onglet"),
             ("F1",        "Aide raccourcis"),
             ("F5",        "Projeter / Arrêter"),
             ("Ctrl+Shift+D", "Contrôle avant service"),
             ("Haut / Bas", "Naviguer dans la playlist"),
+            ("Home / End", "Premier / dernier slide"),
             ("B",         "Masquer / Afficher l'écran"),
             ("Suppr",     "Supprimer de la playlist"),
             ("Entrée",    "Ajouter à la playlist"),
@@ -653,8 +670,8 @@ class SettingsTab(QWidget):
 
             a = settings.appearance
             theme_label = "Clair" if a.theme == "light" else "Sombre"
-            lang_label = "Francais" if a.language == "fr" else "English"
-            self._appearance_item.set_detail(f"{theme_label} - {lang_label}")
+            lang_label = "Français" if a.language == "fr" else "English"
+            self._appearance_item.set_detail(f"{theme_label} · {lang_label}")
             self._shortcuts_item.set_detail("F1")
             self._about_item.set_detail(f"v{__version__}")
             self._export_settings_item.set_detail("JSON")
@@ -664,6 +681,10 @@ class SettingsTab(QWidget):
             self._open_data_folder_item.set_detail("Dossier")
             self._preflight_item.set_detail("Diagnostic")
             self._settings_file_info.set_value(str(path.name))
+            db_file = app_db_path()
+            self._db_size_info.set_value(
+                self._fmt_size(db_file.stat().st_size) if db_file.exists() else "—"
+            )
 
         except Exception as e:
             log.error("Erreur chargement paramètres: %s", e)

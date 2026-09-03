@@ -116,7 +116,6 @@ class BibleTab(QFrame):
         self.verses_list.setItemDelegate(BibleVerseDelegate(self.verses_list))
         self.verses_list.setVerticalScrollMode(QListWidget.ScrollMode.ScrollPerPixel)
         self.verses_list.setTextElideMode(Qt.TextElideMode.ElideRight)
-        # self.verses_list.setUniformItemSizes(True) # Disabled for flexible delegate height
         self.verses_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.verses_list.customContextMenuRequested.connect(
             self._on_verses_context_menu
@@ -352,8 +351,7 @@ class BibleTab(QFrame):
             text = str(v.get("text", ""))
             no = v.get("verse")
             no_str = str(int(no)) if no is not None else ""
-            normalize_preview_text(text)
-            display_text = truncate_preview(text, 100)
+            display_text = truncate_preview(normalize_preview_text(text), 100)
             display = f"{no_str:>3}  {display_text}".strip() if no_str else display_text
             item = QListWidgetItem(display)
             item.setData(256, ref)

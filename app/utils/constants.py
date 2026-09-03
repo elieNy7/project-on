@@ -6,13 +6,11 @@ pour faciliter les ajustements sans chasser les occurrences dispersées.
 
 # ── Découpage des slides ──────────────────────────────────────────────────────
 MAX_CHARS_PER_SLIDE: int = 280
-OPTIMAL_CHARS_PER_SLIDE: int = 200
 MIN_CHARS_PER_SLIDE: int = 60
 
-# ── Playlist ──────────────────────────────────────────────────────────────────
-MAX_UNDO_LEVELS: int = 20
-
 # ── Base de données ───────────────────────────────────────────────────────────
+# Valeurs reprises en littéraux dans connection.py (PRAGMA n'accepte pas de
+# paramètre lié) : garder ces deux nombres synchronisés manuellement.
 DB_CACHE_SIZE_PAGES: int = -64000   # ~64 MB (négatif = kibibytes pour SQLite)
 DB_MMAP_SIZE_BYTES: int = 268_435_456  # 256 MB
 

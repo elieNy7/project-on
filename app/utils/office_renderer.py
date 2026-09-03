@@ -11,6 +11,7 @@ si le cache est complet, aucun moteur n'est sollicité (rendu instantané).
 from __future__ import annotations
 
 import hashlib
+import json
 import shutil
 import subprocess
 from pathlib import Path
@@ -20,6 +21,7 @@ from app.utils.media_utils import is_powerpoint_file
 
 _PPT_EXPORT_WIDTH = 1920
 _PPT_EXPORT_HEIGHT = 1080
+_COMPLETE_MARKER = "_complete.json"
 _SOFFICE_CANDIDATES = [
     Path("C:/Program Files/LibreOffice/program/soffice.exe"),
     Path("C:/Program Files (x86)/LibreOffice/program/soffice.exe"),
@@ -126,6 +128,43 @@ def _render_with_libreoffice(pptx_path: Path, out_dir: Path) -> list[Path]:
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
+def _source_fingerprint(source: Path) -> dict[str, int]:
+    st = source.stat()
+    return {"size": int(st.st_size), "mtime": int(st.st_mtime)}
+
+
+def _write_complete_marker(out_dir: Path, source: Path, slide_count: int) -> None:
+    payload = _source_fingerprint(source)
+    payload["slides"] = slide_count
+    (out_dir / _COMPLETE_MARKER).write_text(
+        json.dumps(payload), encoding="utf-8"
+    )
+
+
+def _cache_is_complete(out_dir: Path, source: Path) -> bool:
+    """True when a full render of *this exact source file* is cached.
+
+    A marker written only after every slide was exported distinguishes a
+    complete render from one interrupted mid-way, and its fingerprint
+    invalidates the cache when the .pptx is modified.
+    """
+    marker = out_dir / _COMPLETE_MARKER
+    if not marker.is_file():
+        return False
+    try:
+        payload = json.loads(marker.read_text(encoding="utf-8"))
+        expected = _source_fingerprint(source)
+        if (
+            int(payload.get("size", -1)) != expected["size"]
+            or int(payload.get("mtime", -1)) != expected["mtime"]
+        ):
+            return False
+        cached = list(out_dir.glob("slide-*.png"))
+        return len(cached) == int(payload.get("slides", -1))
+    except (ValueError, OSError):
+        return False
+
+
 def render_pptx_to_images(pptx_path: str | Path, force: bool = False) -> list[Path]:
     """Rend chaque slide du .pptx en PNG (cache réutilisé si complet).
 
@@ -139,14 +178,15 @@ def render_pptx_to_images(pptx_path: str | Path, force: bool = False) -> list[Pa
         raise OfficeRenderError(f"Fichier introuvable : {source.name}")
 
     out_dir = pptx_slides_dir(source)
-    if not force:
-        existing = sorted(out_dir.glob("slide-*.png"))
-        if existing:
-            return existing
+    if not force and _cache_is_complete(out_dir, source):
+        return sorted(out_dir.glob("slide-*.png"))
+    (out_dir / _COMPLETE_MARKER).unlink(missing_ok=True)
 
     errors: list[str] = []
     try:
-        return _render_with_powerpoint(source, out_dir)
+        exported = _render_with_powerpoint(source, out_dir)
+        _write_complete_marker(out_dir, source, len(exported))
+        return exported
     except OfficeRenderError:
         raise
     except ImportError as exc:
@@ -155,7 +195,9 @@ def render_pptx_to_images(pptx_path: str | Path, force: bool = False) -> list[Pa
         errors.append(f"PowerPoint/COM : {exc}")
 
     try:
-        return _render_with_libreoffice(source, out_dir)
+        exported = _render_with_libreoffice(source, out_dir)
+        _write_complete_marker(out_dir, source, len(exported))
+        return exported
     except OfficeRenderError as exc:
         errors.append(str(exc))
     except Exception as exc:

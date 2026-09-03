@@ -313,10 +313,6 @@ class NdiLowerThirdSender:
         self._height = 1080
 
     @staticmethod
-    def is_available() -> bool:
-        return check_ndi_availability().usable
-
-    @staticmethod
     def availability() -> NdiAvailability:
         return check_ndi_availability()
 

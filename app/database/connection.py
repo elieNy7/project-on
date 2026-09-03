@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import contextlib
-import html
 import json
 import re
 import sqlite3
@@ -12,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from app.utils.app_paths import app_db_path, bible_json_dir, resource_root
+from app.utils.text_utils import clean_text
 
 
 @dataclass(frozen=True)
@@ -20,7 +20,6 @@ class DatabaseConfig:
 
 
 class Database:
-    _HTML_TAG_RE = re.compile(r"<[^>]+>")
     _STARTUP_MAINTENANCE_KEY = "startup_maintenance_version"
     # v10 : la garde « données prêtes » détecte désormais les titres canoniques
     # SHP qui diffèrent du titre source — force le recalcul sur les bases
@@ -101,8 +100,9 @@ class Database:
 
         # VACUUM must run outside the transaction above; it reclaims the large
         # amount of free space freed when the heavy FTS index is rebuilt.
-        if vacuum_needed:
-            self._reclaim_space()
+        if vacuum_needed and self._reclaim_space():
+            # Le repère n'est posé qu'en cas de succès pour retenter au
+            # prochain démarrage si le VACUUM a échoué.
             with self.connect() as conn:
                 self._set_app_meta(conn, self._VACUUM_KEY, self._VACUUM_VERSION)
 
@@ -136,15 +136,21 @@ class Database:
                 pass
         return dropped
 
-    def _reclaim_space(self) -> None:
+    def _reclaim_space(self) -> bool:
         """Checkpoint the WAL and compact the database file on disk."""
+        import logging
+
         conn = sqlite3.connect(self.db_path, timeout=60.0, isolation_level=None)
         try:
             conn.execute("PRAGMA busy_timeout = 60000;")
             conn.execute("PRAGMA wal_checkpoint(TRUNCATE);")
             conn.execute("VACUUM;")
+            return True
         except sqlite3.Error:
-            pass
+            logging.getLogger(__name__).exception(
+                "Échec du VACUUM — sera retenté au prochain démarrage"
+            )
+            return False
         finally:
             conn.close()
 
@@ -404,99 +410,9 @@ class Database:
 
     @classmethod
     def _clean_text(cls, value: Any) -> str:
-        s = str(value or "")
-        s = html.unescape(s)
-        s = s.replace("\ufeff", "").replace("\u200b", "")
-        s = s.replace("\ufffd", "")
-        s = s.replace("\u00a0", " ").replace("\u202f", " ")
-        s = s.replace("Â ", " ").replace("Â\u00a0", " ")
-        s = s.replace("\r", "")
-        s = s.replace("<br/>", "\n").replace("<br />", "\n").replace("<br>", "\n")
-        s = s.replace("&nbsp;", " ")
-        s = cls._HTML_TAG_RE.sub("", s)
-        s = re.sub(r"(^|\n)\s*¶\s*", r"\1", s)
-        s = s.replace("¶", "")
-        s = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", s)
-        s = re.sub(r"[\t ]+", " ", s)
-        s = s.strip()
-        return s
-
-    @staticmethod
-    def _sqlite_tables(conn: sqlite3.Connection) -> list[str]:
-        rows = conn.execute(
-            """
-            SELECT name
-            FROM sqlite_master
-            WHERE type = 'table' AND name NOT LIKE 'sqlite_%'
-            ORDER BY name
-            """,
-        ).fetchall()
-        return [str(r[0]) for r in rows]
-
-    @staticmethod
-    def _sqlite_text_columns(
-        conn: sqlite3.Connection, table: str
-    ) -> tuple[str | None, list[str]]:
-        cols = conn.execute(
-            f"PRAGMA table_info({Database._quote_ident(table)})"
-        ).fetchall()
-        pk_col: str | None = None
-        text_cols: list[str] = []
-        for c in cols:
-            name = str(c[1])
-            col_type = str(c[2] or "").upper()
-            is_pk = int(c[5] or 0) > 0
-            if is_pk and pk_col is None:
-                pk_col = name
-            if "TEXT" in col_type or "CHAR" in col_type or "CLOB" in col_type:
-                text_cols.append(name)
-        return pk_col, text_cols
-
-    def sanitize_project_db_texts(self, dry_run: bool = True) -> dict[str, int]:
-        summary: dict[str, int] = {}
-        with self.connect() as conn:
-            tables = self._sqlite_tables(conn)
-            for t in tables:
-                pk_col, text_cols = self._sqlite_text_columns(conn, t)
-                if pk_col is None or not text_cols:
-                    continue
-
-                pk_q = self._quote_ident(pk_col)
-                cols_q = ", ".join(self._quote_ident(c) for c in text_cols)
-                rows = conn.execute(
-                    f"SELECT {pk_q}, {cols_q} FROM {self._quote_ident(t)}"
-                ).fetchall()
-                if not rows:
-                    continue
-
-                changed = 0
-                for r in rows:
-                    pk = r[0]
-                    new_vals: list[str] = []
-                    is_changed = False
-                    for i, col in enumerate(text_cols, start=1):
-                        original = r[i]
-                        cleaned = self._clean_text(original)
-                        if (original is None and cleaned != "") or (
-                            original is not None and str(original) != cleaned
-                        ):
-                            is_changed = True
-                        new_vals.append(cleaned)
-
-                    if not is_changed:
-                        continue
-                    changed += 1
-                    if not dry_run:
-                        set_sql = ", ".join(
-                            f"{self._quote_ident(c)} = ?" for c in text_cols
-                        )
-                        conn.execute(
-                            f"UPDATE {self._quote_ident(t)} SET {set_sql} WHERE {pk_q} = ?",
-                            tuple(new_vals + [pk]),
-                        )
-                if changed:
-                    summary[t] = changed
-        return summary
+        # Délègue à l'implémentation partagée (app.utils.text_utils) :
+        # même nettoyage HTML/BOM/¶/espaces pour toute l'application.
+        return clean_text(value)
 
     def _apply_migration_v2(self, conn: sqlite3.Connection) -> None:
         conn.executescript(
@@ -578,39 +494,44 @@ class Database:
         return re.sub(r"\s+", " ", text).strip()
 
     @classmethod
+    def _title_case_french(cls, text: str) -> str:
+        """Minuscules sur les petits mots français d'un titre TOUT EN MAJUSCULES."""
+        if not text.isupper():
+            return text
+        small_words = {
+            "a",
+            "au",
+            "aux",
+            "avec",
+            "ce",
+            "ces",
+            "de",
+            "des",
+            "du",
+            "en",
+            "et",
+            "la",
+            "le",
+            "les",
+            "pour",
+            "que",
+            "qui",
+            "sur",
+            "un",
+            "une",
+        }
+        parts = []
+        for i, word in enumerate(text.lower().split()):
+            parts.append(word if i > 0 and word in small_words else word.capitalize())
+        return " ".join(parts)
+
+    @classmethod
     def _clean_sermon_title_for_canonical(cls, title: Any) -> str:
         text = cls._clean_text(title)
         text = re.sub(r"\s*-\s*[A-Z][A-Z' .-]+(?:\s+[A-Z]{2})?\s+USA\s*$", "", text)
         text = re.sub(r"\s*-\s*[A-Z][A-Z' .-]+\s+[A-Z]{2,}\s*$", "", text)
         text = re.sub(r"\s+", " ", text).strip(" -")
-        if text.isupper():
-            small_words = {
-                "a",
-                "au",
-                "aux",
-                "avec",
-                "ce",
-                "ces",
-                "de",
-                "des",
-                "du",
-                "en",
-                "et",
-                "la",
-                "le",
-                "les",
-                "pour",
-                "que",
-                "qui",
-                "sur",
-                "un",
-                "une",
-            }
-            parts = []
-            for i, word in enumerate(text.lower().split()):
-                parts.append(word if i > 0 and word in small_words else word.capitalize())
-            text = " ".join(parts)
-        return text
+        return cls._title_case_french(text)
 
     @classmethod
     def _choose_canonical_title(cls, rows: list[sqlite3.Row]) -> str:
@@ -804,34 +725,7 @@ class Database:
     def _clean_hymn_title_for_canonical(cls, title: Any) -> str:
         text = cls._clean_text(title)
         text = re.sub(r"\s+", " ", text).strip(" -")
-        if text.isupper():
-            small_words = {
-                "a",
-                "au",
-                "aux",
-                "avec",
-                "ce",
-                "ces",
-                "de",
-                "des",
-                "du",
-                "en",
-                "et",
-                "la",
-                "le",
-                "les",
-                "pour",
-                "que",
-                "qui",
-                "sur",
-                "un",
-                "une",
-            }
-            parts = []
-            for i, word in enumerate(text.lower().split()):
-                parts.append(word if i > 0 and word in small_words else word.capitalize())
-            text = " ".join(parts)
-        return text
+        return cls._title_case_french(text)
 
     def _ensure_hymn_title_metadata(self, conn: sqlite3.Connection) -> None:
         cols = [r[1] for r in conn.execute("PRAGMA table_info(hymn)").fetchall()]
@@ -1097,10 +991,6 @@ class Database:
                     """,
                     batch,
                 )
-
-    @staticmethod
-    def _quote_ident(name: str) -> str:
-        return '"' + name.replace('"', '""') + '"'
 
     def _seed_demo_data_if_empty(self, conn: sqlite3.Connection) -> None:
         row = conn.execute("SELECT COUNT(1) FROM bible_book;").fetchone()

@@ -257,7 +257,16 @@ class ExposeTab(QFrame):
             self._on_paragraph_selection_changed
         )
         self.add_btn.clicked.connect(self._on_add_clicked)
-        self.search_input.textChanged.connect(self._on_search_changed)
+        # Recherche débouncée comme les autres onglets (Bible/Cantiques/Sermons).
+        self._search_timer = QTimer(self)
+        self._search_timer.setSingleShot(True)
+        self._search_timer.setInterval(300)
+        self._search_timer.timeout.connect(
+            lambda: self._on_search_changed(self.search_input.text())
+        )
+        self.search_input.textChanged.connect(
+            lambda _t: self._search_timer.start()
+        )
         self.translator_combo.currentIndexChanged.connect(self._on_translator_changed)
         self.btn_refresh.clicked.connect(
             lambda: self.translatorChanged.emit(self.current_translator())

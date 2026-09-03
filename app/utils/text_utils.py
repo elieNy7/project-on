@@ -6,6 +6,9 @@ import html
 import re
 import unicodedata
 
+from app.utils import constants
+from app.utils.constants import MAX_CHARS_PER_SLIDE, MIN_CHARS_PER_SLIDE  # noqa: F401
+
 _HTML_TAG_RE = re.compile(r"<[^>]+>")
 _CONTROL_CHARS_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 _HYMN_SECTION_LABEL_RE = re.compile(
@@ -89,8 +92,9 @@ def unaccent(text: str) -> str:
 
 
 # ── Slide text splitting ────────────────────────────────────────────────────
-MAX_CHARS_PER_SLIDE = 280
-MIN_CHARS_PER_SLIDE = 60
+# Valeurs centralisées dans app.utils.constants.
+MAX_CHARS_PER_SLIDE = constants.MAX_CHARS_PER_SLIDE
+MIN_CHARS_PER_SLIDE = constants.MIN_CHARS_PER_SLIDE
 
 
 def _force_split(text: str, limit: int) -> list[str]:

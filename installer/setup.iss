@@ -1,9 +1,9 @@
-; ═══════════════════════════════════════════════════════════════════
+﻿; ═══════════════════════════════════════════════════════════════════
 ;  Project-On — Modern Installer (Inno Setup 6)
 ; ═══════════════════════════════════════════════════════════════════
 
 #define MyAppName "Project-On"
-#define MyAppVersion "1.10.0"
+#define MyAppVersion "1.10.1"
 #define MyAppPublisher "Elie Nyembo"
 #define MyAppURL "https://github.com/elieNy7/project-on"
 #define MyAppExeName "Project-On.exe"

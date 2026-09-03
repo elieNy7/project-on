@@ -1,3 +1,34 @@
+# Project-On 1.10.1
+
+**Grande passe de fiabilité** 🛠️ — deux bugs de fond corrigés (import de cantiques qui perdait des versets, index de recherche corrompu après un « Vider les cantiques »), le cache PowerPoint devient sûr, et une série d'améliorations de l'interface et des paramètres.
+
+## Corrections
+
+- **Import de cantiques PDF** : dans les cantiques à versets numérotés (1. 2. 3.), un verset sur deux pouvait disparaître à l'import. Tous les versets sont désormais conservés.
+- **Après « Vider les cantiques »** : le ré-import d'un PDF pouvait échouer en silence (ancien index de recherche jamais purgé). L'index est reconstruit proprement à chaque suppression.
+- **PowerPoint : cache sûr** — une présentation dont le rendu a été interrompu n'est plus projetée à moitié ; le rendu reprend automatiquement. Le cache se met aussi à jour si le fichier .pptx est modifié.
+- **Playlists PowerPoint** : le double-clic sur un slide précis démarre bien la projection sur ce slide (et plus au premier).
+- **Fermeture propre** : quitter l'application pendant une projection ne laisse plus d'écran figé en plein écran.
+- **Ctrl+F** fonctionne de nouveau dans l'onglet Exposés.
+- **Réglages OBS** : la fenêtre n'interroge plus l'état du serveur en continu après sa fermeture.
+- **Suppression d'un média** : une confirmation est demandée, comme pour les cantiques et les playlists.
+- Le bouton « Copier » des prédications ne reste plus bloqué sur « Copié ! » en cas de double-clic rapide.
+
+## Améliorations
+
+- **Paramètres** : nouvelle ligne « Taille de la base » dans Données & stockage, outil « Optimiser la base » plus robuste, aide des raccourcis complète (Ctrl+G, onglets 1 à 7).
+- **Recherche Exposés** plus fluide : la requête est débouncée comme dans les autres onglets (plus d'une recherche par touche tapée).
+- **Fiabilité** : les erreurs de base de données et de configuration sont maintenant journalisées au lieu d'être silencieuses ; la recherche d'extrait biblique de l'aperçu affiche le texte normalisé.
+- **Nettoyage** : retrait de code mort dans toute l'application (base de données, parseurs, interface).
+
+## Installation
+
+Téléchargez **`ProjectOn_1.10.1_Setup.exe`** ci-dessous et installez-le par-dessus la version existante : cantiques, playlists, réglages et base sont conservés.
+
+Windows 10 / 11 (64 bits) · fonctionne hors-ligne.
+
+---
+
 # Project-On 1.10.0
 
 **PowerPoint et pages Web rejoignent les Médias** 🎞️🌐 — projetez vos présentations PowerPoint **avec leur design complet** (chaque slide rendue en image fidèle) et affichez des **pages web** plein écran, directement dans la fenêtre de projection ou via OBS.

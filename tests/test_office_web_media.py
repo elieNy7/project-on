@@ -98,6 +98,11 @@ def test_playlist_powerpoint_expands_rendered_slides(tmp_path: Path) -> None:
         (cache_dir / f"slide-{i:02d}.png").write_bytes(
             b"\x89PNG\r\n\x1a\n"  # en-tête PNG suffisant pour le test
         )
+    # Un cache n'est réutilisé que s'il porte le marqueur d'achèvement
+    # (empreinte du fichier source + nombre de slides).
+    from app.utils.office_renderer import _write_complete_marker
+
+    _write_complete_marker(cache_dir, fake_pptx, 3)
 
     dao = PlaylistDao(db)
     folder_id = dao.create_folder("Avec présentation")

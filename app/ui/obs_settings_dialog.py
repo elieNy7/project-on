@@ -587,6 +587,24 @@ class ObsSettingsDialog(QDialog):
         self._status_timer.timeout.connect(self._update_server_status)
         self._status_timer.start(1000)
 
+    def _stop_status_timer(self) -> None:
+        """Arrête le polling d'état (appelé à la fermeture du dialogue)."""
+        timer = getattr(self, "_status_timer", None)
+        if timer is not None and timer.isActive():
+            timer.stop()
+
+    def closeEvent(self, event) -> None:
+        self._stop_status_timer()
+        super().closeEvent(event)
+
+    def reject(self) -> None:
+        self._stop_status_timer()
+        super().reject()
+
+    def accept(self) -> None:
+        self._stop_status_timer()
+        super().accept()
+
     def _copy_url(self) -> None:
         clipboard = QApplication.clipboard()
         if clipboard:

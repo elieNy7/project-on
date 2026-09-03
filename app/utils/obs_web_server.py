@@ -6,18 +6,20 @@ notifications are sent OUTSIDE the data lock to prevent deadlocks.
 """
 
 import json
+import logging
 import queue
 import re
 import socket
 import sys
 import threading
-import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
 from app.utils.app_paths import ensure_presentation_workdir
+
+log = logging.getLogger(__name__)
 
 
 class _QuietThreadingHTTPServer(ThreadingHTTPServer):
@@ -80,7 +82,7 @@ class ObsWebServer:
         self._listeners_lock = threading.Lock()
 
         self._base_dir = ensure_presentation_workdir().resolve()
-        print(f"[OBS] Server init (SSE Mode) — port={port}  base={self._base_dir}", flush=True)
+        log.info("[OBS] Server init (SSE Mode) - port=%s base=%s", port, self._base_dir)
 
     # ── Properties ─────────────────────────────────────────────────────────
 
@@ -420,10 +422,10 @@ class ObsWebServer:
                 target=self._server.serve_forever, daemon=True
             )
             self._thread.start()
-            print(f"[OBS] Server started on port {self._port}", flush=True)
+            log.info("[OBS] Server started on port %s", self._port)
             return True
         except Exception as exc:
-            print(f"[OBS] Server failed to start: {exc}", flush=True)
+            log.exception("Echec du demarrage du serveur OBS")
             self._server = None
             return False
 
@@ -438,7 +440,7 @@ class ObsWebServer:
             for q in self._listeners:
                 q.put(None)
             self._listeners.clear()
-        print("[OBS] Server stopped", flush=True)
+        log.info("[OBS] Server stopped")
 
     def restart(self) -> bool:
         self.stop()

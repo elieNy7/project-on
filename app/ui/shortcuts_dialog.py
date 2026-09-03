@@ -23,6 +23,7 @@ _SHORTCUTS: list[tuple[str, str]] = [
     ("shortcut_jump_edges", "Home  /  End"),
     ("shortcut_hide", "B  /  Space"),
     ("shortcut_search", "Ctrl+F"),
+    ("shortcut_search_global", "Ctrl+G"),
     ("shortcut_project_activated", "Enter  /  Double-clic"),
     ("shortcut_help", "F1"),
     ("shortcut_tab_bible", "Ctrl+1"),

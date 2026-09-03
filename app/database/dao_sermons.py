@@ -11,15 +11,6 @@ class SermonsDao:
     def __init__(self, db: Database) -> None:
         self._db = db
 
-    def _date_to_year(self, date_code: str) -> int | None:
-        if not date_code or len(date_code) < 2:
-            return None
-        yy = date_code[:2]
-        if yy.isdigit():
-            year = int(yy)
-            return 1900 + year if year >= 47 else 2000 + year
-        return None
-
     @staticmethod
     def _has_column(conn: sqlite3.Connection, table: str, column: str) -> bool:
         # Fonction table-valued : nom de table en paramètre lié.
@@ -149,29 +140,6 @@ class SermonsDao:
         if len(v) == 10 and v[4] == "-" and v[7] == "-":
             return f"{v[2:4]}-{v[5:7]}{v[8:10]}"
         return v
-
-    def list_sermon_locations(
-        self,
-        tradition: str | None = None,
-        language: str | None = None,
-    ) -> list[str]:
-        locs: set[str] = set()
-        with self._db.connect() as conn:
-            sql = "SELECT DISTINCT location FROM sermon WHERE location IS NOT NULL AND location != '' AND location != 'Lieu inconnu'"
-            params: list[Any] = []
-            trad = tradition
-            if trad:
-                sql += " AND tradition = ?"
-                params.append(trad.upper())
-            if language:
-                sql += " AND language = ?"
-                params.append(language[:2].lower())
-            for r in conn.execute(sql, tuple(params)).fetchall():
-                raw = str(r[0] or "").strip()
-                city = raw.split()[0] if raw else ""
-                if city:
-                    locs.add(city)
-        return sorted(locs)
 
     def list_sermons(
         self,
@@ -355,38 +323,6 @@ class SermonsDao:
                     }
                 )
             return out
-
-    def get_paragraph(
-        self, sermon_id: Any, paragraph_no: int, language: str = "en"
-    ) -> dict[str, Any] | None:
-        int_id = int(str(sermon_id).replace("int_", ""))
-        with self._db.connect() as conn:
-            has_marker = self._has_column(conn, "sermon_paragraph", "marker")
-            marker_select = ", marker" if has_marker else ""
-            row = conn.execute(
-                f"""
-                SELECT paragraph_no, ref, text{marker_select}
-                FROM sermon_paragraph
-                WHERE sermon_id = ? AND paragraph_no = ?
-                """,
-                (int_id, paragraph_no),
-            ).fetchone()
-            if not row:
-                return None
-            marker = (
-                str(row["marker"] or "").strip()
-                if has_marker and row["marker"]
-                else self._get_marker(row["ref"], row["paragraph_no"])
-            )
-            return {
-                "id": f"int_p_{int_id}_{paragraph_no}",
-                "sermon_id": f"int_{int_id}",
-                "paragraph_no": row["paragraph_no"],
-                "para_id": marker,
-                "marker": marker,
-                "ref": row["ref"],
-                "text": row["text"],
-            }
 
     def search_paragraphs(
         self,

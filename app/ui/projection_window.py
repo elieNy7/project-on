@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import json
+import logging
 import math
 import re
 from pathlib import Path
 from typing import Any
+
+log = logging.getLogger(__name__)
 
 from PyQt6.QtCore import (
     QEasingCurve,
@@ -241,7 +244,7 @@ class ProjectionWindow(QWidget):
         self._trans_anim.finished.connect(self._on_trans_finished)
 
         self._timer = QTimer(self)
-        self._timer.setInterval(120)
+        self._timer.setInterval(250)
         self._timer.timeout.connect(self._tick)
         self._timer.start()
 
@@ -404,14 +407,20 @@ class ProjectionWindow(QWidget):
         vignette.setColorAt(1.0, QColor(0, 0, 0, vig_alpha))
         painter.fillRect(rect, QBrush(vignette))
 
-    @staticmethod
-    def _resolve_font_family(configured: str) -> str:
+    _installed_families: set[str] | None = None
+
+    @classmethod
+    def _resolve_font_family(cls, configured: str) -> str:
         """Pick the first installed family so a missing configured font
         (e.g. « Google Sans ») never falls back to an arbitrary system font."""
-        try:
-            available = {f.lower() for f in QFontDatabase.families()}
-        except Exception:
-            available = set()
+        if cls._installed_families is None:
+            try:
+                cls._installed_families = {
+                    f.lower() for f in QFontDatabase.families()
+                }
+            except Exception:
+                cls._installed_families = set()
+        available = cls._installed_families
         for candidate in (configured, "Poppins", "Segoe UI", "Arial"):
             name = str(candidate or "").strip()
             if name and (not available or name.lower() in available):
@@ -584,7 +593,7 @@ class ProjectionWindow(QWidget):
             from PyQt6.QtMultimedia import QAudioOutput, QMediaPlayer
             from PyQt6.QtMultimediaWidgets import QVideoWidget
         except Exception as exc:  # pragma: no cover - dépend de l'install
-            print(f"[video] QtMultimedia indisponible : {exc}")
+            log.warning("QtMultimedia indisponible : %s", exc)
             self._multimedia_available = False
             return False
 
@@ -651,7 +660,7 @@ class ProjectionWindow(QWidget):
         try:
             from PyQt6.QtWebEngineWidgets import QWebEngineView
         except Exception as exc:  # pragma: no cover - dépend de l'install
-            print(f"[web] QtWebEngine indisponible : {exc}")
+            log.warning("QtWebEngine indisponible : %s", exc)
             self._webengine_available = False
             return False
 
@@ -775,7 +784,7 @@ class ProjectionWindow(QWidget):
             self.move(geo.topLeft())
             self.showFullScreen()
         except Exception as e:
-            print(f"Error selecting screen for projection: {e}")
+            log.exception("Échec de la sélection de l'écran de projection")
             self.showFullScreen()
 
     def _read_json(self, path: Path) -> dict[str, Any] | None:
@@ -806,7 +815,7 @@ class ProjectionWindow(QWidget):
                 try:
                     self._apply_config(cfg)
                 except Exception as e:
-                    print(f"Error applying projection config: {e}")
+                    log.exception("Échec de l'application de la configuration de projection")
 
         try:
             slide_mtime = (
@@ -822,7 +831,7 @@ class ProjectionWindow(QWidget):
                 try:
                     self._apply_slide(slide)
                 except Exception as e:
-                    print(f"Error applying slide: {e}")
+                    log.exception("Échec de l'application du slide")
 
     _LAYOUT_MODES = ("fullscreen", "lower_third", "side_panel", "subtitle", "focus_card")
 
