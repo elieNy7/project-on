@@ -448,6 +448,9 @@ class SettingsHeader(QFrame):
 
 class SettingsTab(QWidget):
     projectionSettingsRequested  = pyqtSignal()
+    themesRequested              = pyqtSignal()
+    stageSettingsRequested       = pyqtSignal()
+    tickerSettingsRequested      = pyqtSignal()
     obsSettingsRequested         = pyqtSignal()
     obsOutputSettingsRequested   = pyqtSignal()
     appearanceSettingsRequested  = pyqtSignal()
@@ -493,6 +496,21 @@ class SettingsTab(QWidget):
             "monitor.svg", "#a78bfa", display_card,
         )
         display_card.add_item(self._projection_item)
+        self._themes_item = SettingsItem(
+            tr("themes_manager"), tr("themes_manager_desc"),
+            "palette.svg", "#34d399", display_card,
+        )
+        display_card.add_item(self._themes_item)
+        self._stage_item = SettingsItem(
+            tr("stage_display"), tr("stage_display_desc"),
+            "users.svg", "#60a5fa", display_card,
+        )
+        display_card.add_item(self._stage_item)
+        self._ticker_item = SettingsItem(
+            tr("ticker_settings"), tr("ticker_settings_desc"),
+            "megaphone.svg", "#fbbf24", display_card,
+        )
+        display_card.add_item(self._ticker_item)
         cl.addWidget(display_card)
 
         # ── DIFFUSION ────────────────────────────────────────────────
@@ -628,6 +646,9 @@ class SettingsTab(QWidget):
 
         # ── Connexions ────────────────────────────────────────────────
         self._projection_item.clicked.connect(self.projectionSettingsRequested.emit)
+        self._themes_item.clicked.connect(self.themesRequested.emit)
+        self._stage_item.clicked.connect(self.stageSettingsRequested.emit)
+        self._ticker_item.clicked.connect(self.tickerSettingsRequested.emit)
         self._obs_connect_item.clicked.connect(self.obsSettingsRequested.emit)
         self._obs_style_item.clicked.connect(self.obsOutputSettingsRequested.emit)
         self._appearance_item.clicked.connect(self.appearanceSettingsRequested.emit)
@@ -657,6 +678,16 @@ class SettingsTab(QWidget):
             self._projection_item.set_detail(
                 f"{style} · {p.font_family} · {p.text_size}px"
             )
+            if hasattr(self, "_themes_item"):
+                n_themes = len(getattr(settings, "themes", []) or [])
+                n_assign = len(getattr(settings, "theme_assignments", {}) or {})
+                self._themes_item.set_detail(f"{max(1, n_themes)} · {n_assign} assign.")
+            if hasattr(self, "_stage_item"):
+                self._stage_item.set_detail("F6")
+            if hasattr(self, "_ticker_item"):
+                self._ticker_item.set_detail(
+                    "Actif" if getattr(getattr(settings, "ticker", None), "enabled", False) else "Inactif"
+                )
 
             o = settings.obs
             if o.mode == "web":

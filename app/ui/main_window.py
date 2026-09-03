@@ -171,6 +171,10 @@ class MainWindow(QMainWindow):
             self.library_panel.settings_tab.projectionSettingsRequested.connect(
                 self._open_projection_settings
             )
+            if hasattr(self.library_panel.settings_tab, "themesRequested"):
+                self.library_panel.settings_tab.themesRequested.connect(
+                    self._open_theme_manager
+                )
             if hasattr(self.library_panel.settings_tab, "obsSettingsRequested"):
                 self.library_panel.settings_tab.obsSettingsRequested.connect(
                     self._open_obs_settings
@@ -493,9 +497,42 @@ class MainWindow(QMainWindow):
             log.exception("Échec d'écriture de la configuration %s", path)
 
     def _write_presentation_config(self) -> None:
-        cfg = self._settings.projection.to_presentation_config()
+        cfg = self._build_projection_config()
         out = self._presentation_dir / "config.json"
         self._safe_write_json(out, cfg)
+
+    def _build_projection_config(
+        self,
+        themes=None,
+        theme_assignments=None,
+        active_theme_id=None,
+        active_style=None,
+    ) -> dict:
+        """Config de projection : style actif + registre de thèmes.
+
+        Les thèmes transitent par config.json pour que la fenêtre de
+        projection résolve elle-même le style par type de contenu.
+        """
+        themes = self._settings.themes if themes is None else themes
+        theme_assignments = (
+            self._settings.theme_assignments
+            if theme_assignments is None
+            else theme_assignments
+        )
+        active_theme_id = (
+            self._settings.active_theme_id if active_theme_id is None else active_theme_id
+        )
+        cfg = (active_style or self._settings.projection).to_presentation_config()
+        themes_payload: dict[str, dict] = {}
+        for theme in themes:
+            if theme.id == active_theme_id:
+                themes_payload[theme.id] = dict(cfg)
+            else:
+                themes_payload[theme.id] = theme.to_payload()["style"]
+        cfg["themes"] = themes_payload
+        cfg["theme_assignments"] = dict(theme_assignments)
+        cfg["active_theme"] = active_theme_id
+        return cfg
 
     def _write_obs_config(self) -> None:
         cfg = self._settings.obs.to_full_obs_config()
@@ -600,6 +637,51 @@ class MainWindow(QMainWindow):
                     )
                 except Exception:
                     pass
+
+    def _open_theme_manager(self) -> None:
+        """Gestionnaire de thèmes : liste, édition, assignation par contenu."""
+        from app.ui.theme_dialog import ThemeDialog
+
+        # État d'avant ouverture (restauré si annulation).
+        original_themes = copy.deepcopy(self._settings.themes)
+        original_assignments = dict(self._settings.theme_assignments)
+        original_active = self._settings.active_theme_id
+        original_projection = copy.deepcopy(self._settings.projection)
+
+        def on_live(themes, assignments, active_id, active_style) -> None:
+            cfg = self._build_projection_config(
+                themes=themes,
+                theme_assignments=assignments,
+                active_theme_id=active_id,
+                active_style=active_style,
+            )
+            self._safe_write_json(self._presentation_dir / "config.json", cfg)
+            if self._projection_window is not None and self._projection_window.isVisible():
+                try:
+                    self._projection_window._apply_config(cfg)
+                except Exception:
+                    pass
+
+        dlg = ThemeDialog(self._settings, parent=self)
+        dlg.themesLiveChanged.connect(on_live)
+
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            themes, assignments, active_id, active_style = dlg.result_state()
+            self._settings.themes = themes
+            self._settings.theme_assignments = assignments
+            self._settings.active_theme_id = active_id
+            self._settings.projection = active_style
+            self._settings.save(self._settings_path)
+            self._write_presentation_config()
+            self.preview_panel.set_settings(self._settings)
+            self._refresh_settings_details()
+        else:
+            self._settings.themes = original_themes
+            self._settings.theme_assignments = original_assignments
+            self._settings.active_theme_id = original_active
+            self._settings.projection = original_projection
+            self._write_presentation_config()
+            self.preview_panel.set_settings(self._settings)
 
     def _open_obs_settings(self) -> None:
         from app.ui.obs_settings_dialog import ObsSettingsDialog

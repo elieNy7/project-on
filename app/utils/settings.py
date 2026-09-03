@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 import time
 from dataclasses import asdict, dataclass, field
@@ -534,10 +535,49 @@ def _read_obs_output(d: dict, out: ObsOutputSettings) -> ObsOutputSettings:
 
 
 @dataclass
+class StageSettings:
+    """Écran scène (façon ProPresenter Stage Display) : écran dédié aux
+    orateurs avec texte courant, suivant, horloge et messages."""
+    enabled: bool = False  # rouvrir l'écran scène au démarrage
+    display_screen: str = "auto"  # auto or QScreen.name()
+    font_family: str = "Poppins"
+    text_size: int = 54  # slide courante (px @1080p)
+    next_size: int = 30  # slide suivante
+    show_clock: bool = True
+    show_next: bool = True
+    show_reference: bool = True
+    text_color: str = "rgba(255,255,255,0.97)"
+    next_color: str = "rgba(140,200,150,0.80)"
+    bg_color: str = "#000000"
+
+    def sanitized(self) -> StageSettings:
+        s = StageSettings(
+            enabled=bool(self.enabled),
+            display_screen=str(self.display_screen or "auto"),
+            font_family=str(self.font_family or "Poppins"),
+            text_color=str(self.text_color or "rgba(255,255,255,0.97)"),
+            next_color=str(self.next_color or "rgba(140,200,150,0.80)"),
+            bg_color=str(self.bg_color or "#000000"),
+        )
+        s.text_size = max(16, min(160, int(self.text_size or 54)))
+        s.next_size = max(10, min(120, int(self.next_size or 30)))
+        s.show_clock = bool(self.show_clock)
+        s.show_next = bool(self.show_next)
+        s.show_reference = bool(self.show_reference)
+        return s
+
+
+@dataclass
 class AppSettings:
     projection: ProjectionSettings = field(default_factory=ProjectionSettings)
     obs: ObsSettings = field(default_factory=ObsSettings)
     appearance: AppearanceSettings = field(default_factory=AppearanceSettings)
+    stage: StageSettings = field(default_factory=StageSettings)
+    # Thèmes de projection (façon ProPresenter) : le thème actif est le miroir
+    # de ``projection`` ; les autres vivent dans ``themes``.
+    themes: list = field(default_factory=list)
+    theme_assignments: dict = field(default_factory=dict)
+    active_theme_id: str = "default"
 
     @staticmethod
     def default_path(project_root: Path) -> Path:
@@ -703,14 +743,77 @@ class AppSettings:
             ):
                 cfg.bg_mode = "color"
 
-        return cls(projection=projection, obs=obs, appearance=appearance)
+        # ── Thèmes de projection ─────────────────────────────────────
+        from app.utils.themes import (
+            ASSIGNABLE_SOURCES,
+            DEFAULT_THEME_ID,
+            Theme,
+            default_theme,
+            make_theme_id,
+        )
+
+        themes: list[Theme] = []
+        raw_themes = payload.get("themes")
+        if isinstance(raw_themes, list):
+            seen_ids: list[str] = []
+            for raw in raw_themes:
+                theme = Theme.from_payload(raw) if isinstance(raw, dict) else None
+                if theme is None:
+                    continue
+                if theme.id in seen_ids:
+                    theme.id = make_theme_id(theme.id, seen_ids)
+                seen_ids.append(theme.id)
+                themes.append(theme)
+
+        active_theme_id = str(payload.get("active_theme_id") or DEFAULT_THEME_ID)
+        if not any(t.id == active_theme_id for t in themes):
+            if themes:
+                active_theme_id = themes[0].id
+            else:
+                themes = [default_theme(projection)]
+                active_theme_id = DEFAULT_THEME_ID
+
+        theme_assignments: dict[str, str] = {}
+        raw_assign = payload.get("theme_assignments")
+        valid_ids = {t.id for t in themes}
+        if isinstance(raw_assign, dict):
+            for source, theme_id in raw_assign.items():
+                s = str(source or "").lower()
+                t = str(theme_id or "").strip()
+                if s in ASSIGNABLE_SOURCES and t in valid_ids:
+                    theme_assignments[s] = t
+
+        return cls(
+            projection=projection,
+            obs=obs,
+            appearance=appearance,
+            themes=themes,
+            theme_assignments=theme_assignments,
+            active_theme_id=active_theme_id,
+        )
 
     def save(self, path: Path) -> None:
+        from app.utils.themes import Theme
+
         path.parent.mkdir(parents=True, exist_ok=True)
+        themes_payload = []
+        for theme in self.themes:
+            # Le thème actif est toujours enregistré depuis le miroir
+            # ``projection`` : une seule source de vérité du style actif.
+            if theme.id == self.active_theme_id:
+                theme = Theme(
+                    id=theme.id,
+                    name=theme.name,
+                    style=copy.deepcopy(self.projection),
+                )
+            themes_payload.append(theme.to_payload())
         payload = {
             "projection": asdict(self.projection),
             "obs": asdict(self.obs),
             "appearance": asdict(self.appearance),
+            "themes": themes_payload,
+            "theme_assignments": dict(self.theme_assignments),
+            "active_theme_id": self.active_theme_id,
         }
         tmp = path.with_suffix(path.suffix + ".tmp")
         tmp.write_text(

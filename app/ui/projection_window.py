@@ -27,6 +27,7 @@ from PyQt6.QtGui import (
 from PyQt6.QtWidgets import QGraphicsOpacityEffect, QWidget
 
 from app.ui.slide_canvas import SlideCanvas, ShadowTextLabel, _blur_pixmap
+from app.utils.themes import ThemeRegistry
 
 __all__ = ["ProjectionWindow", "ShadowTextLabel", "_blur_pixmap"]
 
@@ -306,6 +307,11 @@ class ProjectionWindow(SlideCanvas):
 
     def _apply_config(self, cfg: dict[str, Any]) -> None:
         cfg = dict(cfg)
+        # Registre de thèmes : la fenêtre résout elle-même le style par type
+        # de contenu (bible → thème X, cantique → thème Y…).
+        self._theme_registry = ThemeRegistry(cfg)
+        self._global_config = dict(cfg)
+        self._theme_active: str | None = None
         super()._apply_config(cfg)
         # Sélection de l'écran de sortie (préférence opérateur).
         preferred_screen = str(cfg.get("display_screen") or "auto")
@@ -321,9 +327,27 @@ class ProjectionWindow(SlideCanvas):
         # Re-apply slide content from the live file.
         slide = self._read_json(self._slide_path) or {}
         if slide:
+            self._apply_theme_for_slide(slide)
             self._render_slide_content(slide)
 
+    def _apply_theme_for_slide(self, slide: dict[str, Any]) -> None:
+        """Applique le thème assigné à la source de la slide, si besoin."""
+        registry = getattr(self, "_theme_registry", None)
+        if registry is None or not registry.themes:
+            return
+        source = str(slide.get("source") or "")
+        theme_id = registry.theme_id_for(source)
+        if theme_id == registry.active_id or theme_id not in registry.themes:
+            if getattr(self, "_theme_active", None) is not None:
+                SlideCanvas._apply_config(self, dict(self._global_config))
+                self._theme_active = None
+        elif self._theme_active != theme_id:
+            SlideCanvas._apply_config(self, dict(registry.themes[theme_id]))
+            self._theme_active = theme_id
+
     def _apply_slide(self, slide: dict[str, Any]) -> None:
+        # Style par type de contenu (thèmes) avant tout rendu.
+        self._apply_theme_for_slide(slide)
         text = str(slide.get("text") or "")
         ref = str(slide.get("reference") or "")
         hidden = bool(slide.get("hidden"))

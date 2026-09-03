@@ -859,15 +859,24 @@ class PreviewPanel(QFrame):
         image_path: str = "",
         hidden: bool = False,
     ):
-        """Rend la slide hors écran à la résolution de sortie (1920×1080)."""
+        """Rend la slide hors écran à la résolution de sortie (1920×1080),
+        avec le thème assigné au type de contenu si pertinent."""
         canvas = self._ensure_canvas()
         if canvas is None:
             return None
         cfg = self._canvas_style_config()
-        if cfg != self._canvas_cfg:
-            self._canvas_cfg = cfg
+        effective: dict = cfg
+        if cfg:
+            from app.utils.themes import ThemeRegistry
+
+            registry = ThemeRegistry(cfg)
+            theme_style = registry.style_for(str(source or ""))
+            if theme_style is not None:
+                effective = theme_style
+        if effective != self._canvas_cfg:
+            self._canvas_cfg = effective
             try:
-                canvas._apply_config(cfg)
+                canvas._apply_config(dict(effective))
             except Exception:
                 return None
         try:

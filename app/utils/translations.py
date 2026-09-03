@@ -532,6 +532,81 @@ _translations: dict[str, dict[str, str]] = {
     "obs_lower_third_title": {"fr": "Paramètres de diffusion OBS", "en": "OBS broadcast settings"},
     "show_bible_ref": {"fr": "Afficher la référence biblique", "en": "Show Bible reference"},
     "show_background": {"fr": "Afficher l'arrière-plan", "en": "Show background"},
+    # ── Thèmes de projection (2.0) ────────────────────────────────────
+    "themes_manager": {"fr": "Thèmes de projection", "en": "Projection themes"},
+    "themes_manager_desc": {
+        "fr": "Styles nommés et assignation par type de contenu",
+        "en": "Named styles and per-content assignment",
+    },
+    "themes_title": {"fr": "Thèmes de projection", "en": "Projection themes"},
+    "themes_intro": {
+        "fr": "Un thème définit police, couleurs, fond et voile. Assignez un thème à chaque type de contenu — sans assignation, le thème actif (●) s'applique.",
+        "en": "A theme defines font, colors, background and scrim. Assign a theme per content type — otherwise the active theme (●) applies.",
+    },
+    "themes_activate": {"fr": "Définir actif", "en": "Set active"},
+    "themes_activate_tip": {
+        "fr": "Le thème actif s'applique à tout contenu sans assignation",
+        "en": "The active theme applies to any unassigned content",
+    },
+    "themes_new": {"fr": "Nouveau", "en": "New"},
+    "themes_new_tip": {"fr": "Créer un thème basé sur le thème courant", "en": "Create a theme based on the current one"},
+    "themes_duplicate": {"fr": "Dupliquer", "en": "Duplicate"},
+    "themes_duplicate_tip": {"fr": "Dupliquer le thème sélectionné", "en": "Duplicate the selected theme"},
+    "themes_rename": {"fr": "Renommer", "en": "Rename"},
+    "themes_rename_tip": {"fr": "Renommer le thème sélectionné", "en": "Rename the selected theme"},
+    "themes_delete": {"fr": "Supprimer", "en": "Delete"},
+    "themes_delete_tip": {"fr": "Supprimer le thème sélectionné", "en": "Delete the selected theme"},
+    "themes_delete_confirm": {
+        "fr": "Supprimer le thème « {name} » ? Les assignations qui l'utilisent seront réinitialisées.",
+        "en": "Delete theme “{name}”? Assignments using it will be reset.",
+    },
+    "themes_presets": {"fr": "Ajouter un thème prédéfini", "en": "Add a preset theme"},
+    "themes_presets_tip": {
+        "fr": "Thèmes prêts à l'emploi : Épuré Nuit, Or Ancien, Blanc Minimal",
+        "en": "Ready-to-use themes: Night Clean, Old Gold, Minimal White",
+    },
+    "themes_active_badge": {"fr": "ACTIF", "en": "ACTIVE"},
+    "themes_edit_style": {"fr": "Modifier le style…", "en": "Edit style…"},
+    "themes_assign_title": {
+        "fr": "Assignation par type de contenu",
+        "en": "Assignment per content type",
+    },
+    "themes_assign_none": {"fr": "(Thème actif)", "en": "(Active theme)"},
+    "themes_default_new_name": {"fr": "Nouveau thème", "en": "New theme"},
+    "themes_name_label": {"fr": "Nom du thème :", "en": "Theme name:"},
+    # ── Écran scène (2.0) ──────────────────────────────────────────────
+    "stage_display": {"fr": "Écran scène", "en": "Stage display"},
+    "stage_display_desc": {
+        "fr": "Écran orateurs : texte courant, suivant, horloge et messages",
+        "en": "Speaker screen: current, next, clock and messages",
+    },
+    "stage_toggle": {"fr": "Écran scène (F6)", "en": "Stage display (F6)"},
+    "stage_send_message": {"fr": "Message scène…", "en": "Stage message…"},
+    "stage_message_hint": {
+        "fr": "Message affiché sur l'écran scène",
+        "en": "Message shown on the stage display",
+    },
+    "stage_next_label": {"fr": "À SUIVRE", "en": "UP NEXT"},
+    "stage_title": {"fr": "Project-On — Écran scène", "en": "Project-On — Stage display"},
+    # ── Annonces & ticker (2.0) ────────────────────────────────────────
+    "announcements": {"fr": "Annonces", "en": "Announcements"},
+    "ticker_settings": {"fr": "Bandeau défilant", "en": "Scrolling banner"},
+    "ticker_settings_desc": {
+        "fr": "Annonces en défilement continu sous la projection",
+        "en": "Continuously scrolling banner under the projection",
+    },
+    "ticker_enable": {"fr": "Activer le bandeau défilant", "en": "Enable scrolling banner"},
+    "ticker_texts": {"fr": "Annonces (une par ligne)", "en": "Announcements (one per line)"},
+    "ticker_speed": {"fr": "Vitesse de défilement", "en": "Scrolling speed"},
+    "announcement_loop_use": {"fr": "Utiliser comme boucle d'annonces", "en": "Use as announcement loop"},
+    "announcement_loop_start": {"fr": "Lancer les annonces", "en": "Start announcements"},
+    "announcement_loop_stop": {"fr": "Arrêter les annonces", "en": "Stop announcements"},
+    # ── Boucle vidéo (2.0) ─────────────────────────────────────────────
+    "video_loop": {"fr": "Boucle", "en": "Loop"},
+    "video_loop_tip": {
+        "fr": "Relancer la vidéo automatiquement à la fin",
+        "en": "Restart the video automatically when it ends",
+    },
 }
 
 
