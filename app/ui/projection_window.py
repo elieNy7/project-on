@@ -27,6 +27,7 @@ from PyQt6.QtGui import (
 from PyQt6.QtWidgets import QGraphicsOpacityEffect, QWidget
 
 from app.ui.slide_canvas import SlideCanvas, ShadowTextLabel, _blur_pixmap
+from app.ui.ticker_overlay import TickerOverlay
 from app.utils.themes import ThemeRegistry
 
 __all__ = ["ProjectionWindow", "ShadowTextLabel", "_blur_pixmap"]
@@ -64,6 +65,10 @@ class ProjectionWindow(SlideCanvas):
         self._web_view: Any = None
         self._active_web_url = ""
         self._webengine_available = True
+
+        # Bandeau défilant d'annonces (ancré en bas, au-dessus de tout).
+        self._ticker = TickerOverlay(self)
+        self._ticker.hide()
 
         # Slide transition engine (pixmap animation in paintEvent)
         self._trans: dict[str, Any] | None = None
@@ -113,6 +118,32 @@ class ProjectionWindow(SlideCanvas):
             self._video_widget.setGeometry(self.rect())
         if self._web_view is not None:
             self._web_view.setGeometry(self.rect())
+        self._position_ticker()
+
+    def _position_ticker(self) -> None:
+        ticker = getattr(self, "_ticker", None)
+        if ticker is None:
+            return
+        height = ticker.height()
+        ticker.setGeometry(0, self.height() - height, self.width(), height)
+        ticker.raise_()
+
+    def _apply_ticker_config(self, cfg: dict[str, Any]) -> None:
+        """Bandeau défilant : configuré depuis config.json (clé « ticker »)."""
+        ticker_cfg = cfg.get("ticker")
+        if not isinstance(ticker_cfg, dict):
+            self._ticker.configure([], False)
+            return
+        self._ticker.configure(
+            texts=list(ticker_cfg.get("texts") or []),
+            enabled=bool(ticker_cfg.get("enabled")),
+            speed=int(ticker_cfg.get("speed") or 90),
+            height=int(ticker_cfg.get("height") or 64),
+            bg_color=str(ticker_cfg.get("bg_color") or "rgba(5,10,22,0.82)"),
+            text_color=str(ticker_cfg.get("text_color") or "rgba(255,255,255,0.95)"),
+            font_size=int(ticker_cfg.get("font_size") or 30),
+        )
+        self._position_ticker()
 
     # ── Lecture vidéo (QMediaPlayer, contrôle manuel opérateur) ───────────
 
@@ -312,6 +343,10 @@ class ProjectionWindow(SlideCanvas):
         self._theme_registry = ThemeRegistry(cfg)
         self._global_config = dict(cfg)
         self._theme_active: str | None = None
+        try:
+            self._apply_ticker_config(cfg)
+        except Exception:
+            log.exception("Échec de l'application du bandeau défilant")
         super()._apply_config(cfg)
         # Sélection de l'écran de sortie (préférence opérateur).
         preferred_screen = str(cfg.get("display_screen") or "auto")

@@ -588,6 +588,17 @@ _translations: dict[str, dict[str, str]] = {
     },
     "stage_next_label": {"fr": "À SUIVRE", "en": "UP NEXT"},
     "stage_title": {"fr": "Project-On — Écran scène", "en": "Project-On — Stage display"},
+    "stage_enabled_startup": {"fr": "Ouvrir l'écran scène au démarrage", "en": "Open stage display at startup"},
+    "stage_text_size": {"fr": "Taille — slide courante", "en": "Size — current slide"},
+    "stage_next_size": {"fr": "Taille — slide suivante", "en": "Size — next slide"},
+    "stage_show_clock": {"fr": "Afficher l'horloge", "en": "Show clock"},
+    "stage_show_next": {"fr": "Afficher la slide suivante", "en": "Show next slide"},
+    "stage_text_color": {"fr": "Couleur — slide courante", "en": "Color — current slide"},
+    "stage_next_color": {"fr": "Couleur — slide suivante", "en": "Color — next slide"},
+    "screen_auto": {"fr": "Automatique (2e écran)", "en": "Automatic (second screen)"},
+    "screen_primary": {"fr": "  (principal)", "en": "  (primary)"},
+    "output_screen": {"fr": "Écran de sortie", "en": "Output screen"},
+    "font_family": {"fr": "Police", "en": "Font"},
     # ── Annonces & ticker (2.0) ────────────────────────────────────────
     "announcements": {"fr": "Annonces", "en": "Announcements"},
     "ticker_settings": {"fr": "Bandeau défilant", "en": "Scrolling banner"},
@@ -601,6 +612,18 @@ _translations: dict[str, dict[str, str]] = {
     "announcement_loop_use": {"fr": "Utiliser comme boucle d'annonces", "en": "Use as announcement loop"},
     "announcement_loop_start": {"fr": "Lancer les annonces", "en": "Start announcements"},
     "announcement_loop_stop": {"fr": "Arrêter les annonces", "en": "Stop announcements"},
+    "announcement_active": {"fr": "ANNONCES", "en": "ANNOUNCEMENTS"},
+    "announcement_no_playlist": {
+        "fr": "Désignez d'abord une playlist comme boucle d'annonces (menu contextuel de l'onglet Playlists).",
+        "en": "First designate a playlist as the announcement loop (context menu in the Playlists tab).",
+    },
+    "announcement_set_done": {
+        "fr": "Cette playlist est maintenant la boucle d'annonces.",
+        "en": "This playlist is now the announcement loop.",
+    },
+    "ticker_height": {"fr": "Hauteur du bandeau", "en": "Banner height"},
+    "ticker_bg_color": {"fr": "Couleur du fond", "en": "Background color"},
+    "ticker_text_color": {"fr": "Couleur du texte", "en": "Text color"},
     # ── Boucle vidéo (2.0) ─────────────────────────────────────────────
     "video_loop": {"fr": "Boucle", "en": "Loop"},
     "video_loop_tip": {

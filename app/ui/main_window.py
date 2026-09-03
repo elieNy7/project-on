@@ -5,6 +5,7 @@ import json
 import logging
 import sys
 import time
+from dataclasses import asdict
 from pathlib import Path
 
 from PyQt6.QtCore import QEvent, QObject, Qt, QTimer
@@ -76,6 +77,7 @@ class MainWindow(QMainWindow):
         presentation_dir = ensure_presentation_workdir()
 
         self._projection_window: ProjectionWindow | None = None
+        self._stage_window = None  # StageWindow | None
         self._presentation_dir = presentation_dir
         self._write_presentation_config()
         self._write_obs_config()
@@ -84,6 +86,19 @@ class MainWindow(QMainWindow):
             db=db, presentation_dir=presentation_dir
         )
         self._obs = ObsController(settings=self._settings.obs)
+
+        # Boucle d'annonces (façon ProPresenter) : playlist dédiée + snapshot
+        # du live pour restauration à l'arrêt.
+        from app.database.dao_playlist import PlaylistDao
+        from app.utils.announcement_controller import AnnouncementController
+
+        self._announcements = AnnouncementController(
+            self._project_controller, PlaylistDao(db), parent=self
+        )
+        self._announcements.set_folder(self._settings.ticker.announcement_folder_id)
+        self._announcements.set_seconds_per_slide(
+            self._settings.ticker.announcement_seconds
+        )
 
         # Remote OBS control (obs-websocket 5.x) — scene switching on live/hide
         from app.utils.obs_websocket import ObsRemoteClient
@@ -175,6 +190,14 @@ class MainWindow(QMainWindow):
                 self.library_panel.settings_tab.themesRequested.connect(
                     self._open_theme_manager
                 )
+            if hasattr(self.library_panel.settings_tab, "stageSettingsRequested"):
+                self.library_panel.settings_tab.stageSettingsRequested.connect(
+                    self._open_stage_settings
+                )
+            if hasattr(self.library_panel.settings_tab, "tickerSettingsRequested"):
+                self.library_panel.settings_tab.tickerSettingsRequested.connect(
+                    self._open_ticker_settings
+                )
             if hasattr(self.library_panel.settings_tab, "obsSettingsRequested"):
                 self.library_panel.settings_tab.obsSettingsRequested.connect(
                     self._open_obs_settings
@@ -220,6 +243,19 @@ class MainWindow(QMainWindow):
             self._on_reference_position_toggled
         )
         self.preview_panel.videoControlRequested.connect(self._on_video_control)
+        self.preview_panel.stageToggled.connect(
+            lambda on: self._open_stage() if on else self._close_stage()
+        )
+        self.preview_panel.stageMessageRequested.connect(self._send_stage_message)
+        self.preview_panel.announcementsToggled.connect(self._toggle_announcements)
+        self._announcements.activeChanged.connect(
+            self.preview_panel.set_announcement_active
+        )
+        # Menu contextuel Playlists : « Utiliser comme boucle d'annonces ».
+        if hasattr(self.library_panel, "playlist_tab"):
+            self.library_panel.playlist_tab.announcementLoopRequested.connect(
+                self._set_announcement_folder
+            )
 
         class _GlobalArrowNavFilter(QObject):
             def __init__(self, owner: MainWindow) -> None:
@@ -285,6 +321,11 @@ class MainWindow(QMainWindow):
         sc_f5.setContext(Qt.ShortcutContext.ApplicationShortcut)
         sc_f5.activated.connect(self._toggle_local_projection)
 
+        # F6 → Toggle écran scène (orateurs)
+        sc_f6 = QShortcut(QKeySequence(Qt.Key.Key_F6), self)
+        sc_f6.setContext(Qt.ShortcutContext.ApplicationShortcut)
+        sc_f6.activated.connect(self._toggle_stage)
+
         # Ctrl+F → Focus recherche dans l'onglet actif
         sc_search = QShortcut(QKeySequence("Ctrl+F"), self)
         sc_search.setContext(Qt.ShortcutContext.ApplicationShortcut)
@@ -313,6 +354,9 @@ class MainWindow(QMainWindow):
         # Premier check immédiat
         QTimer.singleShot(500, self._poll_obs_status)
         QTimer.singleShot(0, self._start_obs_output)
+        # Écran scène rouvert au démarrage si activé dans les réglages
+        if self._settings.stage.enabled:
+            QTimer.singleShot(200, self._open_stage)
 
         # Responsive: allow window to shrink on small screens
         self.setMinimumSize(900, 550)
@@ -387,6 +431,10 @@ class MainWindow(QMainWindow):
         - Otherwise, they navigate the live program slides.
         """
         fw = QApplication.focusWidget()
+        # Les annonces en boucle cèdent immédiatement à toute action manuelle.
+        if self._announcements.is_active:
+            self._announcements.stop()
+            return
         if fw is not None and self.library_panel.isAncestorOf(fw):
             tabs = getattr(self.library_panel, "tabs", None)
             current = tabs.currentWidget() if tabs is not None else None
@@ -532,6 +580,7 @@ class MainWindow(QMainWindow):
         cfg["themes"] = themes_payload
         cfg["theme_assignments"] = dict(theme_assignments)
         cfg["active_theme"] = active_theme_id
+        cfg["ticker"] = asdict(self._settings.ticker)
         return cfg
 
     def _write_obs_config(self) -> None:
@@ -784,6 +833,7 @@ class MainWindow(QMainWindow):
         self.preview_panel.set_slide_counter(row, total)
         self.status_bar.update_slide(slide.source, slide.reference, row, total)
         self._sync_expose_highlight(row)
+        self._update_stage()
 
     def _sync_expose_highlight(self, row: int) -> None:
         """Suit la projection dans l'onglet Exposé quand un chapitre est en direct."""
@@ -847,6 +897,7 @@ class MainWindow(QMainWindow):
         """Toggle visibility of text on projection and OBS."""
         self._project_controller.slide_writer.set_hidden(hidden)
         self.status_bar.set_hidden(hidden)
+        self._update_stage()
         # Also update OBS
         slide = self._project_controller.current_slide()
         if slide:
@@ -870,6 +921,7 @@ class MainWindow(QMainWindow):
         hidden = self._project_controller.slide_writer.toggle_hidden()
         self.preview_panel.set_hidden(hidden)
         self.status_bar.set_hidden(hidden)
+        self._update_stage()
         # Also update OBS
         slide = self._project_controller.current_slide()
         if slide:
@@ -954,6 +1006,46 @@ class MainWindow(QMainWindow):
         self.preview_panel.set_project_active(False)
         self.status_bar.set_project_active(False)
 
+    def _open_ticker_settings(self) -> None:
+        from app.ui.ticker_dialog import TickerDialog
+
+        dlg = TickerDialog(self._settings.ticker, parent=self)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        self._settings.ticker = dlg.get_settings()
+        self._settings.save(self._settings_path)
+        self._write_presentation_config()
+        self._refresh_settings_details()
+
+    # ── Boucle d'annonces ──────────────────────────────────────────────────
+
+    def _toggle_announcements(self) -> None:
+        if self._announcements.is_active:
+            self._announcements.stop()
+            return
+        if self._announcements.folder_id is None:
+            QMessageBox.information(
+                self, tr("announcement_loop"), tr("announcement_no_playlist")
+            )
+            return
+        if not self._announcements.start():
+            QMessageBox.information(
+                self, tr("announcement_loop"), tr("announcement_no_playlist")
+            )
+            return
+
+    def _set_announcement_folder(self, folder_id: int | None) -> None:
+        """Menu contextuel Playlists : désigne la boucle d'annonces."""
+        self._settings.ticker.announcement_folder_id = folder_id
+        self._settings.ticker.announcement_seconds = (
+            self._announcements._seconds_per_slide
+        )
+        self._announcements.set_folder(folder_id)
+        self._settings.save(self._settings_path)
+        QMessageBox.information(
+            self, tr("announcement_loop"), tr("announcement_set_done")
+        )
+
     def _open_local_projection(self) -> None:
         if self._projection_window is None:
             self._projection_window = ProjectionWindow(self._presentation_dir)
@@ -974,6 +1066,94 @@ class MainWindow(QMainWindow):
         self.preview_panel.set_project_active(True)
         self.status_bar.set_project_active(True)
 
+    # ── Écran scène (orateurs) ─────────────────────────────────────────────
+
+    def _toggle_stage(self) -> None:
+        if self._stage_window is not None:
+            self._close_stage()
+        else:
+            self._open_stage()
+
+    def _open_stage(self) -> None:
+        if self._stage_window is None:
+            from app.ui.stage_window import StageWindow
+
+            self._stage_window = StageWindow(self._settings.stage)
+            self._stage_window.destroyed.connect(
+                lambda: setattr(self, "_stage_window", None)
+            )
+            self._stage_window.destroyed.connect(
+                lambda: self.preview_panel.set_stage_active(False)
+            )
+            self._update_stage()
+        else:
+            self._stage_window.show()
+        self.preview_panel.set_stage_active(True)
+
+    def _close_stage(self) -> None:
+        window = self._stage_window
+        if window is not None:
+            window.close()
+            self._stage_window = None
+        self.preview_panel.set_stage_active(False)
+
+    def _update_stage(self) -> None:
+        """Pousse le courant + le suivant vers l'écran scène."""
+        if self._stage_window is None:
+            return
+        slide = self._project_controller.current_slide()
+        hidden = self._project_controller.slide_writer.is_hidden
+        if slide is None:
+            self._stage_window.set_slide({"hidden": hidden})
+        else:
+            self._stage_window.set_slide(
+                {
+                    "reference": slide.reference,
+                    "text": slide.text,
+                    "source": slide.source,
+                    "hidden": hidden,
+                }
+            )
+        peek = self._project_controller.peek_next_slide()
+        if peek is None:
+            self._stage_window.set_next_slide(None)
+        else:
+            self._stage_window.set_next_slide(
+                {"reference": peek.reference, "text": peek.text}
+            )
+
+    def _open_stage_settings(self) -> None:
+        from app.ui.stage_window import StageSettingsDialog
+
+        dlg = StageSettingsDialog(self._settings.stage, parent=self)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        self._settings.stage = dlg.get_settings()
+        self._settings.save(self._settings_path)
+        if self._stage_window is not None:
+            self._stage_window.apply_settings(self._settings.stage)
+
+    def _send_stage_message(self) -> None:
+        from PyQt6.QtWidgets import QInputDialog
+
+        current = ""
+        if self._stage_window is not None:
+            current = self._stage_window._message_label.text()
+        text, ok = QInputDialog.getMultiLineText(
+            self,
+            tr("stage_send_message"),
+            tr("stage_message_hint"),
+            current,
+        )
+        if not ok:
+            return
+        if self._stage_window is None:
+            self._open_stage()
+        if str(text or "").strip():
+            self._stage_window.show_message(text)
+        else:
+            self._stage_window.clear_message()
+
     def closeEvent(self, event) -> None:
         """Handle application shutdown gracefully."""
         app = QApplication.instance()
@@ -984,6 +1164,11 @@ class MainWindow(QMainWindow):
                 log.exception("Échec du retrait du filtre global de navigation")
         # Fermer la fenêtre de projection pour ne pas laisser un écran
         # plein écran zombie après la fermeture de la régie.
+        if getattr(self, "_stage_window", None) is not None:
+            try:
+                self._stage_window.close()
+            except Exception:
+                log.exception("Échec de fermeture de l'écran scène")
         if getattr(self, "_projection_window", None) is not None:
             try:
                 self._projection_window.close()

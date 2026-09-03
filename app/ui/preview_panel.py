@@ -132,6 +132,11 @@ class PreviewPanel(QFrame):
     referencePositionToggled = pyqtSignal(bool)
     # Contrôle vidéo opérateur : "play" | "pause" | "stop"
     videoControlRequested = pyqtSignal(str)
+    # Écran scène : on/off + message opérateur
+    stageToggled = pyqtSignal(bool)
+    stageMessageRequested = pyqtSignal()
+    # Boucle d'annonces : lancer / arrêter
+    announcementsToggled = pyqtSignal()
 
     def __init__(self, parent=None, settings=None) -> None:
         super().__init__(parent)
@@ -548,6 +553,33 @@ class PreviewPanel(QFrame):
         self._video_play_button.hide()
         self._video_stop_button.hide()
 
+        # Écran scène : activation + message opérateur.
+        self._stage_button = PreviewControlButton(
+            "users.svg", tr("stage_toggle"), self.console_frame,
+            text=tr("stage_display"),
+        )
+        self._stage_button.setCheckable(True)
+        self._stage_button.toggled.connect(self.stageToggled.emit)
+        console_layout.addWidget(self._stage_button)
+
+        self._stage_message_button = PreviewControlButton(
+            "type.svg", tr("stage_send_message"), self.console_frame,
+            text=tr("stage_send_message"),
+        )
+        self._stage_message_button.clicked.connect(self.stageMessageRequested.emit)
+        console_layout.addWidget(self._stage_message_button)
+
+        # Boucle d'annonces : bouton bascule (rouge quand actif).
+        self._announce_button = PreviewControlButton(
+            "megaphone.svg", tr("announcement_loop"), self.console_frame,
+            text=tr("announcement_loop_start"),
+        )
+        self._announce_button.setCheckable(True)
+        self._announce_button.clicked.connect(
+            lambda: self.announcementsToggled.emit()
+        )
+        console_layout.addWidget(self._announce_button)
+
         # Lecteur vidéo de l'APERÇU (miniature, mutée) — créé paresseusement.
         self._video_preview = None  # QVideoWidget | False (indisponible)
         self._video_preview_player = None
@@ -627,6 +659,19 @@ class PreviewPanel(QFrame):
         if event:
             QFrame.resizeEvent(self._slide_frame, event)
         self._refresh_image_pixmap()
+
+    def set_stage_active(self, active: bool) -> None:
+        """Synchronise le bouton scène avec l'état réel de la fenêtre."""
+        with QSignalBlocker(self._stage_button):
+            self._stage_button.setChecked(bool(active))
+
+    def set_announcement_active(self, active: bool) -> None:
+        """Réflète l'état de la boucle d'annonces sur le bouton."""
+        with QSignalBlocker(self._announce_button):
+            self._announce_button.setChecked(bool(active))
+        self._announce_button.setText(
+            tr("announcement_loop_stop") if active else tr("announcement_loop_start")
+        )
 
     def set_project_active(self, active: bool) -> None:
         self._project_active = active

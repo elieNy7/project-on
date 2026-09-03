@@ -26,6 +26,7 @@ from PyQt6.QtWidgets import (
 )
 
 from app.ui.icons import app_icon
+from app.utils.translations import tr
 from app.ui.theme import (
     Colors,
     Spacing,
@@ -258,6 +259,7 @@ class PlaylistTab(QFrame):
     folderRenameRequested = pyqtSignal(int, str)
     folderDeleteRequested = pyqtSignal(int)
     folderExportRequested = pyqtSignal(int)
+    announcementLoopRequested = pyqtSignal(int)  # folder_id → boucle d'annonces
     importRequested = pyqtSignal()
     itemCreateRequested = pyqtSignal(int, str, str)  # folder_id, référence, texte
     itemUpdateRequested = pyqtSignal(int, str, str)  # item_id, référence, texte
@@ -594,12 +596,17 @@ class PlaylistTab(QFrame):
         act_export = menu.addAction(
             app_icon("download.svg"), "Exporter vers un fichier…"
         )
+        act_announce = menu.addAction(
+            app_icon("megaphone.svg"), tr("announcement_loop_use")
+        )
         menu.addSeparator()
         act_rename = menu.addAction(app_icon("edit-3.svg"), "Renommer")
         act_delete = menu.addAction(app_icon("trash.svg"), "Supprimer")
         chosen = menu.exec(self.folders_list.mapToGlobal(pos))
         if chosen is act_export:
             self.folderExportRequested.emit(folder_id)
+        elif chosen is act_announce:
+            self.announcementLoopRequested.emit(folder_id)
         elif chosen is act_rename:
             self._on_rename_folder_clicked()
         elif chosen is act_delete:

@@ -568,11 +568,50 @@ class StageSettings:
 
 
 @dataclass
+class TickerSettings:
+    """Bandeau défilant d'annonces sous la projection locale."""
+    enabled: bool = False
+    texts: list = field(default_factory=list)  # une annonce par entrée
+    speed: int = 90  # pixels / seconde
+    height: int = 64  # hauteur du bandeau (px)
+    bg_color: str = "rgba(5,10,22,0.82)"
+    text_color: str = "rgba(255,255,255,0.95)"
+    font_size: int = 30  # px @1080p
+    # Playlist utilisée comme boucle d'annonces (None = aucune)
+    announcement_folder_id: int | None = None
+    announcement_seconds: int = 8  # durée par slide d'annonce
+
+    def sanitized(self) -> TickerSettings:
+        s = TickerSettings(
+            enabled=bool(self.enabled),
+            speed=max(20, min(400, int(self.speed or 90))),
+            height=max(32, min(220, int(self.height or 64))),
+            bg_color=str(self.bg_color or "rgba(5,10,22,0.82)"),
+            text_color=str(self.text_color or "rgba(255,255,255,0.95)"),
+            font_size=max(14, min(90, int(self.font_size or 30))),
+        )
+        s.texts = [
+            str(t or "").strip() for t in (self.texts or []) if str(t or "").strip()
+        ]
+        try:
+            s.announcement_folder_id = (
+                int(self.announcement_folder_id)
+                if self.announcement_folder_id is not None
+                else None
+            )
+        except (TypeError, ValueError):
+            s.announcement_folder_id = None
+        s.announcement_seconds = max(2, min(120, int(self.announcement_seconds or 8)))
+        return s
+
+
+@dataclass
 class AppSettings:
     projection: ProjectionSettings = field(default_factory=ProjectionSettings)
     obs: ObsSettings = field(default_factory=ObsSettings)
     appearance: AppearanceSettings = field(default_factory=AppearanceSettings)
     stage: StageSettings = field(default_factory=StageSettings)
+    ticker: TickerSettings = field(default_factory=TickerSettings)
     # Thèmes de projection (façon ProPresenter) : le thème actif est le miroir
     # de ``projection`` ; les autres vivent dans ``themes``.
     themes: list = field(default_factory=list)
@@ -734,6 +773,46 @@ class AppSettings:
             if appearance.language not in ("fr", "en"):
                 appearance.language = "fr"
 
+        stage = StageSettings()
+        st = payload.get("stage")
+        if isinstance(st, dict):
+            stage.enabled = _gb(st, "enabled", stage.enabled)
+            stage.display_screen = _gs(st, "display_screen", stage.display_screen)
+            stage.font_family = _gs(st, "font_family", stage.font_family)
+            stage.text_size = _gi(st, "text_size", stage.text_size)
+            stage.next_size = _gi(st, "next_size", stage.next_size)
+            stage.show_clock = _gb(st, "show_clock", stage.show_clock)
+            stage.show_next = _gb(st, "show_next", stage.show_next)
+            stage.show_reference = _gb(st, "show_reference", stage.show_reference)
+            stage.text_color = _gs(st, "text_color", stage.text_color)
+            stage.next_color = _gs(st, "next_color", stage.next_color)
+            stage.bg_color = _gs(st, "bg_color", stage.bg_color)
+        stage = stage.sanitized()
+
+        ticker = TickerSettings()
+        tk = payload.get("ticker")
+        if isinstance(tk, dict):
+            ticker.enabled = _gb(tk, "enabled", ticker.enabled)
+            raw_texts = tk.get("texts")
+            if isinstance(raw_texts, list):
+                ticker.texts = [str(t or "") for t in raw_texts]
+            ticker.speed = _gi(tk, "speed", ticker.speed)
+            ticker.height = _gi(tk, "height", ticker.height)
+            ticker.bg_color = _gs(tk, "bg_color", ticker.bg_color)
+            ticker.text_color = _gs(tk, "text_color", ticker.text_color)
+            ticker.font_size = _gi(tk, "font_size", ticker.font_size)
+            raw_folder = tk.get("announcement_folder_id")
+            try:
+                ticker.announcement_folder_id = (
+                    int(raw_folder) if raw_folder is not None else None
+                )
+            except (TypeError, ValueError):
+                ticker.announcement_folder_id = None
+            ticker.announcement_seconds = _gi(
+                tk, "announcement_seconds", ticker.announcement_seconds
+            )
+        ticker = ticker.sanitized()
+
         # Guard: if a background image was selected but the file no longer
         # exists (e.g. removed during a defaults upgrade), fall back to the
         # colour background so the projection isn't left blank.
@@ -787,6 +866,8 @@ class AppSettings:
             projection=projection,
             obs=obs,
             appearance=appearance,
+            stage=stage,
+            ticker=ticker,
             themes=themes,
             theme_assignments=theme_assignments,
             active_theme_id=active_theme_id,
@@ -811,6 +892,8 @@ class AppSettings:
             "projection": asdict(self.projection),
             "obs": asdict(self.obs),
             "appearance": asdict(self.appearance),
+            "stage": asdict(self.stage),
+            "ticker": asdict(self.ticker),
             "themes": themes_payload,
             "theme_assignments": dict(self.theme_assignments),
             "active_theme_id": self.active_theme_id,
