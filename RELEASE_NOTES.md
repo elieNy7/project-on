@@ -1,3 +1,32 @@
+# Project-On 2.0.0
+
+**La version « façon ProPresenter »** 🎬 — Project-On rattrape les grands logiciels de projection : thèmes éditables par type de contenu, écran scène pour les orateurs, bandeau d'annonces défilant, boucle d'annonces avec retour automatique au live, transitions riches et aperçu enfin fidèle à l'écran projeté.
+
+## Nouveautés
+
+- **Thèmes de projection** 🎨 : créez des styles nommés (police, tailles, couleurs, fond, voile, animation) et assignez-les par type de contenu — un thème pour les cantiques, un autre pour la Bible, un pour l'Exposé… Le contenu sans assignation utilise le thème actif (●). Trois thèmes prédéfinis inclus : **Épuré Nuit**, **Or Ancien**, **Blanc Minimal**. (Paramètres → Affichage → Thèmes de projection.)
+- **Écran scène pour les orateurs** 🖥️ : un second écran dédié au pupitre — slide courante en grand, **slide suivante atténuée**, **horloge** et **messages de l'opérateur** (« Le pasteur arrive… »). Basculable avec **F6**, réglable (écran, tailles, couleurs) dans Paramètres → Affichage → Écran scène. Message scène : bouton « Message scène… » de la console.
+- **Bandeau défilant d'annonces** 📣 : faites défiler vos annonces en bas de la projection, par-dessus la slide, avec vitesse, hauteur et couleurs réglables. (Paramètres → Affichage → Bandeau défilant.)
+- **Boucle d'annonces** 🔁 : désignez une playlist comme boucle d'annonces (clic droit dans Playlists) puis lancez-la d'un bouton — les annonces tournent en boucle avec avance automatique, et **toute action manuelle restitue immédiatement le contenu live à l'endroit exact où il était**.
+- **Transitions riches en projection locale** ✨ : glissement, zoom, flou et balayage rejoignent le fondu (réglage existant « Animation »). Le fond image peut maintenant dériver doucement façon **Ken Burns**.
+- **Aperçu fidèle** 👀 : l'aperçu opérateur affiche désormais le rendu exact de la projection (mêmes voiles, mêmes typographies, même thème), rendu à la résolution de sortie puis réduit. Fini les surprises à l'écran.
+- **Boucle vidéo** 🔂 : bouton « Boucle » dans la console quand une vidéo est en direct, et réglage « Boucle » par média dans l'onglet Médias (clic droit) — la vidéo relance automatiquement.
+
+## Sous le capot
+
+- Nouveau moteur de rendu partagé (`SlideCanvas`) : projection, aperçu et écran scène utilisent le même code de dessin — cohérence garantie entre écrans.
+- Base de données migrée en version 8 (colonne « boucle » des médias, automatique et sans perte).
+- 17 nouveaux tests automatisés (146 au total) couvrant thèmes, scène, ticker, annonces et boucle vidéo.
+- Toutes ces nouveautés sont **incluses gratuitement** pour tous les utilisateurs.
+
+## Installation
+
+Téléchargez **`ProjectOn_2.0.0_Setup.exe`** ci-dessous et installez-le par-dessus la version existante : cantiques, playlists, réglages et base sont conservés.
+
+Windows 10 / 11 (64 bits) · fonctionne hors-ligne.
+
+---
+
 # Project-On 1.10.1
 
 **Grande passe de fiabilité** 🛠️ — deux bugs de fond corrigés (import de cantiques qui perdait des versets, index de recherche corrompu après un « Vider les cantiques »), le cache PowerPoint devient sûr, et une série d'améliorations de l'interface et des paramètres.

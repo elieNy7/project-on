@@ -34,6 +34,7 @@ _SHORTCUTS: list[tuple[str, str]] = [
     ("shortcut_tab_playlist", "Ctrl+6"),
     ("shortcut_tab_settings", "Ctrl+7"),
     ("shortcut_projection", "F5"),
+    ("shortcut_stage", "F6"),
     ("shortcut_preflight", "Ctrl+Shift+D"),
     ("shortcut_escape", "Escape"),
 ]

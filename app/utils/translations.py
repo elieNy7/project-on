@@ -580,6 +580,7 @@ _translations: dict[str, dict[str, str]] = {
         "fr": "Écran orateurs : texte courant, suivant, horloge et messages",
         "en": "Speaker screen: current, next, clock and messages",
     },
+    "shortcut_stage": {"fr": "Écran scène (orateurs)", "en": "Stage display (speakers)"},
     "stage_toggle": {"fr": "Écran scène (F6)", "en": "Stage display (F6)"},
     "stage_send_message": {"fr": "Message scène…", "en": "Stage message…"},
     "stage_message_hint": {

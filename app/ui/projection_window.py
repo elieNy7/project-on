@@ -61,6 +61,7 @@ class ProjectionWindow(SlideCanvas):
         self._audio_output: Any = None
         self._active_video_path = ""
         self._multimedia_available = True
+        self._video_loop = False
         # Pages web (créées paresseusement à la première slide web).
         self._web_view: Any = None
         self._active_web_url = ""
@@ -206,12 +207,16 @@ class ProjectionWindow(SlideCanvas):
             self._media_player.pause()
 
     def _on_media_status(self, status) -> None:
-        """Fin de lecture : rembobine et reste en pause sur la première frame."""
+        """Fin de lecture : en boucle on relance, sinon rembobine en pause."""
         from PyQt6.QtMultimedia import QMediaPlayer
 
         if status == QMediaPlayer.MediaStatus.EndOfMedia:
-            self._media_player.pause()
-            self._media_player.setPosition(0)
+            if getattr(self, "_video_loop", False):
+                self._media_player.setPosition(0)
+                self._media_player.play()
+            else:
+                self._media_player.pause()
+                self._media_player.setPosition(0)
 
     # ── Pages web (QWebEngineView, création paresseuse) ───────────────────
 
@@ -392,6 +397,7 @@ class ProjectionWindow(SlideCanvas):
 
         video_path = str(slide.get("video") or "").strip()
         web_url = str(slide.get("url") or "").strip()
+        self._video_loop = bool(slide.get("video_loop")) and bool(video_path)
         if hidden:
             video_path = ""
             web_url = ""

@@ -16,6 +16,7 @@ class SlideWriter:
         self._last_slide: Slide | None = None
         self._video_playing = False
         self._video_reset = False
+        self._video_loop = False
 
     @property
     def slide_path(self) -> Path:
@@ -54,6 +55,15 @@ class SlideWriter:
         self._write_current()
         self._video_reset = False
 
+    def set_video_loop(self, loop: bool) -> None:
+        """Boucle : relance automatique de la vidéo à la fin."""
+        self._video_loop = bool(loop)
+        self._write_current()
+
+    @property
+    def video_loop(self) -> bool:
+        return self._video_loop
+
     @property
     def video_playing(self) -> bool:
         return self._video_playing
@@ -71,6 +81,7 @@ class SlideWriter:
                 "video": "",
                 "video_playing": False,
                 "video_reset": False,
+                "video_loop": self._video_loop,
                 "url": "",
                 "hidden": True,
             }
@@ -88,6 +99,7 @@ class SlideWriter:
                 "video": self._last_slide.video_path or "",
                 "video_playing": self._video_playing if has_video else False,
                 "video_reset": self._video_reset if has_video else False,
+                "video_loop": self._video_loop if has_video else False,
                 "url": self._last_slide.url or "",
                 "hidden": False,
             }

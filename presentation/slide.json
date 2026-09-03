@@ -1,12 +1,13 @@
 {
-  "reference": "",
-  "text": "",
-  "source": "",
+  "reference": "Jean 3:16",
+  "text": "Car Dieu a tant aimé le monde",
+  "source": "bible",
   "background": "",
   "image": "",
   "video": "",
   "video_playing": false,
   "video_reset": false,
+  "video_loop": false,
   "url": "",
-  "hidden": true
+  "hidden": false
 }

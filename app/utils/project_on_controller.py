@@ -199,6 +199,17 @@ class ProjectOnController(QObject):
         # Re-émettre la slide : l'aperçu et l'OBS suivent l'état de lecture.
         self.currentSlideChanged.emit(slide)
 
+    def set_video_loop(self, loop: bool) -> None:
+        """Boucle vidéo : relance automatique à la fin (contrôle opérateur)."""
+        self.slide_writer.set_video_loop(bool(loop))
+        slide = self.current_slide()
+        if slide is not None and slide.video_path:
+            self.currentSlideChanged.emit(slide)
+
+    @property
+    def video_loop(self) -> bool:
+        return self.slide_writer.video_loop
+
     def restart_video(self) -> None:
         """Stop : remet la vidéo en direct au début, en pause."""
         slide = self.current_slide()

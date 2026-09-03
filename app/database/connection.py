@@ -77,6 +77,10 @@ class Database:
                 self._apply_migration_v7(conn)
                 self._set_user_version(conn, 7)
                 current_version = 7
+            if current_version < 8:
+                self._apply_migration_v8(conn)
+                self._set_user_version(conn, 8)
+                current_version = 8
             self._ensure_playlist_tables(conn)
             self._ensure_media_tables(conn)
             # Cheap and idempotent: drop dead weight indexes on every launch.
@@ -892,6 +896,22 @@ class Database:
         if "background" not in cols:
             conn.execute("ALTER TABLE playlist_item ADD COLUMN background TEXT DEFAULT ''")
 
+    def _apply_migration_v8(self, conn: sqlite3.Connection) -> None:
+        """Add loop column to media_item (boucle vidéo, Project-On 2.0).
+
+        Sur une base neuve, media_item n'existe pas encore au moment des
+        migrations : ``_ensure_media_tables`` appliquera ce patch juste après
+        sa création. Ici, ne toucher que les bases qui ont déjà la table.
+        """
+        exists = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='media_item'"
+        ).fetchone()
+        if not exists:
+            return
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(media_item)").fetchall()]
+        if "loop" not in cols:
+            conn.execute("ALTER TABLE media_item ADD COLUMN loop INTEGER DEFAULT 0")
+
     def _ensure_playlist_tables(self, conn: sqlite3.Connection) -> None:
         """S'assure que les tables playlist existent (pour les bases existantes)."""
         self._apply_migration_v3(conn)
@@ -906,6 +926,7 @@ class Database:
                 path TEXT NOT NULL UNIQUE,
                 kind TEXT NOT NULL DEFAULT 'image',
                 sort_order INTEGER DEFAULT 0,
+                loop INTEGER DEFAULT 0,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
             );
 
@@ -913,6 +934,8 @@ class Database:
                 ON media_item (sort_order, id);
             """,
         )
+        # Bases créées avant 2.0 : ajout idempotent de la colonne boucle.
+        self._apply_migration_v8(conn)
 
     def _import_bible_json_translations(self, conn: sqlite3.Connection) -> None:
         json_dir = bible_json_dir()

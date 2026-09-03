@@ -189,6 +189,7 @@ class LibraryController(QObject):
             self._media_tab.itemActivated.connect(self.on_media_item_activated)
             self._media_tab.itemDeleteRequested.connect(self.on_media_delete)
             self._media_tab.itemRenameRequested.connect(self.on_media_rename)
+            self._media_tab.itemLoopRequested.connect(self.on_media_set_loop)
             self._media_tab.refreshRequested.connect(self.refresh_media)
             self._media_tab.mediaAddToPlaylistRequested.connect(
                 self.on_media_add_to_playlist
@@ -1641,6 +1642,9 @@ class LibraryController(QObject):
             return
 
         self._project.load_media(path, name)
+        # Vidéo : appliquer la boucle définie sur le média en bibliothèque.
+        if bool(media.get("loop")):
+            self._project.set_video_loop(True)
 
     def on_media_add_web(self, url: str, name: str = "") -> None:
         """Ajoute une page web (URL) comme média projetable."""
@@ -1679,6 +1683,11 @@ class LibraryController(QObject):
         if not clean:
             return
         self._media_dao.rename_media(int(media_id), clean)
+        self.refresh_media()
+
+    def on_media_set_loop(self, media_id: int, loop: bool) -> None:
+        """Active/désactive la boucle d'une vidéo de la bibliothèque."""
+        self._media_dao.set_loop(int(media_id), bool(loop))
         self.refresh_media()
 
     def on_media_add_to_playlist(self, payload: dict) -> None:

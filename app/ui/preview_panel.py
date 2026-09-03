@@ -137,6 +137,8 @@ class PreviewPanel(QFrame):
     stageMessageRequested = pyqtSignal()
     # Boucle d'annonces : lancer / arrêter
     announcementsToggled = pyqtSignal()
+    # Boucle vidéo : True = activer la relance automatique
+    videoLoopToggled = pyqtSignal(bool)
 
     def __init__(self, parent=None, settings=None) -> None:
         super().__init__(parent)
@@ -550,6 +552,16 @@ class PreviewPanel(QFrame):
         )
         console_layout.addWidget(self._video_stop_button)
 
+        # Boucle vidéo : relance automatique à la fin de la lecture.
+        self._video_loop_button = PreviewControlButton(
+            "refresh-cw.svg", tr("video_loop"), self.console_frame, text=tr("video_loop")
+        )
+        self._video_loop_button.setCheckable(True)
+        self._video_loop_button.setToolTip(tr("video_loop_tip"))
+        self._video_loop_button.toggled.connect(self.videoLoopToggled.emit)
+        console_layout.addWidget(self._video_loop_button)
+        self._video_loop_button.hide()
+
         self._video_play_button.hide()
         self._video_stop_button.hide()
 
@@ -736,6 +748,7 @@ class PreviewPanel(QFrame):
         """Affiche les contrôles vidéo et reflète l'état de lecture."""
         self._video_play_button.setVisible(bool(has_video))
         self._video_stop_button.setVisible(bool(has_video))
+        self._video_loop_button.setVisible(bool(has_video))
         with QSignalBlocker(self._video_play_button):
             self._video_play_button.setChecked(bool(playing))
             self._video_play_button.setText(tr("video_pause") if playing else tr("video_play"))
@@ -816,7 +829,8 @@ class PreviewPanel(QFrame):
         video_playing: bool = False,
         source: str = "",
         hidden: bool = False,
-    ) -> None:
+        video_loop: bool = False,
+    ):
         ref = str(reference or "").strip()
         body = str(text or "").strip()
         img = str(image_path or "").strip()
@@ -826,6 +840,8 @@ class PreviewPanel(QFrame):
         self._has_content = bool(ref or body or img or vid)
 
         self.set_video_state(bool(vid), bool(video_playing))
+        with QSignalBlocker(self._video_loop_button):
+            self._video_loop_button.setChecked(bool(video_loop))
 
         if vid and Path(vid).is_file():
             self._image_label.setVisible(False)

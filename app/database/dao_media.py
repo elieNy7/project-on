@@ -15,7 +15,8 @@ class MediaDao:
         with self._db.connect() as conn:
             rows = conn.execute(
                 """
-                SELECT id, name, path, kind, sort_order, created_at
+                SELECT id, name, path, kind, sort_order, created_at,
+                       COALESCE(loop, 0) AS loop
                 FROM media_item
                 ORDER BY sort_order, id
                 """,
@@ -25,10 +26,22 @@ class MediaDao:
     def get_media(self, media_id: int) -> dict[str, Any] | None:
         with self._db.connect() as conn:
             row = conn.execute(
-                "SELECT id, name, path, kind FROM media_item WHERE id = ?",
+                """
+                SELECT id, name, path, kind, COALESCE(loop, 0) AS loop
+                FROM media_item WHERE id = ?
+                """,
                 (int(media_id),),
             ).fetchone()
             return dict(row) if row else None
+
+    def set_loop(self, media_id: int, loop: bool) -> bool:
+        """Active/désactive la boucle vidéo d'un média."""
+        with self._db.connect() as conn:
+            cursor = conn.execute(
+                "UPDATE media_item SET loop = ? WHERE id = ?",
+                (1 if loop else 0, int(media_id)),
+            )
+            return cursor.rowcount > 0
 
     def add_media(self, name: str, path: str, kind: str) -> int:
         """Ajoute un média et retourne son ID (path UNIQUE → idempotent)."""

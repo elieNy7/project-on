@@ -243,6 +243,9 @@ class MainWindow(QMainWindow):
             self._on_reference_position_toggled
         )
         self.preview_panel.videoControlRequested.connect(self._on_video_control)
+        self.preview_panel.videoLoopToggled.connect(
+            self._project_controller.set_video_loop
+        )
         self.preview_panel.stageToggled.connect(
             lambda on: self._open_stage() if on else self._close_stage()
         )
@@ -820,6 +823,7 @@ class MainWindow(QMainWindow):
             video_playing=self._project_controller.slide_writer.video_playing,
             source=slide.source,
             hidden=self._project_controller.slide_writer.is_hidden,
+            video_loop=self._project_controller.video_loop,
         )
         # Bandeau « Suivant » : le slide à venir, sans changer l'écran.
         peek = self._project_controller.peek_next_slide()

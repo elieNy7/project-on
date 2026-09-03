@@ -38,6 +38,7 @@ class MediaTab(QWidget):
     itemActivated = pyqtSignal(int)  # projeter le média
     itemDeleteRequested = pyqtSignal(int)
     itemRenameRequested = pyqtSignal(int, str)
+    itemLoopRequested = pyqtSignal(int, bool)  # media_id, boucle on/off
     refreshRequested = pyqtSignal()
     mediaAddToPlaylistRequested = pyqtSignal(dict)  # {name, path, kind}
 
@@ -289,6 +290,16 @@ class MediaTab(QWidget):
         act_project = menu.addAction(app_icon("cast.svg"), "Projeter")
         act_playlist = menu.addAction(app_icon("plus.svg"), "Ajouter à la playlist")
         act_rename = menu.addAction(app_icon("edit-3.svg"), "Renommer")
+        is_video = str(media.get("kind") or "") == "video"
+        act_loop = None
+        if is_video:
+            loop_on = bool(media.get("loop"))
+            act_loop = menu.addAction(
+                app_icon("refresh-cw.svg"),
+                "Boucle : activée" if loop_on else "Boucle : désactivée",
+            )
+            act_loop.setCheckable(True)
+            act_loop.setChecked(loop_on)
         menu.addSeparator()
         act_delete = menu.addAction(app_icon("trash.svg"), "Retirer de la bibliothèque")
         chosen = menu.exec(self.gallery.mapToGlobal(pos))
@@ -298,5 +309,7 @@ class MediaTab(QWidget):
             self.mediaAddToPlaylistRequested.emit(media)
         elif chosen is act_rename:
             self._on_rename_clicked()
+        elif act_loop is not None and chosen is act_loop:
+            self.itemLoopRequested.emit(int(media.get("id")), act_loop.isChecked())
         elif chosen is act_delete:
             self._on_delete_clicked()
