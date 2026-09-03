@@ -111,6 +111,7 @@ class MainWindow(QMainWindow):
 
         self.library_panel = LibraryPanel(splitter)
         self.preview_panel = PreviewPanel(splitter, self._settings)
+        self.preview_panel.set_presentation_dir(presentation_dir)
 
         # Apply refined shadows to panels for depth
         is_light_theme = get_theme() == "light"
@@ -686,6 +687,8 @@ class MainWindow(QMainWindow):
             image_path=image_path,
             video_path=slide.video_path or "",
             video_playing=self._project_controller.slide_writer.video_playing,
+            source=slide.source,
+            hidden=self._project_controller.slide_writer.is_hidden,
         )
         # Bandeau « Suivant » : le slide à venir, sans changer l'écran.
         peek = self._project_controller.peek_next_slide()

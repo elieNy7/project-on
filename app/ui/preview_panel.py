@@ -17,6 +17,7 @@ from PyQt6.QtWidgets import (
 )
 
 from app.ui.icons import app_icon
+from app.ui.slide_canvas import SlideCanvas
 from app.ui.theme import Colors, Radius, Typography, get_theme
 from app.utils.translations import tr
 
@@ -143,6 +144,11 @@ class PreviewPanel(QFrame):
         self._current_reference = ""
         self._current_image_path = ""
         self._project_active = False
+        # Rendu fidèle : canvas hors écran (même moteur que la projection).
+        self._canvas: SlideCanvas | None = None
+        self._canvas_cfg: dict | None = None
+        self._presentation_dir = None
+        self._render_pixmap_full = None
         self._is_light_theme = get_theme() == "light"
         if self._is_light_theme:
             self._stage_text_rgb = (23, 32, 51)
@@ -763,6 +769,8 @@ class PreviewPanel(QFrame):
         image_path: str = "",
         video_path: str = "",
         video_playing: bool = False,
+        source: str = "",
+        hidden: bool = False,
     ) -> None:
         ref = str(reference or "").strip()
         body = str(text or "").strip()
@@ -777,6 +785,7 @@ class PreviewPanel(QFrame):
         if vid and Path(vid).is_file():
             self._image_label.setVisible(False)
             self._image_label.clear()
+            self._render_pixmap_full = None
             self._empty_state.setVisible(False)
             if self._show_video_preview(vid):
                 # Cadre vidéo réel : le même ratio que la projection.
@@ -787,39 +796,107 @@ class PreviewPanel(QFrame):
                 self.slide_view.setVisible(True)
                 self.slide_view.setText(f"🎬  {ref}")
                 self._ref_label.setText("")
-        elif img and Path(img).is_file():
-            self._hide_video_preview()
-            self._image_label.setVisible(True)
-            self.slide_view.setVisible(False)
-            self._refresh_image_pixmap()
-            self._empty_state.setVisible(False)
         else:
             self._hide_video_preview()
+            # Rendu fidèle (texte OU image) via le canvas partagé : l'aperçu
+            # devient identique à la projection, voiles et typographie comprises.
+            pixmap = self._render_canvas_pixmap(
+                ref, body, source=source, image_path=img, hidden=hidden
+            )
             self._current_image_path = ""
-            self._image_label.setVisible(False)
-            self._image_label.clear()
-            has_text = bool(body or ref)
-            self.slide_view.setVisible(has_text)
-            self._empty_state.setVisible(not has_text)
-            self.slide_view.setText(body)
-            self._ref_label.setText(ref)
+            if pixmap is not None:
+                self._render_pixmap_full = pixmap
+                self.slide_view.setVisible(False)
+                self._ref_label.setText("")
+                self._empty_state.setVisible(False)
+                self._image_label.setVisible(True)
+                self._refresh_image_pixmap()
+            else:
+                # Repli historique si le canvas n'est pas disponible.
+                self._render_pixmap_full = None
+                self._image_label.setVisible(False)
+                self._image_label.clear()
+                has_text = bool(body or ref)
+                self.slide_view.setVisible(has_text)
+                self._empty_state.setVisible(not has_text)
+                self.slide_view.setText(body)
+                self._ref_label.setText(ref)
 
         self._update_stage_meta()
         self._edit_button.setEnabled(self._has_content)
         self._apply_slide_text_style()
 
+    # ── Rendu fidèle (canvas partagé avec la projection) ─────────────
+
+    def set_presentation_dir(self, path) -> None:
+        """Dossier de travail projection (chemins de visuels relatifs)."""
+        self._presentation_dir = path
+        if self._canvas is not None:
+            self._canvas._presentation_dir = path
+
+    def _ensure_canvas(self) -> SlideCanvas | None:
+        if self._canvas is not None:
+            return self._canvas
+        try:
+            self._canvas = SlideCanvas(presentation_dir=self._presentation_dir)
+        except Exception:
+            return None
+        return self._canvas
+
+    def _canvas_style_config(self) -> dict:
+        if self._settings is None or not hasattr(self._settings, "projection"):
+            return {}
+        try:
+            return self._settings.projection.to_presentation_config()
+        except Exception:
+            return {}
+
+    def _render_canvas_pixmap(
+        self,
+        reference: str,
+        text: str,
+        source: str = "",
+        image_path: str = "",
+        hidden: bool = False,
+    ):
+        """Rend la slide hors écran à la résolution de sortie (1920×1080)."""
+        canvas = self._ensure_canvas()
+        if canvas is None:
+            return None
+        cfg = self._canvas_style_config()
+        if cfg != self._canvas_cfg:
+            self._canvas_cfg = cfg
+            try:
+                canvas._apply_config(cfg)
+            except Exception:
+                return None
+        try:
+            return canvas.render_pixmap(
+                {
+                    "source": str(source or "custom"),
+                    "reference": str(reference or ""),
+                    "text": str(text or ""),
+                    "image": str(image_path or ""),
+                    "background": str(image_path or ""),
+                    "hidden": bool(hidden),
+                }
+            )
+        except Exception:
+            return None
+
     def _refresh_image_pixmap(self) -> None:
-        if not self._current_image_path or not self._image_label.isVisible():
-            return
-        pixmap = QPixmap(self._current_image_path)
-        if pixmap.isNull():
-            self._image_label.setText("⚠ Image introuvable")
+        """Met à l'échelle le rendu 1080p sur la taille du cadre d'aperçu."""
+        if self._render_pixmap_full is None or not self._image_label.isVisible():
             return
         size = self._image_label.size()
         if size.width() < 10 or size.height() < 10:
             size = QSize(400, 280)
         self._image_label.setPixmap(
-            pixmap.scaled(size, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            self._render_pixmap_full.scaled(
+                size,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
         )
 
     def set_slide_counter(self, current: int, total: int) -> None:
@@ -907,6 +984,9 @@ class PreviewPanel(QFrame):
     def set_settings(self, settings) -> None:
         """Refresh the operator preview from the active application settings."""
         self._settings = settings
+        # Invalide la config du canvas : le prochain rendu fidèle repartira
+        # des réglages à jour (thème, typographie, fond…).
+        self._canvas_cfg = None
         reference_position = ""
         if settings is not None and hasattr(settings, "projection"):
             reference_position = str(
