@@ -713,6 +713,9 @@ class MainWindow(QMainWindow):
                     self._projection_window._apply_config(cfg)
                 except Exception:
                     pass
+            # Aperçu immédiat : la slide courante re-rendue avec le thème
+            # en cours de test (qui diffère encore des réglages enregistrés).
+            self.preview_panel.apply_style_config(cfg)
 
         dlg = ThemeDialog(self._settings, parent=self)
         dlg.themesLiveChanged.connect(on_live)
@@ -863,6 +866,8 @@ class MainWindow(QMainWindow):
                 self._projection_window._apply_config(cfg)
             except Exception:
                 pass
+        # L'aperçu fidèle reflète le nouveau placement tout de suite.
+        self.preview_panel.set_settings(self._settings)
 
     def _on_video_control(self, command: str) -> None:
         """Boutons Lecture / Pause / Stop : projection ET aperçu synchronisés."""

@@ -159,8 +159,12 @@ class PreviewPanel(QFrame):
         # Rendu fidèle : canvas hors écran (même moteur que la projection).
         self._canvas: SlideCanvas | None = None
         self._canvas_cfg: dict | None = None
+        self._canvas_cfg_override: dict | None = None
         self._presentation_dir = None
         self._render_pixmap_full = None
+        # Arguments du dernier set_slide : permettent de re-rendre la slide
+        # courante dès qu'un réglage (thème, style, masquage…) change.
+        self._last_render_args: dict | None = None
         self._is_light_theme = get_theme() == "light"
         if self._is_light_theme:
             self._stage_text_rgb = (23, 32, 51)
@@ -843,6 +847,18 @@ class PreviewPanel(QFrame):
         self._current_reference = ref
         self._current_image_path = img
         self._has_content = bool(ref or body or img or vid)
+        # Mémorisé pour refresh_render() : tout changement de réglage
+        # re-rend immédiatement cette slide avec le nouveau style.
+        self._last_render_args = {
+            "reference": ref,
+            "text": body,
+            "image_path": img,
+            "video_path": vid,
+            "video_playing": bool(video_playing),
+            "source": str(source or ""),
+            "hidden": bool(hidden),
+            "video_loop": bool(video_loop),
+        }
 
         self.set_video_state(bool(vid), bool(video_playing))
         with QSignalBlocker(self._video_loop_button):
@@ -894,6 +910,51 @@ class PreviewPanel(QFrame):
 
     # ── Rendu fidèle (canvas partagé avec la projection) ─────────────
 
+    def refresh_render(self, hidden: bool | None = None) -> None:
+        """Re-rend la slide courante avec les réglages à jour.
+
+        Appelé à chaque changement de style (réglages de projection, thème
+        live, position de référence, masquage) : l'aperçu reflète l'effet
+        immédiatement, sans attendre la slide suivante.
+        """
+        if not self._last_render_args:
+            return
+        args = dict(self._last_render_args)
+        if hidden is not None:
+            args["hidden"] = bool(hidden)
+        self._last_render_args = args
+        # Slide vidéo : le cadre fidèle n'est pas utilisé (mini-lecteur live),
+        # rien à re-rendre.
+        vid = args.get("video_path") or ""
+        if vid and Path(vid).is_file():
+            return
+        self._canvas_cfg = None
+        pixmap = self._render_canvas_pixmap(
+            args.get("reference") or "",
+            args.get("text") or "",
+            source=args.get("source") or "",
+            image_path=args.get("image_path") or "",
+            hidden=bool(args.get("hidden")),
+        )
+        if pixmap is not None:
+            self._render_pixmap_full = pixmap
+            self.slide_view.setVisible(False)
+            self._ref_label.setText("")
+            self._empty_state.setVisible(False)
+            self._image_label.setVisible(True)
+            self._refresh_image_pixmap()
+
+    def apply_style_config(self, cfg: dict) -> None:
+        """Force la config de style du canvas (aperçu live d'un thème).
+
+        Utilisée quand le style affiché diffère encore des réglages
+        enregistrés (prévisualisation d'un thème non actif dans le
+        gestionnaire de thèmes) : la config passée est celle qui part dans
+        config.json, thèmes et assignations compris.
+        """
+        self._canvas_cfg_override = dict(cfg or {})
+        self.refresh_render()
+
     def set_presentation_dir(self, path) -> None:
         """Dossier de travail projection (chemins de visuels relatifs)."""
         self._presentation_dir = path
@@ -910,6 +971,8 @@ class PreviewPanel(QFrame):
         return self._canvas
 
     def _canvas_style_config(self) -> dict:
+        if self._canvas_cfg_override is not None:
+            return dict(self._canvas_cfg_override)
         if self._settings is None or not hasattr(self._settings, "projection"):
             return {}
         try:
@@ -1055,13 +1118,19 @@ class PreviewPanel(QFrame):
         self._is_hidden = hidden
         self._hide_button.setChecked(hidden)
         self._update_hide_button()
+        # La slide re-rendue reflète l'état masqué (fond seul), comme la
+        # projection réelle.
+        self.refresh_render(hidden=bool(hidden))
 
     def set_settings(self, settings) -> None:
         """Refresh the operator preview from the active application settings."""
         self._settings = settings
-        # Invalide la config du canvas : le prochain rendu fidèle repartira
-        # des réglages à jour (thème, typographie, fond…).
+        # Invalide la config du canvas (et toute surcharge de thème live) :
+        # la slide courante est re-rendue immédiatement avec les nouveaux
+        # réglages — l'aperçu reflète l'effet sans attendre la slide suivante.
         self._canvas_cfg = None
+        self._canvas_cfg_override = None
+        self.refresh_render()
         reference_position = ""
         if settings is not None and hasattr(settings, "projection"):
             reference_position = str(
