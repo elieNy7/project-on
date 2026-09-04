@@ -155,7 +155,11 @@ def main() -> int:
 
     from app.utils.font_loader import load_fonts
 
-    load_fonts()
+    # Poppins (interface) en synchrone ; les ~40 familles Google Fonts sont
+    # enregistrées juste après l'affichage de la fenêtre, sans ralentir
+    # le démarrage (la liste des polices vient du manifeste, elle est
+    # complète immédiatement).
+    load_fonts(core_only=True)
 
     splash.set_progress(20, "Initialisation des donnees...")
     ensure_data_initialized()
@@ -204,6 +208,12 @@ def main() -> int:
 
     # Finish splash and show main window
     splash.finish(window)
+
+    # Compléter la bibliothèque de polices une fois l'interface affichée.
+    from PyQt6.QtCore import QTimer
+
+    QTimer.singleShot(0, load_fonts)
+
     return app.exec()
 
 

@@ -1,9 +1,37 @@
 from __future__ import annotations
 
+import json
+
 from app.utils.app_paths import resource_root
 
 # Cache for available fonts to avoid repeated filesystem scans
 _fonts_cache: list[tuple[str, str]] | None = None
+
+
+def _manifest_families() -> list[tuple[str, str]]:
+    """Familles listées par le manifeste des Google Fonts téléchargées.
+
+    Le manifeste ``assets/fonts/fonts.json`` est généré par
+    ``tools/download_google_fonts.py`` : [{family, folder, files}, …].
+    """
+    manifest_path = resource_root() / "assets" / "fonts" / "fonts.json"
+    try:
+        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+    families: list[tuple[str, str]] = []
+    if isinstance(payload, list):
+        for entry in payload:
+            if not isinstance(entry, dict):
+                continue
+            family = str(entry.get("family") or "").strip()
+            folder = str(entry.get("folder") or "").strip()
+            if not family or not folder:
+                continue
+            # Le dossier doit exister (install partielle, ressource absente).
+            if (resource_root() / "assets" / "fonts" / folder).is_dir():
+                families.append((family, family))
+    return families
 
 
 def get_available_fonts() -> list[tuple[str, str]]:
@@ -25,20 +53,24 @@ def get_available_fonts() -> list[tuple[str, str]]:
         _fonts_cache = fonts
         return fonts
 
-    # Scan font directories
+    # Familles historiques embarquées avant l'arrivée du manifeste.
     font_mappings = {
         "Bebas_Neue": ("Bebas Neue", "Bebas Neue"),
         "Google_Sans": ("Google Sans", "Google Sans"),
-        "Montserrat": ("Montserrat", "Montserrat"),
-        "Roboto": ("Roboto", "Roboto"),
-        "Open Sans": ("Open Sans", "Open Sans"),
+        "Noto_Sans": ("Noto Sans", "Noto Sans"),
+        "Oswald": ("Oswald", "Oswald"),
         "Poppins": ("Poppins", "Poppins"),
     }
-
     for folder_name, (display_name, css_name) in font_mappings.items():
-        folder_path = fonts_dir / folder_name
-        if folder_path.exists():
+        if (fonts_dir / folder_name).exists():
             fonts.append((display_name, css_name))
+
+    # Familles Google Fonts (manifeste), triées alphabétiquement.
+    known = {css for _display, css in fonts}
+    for display_name, css_name in sorted(_manifest_families()):
+        if css_name not in known:
+            fonts.append((display_name, css_name))
+            known.add(css_name)
 
     _fonts_cache = fonts
     return fonts
@@ -59,27 +91,6 @@ def get_font_css_imports() -> str:
             ("static/GoogleSans-SemiBold.ttf", "Google Sans", "normal", "600"),
             ("static/GoogleSans-Bold.ttf", "Google Sans", "normal", "700"),
             ("static/GoogleSans-Italic.ttf", "Google Sans", "italic", "400"),
-        ],
-        "Montserrat": [
-            ("Montserrat-Regular.ttf", "Montserrat", "normal", "400"),
-            ("Montserrat-Medium.ttf", "Montserrat", "normal", "500"),
-            ("Montserrat-SemiBold.ttf", "Montserrat", "normal", "600"),
-            ("Montserrat-Bold.ttf", "Montserrat", "normal", "700"),
-            ("Montserrat-Italic.ttf", "Montserrat", "italic", "400"),
-        ],
-        "Roboto": [
-            ("Roboto-Regular.ttf", "Roboto", "normal", "400"),
-            ("Roboto-Medium.ttf", "Roboto", "normal", "500"),
-            ("Roboto-Bold.ttf", "Roboto", "normal", "700"),
-            ("Roboto-Italic.ttf", "Roboto", "italic", "400"),
-            ("Roboto-Light.ttf", "Roboto", "normal", "300"),
-        ],
-        "Open Sans": [
-            ("OpenSans-Regular.ttf", "Open Sans", "normal", "400"),
-            ("OpenSans-Medium.ttf", "Open Sans", "normal", "500"),
-            ("OpenSans-SemiBold.ttf", "Open Sans", "normal", "600"),
-            ("OpenSans-Bold.ttf", "Open Sans", "normal", "700"),
-            ("OpenSans-Italic.ttf", "Open Sans", "italic", "400"),
         ],
         "Poppins": [
             ("Poppins-Regular.ttf", "Poppins", "normal", "400"),
@@ -106,6 +117,40 @@ def get_font_css_imports() -> str:
   src: url('{rel_path}') format('truetype');
   font-weight: {weight};
   font-style: {style};
+}}""")
+
+    # Familles du manifeste : le premier .ttf non italique de chaque dossier
+    # (statique Regular ou police variable — la variable couvre toutes les
+    # graisses via la plage font-weight 100-900).
+    try:
+        manifest = json.loads((fonts_dir / "fonts.json").read_text(encoding="utf-8"))
+    except Exception:
+        manifest = []
+    for entry in manifest if isinstance(manifest, list) else []:
+        if not isinstance(entry, dict):
+            continue
+        family = str(entry.get("family") or "").strip()
+        folder = str(entry.get("folder") or "").strip()
+        files = entry.get("files") or []
+        if not family or not folder:
+            continue
+        regular = next((f for f in files if "Italic" not in str(f)), None)
+        italic = next((f for f in files if "Italic" in str(f)), None)
+        if regular:
+            rel_path = f"../assets/fonts/{folder}/{regular}"
+            css_rules.append(f"""@font-face {{
+  font-family: '{family}';
+  src: url('{rel_path}') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+}}""")
+        if italic:
+            rel_path = f"../assets/fonts/{folder}/{italic}"
+            css_rules.append(f"""@font-face {{
+  font-family: '{family}';
+  src: url('{rel_path}') format('truetype');
+  font-weight: 100 900;
+  font-style: italic;
 }}""")
 
     return "\n\n".join(css_rules)

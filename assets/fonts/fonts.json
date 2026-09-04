@@ -1,0 +1,265 @@
+[
+  {
+    "family": "Montserrat",
+    "folder": "Montserrat",
+    "files": [
+      "Montserrat[wght].ttf"
+    ]
+  },
+  {
+    "family": "Inter",
+    "folder": "Inter",
+    "files": [
+      "Inter[opsz,wght].ttf"
+    ]
+  },
+  {
+    "family": "Raleway",
+    "folder": "Raleway",
+    "files": [
+      "Raleway[wght].ttf"
+    ]
+  },
+  {
+    "family": "Nunito",
+    "folder": "Nunito",
+    "files": [
+      "Nunito[wght].ttf"
+    ]
+  },
+  {
+    "family": "Open Sans",
+    "folder": "Open Sans",
+    "files": [
+      "OpenSans[wdth,wght].ttf"
+    ]
+  },
+  {
+    "family": "Lato",
+    "folder": "Lato",
+    "files": [
+      "Lato-Regular.ttf",
+      "Lato-Bold.ttf"
+    ]
+  },
+  {
+    "family": "Roboto",
+    "folder": "Roboto",
+    "files": [
+      "Roboto[wdth,wght].ttf"
+    ]
+  },
+  {
+    "family": "Source Sans 3",
+    "folder": "Source Sans 3",
+    "files": [
+      "SourceSans3[wght].ttf"
+    ]
+  },
+  {
+    "family": "Work Sans",
+    "folder": "Work Sans",
+    "files": [
+      "WorkSans[wght].ttf"
+    ]
+  },
+  {
+    "family": "Rubik",
+    "folder": "Rubik",
+    "files": [
+      "Rubik[wght].ttf"
+    ]
+  },
+  {
+    "family": "Mulish",
+    "folder": "Mulish",
+    "files": [
+      "Mulish[wght].ttf"
+    ]
+  },
+  {
+    "family": "Manrope",
+    "folder": "Manrope",
+    "files": [
+      "Manrope[wght].ttf"
+    ]
+  },
+  {
+    "family": "Outfit",
+    "folder": "Outfit",
+    "files": [
+      "Outfit[wght].ttf"
+    ]
+  },
+  {
+    "family": "Jost",
+    "folder": "Jost",
+    "files": [
+      "Jost[wght].ttf"
+    ]
+  },
+  {
+    "family": "Urbanist",
+    "folder": "Urbanist",
+    "files": [
+      "Urbanist[wght].ttf"
+    ]
+  },
+  {
+    "family": "Figtree",
+    "folder": "Figtree",
+    "files": [
+      "Figtree[wght].ttf"
+    ]
+  },
+  {
+    "family": "Anton",
+    "folder": "Anton",
+    "files": [
+      "Anton-Regular.ttf"
+    ]
+  },
+  {
+    "family": "Archivo Black",
+    "folder": "Archivo Black",
+    "files": [
+      "ArchivoBlack-Regular.ttf"
+    ]
+  },
+  {
+    "family": "Passion One",
+    "folder": "Passion One",
+    "files": [
+      "PassionOne-Regular.ttf",
+      "PassionOne-Bold.ttf"
+    ]
+  },
+  {
+    "family": "Teko",
+    "folder": "Teko",
+    "files": [
+      "Teko[wght].ttf"
+    ]
+  },
+  {
+    "family": "Alfa Slab One",
+    "folder": "Alfa Slab One",
+    "files": [
+      "AlfaSlabOne-Regular.ttf"
+    ]
+  },
+  {
+    "family": "Playfair Display",
+    "folder": "Playfair Display",
+    "files": [
+      "PlayfairDisplay[wght].ttf"
+    ]
+  },
+  {
+    "family": "Merriweather",
+    "folder": "Merriweather",
+    "files": [
+      "Merriweather[opsz,wdth,wght].ttf"
+    ]
+  },
+  {
+    "family": "Cormorant Garamond",
+    "folder": "Cormorant Garamond",
+    "files": [
+      "CormorantGaramond[wght].ttf"
+    ]
+  },
+  {
+    "family": "Libre Baskerville",
+    "folder": "Libre Baskerville",
+    "files": [
+      "LibreBaskerville[wght].ttf"
+    ]
+  },
+  {
+    "family": "Lora",
+    "folder": "Lora",
+    "files": [
+      "Lora[wght].ttf"
+    ]
+  },
+  {
+    "family": "EB Garamond",
+    "folder": "EB Garamond",
+    "files": [
+      "EBGaramond[wght].ttf"
+    ]
+  },
+  {
+    "family": "Cinzel",
+    "folder": "Cinzel",
+    "files": [
+      "Cinzel[wght].ttf"
+    ]
+  },
+  {
+    "family": "Spectral",
+    "folder": "Spectral",
+    "files": [
+      "Spectral-Regular.ttf",
+      "Spectral-Bold.ttf"
+    ]
+  },
+  {
+    "family": "Cardo",
+    "folder": "Cardo",
+    "files": [
+      "Cardo-Regular.ttf",
+      "Cardo-Bold.ttf"
+    ]
+  },
+  {
+    "family": "Dancing Script",
+    "folder": "Dancing Script",
+    "files": [
+      "DancingScript[wght].ttf"
+    ]
+  },
+  {
+    "family": "Great Vibes",
+    "folder": "Great Vibes",
+    "files": [
+      "GreatVibes-Regular.ttf"
+    ]
+  },
+  {
+    "family": "Pacifico",
+    "folder": "Pacifico",
+    "files": [
+      "Pacifico-Regular.ttf"
+    ]
+  },
+  {
+    "family": "Caveat",
+    "folder": "Caveat",
+    "files": [
+      "Caveat[wght].ttf"
+    ]
+  },
+  {
+    "family": "Satisfy",
+    "folder": "Satisfy",
+    "files": [
+      "Satisfy-Regular.ttf"
+    ]
+  },
+  {
+    "family": "Parisienne",
+    "folder": "Parisienne",
+    "files": [
+      "Parisienne-Regular.ttf"
+    ]
+  },
+  {
+    "family": "Sacramento",
+    "folder": "Sacramento",
+    "files": [
+      "Sacramento-Regular.ttf"
+    ]
+  }
+]

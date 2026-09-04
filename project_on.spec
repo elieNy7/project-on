@@ -77,7 +77,7 @@ presentation_files = (
     "style.css",
 )
 
-font_files = (
+font_files = [
     "Bebas_Neue/BebasNeue-Regular.ttf",
     "Google_Sans/static/GoogleSans-Regular.ttf",
     "Google_Sans/static/GoogleSans-Medium.ttf",
@@ -94,7 +94,26 @@ font_files = (
     "Noto_Sans/static/NotoSans-Bold.ttf",
     "Oswald/static/Oswald-Regular.ttf",
     "Oswald/static/Oswald-Bold.ttf",
-)
+]
+
+# Google Fonts téléchargées (tools/download_google_fonts.py) : le manifeste
+# liste exactement les fichiers utiles — on bundle tout ce qu'il référence,
+# plus le manifeste lui-même et les licences OFL qui accompagnent chaque
+# famille (redistribution SIL OFL).
+_fonts_manifest = spec_root / "assets" / "fonts" / "fonts.json"
+if _fonts_manifest.exists():
+    import json
+
+    for _entry in json.loads(_fonts_manifest.read_text(encoding="utf-8")):
+        _folder = str(_entry.get("folder") or "")
+        for _name in _entry.get("files") or []:
+            font_files.append(f"{_folder}/{_name}")
+        _license = spec_root / "assets" / "fonts" / _folder / "OFL.txt"
+        if _license.exists():
+            font_files.append(f"{_folder}/OFL.txt")
+    font_files.append("fonts.json")
+
+font_files = tuple(font_files)
 
 ndi_arch = "x64" if sys.maxsize > 2**32 else "x86"
 
