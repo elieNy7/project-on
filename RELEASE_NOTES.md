@@ -1,3 +1,27 @@
+# Project-On 2.0.1
+
+**Polices, fonds et aperçu au niveau pro** ✨ — 43 polices embarquées, des fonds de projection régénérés pour chaque usage, une interface compacte et un aperçu qui reflète instantanément chaque réglage. Correction importante : l'aperçu fidèle n'affichait pas le texte des slides dans certains cas.
+
+## Nouveautés
+
+- **43 polices intégrées** 🔤 : 37 familles Google Fonts rejoignent Poppins et les polices d'origine — Montserrat, Inter, Raleway, Open Sans, Lato, Roboto, Playfair Display, Merriweather, Cinzel, Dancing Script, Great Vibes… Des sans-serif lisibles, des serif majestueuses pour l'Écriture, des display pour les titres et des script élégantes pour les chants. Licences incluses.
+- **Fonds de projection régénérés** 🖼️ : 60 fonds dans 3 ratios, avec dégradés profonds à trois tons, halo de lumière, **zone de lisibilité centrale intégrée** (le texte reste lisible même avec le voile à zéro) et grain anti-banding. Quatre familles par scénario : couleurs pour la louange, symboles en filigrane pour les cultes thématiques, **fonds « texte lourd »** ultra-sobres pour la Bible et les prédications, et **fonds clairs** à texte foncé pour le thème Blanc Minimal et les salles très éclairées.
+- **Aperçu instantané** 👀 : tout changement de réglage — style, thème (même en cours de test), position de la référence, masquage — se reflète immédiatement dans l'aperçu, sans attendre la slide suivante.
+- **Interface compacte** : tous les boutons des onglets et de la console d'aperçu passent à 28 px, avec libellés raccourcis — tout tient en place, même pendant une vidéo.
+
+## Corrections
+
+- **Aperçu fidèle : texte parfois absent** — sur une slide rendue hors écran, le texte avec ombre portée pouvait ne pas s'afficher du tout. Corrigé (et le rendu hors écran active désormais correctement ses layouts).
+- **Polices de secours** : une police manquante ne produit plus de carrés vides à l'écran.
+
+## Installation
+
+Téléchargez **`ProjectOn_2.0.1_Setup.exe`** ci-dessous et installez-le par-dessus la version existante : cantiques, playlists, réglages et base sont conservés. Les nouveaux fonds et polices sont ajoutés automatiquement.
+
+Windows 10 / 11 (64 bits) · fonctionne hors-ligne.
+
+---
+
 # Project-On 2.0.0
 
 **La version « façon ProPresenter »** 🎬 — Project-On rattrape les grands logiciels de projection : thèmes éditables par type de contenu, écran scène pour les orateurs, bandeau d'annonces défilant, boucle d'annonces avec retour automatique au live, transitions riches et aperçu enfin fidèle à l'écran projeté.
