@@ -582,6 +582,9 @@ _translations: dict[str, dict[str, str]] = {
     },
     "shortcut_stage": {"fr": "Écran scène (orateurs)", "en": "Stage display (speakers)"},
     "stage_toggle": {"fr": "Écran scène (F6)", "en": "Stage display (F6)"},
+    "stage_toggle_short": {"fr": "Scène", "en": "Stage"},
+    "stage_message_short": {"fr": "Message", "en": "Message"},
+    "announcements_short": {"fr": "Annonces", "en": "Announce"},
     "stage_send_message": {"fr": "Message scène…", "en": "Stage message…"},
     "stage_message_hint": {
         "fr": "Message affiché sur l'écran scène",

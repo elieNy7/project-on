@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from PyQt6.QtCore import QSignalBlocker, QSize, Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QFont, QKeySequence, QPixmap, QShortcut
+from PyQt6.QtGui import QColor, QFont, QFontMetrics, QKeySequence, QPixmap, QShortcut
 from PyQt6.QtWidgets import (
     QDialog,
     QFrame,
@@ -29,15 +29,15 @@ class _NavArrowButton(QPushButton):
     def __init__(self, icon_name: str, tooltip: str, parent=None) -> None:
         super().__init__(parent)
         self.setIcon(app_icon(icon_name, Colors.TEXT_PRIMARY))
-        self.setIconSize(QSize(18, 18))
+        self.setIconSize(QSize(14, 14))
         self.setToolTip(tooltip)
-        self.setFixedSize(40, 40)
+        self.setFixedSize(30, 30)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setStyleSheet(f"""
             QPushButton {{
                 background: {Colors.BG_TERTIARY};
                 border: 1px solid {Colors.BORDER_SUBTLE};
-                border-radius: 20px;
+                border-radius: 15px;
                 color: {Colors.TEXT_PRIMARY};
             }}
             QPushButton:hover {{
@@ -63,18 +63,23 @@ class PreviewControlButton(QPushButton):
         super().__init__(text, parent)
         self._icon_name = icon_name
         self.setIcon(app_icon(icon_name, Colors.TEXT_PRIMARY))
-        self.setIconSize(QSize(16, 16))
+        self.setIconSize(QSize(12, 12))
         self.setToolTip(tooltip)
         if text:
-            self.setFixedHeight(40)
-            padding = "padding: 0 16px;"
-            # La feuille de style passe le libellé en MAJUSCULES au rendu ;
-            # mesurer la version uppercase pour ne jamais tronquer le texte.
+            self.setFixedHeight(28)
+            padding = "padding: 0 6px;"
+            # La feuille de style passe le libellé en MAJUSCULES à 10px bold ;
+            # mesurer avec CETTE police exacte (fontMetrics() par défaut = 13px
+            # et gonflerait chaque bouton de ~15px).
             self.ensurePolished()
-            upper_width = self.fontMetrics().horizontalAdvance(text.upper())
-            self.setMinimumWidth(max(132, upper_width + 16 * 2 + 20 + 8))
+            measure_font = QFont()
+            measure_font.setPixelSize(Typography.SIZE_2XS)
+            measure_font.setWeight(QFont.Weight.Bold)
+            metrics = QFontMetrics(measure_font)
+            upper_width = metrics.horizontalAdvance(text.upper())
+            self.setMinimumWidth(max(40, upper_width + 6 * 2 + 12))
         else:
-            self.setFixedSize(40, 40)
+            self.setFixedSize(28, 28)
             padding = ""
 
         self.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -92,9 +97,9 @@ class PreviewControlButton(QPushButton):
             QPushButton {{
                 background: {Colors.BG_TERTIARY};
                 border: 1px solid {Colors.BORDER_SUBTLE};
-                border-radius: 20px;
+                border-radius: 14px;
                 color: {Colors.TEXT_PRIMARY};
-                font-size: {Typography.SIZE_CONTROL}px;
+                font-size: {Typography.SIZE_2XS}px;
                 font-weight: 700;
                 letter-spacing: 0;
                 text-transform: uppercase;
@@ -475,8 +480,8 @@ class PreviewPanel(QFrame):
             }}
         """)
         controls_layout = QHBoxLayout(self.controls)
-        controls_layout.setContentsMargins(12, 10, 12, 10)
-        controls_layout.setSpacing(6)
+        controls_layout.setContentsMargins(8, 6, 8, 6)
+        controls_layout.setSpacing(4)
 
         self._prev_button = _NavArrowButton(
             "chevron-left.svg", tr("previous"), self.controls
@@ -490,11 +495,11 @@ class PreviewPanel(QFrame):
         self.console_frame.setStyleSheet(f"""
             background: {Colors.BG_SECONDARY};
             border: 1px solid {Colors.BORDER_DEFAULT};
-            border-radius: 22px;
+            border-radius: 19px;
         """)
         console_layout = QHBoxLayout(self.console_frame)
-        console_layout.setContentsMargins(6, 6, 6, 6)
-        console_layout.setSpacing(6)
+        console_layout.setContentsMargins(5, 5, 5, 5)
+        console_layout.setSpacing(4)
 
         self._project_button = PreviewControlButton(
             "cast.svg", tr("project"), self.console_frame, text=tr("project")
@@ -503,7 +508,7 @@ class PreviewPanel(QFrame):
         self._project_button.setObjectName("ProjectButton")
 
         self._hide_button = PreviewControlButton(
-            "eye.svg", tr("hide"), self.console_frame, text=tr("hide")
+            "eye.svg", tr("hide"), self.console_frame
         )
         self._hide_button.setCheckable(True)
         self._hide_button.setObjectName("HideButton")
@@ -534,17 +539,26 @@ class PreviewPanel(QFrame):
         self._ref_pos_button.clicked.connect(self._on_ref_pos_clicked)
         console_layout.addWidget(self._ref_pos_button)
 
-        # Contrôles vidéo — visibles seulement quand une vidéo est en direct.
+        # Contrôles vidéo — icônes seules (tooltips explicites) pour que la
+        # console tienne sur une ligne même pendant une vidéo.
         self._video_play_button = PreviewControlButton(
-            "play.svg", tr("video_play"), self.console_frame, text=tr("video_play")
+            "play.svg", tr("video_play"), self.console_frame
         )
         self._video_play_button.setCheckable(True)
         self._video_play_button.setToolTip(tr("video_play_tooltip"))
         self._video_play_button.clicked.connect(self._on_video_play_clicked)
         console_layout.addWidget(self._video_play_button)
 
+        self._video_loop_button = PreviewControlButton(
+            "refresh-cw.svg", tr("video_loop"), self.console_frame
+        )
+        self._video_loop_button.setCheckable(True)
+        self._video_loop_button.setToolTip(tr("video_loop_tip"))
+        self._video_loop_button.toggled.connect(self.videoLoopToggled.emit)
+        console_layout.addWidget(self._video_loop_button)
+
         self._video_stop_button = PreviewControlButton(
-            "x-circle.svg", tr("video_stop"), self.console_frame, text=tr("video_stop")
+            "x-circle.svg", tr("video_stop"), self.console_frame
         )
         self._video_stop_button.setToolTip(tr("video_stop_tooltip"))
         self._video_stop_button.clicked.connect(
@@ -552,23 +566,15 @@ class PreviewPanel(QFrame):
         )
         console_layout.addWidget(self._video_stop_button)
 
-        # Boucle vidéo : relance automatique à la fin de la lecture.
-        self._video_loop_button = PreviewControlButton(
-            "refresh-cw.svg", tr("video_loop"), self.console_frame, text=tr("video_loop")
-        )
-        self._video_loop_button.setCheckable(True)
-        self._video_loop_button.setToolTip(tr("video_loop_tip"))
-        self._video_loop_button.toggled.connect(self.videoLoopToggled.emit)
-        console_layout.addWidget(self._video_loop_button)
-        self._video_loop_button.hide()
-
         self._video_play_button.hide()
         self._video_stop_button.hide()
+        self._video_loop_button.hide()
 
-        # Écran scène : activation + message opérateur.
+        # Écran scène : activation + message opérateur (libellés courts :
+        # la console doit tenir sur une ligne même avec la vidéo en direct).
         self._stage_button = PreviewControlButton(
             "users.svg", tr("stage_toggle"), self.console_frame,
-            text=tr("stage_display"),
+            text=tr("stage_toggle_short"),
         )
         self._stage_button.setCheckable(True)
         self._stage_button.toggled.connect(self.stageToggled.emit)
@@ -576,7 +582,7 @@ class PreviewPanel(QFrame):
 
         self._stage_message_button = PreviewControlButton(
             "type.svg", tr("stage_send_message"), self.console_frame,
-            text=tr("stage_send_message"),
+            text=tr("stage_message_short"),
         )
         self._stage_message_button.clicked.connect(self.stageMessageRequested.emit)
         console_layout.addWidget(self._stage_message_button)
@@ -584,7 +590,7 @@ class PreviewPanel(QFrame):
         # Boucle d'annonces : bouton bascule (rouge quand actif).
         self._announce_button = PreviewControlButton(
             "megaphone.svg", tr("announcement_loop"), self.console_frame,
-            text=tr("announcement_loop_start"),
+            text=tr("announcements_short"),
         )
         self._announce_button.setCheckable(True)
         self._announce_button.clicked.connect(
@@ -681,9 +687,8 @@ class PreviewPanel(QFrame):
         """Réflète l'état de la boucle d'annonces sur le bouton."""
         with QSignalBlocker(self._announce_button):
             self._announce_button.setChecked(bool(active))
-        self._announce_button.setText(
-            tr("announcement_loop_stop") if active else tr("announcement_loop_start")
-        )
+        # État porté par le style « checked » : libellé identique dans les
+        # deux cas pour garder la console compacte.
 
     def set_project_active(self, active: bool) -> None:
         self._project_active = active
@@ -750,8 +755,8 @@ class PreviewPanel(QFrame):
         self._video_stop_button.setVisible(bool(has_video))
         self._video_loop_button.setVisible(bool(has_video))
         with QSignalBlocker(self._video_play_button):
+            # État porté par le style « checked » (boutons en icônes seules).
             self._video_play_button.setChecked(bool(playing))
-            self._video_play_button.setText(tr("video_pause") if playing else tr("video_play"))
         if has_video:
             if playing:
                 self.play_video()
@@ -1031,14 +1036,14 @@ class PreviewPanel(QFrame):
             self._status_chip.setText(tr("waiting"))
 
     def _update_hide_button(self) -> None:
+        # Bouton en icône seule : l'état « masqué » est porté par l'œil barré
+        # et le style rouge, pas par un libellé (console compacte).
         if self._is_hidden:
             self._hide_button.setIcon(app_icon("eye-off.svg", "#ffb4ae"))
-            self._hide_button.setText(tr("show"))
             self._hide_button.setStyleSheet(self._hide_button_hidden_style)
             self._slide_frame.setStyleSheet(self._slide_screen_style(self._bg_hidden))
         else:
             self._hide_button.setIcon(app_icon("eye.svg", Colors.TEXT_PRIMARY))
-            self._hide_button.setText(tr("hide"))
             self._hide_button.setStyleSheet(self._hide_button_base_style)
             self._slide_frame.setStyleSheet(self._slide_screen_style(self._bg_live))
 
