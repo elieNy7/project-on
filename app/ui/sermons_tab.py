@@ -28,12 +28,13 @@ from app.ui.library_list_presentation import (
 )
 from app.ui.sermon_delegate import SermonParagraphDelegate
 from app.ui.sermon_list_delegate import SermonListDelegate
+from app.utils.translations import tr
 from app.ui.theme import (
     Colors,
     Radius,
     Spacing,
     Typography,
-    get_button_style,
+    get_compact_button_style,
     get_combo_style,
     get_input_style,
     get_list_style,
@@ -176,14 +177,15 @@ class SermonsTab(QFrame):
 
         # Add button
         self.add_paragraph_btn = QPushButton(self)
-        self.add_paragraph_btn.setText("Projeter")
+        self.add_paragraph_btn.setText(tr("project"))
         self.add_paragraph_btn.setIcon(app_icon("cast.svg"))
-        self.add_paragraph_btn.setIconSize(QSize(16, 16))
+        self.add_paragraph_btn.setIconSize(QSize(12, 12))
         self.add_paragraph_btn.setToolTip(
             "Projeter le sermon depuis le paragraphe sélectionné"
         )
         self.add_paragraph_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.add_paragraph_btn.setStyleSheet(get_button_style())
+        self.add_paragraph_btn.setFixedHeight(28)
+        self.add_paragraph_btn.setStyleSheet(get_compact_button_style())
 
         # Filters container — refined
         self.filters_container = QFrame(self)

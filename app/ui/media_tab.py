@@ -21,7 +21,7 @@ from app.ui.theme import (
     Colors,
     Spacing,
     Typography,
-    get_button_style,
+    get_compact_button_style,
     get_menu_style,
     item_hover_color,
     item_selection_color,
@@ -57,7 +57,7 @@ class MediaTab(QWidget):
         header.addWidget(self.info_label)
         header.addStretch(1)
 
-        self.import_images_btn = QPushButton("Importer images", self)
+        self.import_images_btn = QPushButton("Images", self)
         self.import_images_btn.setIcon(app_icon("image.svg", Colors.TEXT_PRIMARY))
         self.import_images_btn.setToolTip(
             "Ajouter des images à la bibliothèque (copiées dans Project-On)"
@@ -66,7 +66,7 @@ class MediaTab(QWidget):
             lambda: self.importRequested.emit("image")
         )
 
-        self.import_videos_btn = QPushButton("Importer vidéos", self)
+        self.import_videos_btn = QPushButton("Vidéos", self)
         self.import_videos_btn.setIcon(app_icon("play.svg", Colors.TEXT_PRIMARY))
         self.import_videos_btn.setToolTip(
             "Ajouter des vidéos à la bibliothèque (mp4, webm, mov…)"
@@ -75,7 +75,7 @@ class MediaTab(QWidget):
             lambda: self.importRequested.emit("video")
         )
 
-        self.import_pptx_btn = QPushButton("Importer PowerPoint", self)
+        self.import_pptx_btn = QPushButton("PowerPoint", self)
         self.import_pptx_btn.setIcon(app_icon("layout.svg", Colors.TEXT_PRIMARY))
         self.import_pptx_btn.setToolTip(
             "Ajouter une présentation PowerPoint : chaque slide est rendue "
@@ -85,7 +85,7 @@ class MediaTab(QWidget):
             lambda: self.importRequested.emit("pptx")
         )
 
-        self.add_web_btn = QPushButton("Ajouter un site web", self)
+        self.add_web_btn = QPushButton("Site web", self)
         self.add_web_btn.setIcon(app_icon("globe.svg", Colors.TEXT_PRIMARY))
         self.add_web_btn.setToolTip(
             "Ajouter une page web (URL) projetable plein écran"
@@ -105,7 +105,9 @@ class MediaTab(QWidget):
             self.delete_btn,
         ):
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            btn.setStyleSheet(get_button_style())
+            btn.setIconSize(QSize(12, 12))
+            btn.setFixedHeight(28)
+            btn.setStyleSheet(get_compact_button_style())
             header.addWidget(btn)
 
         header_widget = QWidget(self)

@@ -30,7 +30,7 @@ from app.ui.theme import (
     Radius,
     Spacing,
     Typography,
-    get_button_style,
+    get_compact_button_style,
     get_input_style,
     get_list_style,
     get_menu_style,
@@ -70,9 +70,10 @@ class HymnsTab(QFrame):
         # Import button (with menu)
         self.import_btn = QPushButton(tr("import"), self)
         self.import_btn.setIcon(app_icon("upload.svg"))
-        self.import_btn.setIconSize(QSize(16, 16))
+        self.import_btn.setIconSize(QSize(12, 12))
         self.import_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.import_btn.setStyleSheet(get_button_style())
+        self.import_btn.setFixedHeight(28)
+        self.import_btn.setStyleSheet(get_compact_button_style())
 
         # Import Menu
         import_menu = QMenu(self)
@@ -123,15 +124,16 @@ class HymnsTab(QFrame):
         # Add Button
         self.add_btn = QPushButton(tr("project"), self)
         self.add_btn.setIcon(app_icon("cast.svg"))
-        self.add_btn.setIconSize(QSize(16, 16))
+        self.add_btn.setIconSize(QSize(12, 12))
         self.add_btn.setToolTip(tr("project_stanza_tooltip"))
         self.add_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.add_btn.setStyleSheet(get_button_style())
+        self.add_btn.setFixedHeight(28)
+        self.add_btn.setStyleSheet(get_compact_button_style())
 
         # Delete Button (Menu for single/all)
         self.delete_btn = QPushButton(self)
         self.delete_btn.setIcon(app_icon("trash.svg"))
-        self.delete_btn.setFixedSize(36, 36)
+        self.delete_btn.setFixedSize(28, 28)
         self.delete_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.delete_btn.setObjectName("IconButton")
 

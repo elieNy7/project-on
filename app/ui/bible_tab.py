@@ -33,7 +33,7 @@ from app.ui.theme import (
     Radius,
     Spacing,
     Typography,
-    get_button_style,
+    get_compact_button_style,
     get_combo_style,
     get_input_style,
     get_list_style,
@@ -133,10 +133,11 @@ class BibleTab(QFrame):
         # Add button
         self.add_verse_btn = QPushButton(tr("project"), self)
         self.add_verse_btn.setIcon(app_icon("cast.svg"))
-        self.add_verse_btn.setIconSize(QSize(16, 16))
+        self.add_verse_btn.setIconSize(QSize(12, 12))
         self.add_verse_btn.setToolTip(tr("project_verse_tooltip"))
         self.add_verse_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.add_verse_btn.setStyleSheet(get_button_style())
+        self.add_verse_btn.setFixedHeight(28)
+        self.add_verse_btn.setStyleSheet(get_compact_button_style())
 
         # Toolbar (Translation only in left panel now)
         toolbar = QHBoxLayout()

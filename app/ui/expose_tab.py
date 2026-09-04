@@ -29,12 +29,13 @@ from app.ui.library_list_presentation import (
     COMPACT_PREVIEW_BOX_HEIGHT,
     truncate_preview,
 )
+from app.utils.translations import tr
 from app.ui.theme import (
     Colors,
     Radius,
     Spacing,
     Typography,
-    get_button_style,
+    get_compact_button_style,
     get_combo_style,
     get_input_style,
     get_list_style,
@@ -139,7 +140,7 @@ class ExposeTab(QFrame):
         self.search_input = QLineEdit(self)
         self.search_input.setPlaceholderText("Rechercher dans l'Exposé...")
         self.search_input.setStyleSheet(get_input_style())
-        self.search_input.setFixedHeight(38)
+        self.search_input.setFixedHeight(28)
         self.search_input.addAction(
             app_icon("search.svg"), QLineEdit.ActionPosition.LeadingPosition
         )
@@ -149,7 +150,7 @@ class ExposeTab(QFrame):
         self.btn_refresh.setIcon(app_icon("refresh.svg"))
         self.btn_refresh.setToolTip("Actualiser (recharger la base de données)")
         self.btn_refresh.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_refresh.setFixedHeight(38)
+        self.btn_refresh.setFixedSize(28, 28)
         self.btn_refresh.setObjectName("IconButton")
 
         # Paragraphs list
@@ -182,23 +183,24 @@ class ExposeTab(QFrame):
             }}
         """)
 
-        # Add button
-        self.add_btn = QPushButton("Projeter le chapitre", self)
+        # Add button — libellé court : le tooltip précise « chapitre entier ».
+        self.add_btn = QPushButton(tr("project"), self)
         self.add_btn.setIcon(app_icon("cast.svg"))
-        self.add_btn.setIconSize(QSize(16, 16))
+        self.add_btn.setIconSize(QSize(12, 12))
         self.add_btn.setToolTip(
             "Projeter le chapitre entier à partir du paragraphe sélectionné "
             "(clic droit sur un paragraphe pour d'autres options)"
         )
         self.add_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.add_btn.setStyleSheet(get_button_style())
+        self.add_btn.setFixedHeight(28)
+        self.add_btn.setStyleSheet(get_compact_button_style())
 
         # Translator selection
         self.translator_combo = QComboBox(self)
         self.translator_combo.addItem("VGR (Standard)", "VGR")
         self.translator_combo.addItem("SHP (Shekinah)", "SHP")
         self.translator_combo.setMinimumWidth(160)
-        self.translator_combo.setFixedHeight(38)
+        self.translator_combo.setFixedHeight(28)
         self.translator_combo.setStyleSheet(get_combo_style())
 
         right_widget = QWidget()
