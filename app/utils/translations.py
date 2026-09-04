@@ -138,6 +138,8 @@ _translations: dict[str, dict[str, str]] = {
         "en": "Add all stanzas of selected hymn",
     },
     "import": {"fr": "Importer", "en": "Import"},
+    "playlist_new_short": {"fr": "Nouvelle", "en": "New"},
+    "playlist_item_new_short": {"fr": "Ajouter", "en": "Add"},
     "import_hymns": {"fr": "Importer des cantiques", "en": "Import hymns"},
     "import_pptx_file": {
         "fr": "Importer un fichier PPTX...",

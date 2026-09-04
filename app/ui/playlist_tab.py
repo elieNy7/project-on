@@ -31,7 +31,7 @@ from app.ui.theme import (
     Colors,
     Spacing,
     Typography,
-    get_button_style,
+    get_compact_button_style,
     get_input_style,
     get_list_style,
     get_menu_style,
@@ -286,21 +286,21 @@ class PlaylistTab(QFrame):
             self._on_folder_context_menu
         )
 
-        self.new_folder_btn = QPushButton("Nouvelle playlist", self)
+        self.new_folder_btn = QPushButton(tr("playlist_new_short"), self)
         self.new_folder_btn.setIcon(app_icon("plus.svg"))
-        self.new_folder_btn.setIconSize(QSize(14, 14))
+        self.new_folder_btn.setIconSize(QSize(12, 12))
         self.new_folder_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.new_folder_btn.setStyleSheet(get_button_style())
-        self.new_folder_btn.setFixedHeight(36)
+        self.new_folder_btn.setStyleSheet(get_compact_button_style())
+        self.new_folder_btn.setFixedHeight(28)
         self.new_folder_btn.setToolTip("Créer une nouvelle playlist")
         self.new_folder_btn.clicked.connect(self._on_new_folder_clicked)
 
-        self.import_btn = QPushButton("Importer", self)
+        self.import_btn = QPushButton(tr("import"), self)
         self.import_btn.setIcon(app_icon("upload.svg"))
-        self.import_btn.setIconSize(QSize(14, 14))
+        self.import_btn.setIconSize(QSize(12, 12))
         self.import_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.import_btn.setStyleSheet(get_button_style())
-        self.import_btn.setFixedHeight(36)
+        self.import_btn.setStyleSheet(get_compact_button_style())
+        self.import_btn.setFixedHeight(28)
         self.import_btn.setToolTip(
             "Importer une playlist exportée (fichier .json) — "
             "pratique pour partager un culte entre deux ordinateurs"
@@ -358,13 +358,14 @@ class PlaylistTab(QFrame):
         self.list_preview_splitter.setStyleSheet(get_splitter_style())
         self.list_preview_splitter.setSizes([560, 190])
 
-        # Barre d'actions
-        self.new_item_btn = QPushButton("Nouveau slide", self)
+        # Barre d'actions — boutons compacts (28 px) et libellés courts :
+        # la barre complète doit tenir au-dessus de la liste sans déborder.
+        self.new_item_btn = QPushButton(tr("playlist_item_new_short"), self)
         self.new_item_btn.setIcon(app_icon("file-plus.svg"))
         self.new_item_btn.setToolTip("Ajouter un slide à la playlist")
         self.new_item_btn.clicked.connect(self._on_new_item_clicked)
 
-        self.edit_item_btn = QPushButton("Modifier", self)
+        self.edit_item_btn = QPushButton(tr("edit"), self)
         self.edit_item_btn.setIcon(app_icon("edit-3.svg"))
         self.edit_item_btn.setToolTip("Modifier le slide sélectionné")
         self.edit_item_btn.clicked.connect(self._on_edit_item_clicked)
@@ -384,15 +385,15 @@ class PlaylistTab(QFrame):
         self.down_btn.setToolTip("Descendre le slide")
         self.down_btn.clicked.connect(lambda: self._move_selected(1))
 
-        self.play_btn = QPushButton("Projeter", self)
+        self.play_btn = QPushButton(tr("project"), self)
         self.play_btn.setIcon(app_icon("cast.svg"))
-        self.play_btn.setIconSize(QSize(16, 16))
+        self.play_btn.setIconSize(QSize(12, 12))
         self.play_btn.setToolTip(
             "Projeter la playlist à partir du slide sélectionné "
             "(ou du début si aucun slide n'est sélectionné)"
         )
         self.play_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.play_btn.setStyleSheet(get_button_style())
+        self.play_btn.setStyleSheet(get_compact_button_style())
 
         for btn in (
             self.new_item_btn,
@@ -402,7 +403,10 @@ class PlaylistTab(QFrame):
             self.down_btn,
         ):
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            btn.setStyleSheet(get_button_style())
+            btn.setIconSize(QSize(12, 12))
+            btn.setFixedHeight(28)
+            btn.setStyleSheet(get_compact_button_style())
+        self.play_btn.setFixedHeight(28)
 
         actions = QHBoxLayout()
         actions.setContentsMargins(0, 0, 0, 0)

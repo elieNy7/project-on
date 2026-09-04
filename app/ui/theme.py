@@ -672,6 +672,38 @@ def get_button_style(accent: str = Colors.ACCENT_PRIMARY) -> str:
     """
 
 
+def get_compact_button_style(accent: str = Colors.ACCENT_PRIMARY) -> str:
+    """Bouton compact (28 px) pour les barres d'actions d'onglets.
+
+    Même contrat visuel que :func:`get_button_style`, en réduit : padding
+    serré et police 11 px — pensé pour les barres à plusieurs boutons.
+    """
+    return f"""
+        QPushButton {{
+            background: {Colors.BG_SURFACE};
+            border: 1px solid {Colors.BORDER_DEFAULT};
+            border-radius: {Radius.SM}px;
+            padding: 4px 10px;
+            font-size: {Typography.SIZE_XS}px;
+            font-weight: {Typography.WEIGHT_SEMIBOLD};
+            color: {Colors.TEXT_PRIMARY};
+        }}
+        QPushButton:hover {{
+            background: {Colors.SURFACE_ACTIVE};
+            border-color: {Colors.BORDER_HOVER};
+            color: {Colors.ACCENT_LIGHT};
+        }}
+        QPushButton:pressed {{
+            background: {Colors.BG_ELEVATED};
+        }}
+        QPushButton:disabled {{
+            background: transparent;
+            border: 1px solid {Colors.BORDER_SUBTLE};
+            color: {Colors.TEXT_DISABLED};
+        }}
+    """
+
+
 def get_accent_button_style() -> str:
     """Primary accent button with gradient."""
     return f"""
