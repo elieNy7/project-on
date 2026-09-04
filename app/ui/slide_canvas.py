@@ -81,6 +81,12 @@ class ShadowTextLabel(QLabel):
             or self._shadow_blur <= 0
             or not self.text()
             or self._rendering_shadow
+            # Widget jamais exposé (rendu hors écran, aperçu, grab) : la
+            # construction du cache d'ombre repose sur self.render(), qui
+            # produit une image vide avant la première exposition réelle —
+            # et l'exception est avalée par Qt, laissant le label BLANC.
+            # On peint alors le texte nu, sans ombre.
+            or not self.isVisible()
         ):
             super().paintEvent(event)
             return
@@ -95,30 +101,38 @@ class ShadowTextLabel(QLabel):
             self.font().toString(),
         )
         if key != self._shadow_cache_key:
-            img = QImage(self.size(), QImage.Format.Format_ARGB32_Premultiplied)
-            img.fill(Qt.GlobalColor.transparent)
-            self._rendering_shadow = True
             try:
-                src_painter = QPainter(img)
-                self.render(
-                    src_painter, QPoint(), QRegion(), QWidget.RenderFlag.DrawChildren
+                img = QImage(self.size(), QImage.Format.Format_ARGB32_Premultiplied)
+                img.fill(Qt.GlobalColor.transparent)
+                self._rendering_shadow = True
+                try:
+                    src_painter = QPainter(img)
+                    self.render(
+                        src_painter, QPoint(), QRegion(), QWidget.RenderFlag.DrawChildren
+                    )
+                    src_painter.end()
+                finally:
+                    self._rendering_shadow = False
+                tinted = QImage(img.size(), img.format())
+                tinted.fill(Qt.GlobalColor.transparent)
+                tint_painter = QPainter(tinted)
+                tint_painter.drawImage(0, 0, img)
+                tint_painter.setCompositionMode(
+                    QPainter.CompositionMode.CompositionMode_SourceIn
                 )
-                src_painter.end()
-            finally:
-                self._rendering_shadow = False
-            tinted = QImage(img.size(), img.format())
-            tinted.fill(Qt.GlobalColor.transparent)
-            tint_painter = QPainter(tinted)
-            tint_painter.drawImage(0, 0, img)
-            tint_painter.setCompositionMode(
-                QPainter.CompositionMode.CompositionMode_SourceIn
-            )
-            tint_painter.fillRect(tinted.rect(), self._shadow_color)
-            tint_painter.end()
-            self._shadow_cache = _blur_pixmap(
-                QPixmap.fromImage(tinted), float(self._shadow_blur)
-            )
-            self._shadow_cache_key = key
+                tint_painter.fillRect(tinted.rect(), self._shadow_color)
+                tint_painter.end()
+                shadow = _blur_pixmap(
+                    QPixmap.fromImage(tinted), float(self._shadow_blur)
+                )
+                if shadow.isNull():
+                    raise RuntimeError("cache d'ombre vide (widget non exposé)")
+                self._shadow_cache = shadow
+                self._shadow_cache_key = key
+            except Exception:
+                # Aucun texte perdu sur une défaillance du cache d'ombre.
+                super().paintEvent(event)
+                return
 
         shadow_painter = QPainter(self)
         shadow_painter.drawPixmap(0, self._shadow_dy, self._shadow_cache)
@@ -355,7 +369,9 @@ class SlideCanvas(QWidget):
         """Rend hors écran la slide demandée à la résolution de sortie.
 
         Utilisé par l'aperçu opérateur : le pixmap produit est strictement
-        identique à ce que la projection affiche, simplement réduit.
+        identique à ce que la projection affiche, simplement réduit. Sur un
+        widget jamais affiché, les layouts enfants ne descendent pas seuls :
+        on les active explicitement avant la capture.
         """
         if self.width() != width or self.height() != height:
             self.resize(int(width), int(height))
@@ -363,6 +379,9 @@ class SlideCanvas(QWidget):
                 self._apply_layout_metrics(self._config)
         if slide is not None:
             self.set_slide(slide)
+        self._main_layout.activate()
+        self._shell_layout.activate()
+        self._content_layout.activate()
         return self.grab()
 
     # ── Peinture du fond ───────────────────────────────────────────────────
@@ -551,7 +570,9 @@ class SlideCanvas(QWidget):
             name = str(candidate or "").strip()
             if name and (not available or name.lower() in available):
                 return name
-        return "sans-serif"
+        # Dernier recours : une famille réellement présente (le nom littéral
+        # « sans-serif » produirait des carrés avec QFont).
+        return QFont().defaultFamily()
 
     def _cover_rect(
         self, pix_w: int, pix_h: int, target: QRectF, contain: bool = False

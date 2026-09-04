@@ -1,13 +1,24 @@
 """Generate the bundled default projection backgrounds.
 
-Produces two families of dark images (suited to white projected text) in the
-three common projection ratios, written to ``assets/backgrounds/``:
+Quatre familles couvrant tous les scénarios de projection, déclinées dans
+les trois ratios usuels (16:9 projecteur, 4:3 ancien, 9:16 écrans
+verticaux), écrites dans ``assets/backgrounds/`` :
 
-* **Unis** — tasteful dark gradients with a soft vignette.
-* **Symboles chrétiens** — the same gradients overlaid with a discreet,
-  centred symbol used in the Message (la croix, plus the four-living-creatures
-  figures: l'aigle, le lion et l'agneau). The watermark is faint and glows
-  softly so the projected white text stays perfectly legible on top.
+* **Unis** — dégradés profonds à trois tons, halo de lumière douce en haut,
+  grain fin (casse le banding sur projecteur). Louange, cantiques.
+* **Texte lourd** (``bg-texte-*``) — quasi unis, très sombres : Bible,
+  prédications, exposé plein écran, bandeaux lower_third / sous-titres.
+* **Symboles chrétiens** (``bg-symbole-*``) — les mêmes dégradés avec un
+  filigrane discret : la croix, les quatre vivants (l'aigle, le lion,
+  l'agneau), la colonne de feu, les sept chandeliers, le livre ouvert.
+* **Clairs** (``bg-clair-*``) — fonds clairs à texte foncé pour le thème
+  « Blanc Minimal », les salles très éclairées et les écrans LED.
+
+Chaque image embarque une **zone de lisibilité centrale** : même avec le
+voile des réglages (``background_dimmer``) à zéro, le texte central reste
+lisible — le fond ne « combat » jamais le contenu projeté. Un contrôle
+qualité en fin de génération vérifie la luminance centrale de chaque
+scénario (texte blanc / texte foncé).
 
 The animal figures are rendered from silhouettes by game-icons.net
 (Lorc & Delapouite), licensed CC BY 3.0 — see ``assets/backgrounds/CREDITS.txt``.
@@ -23,7 +34,8 @@ import io
 import os
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFilter, ImageOps
+import numpy as np
+from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageStat, ImageOps
 
 # Qt renders the figurative silhouettes (SVG paths) crisply; run head-less.
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -33,12 +45,32 @@ from PyQt6.QtSvg import QSvgRenderer  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 
-# (slug, start color, end color) — dark so projected white text stays legible
+# (slug, (ton profond, ton médian, accent)) — sombres pour un texte blanc.
+# Le ton médian structure la couleur, l'accent habille le haut du dégradé.
 PALETTES = {
-    "bleu-nuit": ((10, 24, 48), (27, 58, 107)),
-    "or-sombre": ((26, 18, 6), (92, 62, 20)),
-    "ardoise": ((14, 17, 23), (42, 51, 64)),
-    "pourpre": ((22, 10, 38), (61, 31, 94)),
+    "bleu-nuit": ((8, 18, 40), (24, 52, 98), (58, 102, 168)),
+    "or-sombre": ((22, 15, 5), (74, 50, 16), (150, 104, 36)),
+    "ardoise": ((11, 13, 18), (32, 40, 52), (74, 88, 110)),
+    "pourpre": ((18, 8, 32), (50, 26, 80), (110, 64, 164)),
+    "vert-foret": ((4, 22, 20), (12, 60, 52), (34, 110, 92)),
+    "bordeaux": ((28, 6, 14), (76, 22, 40), (146, 48, 74)),
+    "indigo": ((10, 10, 42), (36, 32, 96), (84, 76, 180)),
+}
+
+# Scénario « texte lourd » : quasi unis, sans distraction. Le texte blanc
+# reste souverain même en plein écran dense (versets longs, paragraphes).
+TEXT_PALETTES = {
+    "texte-encre": ((5, 7, 12), (12, 16, 26), (20, 26, 40)),
+    "texte-charbon": ((10, 10, 12), (22, 22, 26), (34, 34, 40)),
+    "texte-abysse": ((4, 10, 20), (10, 22, 40), (16, 34, 62)),
+}
+
+# Scénario « clair » : texte foncé — thème Blanc Minimal, salle très
+# éclairée, écran LED puissant. Le centre est éclairci (voile protecteur).
+LIGHT_PALETTES = {
+    "clair-ivoire": ((236, 230, 218), (246, 241, 231), (252, 250, 244)),
+    "clair-perle": ((222, 228, 236), (238, 242, 247), (249, 251, 253)),
+    "clair-sable": ((238, 232, 216), (247, 242, 228), (253, 250, 240)),
 }
 
 # (slug, width, height)
@@ -49,28 +81,109 @@ RATIOS = [
 ]
 
 ANGLE = 135  # diagonal gradient
-VIGNETTE_STRENGTH = 0.55
+VIGNETTE_STRENGTH = 0.50
+LIGHT_VIGNETTE_STRENGTH = 0.18
+CENTER_SCRIM_DARK = 0.16   # assombrissement central (texte blanc)
+CENTER_SCRIM_LIGHT = 0.22  # éclaircissement central (texte foncé)
+GLOW_ALPHA = 0.20          # halo de lumière en haut du cadre
+GRAIN_SIGMA = 3.0          # grain fin : casse le banding des dégradés
 SUPERSAMPLE = 4  # draw symbols at higher resolution then downscale for clean edges
+GRAIN_SEED = 42
 
 
 # ─────────────────────────── base gradient ────────────────────────────
-def make_gradient(size: tuple[int, int], c1, c2, angle: int = ANGLE) -> Image.Image:
+def _ramp_image(stops: tuple) -> Image.Image:
+    """Bande 256×1 reprenant la progression multi-tons de la palette."""
+    ramp = Image.new("RGB", (256, 1))
+    pixels = ramp.load()
+    for x in range(256):
+        t = x / 255.0
+        # stops = (c0, c1, c2) répartis à 0 %, 55 %, 100 % du dégradé.
+        if t < 0.55:
+            a, b, local = stops[0], stops[1], t / 0.55
+        else:
+            a, b, local = stops[1], stops[2], (t - 0.55) / 0.45
+        pixels[x, 0] = tuple(int(a[ch] + (b[ch] - a[ch]) * local) for ch in range(3))
+    return ramp
+
+
+def make_gradient(size: tuple[int, int], stops: tuple, angle: int = ANGLE) -> Image.Image:
     w, h = size
     diag = int((w ** 2 + h ** 2) ** 0.5)
-    ramp = Image.linear_gradient("L").resize((diag, diag))
+    ramp = _ramp_image(stops).resize((diag, diag))
     ramp = ramp.rotate(angle, expand=False)
     left = (diag - w) // 2
     top = (diag - h) // 2
-    ramp = ramp.crop((left, top, left + w, top + h))
-    return ImageOps.colorize(ramp, black=c1, white=c2).convert("RGB")
+    return ramp.crop((left, top, left + w, top + h)).convert("RGB")
 
 
-def add_vignette(img: Image.Image, strength: float = VIGNETTE_STRENGTH) -> Image.Image:
+def _center_mask(size: tuple[int, int], softness: float = 0.62) -> Image.Image:
+    """Masque « L » : blanc au centre, noir vers les bords (radial inversé)."""
+    mask = Image.radial_gradient("L").resize(size).point(lambda v: 255 - v)
+    # Élargir le cœur du masque pour couvrir toute la zone de texte.
+    return mask.point(lambda v: int(min(255, (v / 255.0) ** softness * 255)))
+
+
+def add_center_scrim(img: Image.Image, strength: float, color: tuple) -> Image.Image:
+    """Voile central : assombrit (texte blanc) ou éclaircit (texte foncé) la
+    zone de lecture. Garantit une lisibilité constante même avec le voile des
+    réglages (``background_dimmer``) à zéro."""
+    w, h = img.size
+    mask = _center_mask((w, h))
+    mask = mask.point(lambda v: int(v * strength))
+    layer = Image.new("RGB", (w, h), color)
+    return Image.composite(layer, img, mask)
+
+
+def add_top_glow(img: Image.Image, tint: tuple, alpha: float) -> Image.Image:
+    """Halo de lumière douce ancré en haut du cadre (éclairage de scène)."""
+    w, h = img.size
+    mask = Image.new("L", (w, h), 0)
+    draw = ImageDraw.Draw(mask)
+    radius = int(w * 0.55)
+    draw.ellipse(
+        [w // 2 - radius, -int(h * 0.75), w // 2 + radius, int(h * 0.45)],
+        fill=int(255 * alpha),
+    )
+    mask = mask.filter(ImageFilter.GaussianBlur(radius=int(w * 0.08)))
+    layer = Image.composite(
+        Image.new("RGB", (w, h), tint), Image.new("RGB", (w, h), 0), mask
+    )
+    return ImageChops.screen(img, layer)
+
+
+def add_vignette(img: Image.Image, strength: float = VIGNETTE_STRENGTH,
+                 color: tuple = (0, 0, 0)) -> Image.Image:
     w, h = img.size
     vig = Image.radial_gradient("L").resize((w, h))
     mask = vig.point(lambda v: int(v * strength))
-    overlay = Image.new("RGB", (w, h), (0, 0, 0))
+    overlay = Image.new("RGB", (w, h), color)
     return Image.composite(overlay, img, mask)
+
+
+def add_grain(img: Image.Image, sigma: float = GRAIN_SIGMA) -> Image.Image:
+    """Grain de luminance très fin : évite le banding des dégradés projetés."""
+    arr = np.asarray(img, dtype=np.float32)
+    rng = np.random.default_rng(GRAIN_SEED)
+    noise = rng.normal(0.0, sigma, arr.shape[:2])[:, :, None]
+    out = np.clip(arr + noise, 0, 255).astype(np.uint8)
+    return Image.fromarray(out, "RGB")
+
+
+def make_base(size: tuple[int, int], stops: tuple, light: bool = False) -> Image.Image:
+    """Fond complet : dégradé + halo + voile central + vignette + grain."""
+    img = make_gradient(size, stops)
+    if light:
+        img = add_top_glow(img, tint=(255, 255, 255), alpha=GLOW_ALPHA * 0.6)
+        img = add_center_scrim(img, CENTER_SCRIM_LIGHT, color=(255, 255, 255))
+        img = add_vignette(img, LIGHT_VIGNETTE_STRENGTH, color=(120, 120, 128))
+    else:
+        mid = stops[1]
+        tint = tuple(int(c + (255 - c) * 0.42) for c in mid)
+        img = add_top_glow(img, tint=tint, alpha=GLOW_ALPHA)
+        img = add_center_scrim(img, CENTER_SCRIM_DARK, color=(0, 0, 0))
+        img = add_vignette(img, VIGNETTE_STRENGTH)
+    return add_grain(img)
 
 
 # ─────────────────────────── symbol drawing ───────────────────────────
@@ -93,6 +206,78 @@ def _draw_latin_cross(d: ImageDraw.ImageDraw, cx, cy, unit):
                         radius=bar * 0.5, fill=255)
 
 
+def _draw_pillar_of_fire(d: ImageDraw.ImageDraw, cx, cy, unit):
+    """Draw a tall, gently layered flame representing the Pillar of Fire."""
+    outer = [
+        (cx, cy - unit * 1.70),
+        (cx + unit * 0.50, cy - unit * 0.92),
+        (cx + unit * 0.42, cy - unit * 0.20),
+        (cx + unit * 0.74, cy + unit * 0.48),
+        (cx + unit * 0.28, cy + unit * 1.44),
+        (cx, cy + unit * 1.72),
+        (cx - unit * 0.28, cy + unit * 1.44),
+        (cx - unit * 0.74, cy + unit * 0.48),
+        (cx - unit * 0.42, cy - unit * 0.20),
+        (cx - unit * 0.50, cy - unit * 0.92),
+    ]
+    d.polygon(outer, fill=255)
+    inner = [
+        (cx, cy - unit * 0.92),
+        (cx + unit * 0.20, cy - unit * 0.25),
+        (cx + unit * 0.14, cy + unit * 0.50),
+        (cx, cy + unit * 1.10),
+        (cx - unit * 0.14, cy + unit * 0.50),
+        (cx - unit * 0.20, cy - unit * 0.25),
+    ]
+    d.polygon(inner, fill=0)
+
+
+def _draw_seven_candlesticks(d: ImageDraw.ImageDraw, cx, cy, unit):
+    """Draw seven balanced candlesticks, a Revelation 1 motif."""
+    spacing = unit * 0.52
+    stem_width = max(2, int(unit * 0.085))
+    base_y = cy + unit * 0.95
+    for index in range(-3, 4):
+        x = cx + index * spacing
+        # A shallow arc makes the central lamp subtly prominent.
+        top_y = cy - unit * (0.40 + 0.07 * (3 - abs(index)))
+        d.rounded_rectangle(
+            [x - stem_width / 2, top_y, x + stem_width / 2, base_y],
+            radius=stem_width / 2,
+            fill=255,
+        )
+        d.rounded_rectangle(
+            [x - unit * 0.19, base_y - stem_width, x + unit * 0.19, base_y + stem_width],
+            radius=stem_width / 2,
+            fill=255,
+        )
+        # Small diamond flame above each lamp.
+        flame_y = top_y - unit * 0.24
+        d.polygon(
+            [(x, flame_y - unit * 0.13), (x + unit * 0.10, flame_y),
+             (x, flame_y + unit * 0.13), (x - unit * 0.10, flame_y)],
+            fill=255,
+        )
+
+
+def _draw_open_book(d: ImageDraw.ImageDraw, cx, cy, unit):
+    """Draw a simple open-book watermark, without any written text."""
+    w, h = unit * 1.55, unit * 1.00
+    top, bottom = cy - h / 2, cy + h / 2
+    # Two gently shaped pages, their shared spine and three non-textual lines
+    # per page communicate a Bible/open-book motif at a glance.
+    d.polygon([(cx, top + unit * 0.08), (cx - w, top), (cx - w, bottom),
+               (cx, bottom + unit * 0.10)], fill=255)
+    d.polygon([(cx, top + unit * 0.08), (cx + w, top), (cx + w, bottom),
+               (cx, bottom + unit * 0.10)], fill=255)
+    cut = max(2, int(unit * 0.055))
+    d.line([(cx, top + unit * 0.10), (cx, bottom + unit * 0.10)], fill=0, width=cut)
+    for offset in (-0.22, 0.0, 0.22):
+        y = cy + unit * offset
+        d.line([(cx - w * 0.75, y), (cx - unit * 0.20, y + unit * 0.03)], fill=0, width=cut)
+        d.line([(cx + unit * 0.20, y + unit * 0.03), (cx + w * 0.75, y)], fill=0, width=cut)
+
+
 # ── Figurative silhouettes (SVG, viewBox 0 0 512 512) ──────────────────
 # Source: game-icons.net — eagle by Lorc, lion by Lorc, sheep by Delapouite.
 # Licensed CC BY 3.0 (https://creativecommons.org/licenses/by/3.0/).
@@ -110,6 +295,9 @@ SVG_SYMBOLS = {
 
 SYMBOL_DRAWERS = {
     "croix": _draw_latin_cross,
+    "colonne-feu": _draw_pillar_of_fire,
+    "sept-chandeliers": _draw_seven_candlesticks,
+    "livre-ouvert": _draw_open_book,
 }
 
 # (model slug, palette slug, symbol slug, watermark opacity 0..1)
@@ -118,6 +306,9 @@ SYMBOL_MODELS = [
     ("aigle", "or-sombre", "aigle", 0.13),
     ("lion", "pourpre", "lion", 0.13),
     ("agneau", "ardoise", "agneau", 0.14),
+    ("colonne-feu", "indigo", "colonne-feu", 0.13),
+    ("sept-chandeliers", "or-sombre", "sept-chandeliers", 0.13),
+    ("livre-ouvert", "bordeaux", "livre-ouvert", 0.12),
 ]
 
 _QAPP = None
@@ -156,13 +347,13 @@ def render_symbol_layer(size: tuple[int, int], symbol: str) -> Image.Image:
     ss = SUPERSAMPLE
     layer = Image.new("L", (w * ss, h * ss), 0)
     if symbol in SVG_SYMBOLS:
-        box = int(min(w, h) * ss * 0.46)
+        box = int(min(w, h) * ss * 0.40)
         mask = _render_svg_mask(SVG_SYMBOLS[symbol], box)
         layer.paste(mask, ((w * ss - box) // 2, (h * ss - box) // 2))
     else:
         d = ImageDraw.Draw(layer)
         cx, cy = w * ss / 2, h * ss / 2
-        unit = min(w, h) * ss * 0.16  # symbol scale
+        unit = min(w, h) * ss * 0.14  # symbol scale
         SYMBOL_DRAWERS[symbol](d, cx, cy, unit)
     return layer.resize((w, h), Image.LANCZOS)
 
@@ -183,33 +374,87 @@ def apply_symbol(base: Image.Image, symbol: str, opacity: float) -> Image.Image:
     return out
 
 
+# ─────────────────────── quality gate (scénarios) ─────────────────────
+def _center_luminance(img: Image.Image, frac: float = 0.44) -> float:
+    """Luminance moyenne du rectangle central (zone de texte)."""
+    w, h = img.size
+    cw, ch = int(w * frac), int(h * frac)
+    box = ((w - cw) // 2, (h - ch) // 2, (w + cw) // 2, (h + ch) // 2)
+    return float(ImageStat.Stat(img.convert("L").crop(box)).mean[0])
+
+
+def verify_scenario_limits(out_dir: Path) -> None:
+    """Contrôle qualité : chaque scénario respecte son seuil de lisibilité.
+
+    - fonds sombres : zone centrale assez sombre pour un texte blanc ;
+    - fonds clairs  : zone centrale assez claire pour un texte foncé.
+    """
+    failures: list[str] = []
+    for path in sorted(out_dir.glob("bg-*_16x9.png")):
+        if path.name.startswith("bg-photo-"):
+            continue  # photos générées séparément
+        img = Image.open(path)
+        lum = _center_luminance(img)
+        if path.name.startswith("bg-clair-"):
+            if lum < 168:
+                failures.append(f"{path.name} : centre trop sombre ({lum:.0f} < 168)")
+        else:
+            if lum > 96:
+                failures.append(f"{path.name} : centre trop clair ({lum:.0f} > 96)")
+    if failures:
+        for line in failures:
+            print(f"  ✗ {line}")
+        raise SystemExit("Échec du contrôle de lisibilité des fonds")
+    print("  ✓ Lisibilité centrale vérifiée sur tous les fonds 16:9")
+
+
 # ──────────────────────────────── main ────────────────────────────────
 def main() -> None:
     out_dir = ROOT / "assets" / "backgrounds"
     out_dir.mkdir(parents=True, exist_ok=True)
     count = 0
 
-    # Family 1 — plain gradients
-    for pal_slug, (c1, c2) in PALETTES.items():
+    # Family 1 — plain gradients (louange, cantiques)
+    for pal_slug, stops in PALETTES.items():
         for ratio_slug, w, h in RATIOS:
-            img = add_vignette(make_gradient((w, h), c1, c2))
+            img = make_base((w, h), stops)
             dest = out_dir / f"bg-{pal_slug}_{ratio_slug}.png"
             img.save(dest, "PNG", optimize=True)
             count += 1
             print(f"  uni     {dest.name} ({w}x{h})")
 
-    # Family 2 — Christian symbol watermarks
+    # Family 2 — Christian symbol watermarks (cultes thématiques, messages)
     for model_slug, pal_slug, symbol, opacity in SYMBOL_MODELS:
-        c1, c2 = PALETTES[pal_slug]
+        stops = PALETTES[pal_slug]
         for ratio_slug, w, h in RATIOS:
-            img = add_vignette(make_gradient((w, h), c1, c2))
+            img = make_base((w, h), stops)
             img = apply_symbol(img, symbol, opacity)
             dest = out_dir / f"bg-symbole-{model_slug}_{ratio_slug}.png"
             img.save(dest, "PNG", optimize=True)
             count += 1
             print(f"  symbole {dest.name} ({w}x{h})")
 
+    # Family 3 — heavy-text scenarios (Bible, prédications, exposé, bandeaux)
+    for pal_slug, stops in TEXT_PALETTES.items():
+        for ratio_slug, w, h in RATIOS:
+            img = make_base((w, h), stops)
+            dest = out_dir / f"bg-{pal_slug}_{ratio_slug}.png"
+            img.save(dest, "PNG", optimize=True)
+            count += 1
+            print(f"  texte   {dest.name} ({w}x{h})")
+
+    # Family 4 — light backgrounds (texte foncé : thème Blanc Minimal,
+    # salle très éclairée, écran LED)
+    for pal_slug, stops in LIGHT_PALETTES.items():
+        for ratio_slug, w, h in RATIOS:
+            img = make_base((w, h), stops, light=True)
+            dest = out_dir / f"bg-{pal_slug}_{ratio_slug}.png"
+            img.save(dest, "PNG", optimize=True)
+            count += 1
+            print(f"  clair   {dest.name} ({w}x{h})")
+
     print(f"\nGenerated {count} backgrounds in {out_dir}")
+    verify_scenario_limits(out_dir)
 
 
 if __name__ == "__main__":

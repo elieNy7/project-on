@@ -13,7 +13,9 @@ BOOTSTRAP_DATA_FILES = {"project_on.db", "sermons_vgr.db"}
 
 # Bump when the bundled default backgrounds change so existing installs are
 # refreshed with the new artwork (and retired ones are removed) on next launch.
-DEFAULT_BG_VERSION = 4
+# v7 : rendu enrichi (halo, voile de lisibilité central, grain anti-banding)
+# + familles « texte lourd » (bg-texte-*) et « clair » (bg-clair-*).
+DEFAULT_BG_VERSION = 7
 # Default backgrounds that earlier versions shipped and that we now retire.
 # Removed on upgrade even for installs predating the version marker.
 RETIRED_DEFAULT_BACKGROUNDS = {
