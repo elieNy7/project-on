@@ -74,6 +74,7 @@ function applyConfig(cfg) {
             : configuredLayout,
     };
     currentConfig = { ...currentConfig, ...cfg };
+    configureTicker(currentConfig.ticker);
     const root = document.documentElement;
     const rootEl = document.getElementById('root');
     const lowerThird = document.getElementById('lower-third');
@@ -691,29 +692,8 @@ async function setSlide(payload) {
     const videoPath = (payload && (payload.video || payload.video_path)) || '';
     const videoPlaying = !!(payload && payload.video_playing);
     const hasVideo = videoPath.trim().length > 0;
-    const webUrl = (payload && payload.url) || '';
-    const hasWeb = webUrl.trim().length > 0;
     if (imgContainer) {
-        imgContainer.classList.toggle('image-only', hasImage && !hasText && !hasVideo && !hasWeb);
-    }
-
-    // ── Page web plein écran (URL des Médias) ─────────────────────────
-    const webEl = document.getElementById('web-container');
-    if (webEl) {
-        const currentUrl = webEl.dataset.url || '';
-        if (!hasWeb) {
-            if (currentUrl) {
-                webEl.dataset.url = '';
-                webEl.removeAttribute('src');
-            }
-            webEl.classList.remove('visible');
-        } else {
-            if (currentUrl !== webUrl) {
-                webEl.dataset.url = webUrl;
-                webEl.src = webUrl;
-            }
-            webEl.classList.add('visible');
-        }
+        imgContainer.classList.toggle('image-only', hasImage && !hasText && !hasVideo);
     }
 
     // ── Vidéo plein écran (contrôle manuel depuis l'application) ──────
@@ -721,7 +701,7 @@ async function setSlide(payload) {
     if (videoEl) {
         const videoBaseUrl = window.location.protocol === 'file:' ? 'http://127.0.0.1:8080' : '';
         const currentFile = videoEl.dataset.file || '';
-        if (!hasVideo || hasWeb) {
+        if (!hasVideo) {
             if (currentFile) {
                 videoEl.pause();
                 videoEl.removeAttribute('src');
@@ -744,7 +724,7 @@ async function setSlide(payload) {
         }
     }
 
-    if (!payload || payload.hidden || (!hasText && !hasImage && !hasVideo && !hasWeb)) {
+    if (!payload || payload.hidden || (!hasText && !hasImage && !hasVideo)) {
         if (textPanelVisible) {
             await animateElement(innerWrapper, 'out', transition, localToken);
         }
@@ -764,7 +744,7 @@ async function setSlide(payload) {
 
     if (imgContainer) {
         resetAnimatedState(imgContainer);
-        if (hasImage && !hasVideo && !hasWeb) {
+        if (hasImage && !hasVideo) {
             const baseUrl = window.location.protocol === 'file:' ? 'http://127.0.0.1:8080' : '';
             imgContainer.style.backgroundImage = `url('${baseUrl}/api/image?ts=${Date.now()}')`;
             imgContainer.classList.add('visible');
@@ -874,6 +854,84 @@ async function setSlide(payload) {
             if (localToken === transitionToken) resetAnimatedState(innerWrapper);
         }
     }
+}
+
+/* ── Bandeau défilant d'annonces (même réglage que la projection locale) ── */
+const tickerState = {
+    raf: null,
+    offset: 0,
+    lastMs: 0,
+    period: 0,
+    speed: 90,
+};
+
+const TICKER_SEPARATOR = '   \u2022   ';
+
+function configureTicker(ticker) {
+    const el = document.getElementById('ticker');
+    const track = document.getElementById('ticker-track');
+    if (!el || !track) return;
+
+    const texts = (ticker && Array.isArray(ticker.texts) ? ticker.texts : [])
+        .map((t) => String(t || '').trim())
+        .filter(Boolean);
+    const enabled = !!(ticker && ticker.enabled) && texts.length > 0;
+
+    if (!enabled) {
+        el.classList.add('hidden');
+        if (tickerState.raf) {
+            cancelAnimationFrame(tickerState.raf);
+            tickerState.raf = null;
+        }
+        return;
+    }
+
+    const speed = Math.max(20, Math.min(400, Number(ticker.speed) || 90));
+    const height = Math.max(32, Math.min(220, Number(ticker.height) || 64));
+    const fontSize = Math.max(14, Math.min(90, Number(ticker.font_size) || 30));
+    const bg = (ticker.bg_color || 'rgba(5, 10, 22, 0.82)');
+    const fg = (ticker.text_color || 'rgba(255, 255, 255, 0.95)');
+
+    const rootStyle = document.documentElement.style;
+    rootStyle.setProperty('--ticker-bg', bg);
+    rootStyle.setProperty('--ticker-fg', fg);
+    rootStyle.setProperty('--ticker-font-size', `${fontSize}px`);
+    rootStyle.setProperty('--ticker-height', `${height}px`);
+    tickerState.speed = speed;
+
+    // Une « copie » = toutes les annonces + séparateur. On la répète
+    // suffisamment pour couvrir l'écran, puis on boucle sur la largeur
+    // d'une copie : défilement continu, sans temps mort.
+    const copy = `${texts.join(TICKER_SEPARATOR)}${TICKER_SEPARATOR}`;
+    track.textContent = copy;
+    const copyWidth = Math.max(1, track.scrollWidth);
+    const repeats = Math.max(2, Math.ceil((window.innerWidth + copyWidth) / copyWidth));
+    track.textContent = copy.repeat(repeats);
+    tickerState.period = copyWidth;
+    tickerState.offset = 0;
+    tickerState.lastMs = 0;
+
+    el.classList.remove('hidden');
+    if (!tickerState.raf) {
+        tickerState.raf = requestAnimationFrame(stepTicker);
+    }
+}
+
+function stepTicker(now) {
+    tickerState.raf = requestAnimationFrame(stepTicker);
+    const el = document.getElementById('ticker');
+    const track = document.getElementById('ticker-track');
+    if (!el || !track || el.classList.contains('hidden')) {
+        cancelAnimationFrame(tickerState.raf);
+        tickerState.raf = null;
+        return;
+    }
+    if (!tickerState.lastMs) tickerState.lastMs = now;
+    const dt = Math.min(0.1, (now - tickerState.lastMs) / 1000);
+    tickerState.lastMs = now;
+    const period = tickerState.period || Math.max(1, track.scrollWidth / 2);
+    tickerState.offset = (tickerState.offset + tickerState.speed * dt) % period;
+    track.style.transform = `translateX(${-tickerState.offset}px)`;
 }
 
 /* ── Realtime Updates (SSE with Polling Fallback) ────────────── */

@@ -459,7 +459,7 @@ class ObsWebServer:
         self._broadcast_update()
 
     def update_slide(
-        self, text: str, reference: str, source: str = "custom", hidden: bool = False, image_path: str = "", video_path: str = "", video_playing: bool = False, url: str = ""
+        self, text: str, reference: str, source: str = "custom", hidden: bool = False, image_path: str = "", video_path: str = "", video_playing: bool = False
     ) -> None:
         """Update slide. Polling clients will pick it up on next interval."""
         slide = {
@@ -470,7 +470,6 @@ class ObsWebServer:
             "image_path": image_path,
             "video_path": video_path,
             "video_playing": bool(video_playing),
-            "url": url,
         }
         with self._data_lock:
             self._slide = slide.copy()

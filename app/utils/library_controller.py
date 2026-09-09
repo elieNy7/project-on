@@ -71,6 +71,11 @@ class LibraryController(QObject):
         self._sermons_dao = SermonsDao(db)
         self._playlist_dao = PlaylistDao(db)
         self._media_dao = MediaDao(db)
+        try:
+            # Les pages web ne sont plus projetables : purge des anciennes entrées.
+            self._media_dao.purge_web_media()
+        except Exception:
+            log.exception("Purge des médias web impossible")
 
         self._bible_tab = bible_tab
         self._hymns_tab = hymns_tab
@@ -185,7 +190,6 @@ class LibraryController(QObject):
 
         if self._media_tab is not None:
             self._media_tab.importRequested.connect(self.on_media_import)
-            self._media_tab.webAddRequested.connect(self.on_media_add_web)
             self._media_tab.itemActivated.connect(self.on_media_item_activated)
             self._media_tab.itemDeleteRequested.connect(self.on_media_delete)
             self._media_tab.itemRenameRequested.connect(self.on_media_rename)
@@ -1645,17 +1649,6 @@ class LibraryController(QObject):
         # Vidéo : appliquer la boucle définie sur le média en bibliothèque.
         if bool(media.get("loop")):
             self._project.set_video_loop(True)
-
-    def on_media_add_web(self, url: str, name: str = "") -> None:
-        """Ajoute une page web (URL) comme média projetable."""
-        clean_url = str(url or "").strip()
-        if not clean_url:
-            return
-        if not clean_url.startswith(("http://", "https://")):
-            clean_url = "https://" + clean_url
-        display = self._clean_text(name) or clean_url
-        self._media_dao.add_media(display, clean_url, "web")
-        self.refresh_media()
 
     def on_media_delete(self, media_id: int) -> None:
         """Retire le média de la bibliothèque (le fichier reste sur disque)."""

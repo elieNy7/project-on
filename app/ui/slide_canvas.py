@@ -814,12 +814,10 @@ class SlideCanvas(QWidget):
         align = str(cfg.get("align") or "center").lower()
         font_family = self._resolve_font_family(str(cfg.get("font_family") or ""))
 
-        # Média pur (image/vidéo/web sans texte) : aucun titre projeté à l'écran.
+        # Média pur (image/vidéo sans texte) : aucun titre projeté à l'écran.
         video_path = str(slide.get("video") or "").strip()
-        web_url = str(slide.get("url") or "").strip()
         if (
             video_path
-            or web_url
             or (visual_path and not str(slide.get("text") or "").strip())
         ):
             show_reference = False

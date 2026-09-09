@@ -505,10 +505,34 @@ class ObsSettingsDialog(QDialog):
         )
         ndi_status_layout.addWidget(self._ndi_status_label, 1)
 
+        self._ndi_test_btn = QPushButton("Tester")
+        self._ndi_test_btn.setToolTip(
+            "Démarre l'envoi NDI avec les réglages enregistrés ; "
+            "recliquez pour arrêter. Le nouveau nom est appliqué à l'enregistrement."
+        )
+        self._ndi_test_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._ndi_test_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: transparent;
+                border: 1px solid {Colors.ACCENT_PRIMARY};
+                border-radius: 6px;
+                padding: 6px 14px;
+                color: {Colors.ACCENT_PRIMARY};
+                font-size: {Typography.SIZE_CONTROL}px;
+                font-weight: 600;
+            }}
+            QPushButton:hover {{
+                background: {Colors.ACCENT_PRIMARY};
+                color: #000;
+            }}
+        """)
+        self._ndi_test_btn.clicked.connect(self._toggle_ndi_test)
+        ndi_status_layout.addWidget(self._ndi_test_btn)
+
         refresh_ndi_btn = QPushButton()
         refresh_ndi_btn.setIcon(app_icon("refresh-cw.svg"))
         refresh_ndi_btn.setFixedSize(32, 32)
-        refresh_ndi_btn.setToolTip("Reverifier NDI")
+        refresh_ndi_btn.setToolTip("Revérifier NDI")
         refresh_ndi_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         refresh_ndi_btn.setStyleSheet(f"""
             QPushButton {{
@@ -678,22 +702,38 @@ class ObsSettingsDialog(QDialog):
         bridge_found = bool(status.get("python_bridge_found"))
         numpy_found = bool(status.get("numpy_found"))
         paths = status.get("runtime_paths") or []
+        running = (
+            self._obs_controller is not None
+            and self._obs_controller.is_ndi_running()
+        )
 
-        if usable:
+        if running:
             color = Colors.ACCENT_SUCCESS
-            label = "NDI detecte automatiquement et pret a diffuser."
-        elif runtime_found:
-            color = Colors.ACCENT_WARNING
-            missing = []
-            if not bridge_found:
-                missing.append("NDIlib")
-            if not numpy_found:
-                missing.append("numpy")
-            suffix = f" Dependance manquante: {', '.join(missing)}." if missing else ""
-            label = f"Runtime NDI detecte, mais la sortie n'est pas encore prete.{suffix}"
+            source = self._obs_controller.settings.ndi_source_name
+            label = f"En direct sur le réseau NDI : source « {source} »."
+            self._ndi_test_btn.setText("Arrêter")
         else:
-            color = Colors.ACCENT_DANGER
-            label = "NDI non detecte. Installez le NDI Runtime ou ajoutez le dossier runtime portable."
+            self._ndi_test_btn.setText("Tester")
+            if usable:
+                color = Colors.ACCENT_WARNING
+                label = "NDI prêt. Cliquez sur Tester (ou Enregistrer) pour diffuser."
+            elif runtime_found:
+                color = Colors.ACCENT_WARNING
+                missing = []
+                if not bridge_found:
+                    missing.append("NDIlib")
+                if not numpy_found:
+                    missing.append("numpy")
+                suffix = (
+                    f" Dépendance manquante : {', '.join(missing)}." if missing else ""
+                )
+                label = f"Runtime NDI détecté, mais la sortie n'est pas prête.{suffix}"
+            else:
+                color = Colors.ACCENT_DANGER
+                label = (
+                    "NDI non détecté. Installez le NDI Runtime (ndi.video) "
+                    "puis cliquez sur ⟳."
+                )
 
         detail = str(status.get("message") or label)
         if paths:
@@ -704,6 +744,20 @@ class ObsSettingsDialog(QDialog):
         )
         self._ndi_status_label.setText(label)
         self._ndi_status_label.setToolTip(detail)
+
+    def _toggle_ndi_test(self) -> None:
+        """Démarre/arrête un envoi NDI réel sans quitter le dialogue."""
+        if self._obs_controller is None:
+            return
+        if self._obs_controller.is_ndi_running():
+            self._obs_controller.stop_ndi()
+        else:
+            if not self._obs_controller.start_ndi():
+                self._refresh_ndi_status()
+                self._ndi_status_label.setText(
+                    "Démarrage NDI impossible — vérifiez le NDI Runtime."
+                )
+        self._refresh_ndi_status()
 
     # ── Remote OBS control (obs-websocket 5.x) ─────────────────────────
 
@@ -1001,6 +1055,10 @@ class ObsSettingsDialog(QDialog):
         self._update_remote_status()
         if self._obs_controller is None:
             return
+
+        # Volet NDI visible : l'état (détection + envoi en cours) suit en direct.
+        if self._current_mode == "ndi":
+            self._refresh_ndi_status()
 
         running = self._obs_controller.is_web_server_running()
 

@@ -255,14 +255,20 @@ class ObsSettings:
     scenes: list[ObsScene] = field(default_factory=list)
     remote: ObsRemoteSettings = field(default_factory=ObsRemoteSettings)
 
-    def to_full_obs_config(self) -> dict[str, Any]:
-        """Base broadcast config plus one style payload per named scene."""
+    def to_full_obs_config(self, ticker: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Base broadcast config plus one style payload per named scene.
+
+        ``ticker`` (charge utile de :meth:`TickerSettings.to_payload`) est
+        embarqué tel quel : la page OBS et l'envoi NDI animent le bandeau
+        d'annonces à partir de ces champs.
+        """
         config = self.output.to_obs_config()
         config["scenes"] = {
             scene.id: scene.output.to_obs_config()
             for scene in self.scenes
             if scene.id
         }
+        config["ticker"] = dict(ticker or {})
         return config
 
 
@@ -603,6 +609,18 @@ class TickerSettings:
             s.announcement_folder_id = None
         s.announcement_seconds = max(2, min(120, int(self.announcement_seconds or 8)))
         return s
+
+    def to_payload(self) -> dict[str, Any]:
+        """Charge utile diffusée à la projection locale, OBS et NDI."""
+        return {
+            "enabled": bool(self.enabled),
+            "texts": list(self.texts or []),
+            "speed": max(20, min(400, int(self.speed or 90))),
+            "height": max(32, min(220, int(self.height or 64))),
+            "bg_color": str(self.bg_color or "rgba(5,10,22,0.82)"),
+            "text_color": str(self.text_color or "rgba(255,255,255,0.95)"),
+            "font_size": max(14, min(90, int(self.font_size or 30))),
+        }
 
 
 @dataclass

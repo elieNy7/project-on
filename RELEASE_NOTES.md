@@ -1,22 +1,26 @@
-# Project-On 2.0.1
+# Project-On 2.1.0
 
-**Polices, fonds et aperçu au niveau pro** ✨ — 43 polices embarquées, des fonds de projection régénérés pour chaque usage, une interface compacte et un aperçu qui reflète instantanément chaque réglage. Correction importante : l'aperçu fidèle n'affichait pas le texte des slides dans certains cas.
+**Le bandeau d'annonces partout, une connexion NDI solide, des paramètres enfin simples** 📣 — Un seul réglage alimente désormais le bandeau défilant sur la projection locale, les sources Navigateur OBS et la sortie NDI. L'envoi NDI se répare tout seul et se teste en un clic. Et la couche de paramètres a été allégée à l'essentiel. Cette version intègre aussi les polices et fonds de niveau pro préparés en amont.
 
 ## Nouveautés
 
-- **43 polices intégrées** 🔤 : 37 familles Google Fonts rejoignent Poppins et les polices d'origine — Montserrat, Inter, Raleway, Open Sans, Lato, Roboto, Playfair Display, Merriweather, Cinzel, Dancing Script, Great Vibes… Des sans-serif lisibles, des serif majestueuses pour l'Écriture, des display pour les titres et des script élégantes pour les chants. Licences incluses.
-- **Fonds de projection régénérés** 🖼️ : 60 fonds dans 3 ratios, avec dégradés profonds à trois tons, halo de lumière, **zone de lisibilité centrale intégrée** (le texte reste lisible même avec le voile à zéro) et grain anti-banding. Quatre familles par scénario : couleurs pour la louange, symboles en filigrane pour les cultes thématiques, **fonds « texte lourd »** ultra-sobres pour la Bible et les prédications, et **fonds clairs** à texte foncé pour le thème Blanc Minimal et les salles très éclairées.
-- **Aperçu instantané** 👀 : tout changement de réglage — style, thème (même en cours de test), position de la référence, masquage — se reflète immédiatement dans l'aperçu, sans attendre la slide suivante.
-- **Interface compacte** : tous les boutons des onglets et de la console d'aperçu passent à 28 px, avec libellés raccourcis — tout tient en place, même pendant une vidéo.
+- **Bandeau d'annonces unifié** 📣 : le texte défilant se règle à un seul endroit (Paramètres → Bandeau d'annonces) et s'affiche simultanément en bas de la projection locale, des sources Navigateur OBS et du flux NDI. Aperçu en direct dans le dialogue : ce que vous voyez est ce qui sera projeté. Défilement continu sans temps mort côté OBS, et le bandeau reste diffusé par le NDI même quand l'écran est masqué (annonces sur fond noir pendant la prédication).
+- **Connexion NDI fiabilisée** 📶 : en cas de coupure (runtime arrêté, réseau changé), l'envoi NDI redémarre automatiquement en quelques secondes — le direct ne reste pas noir. Le dialogue Connexion gagne un bouton **Tester** (démarre un vrai envoi sans quitter), un statut rafraîchi en temps réel et des messages d'état clairs.
+- **Paramètres simplifiés** 🧹 : l'onglet Paramètres passe à 4 cartes claires — Projection, Diffusion & OBS, Application, Données & maintenance. Le dialogue de projection locale ne garde que l'essentiel (mode, écran, composition, police, tailles, couleurs, fond, transition) ; les réglages avancés restés en mémoire ne sont jamais écrasés.
+- **Médias recentrés** 🖼️ : les pages web ne sont plus projetables — l'onglet Médias se concentre sur les images, vidéos et PowerPoint fidèles (l'application s'en trouve aussi nettement plus légère).
+- **43 polices intégrées** 🔤 : 37 familles Google Fonts rejoignent Poppins — Montserrat, Inter, Playfair Display, Cinzel, Dancing Script… Des sans-serif lisibles, des serif majestueuses pour l'Écriture, des script élégantes pour les chants. Licences incluses.
+- **Fonds de projection régénérés** 🖼️ : 60 fonds dans 3 ratios avec **zone de lisibilité centrale intégrée** (texte lisible même avec le voile à zéro). Quatre familles par scénario : louange, symboles en filigrane, **fonds « texte lourd »** pour la Bible et les prédications, et **fonds clairs** à texte foncé.
+- **Aperçu instantané** 👀 : tout changement de réglage — style, thème, position de la référence, masquage — se reflète immédiatement dans l'aperçu.
 
 ## Corrections
 
-- **Aperçu fidèle : texte parfois absent** — sur une slide rendue hors écran, le texte avec ombre portée pouvait ne pas s'afficher du tout. Corrigé (et le rendu hors écran active désormais correctement ses layouts).
-- **Polices de secours** : une police manquante ne produit plus de carrés vides à l'écran.
+- **NDI : envoi qui s'interrompait silencieusement** — le thread d'envoi survit désormais aux erreurs momentanées et le superviseur relance l'expédition si nécessaire.
+- **Aperçu fidèle : texte parfois absent** — sur une slide rendue hors écran, le texte avec ombre portée pouvait ne pas s'afficher du tout. Corrigé.
+- **Divers** : détection NDI mise en cache (fini le re-scan disque à chaque affichage), interface compacte 28 px, polices de secours sans carrés vides.
 
 ## Installation
 
-Téléchargez **`ProjectOn_2.0.1_Setup.exe`** ci-dessous et installez-le par-dessus la version existante : cantiques, playlists, réglages et base sont conservés. Les nouveaux fonds et polices sont ajoutés automatiquement.
+Téléchargez **`ProjectOn_2.1.0_Setup.exe`** ci-dessous et installez-le par-dessus la version existante : cantiques, playlists, réglages et base sont conservés.
 
 Windows 10 / 11 (64 bits) · fonctionne hors-ligne.
 

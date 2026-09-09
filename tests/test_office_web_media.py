@@ -1,4 +1,4 @@
-"""PowerPoint (rendu fidèle) et pages Web dans les Médias."""
+"""PowerPoint (rendu fidèle) et purge des pages web dans les Médias."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from pathlib import Path
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from app.database.connection import Database, DatabaseConfig  # noqa: E402
+from app.database.dao_media import MediaDao  # noqa: E402
 from app.database.dao_playlist import PlaylistDao  # noqa: E402
 from app.utils.project_on_controller import ProjectOnController  # noqa: E402
 from tests.test_playlist_tab import _QuietStubTab  # noqa: E402
@@ -20,7 +21,7 @@ def _make_db(tmp_path: Path) -> Database:
     return db
 
 
-def test_media_kind_powerpoint_and_web_url() -> None:
+def test_media_kind_powerpoint() -> None:
     from app.utils.media_utils import media_kind
 
     assert media_kind("presentation.pptx") == "powerpoint"
@@ -28,40 +29,24 @@ def test_media_kind_powerpoint_and_web_url() -> None:
     assert media_kind("image.png") == "image"
 
 
-def test_load_program_web_entry(tmp_path: Path) -> None:
+def test_media_dao_purges_web_entries(tmp_path: Path) -> None:
+    """Les pages web ne sont plus projetables : elles sont purgées."""
+    dao = MediaDao(_make_db(tmp_path))
+    dao.add_media("Ancien site", "https://example.org", "web")
+    dao.add_media("Photo", str(tmp_path / "photo.png"), "image")
+
+    removed = dao.purge_web_media()
+
+    assert removed == 1
+    assert [m["kind"] for m in dao.list_media()] == ["image"]
+
+
+def test_load_media_rejects_urls(tmp_path: Path) -> None:
     db = _make_db(tmp_path)
     controller = ProjectOnController(db=db, presentation_dir=tmp_path / "pres")
 
-    controller.load_program(
-        "web",
-        "Site de l'église",
-        [("Site de l'église", "")],
-        entry_visuals=["https://example.org/don"],
-    )
-
-    assert controller.program_count == 1
-    slide = controller._program_slides[0]
-    assert slide.source == "web"
-    assert slide.url == "https://example.org/don"
-    assert slide.text == ""
-
-
-def test_slide_writer_url_payload(tmp_path: Path) -> None:
-    from app.utils.models import Slide
-    from app.utils.slide_writer import SlideWriter
-
-    writer = SlideWriter(presentation_dir=tmp_path / "pres")
-    writer.write(
-        Slide(
-            source="web",
-            reference="Site de l'église",
-            text="",
-            url="https://example.org/don",
-        )
-    )
-    payload = json.loads((tmp_path / "pres" / "slide.json").read_text(encoding="utf-8"))
-    assert payload["url"] == "https://example.org/don"
-    assert payload["source"] == "web"
+    assert controller.load_media("https://example.org/don", "Dons") == -1
+    assert controller.program_count == 0
 
 
 def test_playlist_powerpoint_expands_rendered_slides(tmp_path: Path) -> None:

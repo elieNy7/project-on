@@ -74,3 +74,9 @@ class MediaDao:
                 "DELETE FROM media_item WHERE id = ?", (int(media_id),)
             )
             return cursor.rowcount > 0
+
+    def purge_web_media(self) -> int:
+        """Supprime les anciennes entrées « web » (pages web non plus projetables)."""
+        with self._db.connect() as conn:
+            cursor = conn.execute("DELETE FROM media_item WHERE kind = 'web'")
+            return cursor.rowcount or 0

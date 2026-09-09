@@ -33,7 +33,6 @@ ASSIGNABLE_SOURCES = (
     "custom",
     "image",
     "video",
-    "web",
 )
 
 

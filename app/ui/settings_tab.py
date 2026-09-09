@@ -1,40 +1,35 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
-import json
 import logging
-import shutil
-from datetime import datetime
-from pathlib import Path
 import os
 import sqlite3
+from datetime import datetime
+from pathlib import Path
 
 log = logging.getLogger(__name__)
 
 from PyQt6.QtCore import (
     QObject,
     QRunnable,
-    QSize,
-    QThreadPool,
     Qt,
+    QThreadPool,
     QUrl,
     pyqtSignal,
     pyqtSlot,
 )
 from PyQt6.QtGui import QColor, QDesktopServices, QLinearGradient, QPainter
 from PyQt6.QtWidgets import (
-    QFileDialog,
     QFrame,
     QHBoxLayout,
     QLabel,
     QMessageBox,
-    QPushButton,
     QScrollArea,
     QVBoxLayout,
     QWidget,
 )
 
 from app.ui.icons import app_icon
-from app.ui.theme import Colors, Radius, Spacing, Typography, get_scroll_area_style
+from app.ui.theme import Colors, Radius, Typography, get_scroll_area_style
 from app.utils.app_paths import app_db_path, data_dir, settings_path
 from app.utils.backup_manager import create_database_backup
 from app.utils.settings import AppSettings
@@ -142,15 +137,9 @@ class SettingsCard(QFrame):
         hdr.addWidget(lbl)
         hdr.addStretch()
         self.main_layout.addLayout(hdr)
-        self._title_label = lbl
-        self._hdr_layout  = hdr
 
     def add_item(self, item: QWidget) -> None:
         self.main_layout.addWidget(item)
-
-    def add_header_widget(self, widget: QWidget) -> None:
-        """Ajoute un widget (ex: bouton) à droite du titre de la carte."""
-        self._hdr_layout.addWidget(widget)
 
 
 class SettingsItem(QWidget):
@@ -279,133 +268,19 @@ class SettingsItem(QWidget):
         super().keyPressEvent(event)
 
 
-class SettingsInfoItem(QWidget):
-    """Ligne d'information non-cliquable (stats, valeurs)."""
-
-    def __init__(
-        self,
-        title: str,
-        value: str,
-        icon_name: str,
-        accent_color: str = Colors.TEXT_SECONDARY,
-        parent=None,
-    ) -> None:
-        super().__init__(parent)
-        self.setObjectName("SettingsInfoItem")
-        self.setMinimumHeight(50)
-        self.setStyleSheet("""
-            QWidget#SettingsInfoItem {
-                background: transparent;
-                margin: 0 8px;
-            }
-        """)
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(12, 6, 16, 6)
-        layout.setSpacing(14)
-
-        # Icône
-        icon_frame = QFrame()
-        icon_frame.setFixedSize(34, 34)
-        icon_frame.setStyleSheet(f"""
-            background: {Colors.BG_ELEVATED};
-            border-radius: 8px;
-            border: none;
-        """)
-        il = QVBoxLayout(icon_frame)
-        il.setContentsMargins(0, 0, 0, 0)
-        il.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        icon_lbl = QLabel()
-        icon_lbl.setPixmap(app_icon(icon_name, accent_color).pixmap(16, 16))
-        icon_lbl.setStyleSheet("background: transparent; border: none;")
-        il.addWidget(icon_lbl)
-        layout.addWidget(icon_frame)
-
-        # Titre
-        title_lbl = QLabel(title, self)
-        title_lbl.setStyleSheet(f"""
-            font-size: {Typography.SIZE_LABEL}px;
-            font-weight: {Typography.WEIGHT_MEDIUM};
-            color: {Colors.TEXT_SECONDARY};
-            background: transparent; border: none;
-        """)
-        layout.addWidget(title_lbl, 1)
-
-        # Valeur pill
-        self._value_label = QLabel(value, self)
-        self._value_label.setStyleSheet(f"""
-            font-size: {Typography.SIZE_NUMBER}px;
-            font-weight: {Typography.WEIGHT_SEMIBOLD};
-            color: {Colors.TEXT_PRIMARY};
-            background: {Colors.GLASS_MEDIUM};
-            padding: 3px 10px;
-            border-radius: 99px; border: none;
-        """)
-        layout.addWidget(self._value_label)
-
-    def set_value(self, text: str) -> None:
-        self._value_label.setText(text)
-
-
-class _ShortcutRow(QWidget):
-    """Ligne raccourci: description à gauche, touche badge à droite."""
-
-    def __init__(self, shortcut: str, description: str, parent=None) -> None:
-        super().__init__(parent)
-        self.setMinimumHeight(38)
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(20, 4, 20, 4)
-        layout.setSpacing(12)
-
-        desc_lbl = QLabel(description, self)
-        desc_lbl.setStyleSheet(f"""
-            font-size: {Typography.SIZE_CONTROL}px;
-            color: {Colors.TEXT_SECONDARY};
-            background: transparent; border: none;
-        """)
-        layout.addWidget(desc_lbl, 1)
-
-        key_lbl = QLabel(shortcut, self)
-        key_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        key_lbl.setStyleSheet(f"""
-            font-size: {Typography.SIZE_META}px;
-            font-weight: {Typography.WEIGHT_SEMIBOLD};
-            color: {Colors.TEXT_PRIMARY};
-            background: {Colors.BG_ELEVATED};
-            border: none;
-            padding: 2px 10px;
-            border-radius: 6px;
-            font-family: 'Consolas', monospace;
-        """)
-        layout.addWidget(key_lbl)
-
-
 class SettingsHeader(QFrame):
-    """En-tête de l'onglet paramètres avec dégradé."""
+    """En-tête sobre de l'onglet paramètres."""
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
-        self.setMinimumHeight(90)
-        self.setMaximumHeight(120)
+        self.setMinimumHeight(78)
+        self.setMaximumHeight(100)
         self.setObjectName("SettingsHeader")
         self.setStyleSheet("#SettingsHeader { background: transparent; }")
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(34, 22, 34, 16)
-        layout.setSpacing(8)
-
-        badge = QLabel("Onzième Heure Tab", self)
-        badge.setStyleSheet(f"""
-            font-size: {Typography.SIZE_NUMBER}px;
-            font-weight: {Typography.WEIGHT_SEMIBOLD};
-            color: {Colors.ACCENT_LIGHT};
-            background: {Colors.ACCENT_GLOW};
-            border: 1px solid {Colors.ACCENT_GLOW_STRONG};
-            border-radius: 999px;
-            padding: 5px 12px;
-        """)
-        badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        badge.setMaximumWidth(160)
-        layout.addWidget(badge, 0, Qt.AlignmentFlag.AlignLeft)
+        layout.setContentsMargins(34, 18, 34, 14)
+        layout.setSpacing(6)
 
         title = QLabel(tr("settings_title"), self)
         title.setStyleSheet(f"""
@@ -417,7 +292,7 @@ class SettingsHeader(QFrame):
         layout.addWidget(title)
 
         subtitle = QLabel(
-            "Gérez la projection, OBS, l'apparence et les outils de Project-On",
+            "Projection, diffusion OBS/NDI, apparence et outils",
             self,
         )
         subtitle.setStyleSheet(f"""
@@ -457,7 +332,6 @@ class SettingsTab(QWidget):
     shortcutsRequested           = pyqtSignal()
     aboutRequested               = pyqtSignal()
     preflightRequested           = pyqtSignal()
-    settingsApplied              = pyqtSignal(object)
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -489,8 +363,8 @@ class SettingsTab(QWidget):
         cl.setContentsMargins(32, 20, 32, 40)
         cl.setSpacing(16)
 
-        # ── AFFICHAGE ────────────────────────────────────────────────
-        display_card = SettingsCard("AFFICHAGE", content)
+        # ── PROJECTION ───────────────────────────────────────────────
+        display_card = SettingsCard("PROJECTION", content)
         self._projection_item = SettingsItem(
             tr("local_projection"), tr("local_projection_desc"),
             "monitor.svg", "#a78bfa", display_card,
@@ -546,91 +420,38 @@ class SettingsTab(QWidget):
         app_card.add_item(self._about_item)
         cl.addWidget(app_card)
 
-        config_card = SettingsCard("CONFIGURATION", content)
-        self._export_settings_item = SettingsItem(
-            "Exporter les paramètres",
-            "Créer une copie JSON réutilisable de tous les réglages de l'application",
-            "file-plus.svg", "#38bdf8", config_card,
-        )
-        config_card.add_item(self._export_settings_item)
-        self._import_settings_item = SettingsItem(
-            "Importer des paramètres",
-            "Restaurer une configuration exportée et l'appliquer immédiatement",
-            "folder-open.svg", "#818cf8", config_card,
-        )
-        config_card.add_item(self._import_settings_item)
-        self._reset_settings_item = SettingsItem(
-            "Réinitialiser les paramètres",
-            "Revenir aux réglages professionnels par défaut sans toucher aux données",
-            "settings.svg", "#fb7185", config_card,
-        )
-        config_card.add_item(self._reset_settings_item)
-        self._settings_file_info = SettingsInfoItem(
-            "Fichier paramètres", "—", "settings.svg", "#94a3b8", config_card
-        )
-        config_card.add_item(self._settings_file_info)
-        cl.addWidget(config_card)
-
-        # ── DONNÉES & STOCKAGE ───────────────────────────────────────
-        data_card = SettingsCard("DONNÉES & STOCKAGE", content)
-
+        # ── DONNÉES & MAINTENANCE ────────────────────────────────────
+        data_card = SettingsCard("DONNÉES & MAINTENANCE", content)
         self._backup_db_item = SettingsItem(
             "Sauvegarder la base",
             "Créer une copie de sécurité du fichier de données principal",
             "database.svg", "#22c55e", data_card,
         )
         data_card.add_item(self._backup_db_item)
-        self._db_size_info = SettingsInfoItem(
-            "Taille de la base", "—", "database.svg", "#38bdf8", data_card
+        self._optimize_item = SettingsItem(
+            "Optimiser la base de données",
+            "Compacte la base et rafraîchit les index pour accélérer les recherches",
+            "zap.svg", "#f59e0b", data_card,
         )
-        data_card.add_item(self._db_size_info)
+        data_card.add_item(self._optimize_item)
+        self._preflight_item = SettingsItem(
+            "Contrôle avant service",
+            "Vérifier les données, les écrans, le stockage et la sortie OBS avant le direct",
+            "check-circle.svg", "#4ade80", data_card,
+        )
+        data_card.add_item(self._preflight_item)
         self._open_data_folder_item = SettingsItem(
             "Ouvrir le dossier des données",
-            "Accéder aux paramètres, sauvegardes et fichiers de travail",
+            "Paramètres (settings.json), sauvegardes et fichiers de travail",
             "folder-open.svg", "#eab308", data_card,
         )
         data_card.add_item(self._open_data_folder_item)
         cl.addWidget(data_card)
 
-        # ── PERFORMANCE ──────────────────────────────────────────────
-        perf_card = SettingsCard("MAINTENANCE", content)
-        self._optimize_item = SettingsItem(
-            "Optimiser la base de données",
-            "Compacte la base et rafraîchit les index pour accélérer les recherches",
-            "zap.svg", "#f59e0b", perf_card,
-        )
-        perf_card.add_item(self._optimize_item)
-        self._preflight_item = SettingsItem(
-            "Contrôle avant service",
-            "Vérifier les données, les écrans, le stockage et la sortie OBS avant le direct",
-            "check-circle.svg", "#4ade80", perf_card,
-        )
-        perf_card.add_item(self._preflight_item)
-        cl.addWidget(perf_card)
-
-        # ── RACCOURCIS CLAVIER ───────────────────────────────────────
-        shortcuts_card = SettingsCard("RACCOURCIS ESSENTIELS", content)
-        shortcuts = [
-            ("Ctrl+F",    "Recherche dans l'onglet actif"),
-            ("Ctrl+G",    "Recherche globale paragraphes"),
-            ("Ctrl+1..7", "Changer d'onglet"),
-            ("F1",        "Aide raccourcis"),
-            ("F5",        "Projeter / Arrêter"),
-            ("Ctrl+Shift+D", "Contrôle avant service"),
-            ("Haut / Bas", "Naviguer dans la playlist"),
-            ("Home / End", "Premier / dernier slide"),
-            ("B",         "Masquer / Afficher l'écran"),
-            ("Suppr",     "Supprimer de la playlist"),
-            ("Entrée",    "Ajouter à la playlist"),
-        ]
-        for key, desc in shortcuts:
-            shortcuts_card.add_item(_ShortcutRow(key, desc))
-        cl.addWidget(shortcuts_card)
-
         cl.addStretch(1)
 
         # Footer version
-        footer = QLabel(f"Project-On v{__version__}\nOnzième Heure Tab", content)
+        footer = QLabel(f"Project-On v{__version__} · Onzième Heure Tab", content)
         footer.setAlignment(Qt.AlignmentFlag.AlignCenter)
         footer.setStyleSheet(f"""
             font-size: {Typography.SIZE_META}px;
@@ -654,13 +475,10 @@ class SettingsTab(QWidget):
         self._appearance_item.clicked.connect(self.appearanceSettingsRequested.emit)
         self._shortcuts_item.clicked.connect(self.shortcutsRequested.emit)
         self._about_item.clicked.connect(self.aboutRequested.emit)
-        self._export_settings_item.clicked.connect(self._on_export_settings)
-        self._import_settings_item.clicked.connect(self._on_import_settings)
-        self._reset_settings_item.clicked.connect(self._on_reset_settings)
         self._backup_db_item.clicked.connect(self._on_backup_db)
-        self._open_data_folder_item.clicked.connect(self._on_open_data_folder)
         self._optimize_item.clicked.connect(self._on_optimize_db)
         self._preflight_item.clicked.connect(self.preflightRequested.emit)
+        self._open_data_folder_item.clicked.connect(self._on_open_data_folder)
 
         # Chargement initial
         self.load_settings()
@@ -670,24 +488,20 @@ class SettingsTab(QWidget):
     def load_settings(self) -> None:
         """Recharge les paramètres et met à jour les détails affichés."""
         try:
-            path     = settings_path()          # chemin correct (dev + prod)
-            settings = AppSettings.load(path)
+            settings = AppSettings.load(settings_path())
 
             p = settings.projection
             style = str(getattr(p, "slide_style", "cinematic") or "cinematic").title()
             self._projection_item.set_detail(
                 f"{style} · {p.font_family} · {p.text_size}px"
             )
-            if hasattr(self, "_themes_item"):
-                n_themes = len(getattr(settings, "themes", []) or [])
-                n_assign = len(getattr(settings, "theme_assignments", {}) or {})
-                self._themes_item.set_detail(f"{max(1, n_themes)} · {n_assign} assign.")
-            if hasattr(self, "_stage_item"):
-                self._stage_item.set_detail("F6")
-            if hasattr(self, "_ticker_item"):
-                self._ticker_item.set_detail(
-                    "Actif" if getattr(getattr(settings, "ticker", None), "enabled", False) else "Inactif"
-                )
+            n_themes = len(getattr(settings, "themes", []) or [])
+            n_assign = len(getattr(settings, "theme_assignments", {}) or {})
+            self._themes_item.set_detail(f"{max(1, n_themes)} · {n_assign} assign.")
+            self._stage_item.set_detail("F6")
+            self._ticker_item.set_detail(
+                "Actif" if getattr(getattr(settings, "ticker", None), "enabled", False) else "Inactif"
+            )
 
             o = settings.obs
             if o.mode == "web":
@@ -701,21 +515,13 @@ class SettingsTab(QWidget):
 
             a = settings.appearance
             theme_label = "Clair" if a.theme == "light" else "Sombre"
-            lang_label = "Français" if a.language == "fr" else "English"
-            self._appearance_item.set_detail(f"{theme_label} · {lang_label}")
+            self._appearance_item.set_detail(theme_label)
             self._shortcuts_item.set_detail("F1")
             self._about_item.set_detail(f"v{__version__}")
-            self._export_settings_item.set_detail("JSON")
-            self._import_settings_item.set_detail("Appliquer")
-            self._reset_settings_item.set_detail("Défauts")
             self._backup_db_item.set_detail("Copie .db")
-            self._open_data_folder_item.set_detail("Dossier")
+            self._optimize_item.set_detail("VACUUM")
             self._preflight_item.set_detail("Diagnostic")
-            self._settings_file_info.set_value(str(path.name))
-            db_file = app_db_path()
-            self._db_size_info.set_value(
-                self._fmt_size(db_file.stat().st_size) if db_file.exists() else "—"
-            )
+            self._open_data_folder_item.set_detail("Dossier")
 
         except Exception as e:
             log.error("Erreur chargement paramètres: %s", e)
@@ -728,139 +534,13 @@ class SettingsTab(QWidget):
     def _timestamp() -> str:
         return datetime.now().strftime("%Y%m%d-%H%M%S")
 
-    def _backup_current_settings_file(self) -> Path | None:
-        path = settings_path()
-        if not path.exists():
-            return None
-        backup = path.with_name(f"{path.stem}.backup-{self._timestamp()}{path.suffix}")
-        shutil.copy2(path, backup)
-        return backup
-
-    def _read_external_settings(self, file_path: str) -> AppSettings | None:
-        path = Path(file_path)
-        try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-        except Exception as exc:
-            QMessageBox.warning(
-                self,
-                "Import impossible",
-                f"Le fichier sélectionné n'est pas un JSON valide.\n\n{exc}",
-            )
-            return None
-
-        if not isinstance(payload, dict) or not any(
-            key in payload for key in ("projection", "obs", "appearance")
-        ):
-            QMessageBox.warning(
-                self,
-                "Import impossible",
-                "Ce fichier ne ressemble pas à une configuration Project-On.",
-            )
-            return None
-        return AppSettings.load(path)
-
-    def _on_export_settings(self) -> None:
-        default = data_dir() / f"project-on-settings-{self._timestamp()}.json"
-        file_path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Exporter les paramètres",
-            str(default),
-            "Paramètres Project-On (*.json);;Tous les fichiers (*.*)",
-        )
-        if not file_path:
-            return
-
-        try:
-            settings = AppSettings.load(settings_path())
-            settings.save(Path(file_path))
-            QMessageBox.information(
-                self,
-                "Export terminé",
-                "Les paramètres ont été exportés avec succès.",
-            )
-        except Exception as exc:
-            QMessageBox.warning(
-                self,
-                "Erreur export",
-                f"Impossible d'exporter les paramètres.\n\n{exc}",
-            )
-
-    def _on_import_settings(self) -> None:
-        file_path, _ = QFileDialog.getOpenFileName(
-            self,
-            "Importer des paramètres",
-            str(data_dir()),
-            "Paramètres Project-On (*.json);;Tous les fichiers (*.*)",
-        )
-        if not file_path:
-            return
-
-        imported = self._read_external_settings(file_path)
-        if imported is None:
-            return
-
-        reply = QMessageBox.question(
-            self,
-            "Importer les paramètres",
-            "Les paramètres actuels seront sauvegardés puis remplacés.\n"
-            "La projection et OBS seront mis à jour immédiatement.\n\nContinuer ?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
-        )
-        if reply != QMessageBox.StandardButton.Yes:
-            return
-
-        try:
-            backup = self._backup_current_settings_file()
-            imported.save(settings_path())
-            self.settingsApplied.emit(imported)
-            self.load_settings()
-            msg = "Paramètres importés avec succès."
-            if backup is not None:
-                msg += f"\n\nSauvegarde créée : {backup.name}"
-            QMessageBox.information(self, "Import terminé", msg)
-        except Exception as exc:
-            QMessageBox.warning(
-                self,
-                "Erreur import",
-                f"Impossible d'importer les paramètres.\n\n{exc}",
-            )
-
-    def _on_reset_settings(self) -> None:
-        reply = QMessageBox.warning(
-            self,
-            "Réinitialiser les paramètres",
-            "Tous les réglages seront remis aux valeurs par défaut.\n"
-            "Les sermons, cantiques, playlists et données ne seront pas supprimés.\n\n"
-            "Continuer ?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
-        )
-        if reply != QMessageBox.StandardButton.Yes:
-            return
-
-        try:
-            backup = self._backup_current_settings_file()
-            defaults = AppSettings()
-            defaults.save(settings_path())
-            self.settingsApplied.emit(defaults)
-            self.load_settings()
-            msg = "Paramètres réinitialisés."
-            if backup is not None:
-                msg += f"\n\nSauvegarde créée : {backup.name}"
-            QMessageBox.information(self, "Réinitialisation terminée", msg)
-        except Exception as exc:
-            QMessageBox.warning(
-                self,
-                "Erreur",
-                f"Impossible de réinitialiser les paramètres.\n\n{exc}",
-            )
-
     def _on_backup_db(self) -> None:
         db_path = app_db_path()
         if not db_path.exists():
             QMessageBox.warning(self, "Sauvegarde impossible", "La base de données est introuvable.")
             return
+
+        from PyQt6.QtWidgets import QFileDialog
 
         default = data_dir() / f"project-on-db-{self._timestamp()}.db"
         file_path, _ = QFileDialog.getSaveFileName(
@@ -898,6 +578,8 @@ class SettingsTab(QWidget):
             )
 
     def _on_open_data_folder(self) -> None:
+        from app.utils.app_paths import data_dir
+
         folder = data_dir()
         folder.mkdir(parents=True, exist_ok=True)
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder)))

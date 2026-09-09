@@ -16,8 +16,10 @@
         <!-- Full-screen video overlay (contrôle manuel depuis l'application) -->
         <video id="video-container" class="video-container"></video>
 
-        <!-- Full-screen web overlay (URL ajoutée dans les Médias) -->
-        <iframe id="web-container" class="web-container" allow="fullscreen; autoplay"></iframe>
+        <!-- Bandeau défilant d'annonces (bas de l'écran, réglé dans l'app) -->
+        <div id="ticker" class="ticker hidden">
+            <div class="ticker-track" id="ticker-track"></div>
+        </div>
 
         <div id="lower-third" class="lower-third">
             <div class="lt-body">

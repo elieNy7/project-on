@@ -86,6 +86,9 @@ class MainWindow(QMainWindow):
             db=db, presentation_dir=presentation_dir
         )
         self._obs = ObsController(settings=self._settings.obs)
+        # Le bandeau défilant fait partie de la config diffusée aux sources
+        # Navigateur OBS (la page et le NDI lisent le même payload).
+        self._obs.update_ticker(self._settings.ticker.to_payload())
 
         # Boucle d'annonces (façon ProPresenter) : playlist dédiée + snapshot
         # du live pour restauration à l'arrêt.
@@ -375,8 +378,13 @@ class MainWindow(QMainWindow):
             self.resize(1400, 820)
 
     def _poll_obs_status(self) -> None:
-        """Vérifie le statut OBS et met à jour la barre de statut."""
+        """Vérifie le statut OBS et met à jour la barre de statut.
+
+        En mode NDI, un envoi tombé (runtime arrêté, thread en échec) est
+        relancé silencieusement : le direct ne doit pas rester noir.
+        """
         try:
+            self._obs.ensure_ndi_running()
             connected = self._obs.is_web_server_running() or self._obs.is_ndi_running()
         except Exception:
             connected = False
@@ -587,7 +595,9 @@ class MainWindow(QMainWindow):
         return cfg
 
     def _write_obs_config(self) -> None:
-        cfg = self._settings.obs.to_full_obs_config()
+        cfg = self._settings.obs.to_full_obs_config(
+            ticker=self._settings.ticker.to_payload()
+        )
         out = self._presentation_dir / "obs-config.json"
         self._safe_write_json(out, cfg)
 
@@ -595,23 +605,6 @@ class MainWindow(QMainWindow):
         """Update detail labels on settings items to show current values."""
         if hasattr(self.library_panel, "settings_tab"):
             self.library_panel.settings_tab.load_settings()
-
-    def _apply_settings_from_settings_tab(self, settings) -> None:
-        """Apply settings imported or reset from the Settings hub."""
-        self._settings = settings
-        self._settings.save(self._settings_path)
-        self._write_presentation_config()
-        self._write_obs_config()
-        self._obs.update_settings(self._settings.obs)
-        self.preview_panel.set_settings(self._settings)
-        if self._projection_window is not None and self._projection_window.isVisible():
-            try:
-                self._projection_window._apply_config(
-                    self._settings.projection.to_presentation_config()
-                )
-            except Exception:
-                pass
-        self._refresh_settings_details()
 
     def _sync_obs_background(
         self, mode: str, image_path: str, fit: str = "cover"
@@ -919,7 +912,6 @@ class MainWindow(QMainWindow):
                 img,
                 video_path=slide.video_path or "",
                 video_playing=self._project_controller.slide_writer.video_playing,
-                url=slide.url or "",
             )
         else:
             self._obs.update_slide("", "", "custom", True, "")
@@ -943,7 +935,6 @@ class MainWindow(QMainWindow):
                 img,
                 video_path=slide.video_path or "",
                 video_playing=self._project_controller.slide_writer.video_playing,
-                url=slide.url or "",
             )
         else:
             self._obs.update_slide("", "", "custom", True, "")
@@ -964,7 +955,6 @@ class MainWindow(QMainWindow):
                 img,
                 video_path=slide.video_path or "",
                 video_playing=self._project_controller.slide_writer.video_playing,
-                url=slide.url or "",
             )
         self._obs_remote.notify_live(hidden)
 
@@ -1023,7 +1013,11 @@ class MainWindow(QMainWindow):
             return
         self._settings.ticker = dlg.get_settings()
         self._settings.save(self._settings_path)
+        # Diffusion partout : projection locale (config.json), sources
+        # Navigateur OBS (config serveur) et sortie NDI (obs-config.json).
         self._write_presentation_config()
+        self._write_obs_config()
+        self._obs.update_ticker(self._settings.ticker.to_payload())
         self._refresh_settings_details()
 
     # ── Boucle d'annonces ──────────────────────────────────────────────────

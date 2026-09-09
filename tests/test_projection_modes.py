@@ -410,34 +410,57 @@ def test_operator_preview_keeps_uniform_size_between_slides() -> None:
     app.processEvents()
 
 
-def test_settings_dialogs_expose_auto_grow_as_the_default() -> None:
+def test_settings_dialogs_minimal_contract() -> None:
+    """Le dialogue local est minimal : taille fixe, pas d'auto-grow.
+
+    Les widgets obsolètes (uniform_text_size, auto_fit, panneau, ombre…)
+    ne sont plus exposés ; read_settings() préserve les champs non exposés
+    du style édité.
+    """
     app = QApplication.instance() or QApplication([])
     local_dialog = ProjectionSettingsDialog(ProjectionSettings())
     obs_dialog = ObsOutputSettingsDialog(ObsSettings())
 
-    assert local_dialog._uniform_text_size.isChecked() is True
-    assert local_dialog._uniform_text_size.isEnabled() is False
-    assert local_dialog._auto_fit.isEnabled() is False
-    assert local_dialog._auto_fit.isChecked() is False
-    assert local_dialog.read_settings().uniform_text_size is True
     assert obs_dialog._uniform_text_size.isChecked() is True
     assert obs_dialog._auto_fit.isEnabled() is False
     assert obs_dialog.get_settings().uniform_text_size is True
 
+    for legacy_attr in (
+        "_uniform_text_size",
+        "_auto_fit",
+        "_panel_enabled",
+        "_text_shadow",
+        "_shadow_blur",
+        "_bg_gradient_enabled",
+    ):
+        assert not hasattr(local_dialog, legacy_attr), legacy_attr
+
     local_labels = {
         label.text().strip() for label in local_dialog.findChildren(QLabel)
     }
-    assert "Composition" not in local_labels
     assert "Côté du panneau" not in local_labels
     assert "Marges intérieures" not in local_labels
-    assert "Placement du bloc" not in local_labels
-    assert "Position de la référence" not in local_labels
     assert "Afficher un panneau derrière le texte" not in local_labels
     local_settings = local_dialog.read_settings()
     assert local_settings.layout_mode == "fullscreen"
     assert local_settings.position == "center"
     assert local_settings.auto_fit is False
+    assert local_settings.uniform_text_size is True
     assert local_settings.panel_enabled is False
+
+    # Les champs non exposés suivent le style édité, pas les défauts.
+    custom = ProjectionSettings()
+    custom.letter_spacing = 7
+    custom.line_height = 1.4
+    custom.panel_enabled = True
+    custom.bg_gradient_angle = 42
+    custom_dialog = ProjectionSettingsDialog(custom)
+    merged = custom_dialog.read_settings()
+    assert merged.letter_spacing == 7
+    assert merged.line_height == 1.4
+    assert merged.panel_enabled is True
+    assert merged.bg_gradient_angle == 42
+    custom_dialog.close()
 
     local_dialog.close()
     obs_dialog.close()

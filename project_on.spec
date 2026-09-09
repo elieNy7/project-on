@@ -164,8 +164,6 @@ a = Analysis(
         'PyQt6.QtMultimedia',
         'PyQt6.QtMultimediaWidgets',
         'PyQt6.QtNetwork',
-        'PyQt6.QtWebEngineWidgets',
-        'PyQt6.QtWebEngineCore',
         'win32com.client',
         'pythoncom',
     ],

@@ -37,6 +37,9 @@ class ObsController:
         self._ndi_sender = None
         self._slide_lock = threading.Lock()
         self._current_slide: dict = {"text": "", "reference": "", "hidden": True}
+        # Charge utile du bandeau défilant (TickerSettings.to_payload),
+        # diffusée telle quelle à la page OBS via la config.
+        self._ticker_payload: dict = {}
 
         # Apply initial config
         self._apply_output_config()
@@ -80,21 +83,31 @@ class ObsController:
         self._settings.output = output
         self._apply_output_config()
 
+    def update_ticker(self, payload: dict) -> None:
+        """Diffuse le bandeau défilant aux sources Navigateur OBS.
+
+        Le NDI, lui, relit obs-config.json sur disque : voir
+        ``MainWindow._write_obs_config``.
+        """
+        self._ticker_payload = dict(payload or {})
+        self._apply_output_config()
+
     def _apply_output_config(self) -> None:
         """Apply output configuration to the web server.
 
         The broadcast config embeds every named scene's style so each OBS
-        browser source can pick its own look via ?scene=<id>.
+        browser source can pick its own look via ?scene=<id>, plus the
+        ticker payload shared by all sources.
         """
         try:
-            config = self._settings.to_full_obs_config()
+            config = self._settings.to_full_obs_config(ticker=self._ticker_payload)
             logger.debug("Applying OBS output config: %s", config)
             self._web_server.update_config(config)
         except Exception as e:
             logger.exception("Failed to apply OBS output config: %s", e)
 
     def update_slide(
-        self, text: str, reference: str, source: str = "custom", hidden: bool = False, image_path: str = "", video_path: str = "", video_playing: bool = False, url: str = ""
+        self, text: str, reference: str, source: str = "custom", hidden: bool = False, image_path: str = "", video_path: str = "", video_playing: bool = False
     ) -> None:
         """Update the current slide content. This is called by the project controller."""
         if source == "hymn":
@@ -109,21 +122,10 @@ class ObsController:
                 "image_path": image_path,
                 "video_path": video_path,
                 "video_playing": bool(video_playing),
-                "url": url,
             }
         self._web_server.update_slide(
-            text, reference, source, hidden, image_path, video_path, video_playing, url
+            text, reference, source, hidden, image_path, video_path, video_playing
         )
-
-        # Also update NDI if active (NDI reads from file, but we can trigger a refresh if the sender supports it)
-        if self._ndi_sender is not None:
-            try:
-                # The NdiLowerThirdSender reads from slide.json periodically in its own thread,
-                # so we don't strictly need to call an update method here unless we want immediate frame generation.
-                # However, the current implementation of NdiLowerThirdSender does NOT have an update_slide method.
-                pass
-            except Exception:
-                pass
 
     # ==================== WEB SERVER ====================
 
@@ -211,13 +213,18 @@ class ObsController:
         except ImportError:
             return False
 
+        # Un expéditeur mort (thread arrêté après une erreur réseau) est
+        # remplacé : le prochain start repart sur une base saine.
+        if self._ndi_sender is not None:
+            if self._ndi_sender.is_alive:
+                return True
+            logger.warning("Thread NDI arrêté, redémarrage de l'expédition")
+            self.stop_ndi()
+
         availability = NdiLowerThirdSender.availability()
         if not availability.usable:
             logger.warning("NDI unavailable: %s", availability.message)
             return False
-
-        if self._ndi_sender is not None:
-            return True
 
         sender = NdiLowerThirdSender(
             presentation_dir=ensure_presentation_workdir(),
@@ -225,10 +232,13 @@ class ObsController:
         )
         ok = sender.start()
         if not ok:
+            logger.warning(
+                "Démarrage NDI impossible : %s", sender.last_error or "raison inconnue"
+            )
             return False
 
         self._ndi_sender = sender
-
+        logger.info("Sortie NDI active : source « %s »", sender.source_name)
         return True
 
     def stop_ndi(self) -> None:
@@ -243,7 +253,13 @@ class ObsController:
 
     def is_ndi_running(self) -> bool:
         """Check if NDI output is active."""
-        return self._ndi_sender is not None
+        return self._ndi_sender is not None and self._ndi_sender.is_alive
+
+    def ensure_ndi_running(self) -> bool:
+        """Maintient l'envoi NDI actif : relance silencieuse s'il est tombé."""
+        if self._settings.mode != "ndi":
+            return self.is_ndi_running()
+        return self.start_ndi()
 
     def is_ndi_available(self) -> bool:
         """Check if NDI SDK is available on this system."""

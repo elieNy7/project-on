@@ -49,7 +49,6 @@ _SOURCE_LABELS = {
     "custom": "Textes libres",
     "image": "Images",
     "video": "Vidéos",
-    "web": "Pages web",
 }
 
 

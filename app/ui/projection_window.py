@@ -39,7 +39,7 @@ class ProjectionWindow(SlideCanvas):
     Le dessin (fond, voiles, textes) vit dans :class:`SlideCanvas` — partagé
     avec l'aperçu opérateur et l'écran scène. Cette classe n'ajoute que la
     mécanique de fenêtre : écran cible, polling ``slide.json``/``config.json``,
-    transitions, lecture vidéo et pages web.
+    transitions et lecture vidéo.
     """
 
     def __init__(self, presentation_dir: Path, parent: QWidget | None = None) -> None:
@@ -62,10 +62,6 @@ class ProjectionWindow(SlideCanvas):
         self._active_video_path = ""
         self._multimedia_available = True
         self._video_loop = False
-        # Pages web (créées paresseusement à la première slide web).
-        self._web_view: Any = None
-        self._active_web_url = ""
-        self._webengine_available = True
 
         # Bandeau défilant d'annonces (ancré en bas, au-dessus de tout).
         self._ticker = TickerOverlay(self)
@@ -117,8 +113,6 @@ class ProjectionWindow(SlideCanvas):
         super().resizeEvent(event)
         if self._video_widget is not None:
             self._video_widget.setGeometry(self.rect())
-        if self._web_view is not None:
-            self._web_view.setGeometry(self.rect())
         self._position_ticker()
 
     def _position_ticker(self) -> None:
@@ -218,43 +212,7 @@ class ProjectionWindow(SlideCanvas):
                 self._media_player.pause()
                 self._media_player.setPosition(0)
 
-    # ── Pages web (QWebEngineView, création paresseuse) ───────────────────
-
-    def _ensure_web_stack(self) -> bool:
-        """Crée paresseusement la vue web ; False si QtWebEngine manque."""
-        if self._web_view is not None:
-            return self._webengine_available
-        try:
-            from PyQt6.QtWebEngineWidgets import QWebEngineView
-        except Exception as exc:  # pragma: no cover - dépend de l'install
-            log.warning("QtWebEngine indisponible : %s", exc)
-            self._webengine_available = False
-            return False
-
-        self._web_view = QWebEngineView(self)
-        self._web_view.hide()
-        return True
-
-    def _show_web(self, url: str) -> None:
-        """Passe en mode web plein écran : contenu et vidéo masqués."""
-        if not self._ensure_web_stack():
-            return
-        from PyQt6.QtCore import QUrl
-
-        self._content_shell.setVisible(False)
-        if self._active_video_path:
-            self._hide_video()
-        if url != self._active_web_url:
-            self._active_web_url = url
-            self._web_view.load(QUrl(url))
-        self._web_view.setGeometry(self.rect())
-        self._web_view.show()
-        self._web_view.raise_()
-
-    def _hide_web(self) -> None:
-        self._active_web_url = ""
-        if self._web_view is not None:
-            self._web_view.hide()
+    # ── Pages web : supprimé (les Médias ne projettent plus de pages web) ─
 
     def _apply_best_screen_fullscreen(self, preferred_name: str = "auto") -> None:
         try:
@@ -396,15 +354,9 @@ class ProjectionWindow(SlideCanvas):
             visual = str(self._config.get("bg_image") or "")
 
         video_path = str(slide.get("video") or "").strip()
-        web_url = str(slide.get("url") or "").strip()
         self._video_loop = bool(slide.get("video_loop")) and bool(video_path)
         if hidden:
             video_path = ""
-            web_url = ""
-        if web_url:
-            self._show_web(web_url)
-        elif self._active_web_url:
-            self._hide_web()
         if video_path:
             self._show_video(video_path)
         elif self._active_video_path:

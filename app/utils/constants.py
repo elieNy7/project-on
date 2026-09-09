@@ -23,3 +23,6 @@ CRASH_LOG_MAX_COUNT: int = 20    # nombre de rapports de crash conservés
 # Lien de don ouvert par le bouton « Soutenir » (sidebar, À propos, site).
 # Remplacer par Ko-fi / PayPal.me / GitHub Sponsors selon le canal retenu.
 DONATE_URL: str = "https://github.com/sponsors/elieNy7"
+# Monétisation masquée : les boutons « Soutenir » ne sont plus affichés.
+# Repasser à True pour les réactiver (sidebar, À propos).
+SHOW_DONATE_BUTTONS: bool = False

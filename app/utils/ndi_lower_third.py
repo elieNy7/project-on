@@ -123,7 +123,21 @@ def _activate_ndi_runtime_dirs(paths: list[Path]) -> None:
             pass
 
 
+# Détection NDI : scan de dossiers + import coûteux → résultat partagé 10 s
+# pour éviter de rescanner à chaque rafraîchissement d'interface.
+_AVAILABILITY_TTL = 10.0
+_availability_cache: tuple[float, NdiAvailability] | None = None
+
+
 def check_ndi_availability() -> NdiAvailability:
+    global _availability_cache
+    now = time.monotonic()
+    if (
+        _availability_cache is not None
+        and now - _availability_cache[0] < _AVAILABILITY_TTL
+    ):
+        return _availability_cache[1]
+
     runtime_dirs = _discover_ndi_runtime_dirs()
     _activate_ndi_runtime_dirs(runtime_dirs)
 
@@ -145,7 +159,7 @@ def check_ndi_availability() -> NdiAvailability:
     usable = python_bridge_found and numpy_found
 
     if usable:
-        message = "NDI detecte et pret."
+        message = "NDI détecté et prêt."
     else:
         missing = []
         if not python_bridge_found:
@@ -153,13 +167,13 @@ def check_ndi_availability() -> NdiAvailability:
         if not numpy_found:
             missing.append("numpy")
         if runtime_found:
-            message = "Runtime NDI detecte."
+            message = "Runtime NDI détecté."
         else:
-            message = "Runtime NDI non detecte sur ce systeme."
+            message = "Runtime NDI non détecté sur ce système."
         if missing:
-            message += " Dependances Python manquantes: " + ", ".join(missing) + "."
+            message += " Dépendances Python manquantes : " + ", ".join(missing) + "."
 
-    return NdiAvailability(
+    result = NdiAvailability(
         runtime_found=runtime_found,
         python_bridge_found=python_bridge_found,
         numpy_found=numpy_found,
@@ -167,6 +181,8 @@ def check_ndi_availability() -> NdiAvailability:
         runtime_paths=tuple(str(p) for p in runtime_dirs),
         message=message,
     )
+    _availability_cache = (now, result)
+    return result
 
 
 def _try_import_ndi():
@@ -312,18 +328,46 @@ class NdiLowerThirdSender:
         self._width = 1920
         self._height = 1080
 
+        # Bandeau défilant : ressources pré-rendues (ligne de texte, période)
+        # partagées entre les frames ; seule la bande basse est recomposée.
+        self._ticker_sig = None
+        self._ticker_res: dict[str, Any] | None = None
+        self._ticker_offset = 0.0
+        self._ticker_last = 0.0
+
+        # Diagnostic du dernier échec (démarrage ou thread d'envoi).
+        self.last_error: str = ""
+
+    @property
+    def source_name(self) -> str:
+        return self._source_name
+
+    @property
+    def is_alive(self) -> bool:
+        """True tant que le thread d'envoi NDI tourne."""
+        return self._thread is not None and self._thread.is_alive()
+
     @staticmethod
     def availability() -> NdiAvailability:
         return check_ndi_availability()
 
     def start(self) -> bool:
+        if self.is_alive:
+            return True  # déjà en cours
+
+        self.last_error = ""
         np, ndi = _try_import_ndi()
         if np is None or ndi is None:
+            self.last_error = (
+                "Runtime ou pont Python NDI introuvable "
+                "(NDIlib/numpy). Installez le NDI Runtime."
+            )
             return False
         self._np = np
         self._ndi = ndi
 
         if not ndi.initialize():
+            self.last_error = "NDI initialize() a échoué (runtime déjà chargé ?)."
             return False
 
         # ndi-python supports both `send_create()` and `send_create(SendCreate(...))`
@@ -335,6 +379,7 @@ class NdiLowerThirdSender:
         except Exception:
             self._ndi_send = ndi.send_create()
         if self._ndi_send is None:
+            self.last_error = "Création de la source NDI impossible."
             ndi.destroy()
             return False
 
@@ -344,6 +389,7 @@ class NdiLowerThirdSender:
         video_frame.FourCC = ndi.FOURCC_VIDEO_TYPE_BGRA
 
         self._video_frame = video_frame
+        self._stop.clear()
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._thread.start()
         return True
@@ -758,6 +804,134 @@ class NdiLowerThirdSender:
         bgra = rgba[:, :, [2, 1, 0, 3]].copy()
         return bgra
 
+    # ── Bandeau défilant (même charge utile que la page OBS) ──────────
+
+    def _ticker_config(self) -> dict[str, Any] | None:
+        """Payload « ticker » de obs-config.json, sanitisé. None si inactif."""
+        raw = self._last_cfg.get("ticker") if isinstance(self._last_cfg, dict) else None
+        if not isinstance(raw, dict) or not raw.get("enabled"):
+            return None
+        texts = [
+            str(t or "").strip()
+            for t in (raw.get("texts") or [])
+            if str(t or "").strip()
+        ]
+        if not texts:
+            return None
+
+        def _clamp(value, low, high, default):
+            try:
+                return max(low, min(high, int(float(value))))
+            except Exception:
+                return default
+
+        return {
+            "texts": texts,
+            "speed": max(
+                20.0, min(400.0, _clamp(raw.get("speed"), 20, 400, 90))
+            ),
+            "height": _clamp(raw.get("height"), 32, 220, 64),
+            "font_size": _clamp(raw.get("font_size"), 14, 90, 30),
+            "bg_color": str(raw.get("bg_color") or "rgba(5,10,22,0.82)"),
+            "text_color": str(raw.get("text_color") or "rgba(255,255,255,0.95)"),
+            "font_family": str(
+                (self._last_cfg or {}).get("font_family") or "Poppins"
+            ),
+        }
+
+    def _refresh_ticker_resources(self) -> None:
+        """(Re)construit la ligne de texte pré-rendue si la config a changé."""
+        cfg = self._ticker_config()
+        sig = (
+            tuple(
+                (key, repr(value))
+                for key, value in sorted(cfg.items())
+                if key != "speed"
+            )
+            if cfg is not None
+            else None
+        )
+        if sig == self._ticker_sig:
+            # La vitesse ne nécessite pas de re-rendu : appliquée en direct.
+            if self._ticker_res is not None and cfg is not None:
+                self._ticker_res["speed"] = float(cfg["speed"])
+            return
+        self._ticker_sig = sig
+        self._ticker_res = None
+        if cfg is None:
+            return
+
+        from PIL import Image, ImageDraw, ImageFont
+
+        height = int(cfg["height"])
+        px = int(cfg["font_size"])
+        try:
+            font = ImageFont.truetype(str(cfg["font_family"]), px)
+        except Exception:
+            try:
+                font = ImageFont.truetype("arial.ttf", px)
+            except Exception:
+                font = ImageFont.load_default()
+
+        separator = "   •   "
+        text = separator.join(cfg["texts"]) + separator
+        probe = ImageDraw.Draw(Image.new("RGBA", (8, 8)))
+        try:
+            text_w = int(probe.textlength(text, font=font)) + 24
+        except Exception:
+            text_w = self._width
+        text_w = max(1, text_w)
+
+        line = Image.new("RGBA", (text_w, height), (0, 0, 0, 0))
+        ldraw = ImageDraw.Draw(line)
+        text_fill = _parse_rgba_tuple(cfg["text_color"], (255, 255, 255, 242))
+        try:
+            bbox = ldraw.textbbox((0, 0), text, font=font)
+            y = max(0, (height - (bbox[3] - bbox[1])) // 2 - bbox[1])
+        except Exception:
+            y = max(0, (height - px) // 2)
+        ldraw.text((12, y), text, font=font, fill=text_fill)
+
+        self._ticker_res = {
+            "height": height,
+            "speed": float(cfg["speed"]),
+            "bg": _parse_rgba_tuple(cfg["bg_color"], (5, 10, 22, 209)),
+            "line": line,
+            "period": text_w,
+        }
+        self._ticker_last = 0.0
+
+    def _apply_ticker(self, base: Any, offset: float) -> Any:
+        """Compose la bande défilante sur une copie de l'image de base.
+
+        Seule la bande basse est réécrite : le reste de l'image (bandeau
+        texte, image de fond) est recopié tel quel, sans re-rendu PIL.
+        """
+        assert self._np is not None
+        res = self._ticker_res
+        if res is None:
+            return base
+
+        from PIL import Image, ImageDraw
+
+        height = min(int(res["height"]), self._height)
+        band = Image.new("RGBA", (self._width, height), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(band)
+        draw.rectangle([0, 0, self._width, height], fill=res["bg"])
+
+        line = res["line"]
+        period = int(res["period"])
+        x = -(float(offset) % period)
+        while x < self._width:
+            band.paste(line, (int(x), 0), line)
+            x += period
+        draw.line([0, 0, self._width, 0], fill=(255, 255, 255, 26), width=1)
+
+        strip = self._np.array(band, dtype=self._np.uint8)[:, :, [2, 1, 0, 3]]
+        frame = base.copy()
+        frame[self._height - height :, :, :] = strip
+        return frame
+
     def _run(self) -> None:
         assert self._ndi is not None
         assert self._np is not None
@@ -772,6 +946,10 @@ class NdiLowerThirdSender:
         )
 
         needs_render = True
+        consecutive_send_errors = 0
+        # Cadence corrigée en dérive : l'heure de la frame suivante est
+        # calculée sur une horloge monotone, pas sur la durée du travail.
+        next_frame = time.monotonic()
         while not self._stop.is_set():
             try:
                 cfg_mtime = (
@@ -806,10 +984,51 @@ class NdiLowerThirdSender:
                     frame = None
                 if frame is not None:
                     last_frame = frame
+                self._refresh_ticker_resources()
                 needs_render = False
 
-            # Reuse frame object; swap underlying data
-            self._video_frame.data = last_frame
-            self._ndi.send_send_video_v2(self._ndi_send, self._video_frame)
+            # Bandeau défilant : recomposé à chaque frame (seule la bande
+            # basse change), décalage piloté par une horloge monotone.
+            if self._ticker_res is not None:
+                now = time.monotonic()
+                if self._ticker_last:
+                    dt = min(0.5, now - self._ticker_last)
+                    self._ticker_offset = (
+                        self._ticker_offset + self._ticker_res["speed"] * dt
+                    ) % float(self._ticker_res["period"])
+                self._ticker_last = now
+                last_frame = self._apply_ticker(last_frame, self._ticker_offset)
 
-            time.sleep(interval)
+            # Reuse frame object; swap underlying data. Une erreur d'envoi
+            # (runtime arrêté, adaptateur réseau changé) n'interrompt pas la
+            # boucle : on réessaie, et on rend les armes après ~3 s d'échecs
+            # pour laisser le superviseur relancer proprement.
+            self._video_frame.data = last_frame
+            try:
+                self._ndi.send_send_video_v2(self._ndi_send, self._video_frame)
+                consecutive_send_errors = 0
+            except Exception as exc:
+                consecutive_send_errors += 1
+                self.last_error = f"Envoi NDI en échec : {exc}"
+                if consecutive_send_errors == 1:
+                    self._log_warning("Envoi NDI interrompu (%s)", exc)
+                if consecutive_send_errors >= 90:
+                    self._log_warning(
+                        "Envoi NDI abandonné après %d échecs consécutifs",
+                        consecutive_send_errors,
+                    )
+                    break
+
+            next_frame += interval
+            delay = next_frame - time.monotonic()
+            if delay > 0:
+                time.sleep(delay)
+            else:
+                # On a pris du retard : on repart de l'instant présent.
+                next_frame = time.monotonic()
+
+    @staticmethod
+    def _log_warning(message: str, *args) -> None:
+        import logging
+
+        logging.getLogger(__name__).warning(message, *args)

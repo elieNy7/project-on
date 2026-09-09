@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import copy
+from dataclasses import replace
+
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QGuiApplication
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
-    QDoubleSpinBox,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -52,15 +54,47 @@ def _style_combo(combo: QComboBox) -> None:
         )
 
 
+def _picker_button_style() -> str:
+    return f"""
+        QPushButton {{
+            background: {Colors.SURFACE_HOVER};
+            border: 1px solid {Colors.BORDER_DEFAULT};
+            border-radius: {Radius.MD}px;
+            padding: 8px 14px;
+            color: {Colors.TEXT_PRIMARY};
+            font-size: {Typography.SIZE_BODY}px;
+        }}
+        QPushButton:hover {{
+            background: {Colors.SURFACE_ACTIVE};
+            border-color: {Colors.BORDER_FOCUS};
+        }}
+        QPushButton:disabled {{
+            color: {Colors.TEXT_DISABLED};
+            border-color: {Colors.BORDER_SUBTLE};
+        }}
+    """
+
+
 class ProjectionSettingsDialog(QDialog):
+    """Réglages essentiels de la projection locale.
+
+    Volontairement minimal : seuls les réglages réellement utiles en
+    consultation sont exposés. Les champs avancés de :class:`ProjectionSettings`
+    (voile, panneau, dégradé, ombre…) conservent la valeur du style édité —
+    ``read_settings()`` ne les écrase jamais.
+    """
+
     settingsChanged = pyqtSignal(ProjectionSettings)
 
     def __init__(self, settings: ProjectionSettings, parent=None) -> None:
         super().__init__(parent)
         self.setWindowTitle(tr("local_projection_title"))
-        self.setMinimumSize(760, 620)
-        self.resize(840, 760)
+        self.setMinimumSize(560, 520)
+        self.resize(620, 640)
         self.setStyleSheet(DIALOG_STYLE)
+
+        # Style de référence : les champs non exposés restent inchangés.
+        self._base = copy.deepcopy(settings)
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -90,7 +124,7 @@ class ProjectionSettingsDialog(QDialog):
             f"font-size: {Typography.SIZE_TITLE}px; font-weight: 700; color: {Colors.TEXT_PRIMARY}; background: transparent; border: none;"
         )
         title_col.addWidget(title)
-        subtitle = QLabel("Projection plein écran, lisible et stable")
+        subtitle = QLabel("L'essentiel pour projeter lisiblement")
         subtitle.setStyleSheet(
             f"font-size: {Typography.SIZE_CONTROL}px; color: {Colors.TEXT_SECONDARY}; background: transparent; border: none;"
         )
@@ -111,7 +145,8 @@ class ProjectionSettingsDialog(QDialog):
         layout.setSpacing(16)
         layout.setSizeConstraint(QVBoxLayout.SizeConstraint.SetMinimumSize)
 
-        output_section = SettingSection("Sortie & mode de projection", "monitor.svg")
+        # ═══════ Section: Sortie ═══════
+        output_section = SettingSection("Sortie", "monitor.svg")
 
         self._layout_mode = QComboBox()
         self._layout_mode.addItem("Plein écran", "fullscreen")
@@ -121,6 +156,8 @@ class ProjectionSettingsDialog(QDialog):
         self._layout_mode.addItem("Carte focus", "focus_card")
         idx = self._layout_mode.findData(settings.layout_mode or "fullscreen")
         self._layout_mode.setCurrentIndex(max(idx, 0))
+        output_section.addRow("Mode d'affichage", self._layout_mode)
+        _style_combo(self._layout_mode)
 
         self._display_screen = QComboBox()
         self._display_screen.addItem("Automatique (écran secondaire)", "auto")
@@ -132,121 +169,8 @@ class ProjectionSettingsDialog(QDialog):
             )
         idx = self._display_screen.findData(settings.display_screen or "auto")
         self._display_screen.setCurrentIndex(max(idx, 0))
-        output_section.addRow(
-            "Écran cible",
-            self._display_screen,
-            "Le mode automatique privilégie le plus grand écran secondaire.",
-        )
+        output_section.addRow("Écran cible", self._display_screen)
         _style_combo(self._display_screen)
-
-        self._safe_margin = QSpinBox()
-        self._safe_margin.setRange(0, 240)
-        self._safe_margin.setSuffix(" px")
-        self._safe_margin.setValue(int(settings.safe_margin or 0))
-        output_section.addRow(
-            "Zone de sécurité",
-            self._safe_margin,
-            "Marge protégée sur les quatre côtés.",
-        )
-
-        self._panel_side = QComboBox()
-        self._panel_side.addItem("Gauche", "left")
-        self._panel_side.addItem("Droite", "right")
-        idx = self._panel_side.findData(settings.panel_side or "left")
-        self._panel_side.setCurrentIndex(max(idx, 0))
-        self._uniform_text_size = QCheckBox(
-            "Conserver la même taille de texte sur toutes les slides"
-        )
-        self._uniform_text_size.setChecked(True)
-
-        self._auto_fit = QCheckBox(
-            "Ajuster automatiquement la taille pour remplir le bloc"
-        )
-        self._auto_fit.setChecked(False)
-
-        self._min_text_size = QSpinBox()
-        self._min_text_size.setRange(10, 120)
-        self._min_text_size.setSuffix(" px")
-        self._min_text_size.setValue(int(settings.min_text_size or 18))
-
-        self._max_lines = QSpinBox()
-        self._max_lines.setRange(1, 20)
-        self._max_lines.setValue(int(settings.max_lines or 8))
-
-        layout.addWidget(output_section)
-
-        # ═══════ Section: Police & Typographie ═══════
-        font_section = SettingSection("Police & Typographie", "type.svg")
-
-        self._font_combo = QComboBox()
-        # Add available fonts
-        for display_name, css_name in get_available_fonts():
-            self._font_combo.addItem(display_name, css_name)
-
-        # Select current
-        idx = self._font_combo.findData(settings.font_family)
-        if idx < 0:
-            idx = self._font_combo.findText(settings.font_family)
-        if idx >= 0:
-            self._font_combo.setCurrentIndex(idx)
-        font_section.addRow("Famille de police", self._font_combo)
-        _style_combo(self._font_combo)
-
-        self._font_weight = QComboBox()
-        self._font_weight.addItem("Normal", "normal")
-        self._font_weight.addItem("Gras", "bold")
-        self._font_weight.addItem("Léger", "light")
-        fw_idx = self._font_weight.findData(settings.font_weight or "normal")
-        self._font_weight.setCurrentIndex(max(fw_idx, 0))
-        font_section.addRow("Épaisseur", self._font_weight)
-        _style_combo(self._font_weight)
-
-        self._line_height = QDoubleSpinBox()
-        self._line_height.setRange(1.0, 1.8)
-        self._line_height.setSingleStep(0.05)
-        self._line_height.setDecimals(2)
-        self._line_height.setValue(settings.line_height or 1.15)
-
-        self._letter_spacing = QSpinBox()
-        self._letter_spacing.setRange(-5, 20)
-        self._letter_spacing.setSuffix(" px")
-        self._letter_spacing.setValue(settings.letter_spacing)
-
-        layout.addWidget(font_section)
-
-        # ═══════ Section: Dimensions ═══════
-        size_section = SettingSection("Dimensions", "text.svg")
-
-        self._text_size = QSpinBox()
-        self._text_size.setRange(20, 240)
-        self._text_size.setSuffix(" px")
-        self._text_size.setValue(settings.text_size)
-        size_section.addRow(
-            "Taille du texte principal",
-            self._text_size,
-            "Cette taille reste identique sur toutes les slides.",
-        )
-
-        self._ref_size = QSpinBox()
-        self._ref_size.setRange(10, 120)
-        self._ref_size.setSuffix(" px")
-        self._ref_size.setValue(settings.ref_size)
-        size_section.addRow("Taille de la référence", self._ref_size)
-
-        self._padding = QSpinBox()
-        self._padding.setRange(0, 500)
-        self._padding.setSuffix(" px")
-        self._padding.setValue(settings.padding)
-
-        self._max_width = QSpinBox()
-        self._max_width.setRange(40, 100)
-        self._max_width.setSuffix(" %")
-        self._max_width.setValue(settings.max_width)
-
-        layout.addWidget(size_section)
-
-        # â•â•â•â•â•â•â• Section: Composition de slide â•â•â•â•â•â•â•
-        composition_section = SettingSection("Composition de slide", "monitor.svg")
 
         self._slide_style = QComboBox()
         self._slide_style.addItem("Standard (centré)", "cinematic")
@@ -254,52 +178,94 @@ class ProjectionSettingsDialog(QDialog):
         self._slide_style.addItem("Split (texte à gauche)", "split")
         idx = self._slide_style.findData(settings.slide_style or "cinematic")
         self._slide_style.setCurrentIndex(max(idx, 0))
+        output_section.addRow("Composition", self._slide_style)
+        _style_combo(self._slide_style)
 
-        self._content_width = QSpinBox()
-        self._content_width.setRange(60, 94)
-        self._content_width.setSuffix(" %")
-        self._content_width.setValue(settings.content_width)
-        size_section.addRow(
-            "Largeur du bloc de texte",
-            self._content_width,
-            "Une largeur de 80 à 88 % évite les lignes trop longues.",
-        )
+        self._position = QComboBox()
+        self._position.addItem("En haut", "top")
+        self._position.addItem("Au centre", "center")
+        self._position.addItem("En bas", "bottom")
+        idx = self._position.findData((settings.position or "center").lower())
+        self._position.setCurrentIndex(max(idx, 1))
+        output_section.addRow("Position du texte", self._position)
+        _style_combo(self._position)
 
-        self._content_height = QSpinBox()
-        self._content_height.setRange(35, 100)
-        self._content_height.setSuffix(" %")
-        self._content_height.setValue(settings.content_height)
+        layout.addWidget(output_section)
 
-        # ═══════ Section: Couleurs ═══════
-        color_section = SettingSection("Couleurs", "palette.svg")
+        # ═══════ Section: Texte & référence ═══════
+        text_section = SettingSection("Texte & référence", "type.svg")
+
+        self._font_combo = QComboBox()
+        for display_name, css_name in get_available_fonts():
+            self._font_combo.addItem(display_name, css_name)
+        idx = self._font_combo.findData(settings.font_family)
+        if idx < 0:
+            idx = self._font_combo.findText(settings.font_family)
+        if idx >= 0:
+            self._font_combo.setCurrentIndex(idx)
+        text_section.addRow("Police", self._font_combo)
+        _style_combo(self._font_combo)
+
+        self._text_size = QSpinBox()
+        self._text_size.setRange(20, 240)
+        self._text_size.setSuffix(" px")
+        self._text_size.setValue(settings.text_size)
+        text_section.addRow("Taille du texte", self._text_size)
+
+        self._ref_size = QSpinBox()
+        self._ref_size.setRange(10, 120)
+        self._ref_size.setSuffix(" px")
+        self._ref_size.setValue(settings.ref_size)
+        text_section.addRow("Taille de la référence", self._ref_size)
 
         self._text_color_btn = ColorPickerButton(
             settings.text_color or "rgba(255,255,255,0.92)"
         )
-        color_section.addRow("Texte principal", self._text_color_btn)
+        text_section.addRow("Couleur du texte", self._text_color_btn)
 
-        self._ref_color_btn = ColorPickerButton(
-            settings.ref_color or "rgba(255,255,255,0.78)"
+        self._show_reference = QCheckBox("Afficher la référence")
+        self._show_reference.setChecked(bool(settings.show_reference))
+        text_section.addWidget(self._show_reference)
+
+        self._reference_position = QComboBox()
+        self._reference_position.addItem("En bas du texte", "bottom")
+        self._reference_position.addItem("En haut du texte", "top")
+        idx = self._reference_position.findData(
+            (settings.reference_position or "bottom").lower()
         )
-        color_section.addRow("Référence", self._ref_color_btn)
+        self._reference_position.setCurrentIndex(max(idx, 0))
+        text_section.addRow("Position de la référence", self._reference_position)
+        _style_combo(self._reference_position)
 
-        # ── Background type: color OR image (mutually exclusive) ──
+        self._uppercase = QCheckBox("Texte en MAJUSCULES")
+        self._uppercase.setChecked(bool(settings.uppercase))
+        text_section.addWidget(self._uppercase)
+
+        def _update_reference_controls() -> None:
+            enabled = self._show_reference.isChecked()
+            self._reference_position.setEnabled(enabled)
+            self._ref_size.setEnabled(enabled)
+
+        self._show_reference.toggled.connect(_update_reference_controls)
+        _update_reference_controls()
+
+        layout.addWidget(text_section)
+
+        # ═══════ Section: Arrière-plan ═══════
+        bg_section = SettingSection("Arrière-plan", "palette.svg")
+
         self._bg_mode_combo = QComboBox()
         self._bg_mode_combo.addItem("Couleur", "color")
         self._bg_mode_combo.addItem("Image", "image")
         _mode = "image" if str(settings.bg_mode or "color") == "image" else "color"
         idx = self._bg_mode_combo.findData(_mode)
         self._bg_mode_combo.setCurrentIndex(max(idx, 0))
-        color_section.addRow(
-            "Type d'arrière-plan", self._bg_mode_combo,
-            "Choisissez une couleur OU une image (pas les deux)",
-        )
+        bg_section.addRow("Type de fond", self._bg_mode_combo)
         _style_combo(self._bg_mode_combo)
 
         self._bg_color_btn = ColorPickerButton(settings.bg_color or "#0c0f14")
-        color_section.addRow("Couleur de fond", self._bg_color_btn)
+        bg_section.addRow("Couleur de fond", self._bg_color_btn)
 
-        # Background image (used only when type = Image)
         self._bg_image_path = str(settings.bg_image or "")
         bg_image_widget = QWidget()
         bg_image_layout = QHBoxLayout(bg_image_widget)
@@ -309,125 +275,19 @@ class ProjectionSettingsDialog(QDialog):
         self._bg_image_label.setStyleSheet(
             f"color: {Colors.TEXT_SECONDARY}; background: transparent; border: none;"
         )
-        _picker_btn_style = f"""
-            QPushButton {{
-                background: {Colors.SURFACE_HOVER};
-                border: 1px solid {Colors.BORDER_DEFAULT};
-                border-radius: {Radius.MD}px;
-                padding: 8px 14px;
-                color: {Colors.TEXT_PRIMARY};
-                font-size: {Typography.SIZE_BODY}px;
-            }}
-            QPushButton:hover {{
-                background: {Colors.SURFACE_ACTIVE};
-                border-color: {Colors.BORDER_FOCUS};
-            }}
-            QPushButton:disabled {{
-                color: {Colors.TEXT_DISABLED};
-                border-color: {Colors.BORDER_SUBTLE};
-            }}
-        """
+        picker_style = _picker_button_style()
         self._bg_browse_btn = QPushButton("Parcourir")
         self._bg_browse_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._bg_browse_btn.setStyleSheet(_picker_btn_style)
+        self._bg_browse_btn.setStyleSheet(picker_style)
         self._bg_clear_btn = QPushButton("Aucune")
         self._bg_clear_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._bg_clear_btn.setStyleSheet(_picker_btn_style)
+        self._bg_clear_btn.setStyleSheet(picker_style)
         bg_image_layout.addWidget(self._bg_image_label, 1)
         bg_image_layout.addWidget(self._bg_browse_btn)
         bg_image_layout.addWidget(self._bg_clear_btn)
         self._bg_browse_btn.clicked.connect(self._on_browse_bg_image)
         self._bg_clear_btn.clicked.connect(self._on_clear_bg_image)
-        color_section.addRow(
-            "Image de fond", bg_image_widget,
-            "Image appliquée à toute la projection (plein écran en local, bandeau en OBS)",
-        )
-
-        # Image fit (used only when type = Image)
-        self._bg_image_fit_combo = QComboBox()
-        self._bg_image_fit_combo.addItem("Remplir", "cover")
-        self._bg_image_fit_combo.addItem("Contenir", "contain")
-        _fit = "contain" if str(settings.bg_image_fit or "cover") == "contain" else "cover"
-        idx = self._bg_image_fit_combo.findData(_fit)
-        self._bg_image_fit_combo.setCurrentIndex(max(idx, 0))
-        color_section.addRow(
-            "Cadrage de l'image", self._bg_image_fit_combo,
-            "Remplir : couvre tout le cadre. Contenir : image entière visible.",
-        )
-        _style_combo(self._bg_image_fit_combo)
-
-        self._bg_gradient_enabled = QCheckBox("Activer le dégradé")
-        self._bg_gradient_enabled.setChecked(settings.bg_gradient_enabled)
-        color_section.addWidget(self._bg_gradient_enabled)
-
-        self._bg_color_2_btn = ColorPickerButton(settings.bg_color_2 or "#031228")
-        color_section.addRow("Couleur de fin", self._bg_color_2_btn)
-
-        self._bg_gradient_angle = QSpinBox()
-        self._bg_gradient_angle.setRange(0, 360)
-        self._bg_gradient_angle.setSuffix(" °")
-        self._bg_gradient_angle.setValue(settings.bg_gradient_angle)
-        color_section.addRow("Angle du dégradé", self._bg_gradient_angle)
-
-        def _on_gradient_toggled(checked: bool) -> None:
-            color_mode = self._bg_mode_combo.currentData() == "color"
-            self._bg_color_2_btn.setEnabled(checked and color_mode)
-            self._bg_gradient_angle.setEnabled(checked and color_mode)
-
-        self._bg_gradient_enabled.toggled.connect(_on_gradient_toggled)
-
-        def _apply_bg_mode_ui() -> None:
-            is_image = self._bg_mode_combo.currentData() == "image"
-            self._bg_image_label.setEnabled(is_image)
-            self._bg_browse_btn.setEnabled(is_image)
-            self._bg_clear_btn.setEnabled(is_image)
-            self._bg_image_fit_combo.setEnabled(is_image)
-            self._bg_color_btn.setEnabled(not is_image)
-            self._bg_gradient_enabled.setEnabled(not is_image)
-            _on_gradient_toggled(self._bg_gradient_enabled.isChecked())
-
-        self._bg_mode_combo.currentIndexChanged.connect(
-            lambda _i: (_apply_bg_mode_ui(), self._on_change())
-        )
-        _apply_bg_mode_ui()
-
-        layout.addWidget(color_section)
-
-        # ═══════ Section: Ombre du texte ═══════
-        shadow_section = SettingSection("Ombre du texte", "sun.svg")
-
-        self._text_shadow = QCheckBox("Activer l'ombre")
-        self._text_shadow.setChecked(settings.text_shadow)
-        shadow_section.addWidget(self._text_shadow)
-
-        self._shadow_color_btn = ColorPickerButton(
-            settings.shadow_color or "rgba(0,0,0,0.6)"
-        )
-        shadow_section.addRow("Couleur de l'ombre", self._shadow_color_btn)
-
-        self._shadow_blur = QSpinBox()
-        self._shadow_blur.setRange(0, 30)
-        self._shadow_blur.setSuffix(" px")
-        self._shadow_blur.setValue(settings.shadow_blur)
-        shadow_section.addRow("Flou de l'ombre", self._shadow_blur)
-
-        # Wire toggle
-        def _on_shadow_toggled(checked: bool) -> None:
-            self._shadow_color_btn.setEnabled(checked)
-            self._shadow_blur.setEnabled(checked)
-
-        self._text_shadow.toggled.connect(_on_shadow_toggled)
-        _on_shadow_toggled(settings.text_shadow)
-
-        # Local projection draws text directly: Qt's multiline shadow effect can
-        # crop complete words on Windows. Keep the legacy controls instantiated
-        # for settings compatibility, but do not expose a setting that is unsafe.
-        shadow_section.setVisible(False)
-        layout.addWidget(shadow_section)
-
-        readability_section = SettingSection(
-            "Lisibilité professionnelle", "sparkles.svg"
-        )
+        bg_section.addRow("Image de fond", bg_image_widget)
 
         self._background_dimmer = QSpinBox()
         self._background_dimmer.setRange(0, 85)
@@ -435,95 +295,33 @@ class ProjectionSettingsDialog(QDialog):
         self._background_dimmer.setValue(
             int(round(float(settings.background_dimmer or 0.0) * 100))
         )
-        readability_section.addRow(
-            "Assombrir l'arrière-plan",
+        bg_section.addRow(
+            "Assombrir l'image",
             self._background_dimmer,
-            "Améliore le contraste quand une image est projetée.",
+            "Améliore le contraste du texte sur une image.",
         )
 
-        self._panel_enabled = QCheckBox("Afficher un panneau derrière le texte")
-        self._panel_enabled.setChecked(bool(settings.panel_enabled))
+        def _apply_bg_mode_ui() -> None:
+            is_image = self._bg_mode_combo.currentData() == "image"
+            self._bg_image_label.setEnabled(is_image)
+            self._bg_browse_btn.setEnabled(is_image)
+            self._bg_clear_btn.setEnabled(is_image)
+            self._bg_color_btn.setEnabled(not is_image)
+            self._background_dimmer.setEnabled(True)
 
-        self._panel_color_btn = ColorPickerButton(
-            settings.panel_color or "rgba(5,12,24,0.86)"
+        self._bg_mode_combo.currentIndexChanged.connect(
+            lambda _i: (_apply_bg_mode_ui(), self._on_change())
         )
+        _apply_bg_mode_ui()
 
-        self._panel_opacity = QSpinBox()
-        self._panel_opacity.setRange(0, 100)
-        self._panel_opacity.setSuffix(" %")
-        self._panel_opacity.setValue(
-            int(
-                round(
-                    float(
-                        settings.panel_opacity
-                        if settings.panel_opacity is not None
-                        else 0.86
-                    )
-                    * 100
-                )
-            )
-        )
+        layout.addWidget(bg_section)
 
-        self._panel_radius = QSpinBox()
-        self._panel_radius.setRange(0, 96)
-        self._panel_radius.setSuffix(" px")
-        self._panel_radius.setValue(int(settings.panel_radius or 0))
-
-        def _update_panel_controls() -> None:
-            enabled = self._panel_enabled.isChecked()
-            self._panel_color_btn.setEnabled(enabled)
-            self._panel_opacity.setEnabled(enabled)
-            self._panel_radius.setEnabled(enabled)
-
-        self._panel_enabled.toggled.connect(_update_panel_controls)
-        _update_panel_controls()
-        layout.addWidget(readability_section)
-
-        # ═══════ Section: Affichage ═══════
-        display_section = SettingSection("Affichage", "monitor.svg")
-
-        self._align = QComboBox()
-        self._align.addItem("Centré", "center")
-        self._align.addItem("Gauche", "left")
-        self._align.addItem("Droite", "right")
-        current_align = (settings.align or "center").lower()
-        idx = self._align.findData(current_align)
-        self._align.setCurrentIndex(max(idx, 0))
-        display_section.addRow("Alignement", self._align)
-        _style_combo(self._align)
-
-        self._position = QComboBox()
-        self._position.addItem("En haut", "top")
-        self._position.addItem("Au centre", "center")
-        self._position.addItem("En bas", "bottom")
-        position = (settings.position or "center").lower()
-        idx = self._position.findData(position)
-        self._position.setCurrentIndex(max(idx, 1))
-
-        self._show_reference = QCheckBox(tr("show_reference"))
-        self._show_reference.setChecked(bool(settings.show_reference))
-        display_section.addWidget(self._show_reference)
-
-        self._reference_position = QComboBox()
-        self._reference_position.addItem("En bas du texte", "bottom")
-        self._reference_position.addItem("En haut du texte", "top")
-        ref_pos = (settings.reference_position or "bottom").lower()
-        idx = self._reference_position.findData(ref_pos)
-        self._reference_position.setCurrentIndex(max(idx, 0))
-
-        self._uppercase = QCheckBox("Texte en MAJUSCULES")
-        self._uppercase.setChecked(bool(settings.uppercase))
-        display_section.addWidget(self._uppercase)
-
-        layout.addWidget(display_section)
-
-        # ═══════ Section: Transition (fondu PowerPoint) ═══════
+        # ═══════ Section: Transition ═══════
         anim_section = SettingSection("Transition", "sparkles.svg")
 
         self._anim_enabled = QCheckBox("Transition en fondu entre les slides")
         self._anim_enabled.setChecked(bool(settings.animation_enabled))
         anim_section.addWidget(self._anim_enabled)
-
 
         self._anim_duration = QSpinBox()
         self._anim_duration.setRange(0, 800)
@@ -536,74 +334,26 @@ class ProjectionSettingsDialog(QDialog):
                 else 400
             )
         )
-        anim_section.addRow(
-            "Durée du fondu", self._anim_duration, "400 ms donne un rendu fluide"
-        )
+        anim_section.addRow("Durée du fondu", self._anim_duration)
         self._anim_enabled.toggled.connect(self._anim_duration.setEnabled)
-
-
-
+        self._anim_duration.setEnabled(self._anim_enabled.isChecked())
 
         layout.addWidget(anim_section)
-
-        def _update_auto_fit_controls() -> None:
-            # Legacy widgets remain alive so reset/read code stays compatible,
-            # but local output is now always driven by the configured size.
-            self._uniform_text_size.setChecked(True)
-            self._uniform_text_size.setEnabled(False)
-            self._auto_fit.setChecked(False)
-            self._auto_fit.setEnabled(False)
-            self._min_text_size.setEnabled(False)
-            self._max_lines.setEnabled(False)
-            self._min_text_size.setMaximum(max(10, self._text_size.value()))
-            if self._min_text_size.value() > self._text_size.value():
-                self._min_text_size.setValue(self._text_size.value())
-
-        self._uniform_text_size.toggled.connect(_update_auto_fit_controls)
-        self._auto_fit.toggled.connect(_update_auto_fit_controls)
-        self._text_size.valueChanged.connect(_update_auto_fit_controls)
-        _update_auto_fit_controls()
 
         # ── Connect signals for live preview ──
         self._layout_mode.currentIndexChanged.connect(self._on_change)
         self._display_screen.currentIndexChanged.connect(self._on_change)
-        self._safe_margin.valueChanged.connect(self._on_change)
-        self._panel_side.currentIndexChanged.connect(self._on_change)
-        self._uniform_text_size.toggled.connect(self._on_change)
-        self._auto_fit.toggled.connect(self._on_change)
-        self._min_text_size.valueChanged.connect(self._on_change)
-        self._max_lines.valueChanged.connect(self._on_change)
+        self._slide_style.currentIndexChanged.connect(self._on_change)
+        self._position.currentIndexChanged.connect(self._on_change)
         self._font_combo.currentIndexChanged.connect(self._on_change)
-        self._font_weight.currentIndexChanged.connect(self._on_change)
-        self._line_height.valueChanged.connect(self._on_change)
-        self._letter_spacing.valueChanged.connect(self._on_change)
         self._text_size.valueChanged.connect(self._on_change)
         self._ref_size.valueChanged.connect(self._on_change)
-        self._padding.valueChanged.connect(self._on_change)
-        self._max_width.valueChanged.connect(self._on_change)
-        self._slide_style.currentIndexChanged.connect(self._on_change)
-        self._content_width.valueChanged.connect(self._on_change)
-        self._content_height.valueChanged.connect(self._on_change)
         self._text_color_btn.colorChanged.connect(self._on_change)
-        self._ref_color_btn.colorChanged.connect(self._on_change)
-        self._bg_color_btn.colorChanged.connect(self._on_change)
-        self._bg_image_fit_combo.currentIndexChanged.connect(self._on_change)
-        self._bg_gradient_enabled.toggled.connect(self._on_change)
-        self._bg_color_2_btn.colorChanged.connect(self._on_change)
-        self._bg_gradient_angle.valueChanged.connect(self._on_change)
-        self._text_shadow.toggled.connect(self._on_change)
-        self._shadow_color_btn.colorChanged.connect(self._on_change)
-        self._shadow_blur.valueChanged.connect(self._on_change)
-        self._background_dimmer.valueChanged.connect(self._on_change)
-        self._panel_enabled.toggled.connect(self._on_change)
-        self._panel_color_btn.colorChanged.connect(self._on_change)
-        self._panel_opacity.valueChanged.connect(self._on_change)
-        self._panel_radius.valueChanged.connect(self._on_change)
-        self._align.currentIndexChanged.connect(self._on_change)
-        self._position.currentIndexChanged.connect(self._on_change)
         self._show_reference.toggled.connect(self._on_change)
         self._reference_position.currentIndexChanged.connect(self._on_change)
         self._uppercase.toggled.connect(self._on_change)
+        self._bg_color_btn.colorChanged.connect(self._on_change)
+        self._background_dimmer.valueChanged.connect(self._on_change)
         self._anim_enabled.toggled.connect(self._on_change)
         self._anim_duration.valueChanged.connect(self._on_change)
 
@@ -702,6 +452,7 @@ class ProjectionSettingsDialog(QDialog):
             shutil.copy2(src, dest)
         self._bg_image_path = str(dest)
         self._bg_image_label.setText(self._bg_image_name_text())
+        self._bg_mode_combo.setCurrentIndex(self._bg_mode_combo.findData("image"))
         self._on_change()
 
     def _on_clear_bg_image(self) -> None:
@@ -710,125 +461,57 @@ class ProjectionSettingsDialog(QDialog):
         self._on_change()
 
     def _reset_defaults(self) -> None:
+        """Réinitialise les réglages exposés aux valeurs par défaut."""
         d = ProjectionSettings()
-        idx = self._layout_mode.findData(d.layout_mode)
-        self._layout_mode.setCurrentIndex(max(idx, 0))
-        idx = self._display_screen.findData(d.display_screen)
-        self._display_screen.setCurrentIndex(max(idx, 0))
-        self._safe_margin.setValue(d.safe_margin)
-        idx = self._panel_side.findData(d.panel_side)
-        self._panel_side.setCurrentIndex(max(idx, 0))
-        self._uniform_text_size.setChecked(True)
-        self._auto_fit.setChecked(False)
-        self._min_text_size.setValue(d.min_text_size)
-        self._max_lines.setValue(d.max_lines)
-        # Font
+        for combo, value in (
+            (self._layout_mode, d.layout_mode),
+            (self._display_screen, d.display_screen),
+            (self._slide_style, d.slide_style),
+            (self._position, d.position),
+            (self._reference_position, d.reference_position),
+        ):
+            idx = combo.findData(value)
+            if idx >= 0:
+                combo.setCurrentIndex(idx)
         idx = self._font_combo.findData(d.font_family)
         if idx >= 0:
             self._font_combo.setCurrentIndex(idx)
-        fw_idx = self._font_weight.findData(d.font_weight)
-        if fw_idx >= 0:
-            self._font_weight.setCurrentIndex(fw_idx)
-        self._line_height.setValue(d.line_height)
-        self._letter_spacing.setValue(d.letter_spacing)
-        # Sizes
         self._text_size.setValue(d.text_size)
         self._ref_size.setValue(d.ref_size)
-        self._padding.setValue(d.padding)
-        self._max_width.setValue(d.max_width)
-        idx = self._slide_style.findData(d.slide_style)
-        if idx >= 0:
-            self._slide_style.setCurrentIndex(idx)
-        self._content_width.setValue(d.content_width)
-        self._content_height.setValue(d.content_height)
-        # Colors
         self._text_color_btn.set_color(d.text_color)
-        self._ref_color_btn.set_color(d.ref_color)
-        self._bg_color_btn.set_color(d.bg_color)
-        self._bg_image_path = str(d.bg_image or "")
-        self._bg_image_label.setText(self._bg_image_name_text())
-        mode_idx = self._bg_mode_combo.findData(d.bg_mode or "color")
-        self._bg_mode_combo.setCurrentIndex(max(mode_idx, 0))
-        fit_idx = self._bg_image_fit_combo.findData(d.bg_image_fit or "cover")
-        self._bg_image_fit_combo.setCurrentIndex(max(fit_idx, 0))
-        self._bg_gradient_enabled.setChecked(d.bg_gradient_enabled)
-        self._bg_color_2_btn.set_color(d.bg_color_2)
-        self._bg_gradient_angle.setValue(d.bg_gradient_angle)
-        # Shadow
-        self._text_shadow.setChecked(d.text_shadow)
-        self._shadow_color_btn.set_color(d.shadow_color)
-        self._shadow_blur.setValue(d.shadow_blur)
-        self._background_dimmer.setValue(int(round(d.background_dimmer * 100)))
-        self._panel_enabled.setChecked(d.panel_enabled)
-        self._panel_color_btn.set_color(d.panel_color)
-        self._panel_opacity.setValue(int(round(d.panel_opacity * 100)))
-        self._panel_radius.setValue(d.panel_radius)
-        # Display
-        idx = self._align.findData(d.align)
-        if idx >= 0:
-            self._align.setCurrentIndex(idx)
-        idx = self._position.findData(d.position)
-        if idx >= 0:
-            self._position.setCurrentIndex(idx)
         self._show_reference.setChecked(d.show_reference)
-        idx = self._reference_position.findData(d.reference_position)
-        if idx >= 0:
-            self._reference_position.setCurrentIndex(idx)
         self._uppercase.setChecked(d.uppercase)
-        # Transitions & effects
+        self._bg_mode_combo.setCurrentIndex(self._bg_mode_combo.findData("color"))
+        self._bg_color_btn.set_color(d.bg_color)
+        self._bg_image_path = ""
+        self._bg_image_label.setText(self._bg_image_name_text())
+        self._background_dimmer.setValue(int(round(d.background_dimmer * 100)))
         self._anim_enabled.setChecked(d.animation_enabled)
         self._anim_duration.setValue(d.animation_duration)
         self._on_change()
 
     def read_settings(self) -> ProjectionSettings:
+        """Style complet : réglages exposés + champs non exposés inchangés."""
         font = self._font_combo.currentData() or self._font_combo.currentText()
-        return ProjectionSettings(
+        return replace(
+            self._base,
             layout_mode=str(self._layout_mode.currentData() or "fullscreen"),
             display_screen=str(self._display_screen.currentData() or "auto"),
-            safe_margin=self._safe_margin.value(),
-            panel_side=str(self._panel_side.currentData() or "left"),
+            slide_style=str(self._slide_style.currentData() or "cinematic"),
+            position=str(self._position.currentData() or "center"),
             font_family=str(font).strip() or "Poppins",
             text_size=self._text_size.value(),
             ref_size=self._ref_size.value(),
-            padding=self._padding.value(),
-            align=str(self._align.currentData() or "center"),
-            position=str(self._position.currentData() or "center"),
-            slide_style=str(self._slide_style.currentData() or "cinematic"),
-            content_width=self._content_width.value(),
-            content_height=self._content_height.value(),
+            text_color=self._text_color_btn.color(),
             show_reference=self._show_reference.isChecked(),
             reference_position=str(self._reference_position.currentData() or "bottom"),
             uppercase=self._uppercase.isChecked(),
-            text_color=self._text_color_btn.color(),
-            ref_color=self._ref_color_btn.color(),
-            bg_color=self._bg_color_btn.color(),
-            bg_gradient_enabled=self._bg_gradient_enabled.isChecked(),
-            bg_color_2=self._bg_color_2_btn.color(),
-            bg_gradient_angle=self._bg_gradient_angle.value(),
             bg_mode=str(self._bg_mode_combo.currentData() or "color"),
+            bg_color=self._bg_color_btn.color(),
             bg_image=self._bg_image_path,
-            bg_image_fit=str(self._bg_image_fit_combo.currentData() or "cover"),
-            font_weight=str(self._font_weight.currentData() or "normal"),
-            line_height=self._line_height.value(),
-            letter_spacing=self._letter_spacing.value(),
-            text_shadow=self._text_shadow.isChecked(),
-            shadow_color=self._shadow_color_btn.color(),
-            shadow_blur=self._shadow_blur.value(),
-            max_width=self._max_width.value(),
-            auto_fit=False,
-            uniform_text_size=True,
-            min_text_size=self._min_text_size.value(),
-            max_lines=self._max_lines.value(),
             background_dimmer=self._background_dimmer.value() / 100.0,
-            panel_enabled=self._panel_enabled.isChecked(),
-            panel_color=self._panel_color_btn.color(),
-            panel_opacity=self._panel_opacity.value() / 100.0,
-            panel_radius=self._panel_radius.value(),
             animation_enabled=self._anim_enabled.isChecked(),
-            animation_type="fade",
-            animation_direction="up",
             animation_duration=self._anim_duration.value(),
-            ken_burns=False,
         )
 
     @staticmethod
