@@ -1,5 +1,5 @@
 {
-  "version": 1788472396979,
+  "version": 1788969855253,
   "layout_mode": "subtitle",
   "font_family": "Poppins",
   "text_size": 29,
@@ -52,9 +52,18 @@
   "bg_color_2": "rgba(8, 5, 20, 0.92)",
   "bg_gradient_angle": 180,
   "bg_mode": "image",
-  "bg_image": "C:\\Users\\ELIE NYEMBO\\AppData\\Roaming\\Project-On\\backgrounds\\bg-symbole-croix_16x9.png",
+  "bg_image": "C:\\Users\\ELIE NYEMBO\\AppData\\Roaming\\Project-On\\backgrounds\\bg-bleu-nuit_16x9.png",
   "bg_image_fit": "cover",
   "animation_direction": "right",
   "animation_style": "words",
-  "scenes": {}
+  "scenes": {},
+  "ticker": {
+    "enabled": false,
+    "texts": [],
+    "speed": 90,
+    "height": 64,
+    "bg_color": "rgba(5,10,22,0.82)",
+    "text_color": "rgba(255,255,255,0.95)",
+    "font_size": 30
+  }
 }

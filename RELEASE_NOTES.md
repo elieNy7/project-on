@@ -1,3 +1,20 @@
+# Project-On 2.1.1
+
+**Le masquage garde l'aperçu lisible** 👁️ — Quand vous masquez la sortie (« masquer les écritures »), l'aperçu opérateur affiche désormais toujours le texte et la référence de la slide. Seules les deux projections — la fenêtre plein écran et la sortie OBS/NDI — passent au fond seul. Vous voyez ce qui est prêt à partir, le public ne voit rien.
+
+## Améliorations
+
+- **Aperçu toujours lisible** 👁️ : le bouton œil (ou le raccourci Espace) masque la projection locale et la sortie OBS/NDI, mais l'aperçu continue d'afficher la slide complète — fini les réglages à l'aveugle pendant le masquage.
+- **État masqué plus visible** 🔴 : le chip d'état « Sortie masquée » de l'aperçu passe en rouge, en complément du bouton œil barré et du cadre rouge sombre.
+
+## Installation
+
+Téléchargez **`ProjectOn_2.1.1_Setup.exe`** ci-dessous et installez-le par-dessus la version existante : cantiques, playlists, réglages et base sont conservés.
+
+Windows 10 / 11 (64 bits) · fonctionne hors-ligne.
+
+---
+
 # Project-On 2.1.0
 
 **Le bandeau d'annonces partout, une connexion NDI solide, des paramètres enfin simples** 📣 — Un seul réglage alimente désormais le bandeau défilant sur la projection locale, les sources Navigateur OBS et la sortie NDI. L'envoi NDI se répare tout seul et se teste en un clic. Et la couche de paramètres a été allégée à l'essentiel. Cette version intègre aussi les polices et fonds de niveau pro préparés en amont.

@@ -148,8 +148,38 @@ def test_preview_renders_theme_pixmap(qapp):
     panel = PreviewPanel(settings=AppSettings())
     pix = panel._render_canvas_pixmap("Jean 3:16", "Car Dieu…", source="bible")
     assert pix is not None and pix.width() == SlideCanvas_WIDTH
-    hidden = panel._render_canvas_pixmap("", "", hidden=True)
-    assert hidden is not None
+
+
+def test_preview_keeps_text_when_output_hidden(qapp):
+    """Sortie masquée : l'aperçu opérateur garde les textes visibles ; le
+    masque ne part que vers les deux projections (fenêtre + OBS/NDI)."""
+    from app.ui.preview_panel import PreviewPanel
+
+    panel = PreviewPanel(settings=AppSettings())
+    panel.set_slide("Jean 3:16", "Car Dieu…", source="bible")
+    before = panel._render_pixmap_full
+    assert before is not None
+
+    captured = {}
+    canvas = panel._ensure_canvas()
+    original = canvas.render_pixmap
+
+    def spy(slide):
+        captured.update(slide)
+        return original(slide)
+
+    canvas.render_pixmap = spy
+    pix = panel._render_canvas_pixmap(
+        "Jean 3:16", "Car Dieu…", source="bible", hidden=True
+    )
+    assert pix is not None
+    assert captured["text"] == "Car Dieu…"
+    assert captured["reference"] == "Jean 3:16"
+    assert captured["hidden"] is False
+
+    # set_hidden ne re-rend plus : le pixmap affiché reste celui des textes.
+    panel.set_hidden(True)
+    assert panel._render_pixmap_full is before
 
 
 SlideCanvas_WIDTH = 1920

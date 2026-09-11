@@ -293,9 +293,7 @@ class PreviewPanel(QFrame):
         self._live_badge.hide()
         stage_top_layout.addWidget(self._live_badge, 0, Qt.AlignmentFlag.AlignLeft)
 
-        self._status_chip = QLabel(tr("waiting"), self._stage_top)
-        self._status_chip.setStyleSheet(
-            f"""
+        self._status_chip_style_neutral = f"""
             background: {self._stage_chip_bg};
             border: none;
             color: {Colors.TEXT_SECONDARY};
@@ -305,7 +303,18 @@ class PreviewPanel(QFrame):
             font-weight: 700;
             letter-spacing: 0;
             """
-        )
+        self._status_chip_style_hidden = f"""
+            background: rgba(255, 99, 88, 0.16);
+            border: none;
+            color: #ffb4ae;
+            padding: 4px 10px;
+            border-radius: 11px;
+            font-size: {Typography.SIZE_NUMBER}px;
+            font-weight: 700;
+            letter-spacing: 0;
+            """
+        self._status_chip = QLabel(tr("waiting"), self._stage_top)
+        self._status_chip.setStyleSheet(self._status_chip_style_neutral)
         stage_top_layout.addWidget(self._status_chip, 0, Qt.AlignmentFlag.AlignLeft)
         stage_top_layout.addStretch()
         frame_layout.addWidget(self._stage_top, 0)
@@ -914,8 +923,11 @@ class PreviewPanel(QFrame):
         """Re-rend la slide courante avec les réglages à jour.
 
         Appelé à chaque changement de style (réglages de projection, thème
-        live, position de référence, masquage) : l'aperçu reflète l'effet
-        immédiatement, sans attendre la slide suivante.
+        live, position de référence) : l'aperçu reflète l'effet
+        immédiatement, sans attendre la slide suivante. `hidden` reste
+        accepté pour compatibilité mais n'a plus d'effet sur le rendu :
+        l'aperçu affiche toujours les textes, le masque ne concerne que
+        les deux projections.
         """
         if not self._last_render_args:
             return
@@ -989,7 +1001,13 @@ class PreviewPanel(QFrame):
         hidden: bool = False,
     ):
         """Rend la slide hors écran à la résolution de sortie (1920×1080),
-        avec le thème assigné au type de contenu si pertinent."""
+        avec le thème assigné au type de contenu si pertinent.
+
+        L'aperçu opérateur affiche TOUJOURS les textes : le masquage
+        (« masquer les écritures ») ne s'applique qu'aux deux projections
+        (fenêtre plein écran + sortie OBS/NDI). L'état masqué reste visible
+        dans le chrome (bouton œil, chip d'état, cadre) — jamais dans le
+        rendu."""
         canvas = self._ensure_canvas()
         if canvas is None:
             return None
@@ -1016,7 +1034,9 @@ class PreviewPanel(QFrame):
                     "text": str(text or ""),
                     "image": str(image_path or ""),
                     "background": str(image_path or ""),
-                    "hidden": bool(hidden),
+                    # `hidden` est accepté pour compatibilité d'appel mais
+                    # ignoré : seules les projections reçoivent le masque.
+                    "hidden": False,
                 }
             )
         except Exception:
@@ -1091,12 +1111,16 @@ class PreviewPanel(QFrame):
     def _update_stage_meta(self) -> None:
         if self._is_hidden:
             self._status_chip.setText(tr("output_hidden"))
+            self._status_chip.setStyleSheet(self._status_chip_style_hidden)
         elif self._project_active and self._has_content:
             self._status_chip.setText(tr("projection_active"))
+            self._status_chip.setStyleSheet(self._status_chip_style_neutral)
         elif self._has_content:
             self._status_chip.setText(tr("ready_to_project"))
+            self._status_chip.setStyleSheet(self._status_chip_style_neutral)
         else:
             self._status_chip.setText(tr("waiting"))
+            self._status_chip.setStyleSheet(self._status_chip_style_neutral)
 
     def _update_hide_button(self) -> None:
         # Bouton en icône seule : l'état « masqué » est porté par l'œil barré
@@ -1117,10 +1141,10 @@ class PreviewPanel(QFrame):
     def set_hidden(self, hidden: bool) -> None:
         self._is_hidden = hidden
         self._hide_button.setChecked(hidden)
+        # Pas de re-rendu : le rendu de l'aperçu ne dépend jamais du masque
+        # (les textes restent visibles, seules les deux projections passent
+        # au fond seul). Seul le chrome change : bouton œil, chip, cadre.
         self._update_hide_button()
-        # La slide re-rendue reflète l'état masqué (fond seul), comme la
-        # projection réelle.
-        self.refresh_render(hidden=bool(hidden))
 
     def set_settings(self, settings) -> None:
         """Refresh the operator preview from the active application settings."""
