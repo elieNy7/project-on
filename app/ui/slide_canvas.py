@@ -176,7 +176,27 @@ class SlideCanvas(QWidget):
         self._main_layout.setContentsMargins(0, 0, 0, 0)
         self._main_layout.setSpacing(0)
 
-        self._content_shell = QWidget(self)
+        # ── Scène : la référence et le texte vivent dans deux zones
+        # réellement séparées. La zone texte occupe tout l'espace restant ;
+        # la référence est épinglée en haut OU en bas de la zone sûre, à sa
+        # taille propre, sans jamais être poussée par le texte.
+        self._stage_widget = QWidget(self)
+        self._stage_widget.setStyleSheet("background: transparent;")
+        self._stage_widget.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+        )
+        self._stage_layout = QVBoxLayout(self._stage_widget)
+        self._stage_layout.setContentsMargins(0, 0, 0, 0)
+        self._stage_layout.setSpacing(0)
+
+        # Zone dédiée à la référence (ligne d'accent + libellé).
+        self._ref_zone = QWidget(self._stage_widget)
+        self._ref_zone.setStyleSheet("background: transparent;")
+        self._ref_zone_layout = QVBoxLayout(self._ref_zone)
+        self._ref_zone_layout.setContentsMargins(0, 0, 0, 0)
+        self._ref_zone_layout.setSpacing(8)
+
+        self._content_shell = QWidget(self._stage_widget)
         self._content_shell.setObjectName("ProjectionCanvas")
         self._content_shell.setStyleSheet(
             "QWidget#ProjectionCanvas { background: transparent; border: none; }"
@@ -205,8 +225,9 @@ class SlideCanvas(QWidget):
         self.text_label.setTextFormat(Qt.TextFormat.PlainText)
         self.text_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        # Hidden by default: local projection should feel like a clean PowerPoint slide.
-        self._accent_line = QWidget(self._content_widget)
+        # Séparateur discret de la zone référence (il n'habite plus la
+        # colonne de texte : il appartient à la zone référence).
+        self._accent_line = QWidget(self._ref_zone)
         self._accent_line.setFixedHeight(3)
         self._accent_line.setMaximumWidth(100)
         self._accent_line.setStyleSheet(
@@ -223,15 +244,16 @@ class SlideCanvas(QWidget):
         self.ref_label.setWordWrap(True)
         self.ref_label.setTextFormat(Qt.TextFormat.PlainText)
         self.ref_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._ref_zone_layout.addWidget(self.ref_label, 0)
 
         self._shell_layout.addWidget(self._content_widget, 1)
-        self._main_layout.addWidget(self._content_shell, 1)
+        self._main_layout.addWidget(self._stage_widget, 1)
 
-        # Opacity effect — used to hide the live content while a pixmap-based
-        # transition plays over the (continuous) background.
-        self._fade_effect = QGraphicsOpacityEffect(self._content_widget)
+        # Opacity effect — used to hide the live stage (texte + référence)
+        # while a pixmap-based transition plays over the background.
+        self._fade_effect = QGraphicsOpacityEffect(self._stage_widget)
         self._fade_effect.setOpacity(1.0)
-        self._content_widget.setGraphicsEffect(self._fade_effect)
+        self._stage_widget.setGraphicsEffect(self._fade_effect)
 
     # ── API publique ───────────────────────────────────────────────────────
 
@@ -268,8 +290,9 @@ class SlideCanvas(QWidget):
         while self._main_layout.count():
             item = self._main_layout.takeAt(0)
             widget = item.widget()
-            if widget is not None and widget is not self._content_shell:
+            if widget is not None and widget is not self._stage_widget:
                 widget.setParent(None)
+        self._main_layout.addWidget(self._stage_widget, 1)
 
         show_ref = bool(cfg.get("show_reference", True))
         align = cfg["align"]
@@ -285,7 +308,6 @@ class SlideCanvas(QWidget):
             if align == "right"
             else Qt.AlignmentFlag.AlignHCenter
         )
-        self._refresh_content_order(show_ref, reference_position, accent_align)
 
         vertical_container_align = (
             Qt.AlignmentFlag.AlignTop
@@ -312,11 +334,14 @@ class SlideCanvas(QWidget):
             )
         else:
             horizontal_container_align = Qt.AlignmentFlag.AlignHCenter
-        self._main_layout.addWidget(
+        self._stage_layout.addWidget(
             self._content_shell,
             1,
             horizontal_container_align | vertical_container_align,
         )
+        # La zone référence se place relativement au shell (au-dessus ou
+        # en dessous) une fois celui-ci en place.
+        self._refresh_content_order(show_ref, reference_position, accent_align)
 
         # Visibility of the divider is decided per-slide in _render_slide_content.
         self._accent_line.setVisible(False)
@@ -380,6 +405,8 @@ class SlideCanvas(QWidget):
         if slide is not None:
             self.set_slide(slide)
         self._main_layout.activate()
+        self._stage_layout.activate()
+        self._ref_zone_layout.activate()
         self._shell_layout.activate()
         self._content_layout.activate()
         return self.grab()
@@ -646,36 +673,91 @@ class SlideCanvas(QWidget):
             return QFont.Weight.Light
         return QFont.Weight.Normal
 
+    def _ref_zone_height(self, cfg: dict[str, Any], sh: int) -> int:
+        """Hauteur déterministe de la zone référence (plein écran épinglé)."""
+        scale = max(1.0, min(3.0, sh / 1080.0))
+        ref_size = max(8, int(round(float(cfg.get("ref_size") or 22) * scale)))
+        font = QFont(self._resolve_font_family(str(cfg.get("font_family") or "")))
+        font.setPixelSize(ref_size)
+        font.setWeight(QFont.Weight.DemiBold)
+        metrics = QFontMetrics(font)
+        shadow_on = bool(cfg.get("text_shadow", True))
+        blur_px = max(4, min(80, int(cfg.get("shadow_blur") or 18)))
+        pad_px = (int(blur_px * 0.75) + 6) if shadow_on else 0
+        return 3 + 8 + metrics.lineSpacing() + 2 * pad_px
+
     def _apply_layout_metrics(self, cfg: dict[str, Any]) -> tuple[int, int]:
         sw = self.width() if self.width() > 100 else 1920
         sh = self.height() if self.height() > 100 else 1080
 
         edge_guard = max(0, min(240, int(cfg.get("safe_margin") or 0)))
+        # Inset bas optionnel (bandeau d'annonces en projection locale) :
+        # la scène ne glisse jamais SOUS le bandeau.
+        bottom_inset = max(0, int(getattr(self, "_stage_bottom_inset", 0) or 0))
         self._main_layout.setContentsMargins(
-            edge_guard, edge_guard, edge_guard, edge_guard
+            edge_guard, edge_guard, edge_guard, edge_guard + bottom_inset
         )
 
         mode = self._choice(
             cfg.get("layout_mode"), self._LAYOUT_MODES, "fullscreen"
         )
-        content_width = int(cfg.get("content_width") or 88)
-        maximum_width = int(cfg.get("max_width") or 100)
-        width_pct = max(40, min(100, content_width, maximum_width))
-        height_pct = max(35, min(100, int(cfg.get("content_height") or 82)))
-        if mode == "lower_third":
-            width_pct = min(width_pct, 88)
-            height_pct = min(height_pct, 38)
-        elif mode == "subtitle":
-            width_pct = min(96, max(width_pct, 72))
-            height_pct = min(height_pct, 26)
-        elif mode == "side_panel":
-            width_pct = min(width_pct, 46)
-            height_pct = min(94, max(height_pct, 68))
-        elif mode == "focus_card":
-            width_pct = min(width_pct, 72)
-            height_pct = min(height_pct, 62)
-        available_width = max(320, int((sw - (edge_guard * 2)) * width_pct / 100))
-        available_height = max(240, int((sh - (edge_guard * 2)) * height_pct / 100))
+        pinned_ref = mode == "fullscreen" and bool(cfg.get("show_reference", True))
+
+        if mode == "fullscreen":
+            # Pleine place, aucune limite : le bloc texte occupe TOUT l'écran
+            # (moins la marge de sécurité et la zone référence épinglée).
+            # Les anciens pourcentages (content_width/content_height) ne
+            # s'appliquent plus à ce mode.
+            stage_h = max(240, sh - edge_guard * 2 - bottom_inset)
+            ref_zone_h = self._ref_zone_height(cfg, sh) if pinned_ref else 0
+            gap = int(sh * 0.03) if pinned_ref else 0
+            self._stage_layout.setSpacing(gap)
+            # Respiration du bord : la référence épinglée ne colle jamais à
+            # l'écran — même avec une marge de sécurité à zéro, elle descend
+            # (haut) / remonte (bas) de ce petit inset.
+            if pinned_ref:
+                ref_edge_gap = max(16, int(sh * 0.024))
+                ref_at_top = str(cfg.get("reference_position") or "bottom") == "top"
+                self._stage_layout.setContentsMargins(
+                    0, ref_edge_gap if ref_at_top else 0, 0,
+                    0 if ref_at_top else ref_edge_gap,
+                )
+                available_height = max(
+                    240, stage_h - ref_zone_h - gap - ref_edge_gap
+                )
+            else:
+                self._stage_layout.setContentsMargins(0, 0, 0, 0)
+            available_width = max(320, sw - edge_guard * 2)
+            if pinned_ref:
+                self._ref_zone.setFixedHeight(ref_zone_h)
+            else:
+                self._ref_zone.setMinimumHeight(0)
+                self._ref_zone.setMaximumHeight(16777215)
+        else:
+            self._stage_layout.setSpacing(max(8, min(24, int(sh * 0.018))))
+            content_width = int(cfg.get("content_width") or 88)
+            maximum_width = int(cfg.get("max_width") or 100)
+            width_pct = max(40, min(100, content_width, maximum_width))
+            height_pct = max(35, min(100, int(cfg.get("content_height") or 82)))
+            if mode == "lower_third":
+                width_pct = min(width_pct, 88)
+                height_pct = min(height_pct, 38)
+            elif mode == "subtitle":
+                width_pct = min(96, max(width_pct, 72))
+                height_pct = min(height_pct, 26)
+            elif mode == "side_panel":
+                width_pct = min(width_pct, 46)
+                height_pct = min(94, max(height_pct, 68))
+            elif mode == "focus_card":
+                width_pct = min(width_pct, 72)
+                height_pct = min(height_pct, 62)
+            available_width = max(
+                320, int((sw - (edge_guard * 2)) * width_pct / 100)
+            )
+            available_height = max(
+                240,
+                int((sh - (edge_guard * 2) - bottom_inset) * height_pct / 100),
+            )
 
         self._available_content_width = available_width
         self._available_content_height = available_height
@@ -702,6 +784,7 @@ class SlideCanvas(QWidget):
         self._content_layout.setSpacing(max(8, min(24, int(sh * 0.018))))
         show_top_reference = (
             bool(cfg.get("show_reference", True))
+            and mode != "fullscreen"
             and str(cfg.get("reference_position") or "bottom").lower() == "top"
         )
         top_reference_margin = (
@@ -732,7 +815,44 @@ class SlideCanvas(QWidget):
                 self._content_layout.removeItem(item)
             elif item.widget():
                 item.widget().setParent(None)
+        for i in reversed(range(self._stage_layout.count())):
+            item = self._stage_layout.itemAt(i)
+            if item.widget() and item.widget() is not self._content_shell:
+                item.widget().setParent(None)
+        for i in reversed(range(self._ref_zone_layout.count())):
+            item = self._ref_zone_layout.itemAt(i)
+            if item.widget():
+                item.widget().setParent(None)
 
+        mode = self._config.get("layout_mode")
+        pinned = show_ref and mode == "fullscreen"
+        ref_at_top = pinned and reference_position == "top"
+
+        if pinned:
+            # Séparation réelle : la référence vit dans sa propre zone,
+            # épinglée au bord de la zone sûre — jamais poussée par le texte.
+            self._ref_zone_layout.addWidget(self.ref_label, 0)
+            self._accent_line.setParent(self._ref_zone)
+            if ref_at_top:
+                self._ref_zone_layout.addWidget(self._accent_line, 0, accent_align)
+            else:
+                self._ref_zone_layout.insertWidget(0, self._accent_line, 0, accent_align)
+            # Le shell de texte est (ré)inséré par _apply_config juste avant
+            # cet appel : la zone référence se place relativement à lui.
+            if ref_at_top:
+                self._stage_layout.insertWidget(0, self._ref_zone, 0)
+            else:
+                self._stage_layout.addWidget(self._ref_zone, 0)
+            self._content_layout.addStretch(1)
+            self._content_layout.addWidget(self.text_label, 0)
+            self._content_layout.addStretch(1)
+            return
+
+        # Modes bande (bandeau, sous-titre, panneau, carte) : la référence
+        # reste solidaire du bandeau — c'est la lisibilité du bandeau qui
+        # prime, pas la séparation des zones.
+        self.ref_label.setParent(self._content_widget)
+        self._accent_line.setParent(self._content_widget)
         self._content_layout.addStretch(1)
         if show_ref and reference_position == "top":
             self._content_layout.addWidget(self.ref_label, 0)
@@ -785,6 +905,83 @@ class SlideCanvas(QWidget):
         v = str(value or "").strip().lower()
         return v if v in allowed else fallback
 
+    @staticmethod
+    def _wrap_lines(value: str, font: QFont, width: int) -> list[str]:
+        """Découpe un texte en lignes ≤ width, sans jamais couper un mot."""
+        metrics = QFontMetrics(font)
+        wrapped: list[str] = []
+        for paragraph in value.splitlines() or [value]:
+            words = paragraph.split()
+            if not words:
+                wrapped.append("")
+                continue
+            current = ""
+            for word in words:
+                candidate = f"{current} {word}".strip()
+                if not current or metrics.horizontalAdvance(candidate) <= width:
+                    current = candidate
+                    continue
+                wrapped.append(current)
+                current = word
+            if current:
+                wrapped.append(current)
+        return wrapped
+
+    def _fit_text_size(
+        self,
+        text: str,
+        base_font: QFont,
+        wrap_width: int,
+        box_height: int,
+        target_size: int,
+        floor_size: int,
+    ) -> tuple[int, str]:
+        """Auto-fit façon PowerPoint : la plus grande taille ≤ plafond dont le
+        texte wrappé tient entièrement dans le bloc.
+
+        Retourne ``(taille en px, texte wrappé)``. Le plafond combine la
+        taille configurée et la croissance autorisée ; les textes courts
+        grossissent pour occuper l'espace, les textes longs rétrécissent
+        juste ce qu'il faut — au pire jusqu'au plancher de lisibilité, et
+        tout est toujours affiché, sans jamais couper un mot.
+        """
+        if not text.strip():
+            return target_size, text
+
+        def measure(size: int) -> tuple[list[str], int]:
+            font = QFont(base_font)
+            font.setPixelSize(size)
+            metrics = QFontMetrics(font)
+            lines = self._wrap_lines(text, font, wrap_width)
+            # 8 % de réserve : le rendu réel des lignes (interligne du moteur
+            # de texte) peut dépasser légèrement lineSpacing().
+            height = int(len(lines) * metrics.lineSpacing() * 1.08)
+            return lines, height
+
+        lines, height = measure(target_size)
+        if height <= box_height:
+            return target_size, "\n".join(lines)
+
+        floor_size = min(floor_size, target_size)
+        lo, hi = floor_size, target_size
+        best_size: int | None = None
+        best_lines: list[str] = []
+        while lo <= hi:
+            mid = (lo + hi) // 2
+            mid_lines, mid_height = measure(mid)
+            if mid_height <= box_height:
+                best_size, best_lines = mid, mid_lines
+                lo = mid + 1
+            else:
+                hi = mid - 1
+        if best_size is None:
+            # Cas extrême (texte bien plus long que le bloc même au plancher) :
+            # la découpe du contrôleur limite la longueur des slides, ce cas
+            # ne survient qu'en force brute — on affiche tout au plancher.
+            best_size = floor_size
+            best_lines, _ = measure(floor_size)
+        return best_size, "\n".join(best_lines)
+
     def _render_slide_content(self, slide: dict[str, Any]) -> None:
         slide = dict(slide)
         hidden = bool(slide.get("hidden"))
@@ -804,7 +1001,7 @@ class SlideCanvas(QWidget):
             self.text_label.setText("")
             self.ref_label.setText("")
             self._accent_line.hide()
-            self._content_shell.hide()
+            self._stage_widget.hide()
             self.update()
             return
 
@@ -835,27 +1032,33 @@ class SlideCanvas(QWidget):
             ref = ref.upper()
 
         shell_margins = self._shell_layout.contentsMargins()
-        # Use the constrained content width (content_width %) rather than the full
-        # screen width, otherwise the auto-fit over-estimates how much text fits per
-        # line and picks a font size that overflows on long verses.
+        content_margins = self._content_layout.contentsMargins()
+
+        # Inner padding that lets the drop-shadow blur render without being
+        # clipped at the widget edges.
+        shadow_on = bool(cfg.get("text_shadow", True))
+        blur_px = max(4, min(80, int(cfg.get("shadow_blur") or 18)))
+        pad_px = (int(blur_px * 0.75) + 6) if shadow_on else 0
+
+        # Bloc texte : pleine largeur utile. La gouttière typographique est
+        # minimale (2 %) — le débordement de glyphe possible au-delà de
+        # horizontalAdvance() reste couvert, sans gaspiller l'écran.
         constrained_width = (
             self._available_content_width
             if self._available_content_width > 0
             else max(self._content_shell.width(), self.width(), screen_w)
         )
-        available_width = max(
-            360,
-            constrained_width - shell_margins.left() - shell_margins.right(),
+        box_width = max(
+            320,
+            constrained_width
+            - shell_margins.left()
+            - shell_margins.right()
+            - 2 * pad_px,
         )
-        # Keep a typographic gutter inside the configured block. Qt's text
-        # layout can have glyph overhang beyond horizontalAdvance(); using the
-        # full width risks clipping the final word even when metrics say it fits.
-        wrap_width = max(320, int(available_width * 0.90))
+        wrap_width = max(300, box_width - int(box_width * 0.02))
 
         # Configured pixel sizes are defined against a 1080p reference screen.
-        # Larger displays scale text UP so it stays proportionally readable,
-        # but the user's configured size is never reduced on smaller windows —
-        # the readability floor below is the only minimum.
+        # Larger displays scale text UP so it stays proportionally readable.
         screen_h = max(self.height(), 1)
         size_scale = max(1.0, min(3.0, screen_h / 1080.0))
 
@@ -866,47 +1069,49 @@ class SlideCanvas(QWidget):
         font.setWeight(self._font_weight_to_qt(font_weight))
         letter_spacing = int(cfg.get("letter_spacing") or 0)
 
-        # Inner padding that lets the drop-shadow blur render without being
-        # clipped at the widget edges.
-        shadow_on = bool(cfg.get("text_shadow", True))
-        blur_px = max(4, min(80, int(cfg.get("shadow_blur") or 18)))
-        pad_px = (int(blur_px * 0.75) + 6) if shadow_on else 0
+        # ── Auto-fit façon PowerPoint ──────────────────────────────────
+        # La taille configurée est la taille cible ; un texte long rétrécit
+        # juste ce qu'il faut pour tenir ENTIÈREMENT dans le bloc — jamais
+        # de rognage, jamais de mot coupé.
+        box_height = max(
+            200,
+            self._available_content_height
+            - shell_margins.top()
+            - shell_margins.bottom()
+            - content_margins.top()
+            - 2 * pad_px,
+        )
+        target_size = max(
+            10, int(round(float(cfg.get("text_size") or 54) * size_scale))
+        )
+        floor_size = max(
+            10, int(round(float(cfg.get("min_text_size") or 18) * size_scale))
+        )
+        # Croissance maîtrisée : un texte court grossit pour occuper l'espace
+        # (pleine place), jusqu'à 1,75× la taille configurée — le curseur
+        # opérateur reste le maître de la grandeur. Un texte long, lui,
+        # rétrécit juste ce qu'il faut pour tenir entièrement.
+        fit_ceiling = int(round(target_size * 1.75))
 
-        def wrap_for_qt(value: str, size: int, width: int) -> str:
-            wrap_font = QFont(font_family)
-            wrap_font.setWeight(self._font_weight_to_qt(font_weight))
-            wrap_font.setPixelSize(size)
-            metrics = QFontMetrics(wrap_font)
-            wrapped: list[str] = []
-            for paragraph in value.splitlines() or [value]:
-                words = paragraph.split()
-                if not words:
-                    wrapped.append("")
-                    continue
-                current = ""
-                for word in words:
-                    candidate = f"{current} {word}".strip()
-                    if not current or metrics.horizontalAdvance(candidate) <= width:
-                        current = candidate
-                        continue
-                    wrapped.append(current)
-                    current = word
-                if current:
-                    wrapped.append(current)
-            return "\n".join(wrapped)
+        base_font = QFont(font_family)
+        base_font.setWeight(self._font_weight_to_qt(font_weight))
+        base_font.setLetterSpacing(
+            QFont.SpacingType.AbsoluteSpacing, float(letter_spacing)
+        )
 
-        # The configured value is authoritative. Text length must never change
-        # local projection typography; only the display scale may affect it.
-        text_size = max(
-            10,
-            int(round(float(cfg.get("text_size") or 54) * size_scale)),
+        text_size, wrapped_text = self._fit_text_size(
+            text, base_font, wrap_width, box_height, fit_ceiling, floor_size
         )
 
         text_color = str(cfg.get("text_color") or "#ffffff")
         ref_color = str(cfg.get("ref_color") or "rgba(255,255,255,0.75)")
 
-        wrapped_text = wrap_for_qt(text, text_size, wrap_width)
-        wrapped_ref = wrap_for_qt(ref, ref_size, wrap_width)
+        ref_wrap_font = QFont(base_font)
+        ref_wrap_font.setPixelSize(ref_size)
+        ref_wrap_font.setWeight(QFont.Weight.DemiBold)
+        wrapped_ref = "\n".join(
+            self._wrap_lines(ref, ref_wrap_font, wrap_width)
+        )
 
         pad_css = f"padding: {pad_px}px;" if pad_px else ""
 
@@ -959,8 +1164,10 @@ class SlideCanvas(QWidget):
         self.ref_label.setText(wrapped_ref if has_ref else "")
         # Refined divider between text and reference whenever a reference shows.
         self._accent_line.setVisible(bool(has_ref))
+        # Zone référence : visible uniquement quand elle porte une référence.
+        self._ref_zone.setVisible(bool(has_ref))
         has_content = bool(text.strip() or has_ref)
-        self._content_shell.setVisible(has_content)
+        self._stage_widget.setVisible(has_content)
         self._update_shell_style(cfg)
         self.update()
 

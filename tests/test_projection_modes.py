@@ -248,10 +248,11 @@ def test_local_projection_main_text_size_has_visible_effect(tmp_path) -> None:
     window._render_slide_content(slide)
     large = window.text_label.font().pixelSize()
 
-    # The readability floor may lift the small size (never too small on a
-    # projector), but the configured size must still have a visible effect.
+    # Auto-fit : le texte court grossit (jusqu'à 1,75× la taille configurée)
+    # sans jamais descendre sous la taille demandée quand elle tient.
     assert small >= 32
-    assert large == 84
+    assert small <= 32 * 1.75 + 1
+    assert large >= 84
     assert small < large
     window.close()
     app.processEvents()
@@ -282,30 +283,93 @@ def test_local_projection_uses_safe_area_instead_of_inner_padding(tmp_path) -> N
     app.processEvents()
 
 
-def test_local_projection_size_is_constant_for_every_text_length(tmp_path) -> None:
+def test_local_projection_fits_long_text_powerpoint_style(tmp_path) -> None:
+    """Auto-fit façon PowerPoint : texte court = taille configurée, texte
+    long = rétrécit juste ce qu'il faut pour tenir ENTIÈREMENT (l'ancienne
+    taille constante rognait les versets longs)."""
     app = QApplication.instance() or QApplication([])
     window = ProjectionWindow(tmp_path)
-    window.resize(1280, 720)
+    window.resize(1920, 1080)
     config = ProjectionSettings(
         text_size=64,
-        # Legacy variable-fit values must no longer override the operator's
-        # explicit local projection size.
-        auto_fit=True,
-        uniform_text_size=False,
         min_text_size=18,
-        max_lines=4,
     ).to_presentation_config()
     window._apply_config(config)
 
-    sizes = []
-    for text in (
-        "Dieu est amour.",
-        " ".join(["Cette longue slide doit conserver exactement la même taille."] * 14),
-    ):
-        window._render_slide_content({"text": text, "reference": "Référence"})
-        sizes.append(window.text_label.font().pixelSize())
+    window._render_slide_content({"text": "Dieu est amour.", "reference": "1 Jean 4:8"})
+    short_size = window.text_label.font().pixelSize()
 
-    assert sizes == [64, 64]
+    long_text = " ".join(["Cette longue slide doit rester entièrement visible."] * 14)
+    window._render_slide_content({"text": long_text, "reference": "Référence"})
+    long_size = window.text_label.font().pixelSize()
+
+    assert 18 <= long_size < 64
+    assert short_size > long_size
+    # Croissance : le verset court grossit au-delà de la taille configurée
+    # (pleine place) sans dépasser le plafond 1,75×.
+    assert 64 < short_size <= round(64 * 1.75)
+
+    # Le bloc texte ne déborde jamais de sa zone.
+    window._main_layout.activate()
+    window._stage_layout.activate()
+    window._ref_zone_layout.activate()
+    window._shell_layout.activate()
+    window._content_layout.activate()
+    assert window.text_label.height() <= window._content_shell.height()
+    window.close()
+    app.processEvents()
+
+
+def test_local_projection_reference_is_truly_separated(tmp_path) -> None:
+    """La référence vit dans sa PROPRE zone, épinglée en bas de l'écran :
+    jamais poussée par le texte, position stable quelle que soit la longueur."""
+    app = QApplication.instance() or QApplication([])
+    window = ProjectionWindow(tmp_path)
+    window.resize(1920, 1080)
+    config = ProjectionSettings().to_presentation_config()
+    window._apply_config(config)
+
+    def ref_zone_top() -> int:
+        return window._ref_zone.mapTo(window, window._ref_zone.rect().topLeft()).y()
+
+    window._render_slide_content({"text": "Dieu est amour.", "reference": "1 Jean 4:8"})
+    window._main_layout.activate()
+    window._stage_layout.activate()
+    short_ref_top = ref_zone_top()
+
+    # Zone dédiée, hors de la colonne de texte, sous le bloc texte.
+    assert window.ref_label.parentWidget() is window._ref_zone
+    assert window.text_label.parentWidget() is window._content_widget
+    assert short_ref_top > window._content_shell.mapTo(
+        window, window._content_shell.rect().topLeft()
+    ).y()
+
+    # Texte long : la référence ne bouge pas d'un pixel.
+    long_text = " ".join(["Verset volontairement beaucoup plus long"] * 24)
+    window._render_slide_content({"text": long_text, "reference": "1 Jean 4:8"})
+    window._main_layout.activate()
+    window._stage_layout.activate()
+    assert ref_zone_top() == short_ref_top
+
+    # Position « en haut » : la zone référence passe au-dessus du bloc texte.
+    top_cfg = {**config, "reference_position": "top"}
+    window._apply_config(top_cfg)
+    window._render_slide_content({"text": "Dieu est amour.", "reference": "1 Jean 4:8"})
+    window._main_layout.activate()
+    window._stage_layout.activate()
+    assert window._stage_layout.indexOf(window._ref_zone) == 0
+    assert ref_zone_top() < window._content_shell.mapTo(
+        window, window._content_shell.rect().topLeft()
+    ).y()
+
+    # Respiration du bord : même avec une marge de sécurité à zéro, la
+    # référence épinglée ne colle pas à l'écran.
+    flush_cfg = {**top_cfg, "safe_margin": 0}
+    window._apply_config(flush_cfg)
+    window._render_slide_content({"text": "Dieu est amour.", "reference": "1 Jean 4:8"})
+    window._main_layout.activate()
+    window._stage_layout.activate()
+    assert ref_zone_top() >= 16
     window.close()
     app.processEvents()
 

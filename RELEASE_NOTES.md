@@ -1,3 +1,24 @@
+# Project-On 2.2.0
+
+**La projection passe au niveau supérieur : texte plein cadre, référence enfin séparée, taille intelligente façon PowerPoint** ✨ — Le bloc texte occupe désormais tout l'écran. La référence (Jean 3:16, titre de cantique…) vit dans sa propre zone épinglée en haut ou en bas, à taille fixe : plus jamais collée au texte ni poussée par lui. Et la taille du texte s'adapte comme dans PowerPoint — un verset court grossit pour remplir l'écran, un verset long rétrécit juste ce qu'il faut pour tenir en entier.
+
+## Nouveautés
+
+- **Taille intelligente façon PowerPoint** 📐 : la taille configurée reste votre référence (jusqu'à ×1,75 pour les textes courts), et un texte long rétrécit automatiquement pour tenir ENTIEREMENT à l'écran — plus jamais de verset rogné en bas, jamais un mot coupé.
+- **Référence vraiment séparée** 📌 : épinglée en haut ou en bas de l'écran dans sa propre zone avec sa ligne d'accent, à taille fixe et légèrement détachée du bord — sa position ne bouge plus, quelle que soit la longueur du texte.
+- **Le texte a toute la place** 🖥️ : le bloc texte occupe 100 % de l'écran (marge de sécurité en moins) ; les anciennes limites de largeur et de hauteur sont supprimées.
+- **Bandeau d'annonces et référence réconciliés** 📣 : quand le bandeau défilant est actif, la scène remonte automatiquement — la référence n'est plus jamais recouverte.
+- **Transitions au complet** 🎬 : le fondu, le glissement et les autres transitions animent désormais le texte et la référence ensemble, comme un seul bloc propre.
+- **Aperçu opérateur fidèle** 👀 : l'aperçu reflète immédiatement le nouveau rendu (même moteur que la projection).
+
+## Installation
+
+Téléchargez **`ProjectOn_2.2.0_Setup.exe`** ci-dessous et installez-le par-dessus la version existante : cantiques, playlists, réglages et base sont conservés.
+
+Windows 10 / 11 (64 bits) · fonctionne hors-ligne.
+
+---
+
 # Project-On 2.1.1
 
 **Le masquage garde l'aperçu lisible** 👁️ — Quand vous masquez la sortie (« masquer les écritures »), l'aperçu opérateur affiche désormais toujours le texte et la référence de la slide. Seules les deux projections — la fenêtre plein écran et la sortie OBS/NDI — passent au fond seul. Vous voyez ce qui est prêt à partir, le public ne voit rien.

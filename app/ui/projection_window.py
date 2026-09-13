@@ -64,6 +64,8 @@ class ProjectionWindow(SlideCanvas):
         self._video_loop = False
 
         # Bandeau défilant d'annonces (ancré en bas, au-dessus de tout).
+        # Son hauteur réserve un inset bas sur la scène (voir _apply_ticker_config).
+        self._stage_bottom_inset = 0
         self._ticker = TickerOverlay(self)
         self._ticker.hide()
 
@@ -124,16 +126,24 @@ class ProjectionWindow(SlideCanvas):
         ticker.raise_()
 
     def _apply_ticker_config(self, cfg: dict[str, Any]) -> None:
-        """Bandeau défilant : configuré depuis config.json (clé « ticker »)."""
+        """Bandeau défilant : configuré depuis config.json (clé « ticker »).
+
+        Le bandeau réserve aussi un inset bas sur la scène : la zone
+        référence/texte ne glisse jamais dessous.
+        """
         ticker_cfg = cfg.get("ticker")
         if not isinstance(ticker_cfg, dict):
+            self._stage_bottom_inset = 0
             self._ticker.configure([], False)
             return
+        enabled = bool(ticker_cfg.get("enabled"))
+        height = int(ticker_cfg.get("height") or 64)
+        self._stage_bottom_inset = max(0, height) if enabled else 0
         self._ticker.configure(
             texts=list(ticker_cfg.get("texts") or []),
-            enabled=bool(ticker_cfg.get("enabled")),
+            enabled=enabled,
             speed=int(ticker_cfg.get("speed") or 90),
-            height=int(ticker_cfg.get("height") or 64),
+            height=height,
             bg_color=str(ticker_cfg.get("bg_color") or "rgba(5,10,22,0.82)"),
             text_color=str(ticker_cfg.get("text_color") or "rgba(255,255,255,0.95)"),
             font_size=int(ticker_cfg.get("font_size") or 30),
@@ -165,12 +175,12 @@ class ProjectionWindow(SlideCanvas):
         return True
 
     def _show_video(self, path: str) -> None:
-        """Passe en mode vidéo plein écran : contenu texte masqué, source chargée EN PAUSE."""
+        """Passe en mode vidéo plein écran : scène masquée, source chargée EN PAUSE."""
         if not self._ensure_video_stack():
             return
         from PyQt6.QtCore import QUrl
 
-        self._content_shell.setVisible(False)
+        self._stage_widget.setVisible(False)
         if path != self._active_video_path:
             self._active_video_path = path
             self._media_player.setSource(QUrl.fromLocalFile(path))
@@ -421,7 +431,7 @@ class ProjectionWindow(SlideCanvas):
         duration = int(duration_value if duration_value is not None else 400)
         anim_type = self._effective_animation_type(slide)
         direction = str(cfg.get("animation_direction") or "up").lower()
-        was_hidden = not self._content_shell.isVisible()
+        was_hidden = not self._stage_widget.isVisible()
         going_hidden = bool(slide.get("hidden"))
 
         if (
@@ -503,7 +513,7 @@ class ProjectionWindow(SlideCanvas):
         self.update()
 
     def _grab_block(self) -> tuple[QImage | None, QPoint]:
-        w = self._content_shell
+        w = self._stage_widget
         if w.width() <= 1 or w.height() <= 1:
             return None, QPoint()
         img = QImage(w.size(), QImage.Format.Format_ARGB32_Premultiplied)
