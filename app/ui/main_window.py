@@ -78,6 +78,7 @@ class MainWindow(QMainWindow):
 
         self._projection_window: ProjectionWindow | None = None
         self._stage_window = None  # StageWindow | None
+        self._mixer_window = None  # MixerOutputWindow | None
         self._presentation_dir = presentation_dir
         self._write_presentation_config()
         self._write_obs_config()
@@ -196,6 +197,10 @@ class MainWindow(QMainWindow):
             if hasattr(self.library_panel.settings_tab, "stageSettingsRequested"):
                 self.library_panel.settings_tab.stageSettingsRequested.connect(
                     self._open_stage_settings
+                )
+            if hasattr(self.library_panel.settings_tab, "hdmiSettingsRequested"):
+                self.library_panel.settings_tab.hdmiSettingsRequested.connect(
+                    self._open_hdmi_settings
                 )
             if hasattr(self.library_panel.settings_tab, "tickerSettingsRequested"):
                 self.library_panel.settings_tab.tickerSettingsRequested.connect(
@@ -332,6 +337,11 @@ class MainWindow(QMainWindow):
         sc_f6.setContext(Qt.ShortcutContext.ApplicationShortcut)
         sc_f6.activated.connect(self._toggle_stage)
 
+        # F8 → Mire de la sortie HDMI mixeur (calibrage de l'entrée)
+        sc_f8 = QShortcut(QKeySequence(Qt.Key.Key_F8), self)
+        sc_f8.setContext(Qt.ShortcutContext.ApplicationShortcut)
+        sc_f8.activated.connect(self._toggle_hdmi_mire)
+
         # Ctrl+F → Focus recherche dans l'onglet actif
         sc_search = QShortcut(QKeySequence("Ctrl+F"), self)
         sc_search.setContext(Qt.ShortcutContext.ApplicationShortcut)
@@ -363,6 +373,9 @@ class MainWindow(QMainWindow):
         # Écran scène rouvert au démarrage si activé dans les réglages
         if self._settings.stage.enabled:
             QTimer.singleShot(200, self._open_stage)
+        # Sortie HDMI mixeur rouverte au démarrage si activée
+        if getattr(self._settings, "hdmi", None) and self._settings.hdmi.enabled:
+            QTimer.singleShot(300, self._open_mixer_window)
 
         # Responsive: allow window to shrink on small screens
         self.setMinimumSize(900, 550)
@@ -1100,6 +1113,106 @@ class MainWindow(QMainWindow):
             self._stage_window = None
         self.preview_panel.set_stage_active(False)
 
+    # ── Sortie HDMI / mixeur vidéo ─────────────────────────────────────
+
+    def _open_hdmi_settings(self) -> None:
+        from app.ui.hdmi_settings_dialog import HdmiSettingsDialog
+
+        original = copy.deepcopy(self._settings.hdmi)
+        dlg = HdmiSettingsDialog(
+            self._settings.hdmi,
+            presentation_dir=self._presentation_dir,
+            parent=self,
+        )
+
+        def on_live(new_settings):
+            self._apply_hdmi_settings(new_settings)
+            dlg.set_live_status(self._hdmi_live_status())
+
+        dlg.hdmiChanged.connect(on_live)
+        dlg.mireToggled.connect(self._toggle_hdmi_mire)
+
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self._apply_hdmi_settings(dlg.read_settings())
+            self._settings.save(self._settings_path)
+        else:
+            # Annulé : retour à l'état d'origine (fenêtre, écran, letterbox).
+            self._apply_hdmi_settings(original)
+        self._refresh_settings_details()
+
+    def _apply_hdmi_settings(self, hdmi) -> None:
+        self._settings.hdmi = hdmi.sanitized()
+        if self._settings.hdmi.enabled:
+            self._open_mixer_window()
+        else:
+            self._close_mixer()
+
+    def _mixer_exclude_screen(self) -> str:
+        """Écran à éviter en choix auto : celui de la projection locale."""
+        window = self._projection_window
+        if window is not None and getattr(window, "_active_display_screen", ""):
+            return str(window._active_display_screen)
+        return str(self._settings.projection.display_screen or "")
+
+    def _open_mixer_window(self) -> None:
+        from app.ui.mixer_output_window import MixerOutputWindow
+
+        if self._mixer_window is None:
+            hdmi = self._settings.hdmi
+            self._mixer_window = MixerOutputWindow(
+                self._presentation_dir,
+                screen=hdmi.screen,
+                letterbox=hdmi.letterbox,
+                exclude_screen=self._mixer_exclude_screen(),
+                key_color=hdmi.key_color,
+                text_scale=hdmi.text_scale,
+                offset_y=hdmi.offset_y,
+                show_ticker=hdmi.show_ticker,
+            )
+            self._mixer_window.destroyed.connect(
+                lambda: setattr(self, "_mixer_window", None)
+            )
+            self._mixer_window.destroyed.connect(
+                lambda: self.status_bar.set_hdmi_active(False)
+            )
+        else:
+            hdmi = self._settings.hdmi
+            self._mixer_window.set_screen(hdmi.screen)
+            self._mixer_window.set_letterbox(hdmi.letterbox)
+            self._mixer_window.set_key_color(hdmi.key_color)
+            self._mixer_window.set_text_scale(hdmi.text_scale)
+            self._mixer_window.set_offset_y(hdmi.offset_y)
+            self._mixer_window.set_ticker_enabled(hdmi.show_ticker)
+            self._mixer_window.show()
+        self._update_hdmi_status()
+
+    def _close_mixer(self) -> None:
+        window = self._mixer_window
+        if window is not None:
+            window.close()
+            self._mixer_window = None
+        self.status_bar.set_hdmi_active(False)
+
+    def _hdmi_live_status(self) -> str:
+        window = self._mixer_window
+        if window is None or not window.isVisible():
+            return "Inactive"
+        key_names = {"green": "verte", "magenta": "magenta", "blue": "bleue"}
+        key = key_names.get(self._settings.hdmi.key_color, "verte")
+        return f"En direct vers {window.active_screen or '?'} · clé {key}"
+
+    def _update_hdmi_status(self) -> None:
+        window = self._mixer_window
+        active = window is not None and window.isVisible()
+        self.status_bar.set_hdmi_active(
+            active, window.active_screen if active else ""
+        )
+
+    def _toggle_hdmi_mire(self) -> None:
+        window = self._mixer_window
+        if window is not None:
+            window.toggle_mire()
+
     def _update_stage(self) -> None:
         """Pousse le courant + le suivant vers l'écran scène."""
         if self._stage_window is None:
@@ -1177,6 +1290,11 @@ class MainWindow(QMainWindow):
                 self._projection_window.close()
             except Exception:
                 log.exception("Échec de fermeture de la fenêtre de projection")
+        if getattr(self, "_mixer_window", None) is not None:
+            try:
+                self._mixer_window.close()
+            except Exception:
+                log.exception("Échec de fermeture de la sortie HDMI")
         # Stop OBS server threads so Python can exit completely
         if hasattr(self, "_obs") and self._obs:
             self._obs.stop()

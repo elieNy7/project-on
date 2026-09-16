@@ -392,11 +392,13 @@ body.preview-canvas::before {
 .lt-divider-line {
     width: min(100%, 620px);
     height: 1px;
+    /* Neutre : pas d'accent de source dans la référence (le vert biblique
+       sautait à la clé chroma de la sortie HDMI). */
     background: linear-gradient(
         90deg,
         transparent,
         rgba(255, 255, 255, 0.12),
-        var(--source-accent),
+        rgba(255, 255, 255, 0.42),
         rgba(255, 255, 255, 0.12),
         transparent
     );
@@ -422,10 +424,11 @@ body.preview-canvas::before {
 .lt-ref-badge.hidden { display: none; }
 
 .lt-ref-icon {
-    color: var(--source-accent);
+    /* Neutre, comme le texte de la référence — l'accent vit sur le panneau. */
+    color: var(--ref-color);
     display: flex;
     align-items: center;
-    opacity: 0.85;
+    opacity: 0.7;
 }
 
 .lt-ref-text {
@@ -549,7 +552,7 @@ body.preview-canvas::before {
 
 #root.layout-side_panel .lt-divider-line {
     width: min(100%, 360px);
-    background: linear-gradient(90deg, var(--source-accent), rgba(255,255,255,0.14), transparent);
+    background: linear-gradient(90deg, rgba(255,255,255,0.38), rgba(255,255,255,0.14), transparent);
 }
 
 #root.layout-subtitle .lower-third {
@@ -658,15 +661,15 @@ body.preview-canvas::before {
     align-self: center;
 }
 
-/* ── Source-specific accents (aligned with app theme.Colors.SRC_*) ── */
+/* ── Source-specific accents (aligned with app theme.Colors.SRC_*) ──
+   La référence (badge + icône + divider) reste neutre : seuls le kicker,
+   la barre d'accent et le liseré bas portent la couleur de source. */
 .source-bible {
     --source-accent: #56d681;
     --source-accent-2: #b5f3ca;
     --source-glow: rgba(86, 214, 129, 0.24);
     --source-kicker-bg: rgba(34, 92, 60, 0.20);
     --source-kicker-border: rgba(120, 255, 171, 0.22);
-    --source-ref-bg: rgba(20, 56, 37, 0.18);
-    --source-ref-border: rgba(120, 255, 171, 0.18);
     --source-body-tint: rgba(86, 214, 129, 0.08);
 }
 
@@ -676,8 +679,6 @@ body.preview-canvas::before {
     --source-glow: rgba(185, 151, 255, 0.26);
     --source-kicker-bg: rgba(72, 41, 114, 0.20);
     --source-kicker-border: rgba(185, 151, 255, 0.24);
-    --source-ref-bg: rgba(45, 24, 69, 0.18);
-    --source-ref-border: rgba(185, 151, 255, 0.18);
     --source-body-tint: rgba(185, 151, 255, 0.09);
 }
 
@@ -722,8 +723,6 @@ body.preview-canvas::before {
     --source-glow: rgba(224, 160, 68, 0.24);
     --source-kicker-bg: rgba(94, 64, 20, 0.22);
     --source-kicker-border: rgba(224, 160, 68, 0.24);
-    --source-ref-bg: rgba(56, 40, 16, 0.20);
-    --source-ref-border: rgba(224, 160, 68, 0.18);
     --source-body-tint: rgba(224, 160, 68, 0.09);
 }
 
@@ -733,8 +732,6 @@ body.preview-canvas::before {
     --source-glow: rgba(0, 172, 193, 0.24);
     --source-kicker-bg: rgba(8, 70, 80, 0.22);
     --source-kicker-border: rgba(0, 172, 193, 0.24);
-    --source-ref-bg: rgba(8, 50, 58, 0.20);
-    --source-ref-border: rgba(0, 172, 193, 0.18);
     --source-body-tint: rgba(0, 172, 193, 0.08);
 }
 
@@ -744,8 +741,6 @@ body.preview-canvas::before {
     --source-glow: rgba(109, 180, 255, 0.24);
     --source-kicker-bg: rgba(42, 66, 110, 0.20);
     --source-kicker-border: rgba(145, 182, 255, 0.22);
-    --source-ref-bg: rgba(23, 36, 61, 0.18);
-    --source-ref-border: rgba(145, 182, 255, 0.18);
     --source-body-tint: rgba(116, 167, 248, 0.08);
 }
 
@@ -755,8 +750,6 @@ body.preview-canvas::before {
     --source-glow: rgba(130, 123, 112, 0.22);
     --source-kicker-bg: rgba(58, 54, 48, 0.22);
     --source-kicker-border: rgba(182, 173, 160, 0.22);
-    --source-ref-bg: rgba(40, 37, 33, 0.20);
-    --source-ref-border: rgba(182, 173, 160, 0.18);
     --source-body-tint: rgba(130, 123, 112, 0.08);
 }
 

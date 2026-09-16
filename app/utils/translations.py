@@ -583,6 +583,10 @@ _translations: dict[str, dict[str, str]] = {
         "en": "Speaker screen: current, next, clock and messages",
     },
     "shortcut_stage": {"fr": "Écran scène (orateurs)", "en": "Stage display (speakers)"},
+    "shortcut_hdmi_mire": {
+        "fr": "Mire sortie HDMI (mixeur)",
+        "en": "HDMI output test pattern (mixer)",
+    },
     "stage_toggle": {"fr": "Écran scène (F6)", "en": "Stage display (F6)"},
     "stage_toggle_short": {"fr": "Scène", "en": "Stage"},
     "stage_message_short": {"fr": "Message", "en": "Message"},

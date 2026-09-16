@@ -144,6 +144,7 @@ class PreflightDialog(QDialog):
             "obs_mode": settings.obs.mode,
             "obs_port": settings.obs.web_port,
             "ndi_runtime_path": Path(ndi_runtime_path) if ndi_runtime_path else None,
+            "hdmi_info": self._build_hdmi_info(settings),
         }
 
         root = QVBoxLayout(self)
@@ -247,6 +248,24 @@ class PreflightDialog(QDialog):
 
         self._set_report_actions_enabled(False)
         self._start_check()
+
+    @staticmethod
+    def _build_hdmi_info(settings: AppSettings) -> dict | None:
+        """État de la sortie HDMI mixeur, résolu côté Qt pour le worker."""
+        hdmi = getattr(settings, "hdmi", None)
+        if hdmi is None or not getattr(hdmi, "enabled", False):
+            return None
+        name = str(hdmi.screen or "auto")
+        if name == "auto":
+            return {"screen": "auto", "resolution": ""}
+        screen = next(
+            (s for s in QApplication.screens() if str(s.name() or "") == name),
+            None,
+        )
+        if screen is None:
+            return {"screen": name, "resolution": ""}
+        geo = screen.geometry()
+        return {"screen": name, "resolution": f"{geo.width()}×{geo.height()}"}
 
     def _button(self, text: str, *, secondary: bool = False) -> QPushButton:
         button = QPushButton(text, self)

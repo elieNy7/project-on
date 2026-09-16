@@ -139,6 +139,51 @@ def _database_checks(database_path: Path) -> list[HealthCheck]:
     return checks
 
 
+def _hdmi_checks(hdmi_info: dict | None) -> list[HealthCheck]:
+    """Contrôle de la sortie HDMI mixeur (seulement si activée).
+
+    ``hdmi_info`` vaut None quand la sortie est désactivée (aucun
+    contrôle) ; sinon ``{"screen": nom, "resolution": "L×H" ou ""}``
+    avec une résolution vide si l'écran configuré est introuvable.
+    """
+    if not hdmi_info:
+        return []
+    screen = str(hdmi_info.get("screen") or "auto")
+    resolution = str(hdmi_info.get("resolution") or "")
+    if screen != "auto" and not resolution:
+        return [
+            HealthCheck(
+                "hdmi",
+                "Sortie HDMI mixeur",
+                "warning",
+                f"Écran configuré « {screen} » introuvable · branchez le "
+                "mélangeur et vérifiez la sortie dans les réglages HDMI.",
+            )
+        ]
+    if resolution and resolution != "1920×1080":
+        return [
+            HealthCheck(
+                "hdmi",
+                "Sortie HDMI mixeur",
+                "warning",
+                f"Sortie {resolution} · réglez cet écran sur 1920×1080 dans "
+                "Windows pour une incrustation chroma propre.",
+            )
+        ]
+    return [
+        HealthCheck(
+            "hdmi",
+            "Sortie HDMI mixeur",
+            "success",
+            (
+                f"Incrustation chroma prête vers « {screen} »"
+                if screen != "auto"
+                else "Incrustation chroma prête (écran automatique)"
+            ),
+        )
+    ]
+
+
 def run_system_health(
     *,
     database_path: Path,
@@ -148,6 +193,7 @@ def run_system_health(
     obs_mode: str,
     obs_port: int,
     ndi_runtime_path: Path | None = None,
+    hdmi_info: dict | None = None,
 ) -> HealthReport:
     """Run the operator preflight without changing application content."""
     checks = _database_checks(Path(database_path))
@@ -208,6 +254,8 @@ def run_system_health(
             ),
         )
     )
+
+    checks.extend(_hdmi_checks(hdmi_info))
 
     if str(obs_mode).lower() == "ndi":
         ndi_ready = bool(ndi_runtime_path and Path(ndi_runtime_path).is_file())

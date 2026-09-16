@@ -114,6 +114,15 @@ class StatusBar(QFrame):
         self._obs_pill.setToolTip("OBS : non connect\u00e9")
         layout.addWidget(self._obs_pill)
 
+        # HDMI mixer output indicator (hidden unless the output is live).
+        self._hdmi_pill = _StatusPill("cast.svg", "HDMI", self)
+        self._hdmi_pill.set_accent(Colors.ACCENT_SUCCESS)
+        self._hdmi_pill.setToolTip(
+            "Sortie HDMI mixeur : incrustation chroma en direct"
+        )
+        layout.addWidget(self._hdmi_pill)
+        self._hdmi_pill.hide()
+
         # Slide counter
         self._counter_label = QLabel("", self)
         self._counter_label.setStyleSheet(f"""
@@ -202,6 +211,14 @@ class StatusBar(QFrame):
         else:
             self._obs_pill.set_accent(Colors.TEXT_DISABLED)
             self._obs_pill.setToolTip("OBS : non connect\u00e9")
+
+    def set_hdmi_active(self, active: bool, label: str = "") -> None:
+        """Sortie HDMI mixeur : pilule visible quand l'incrustation est en direct."""
+        if active:
+            self._hdmi_pill.set_text(f"HDMI · {label}" if label else "HDMI")
+            self._hdmi_pill.show()
+        else:
+            self._hdmi_pill.hide()
 
     # ── Internes ──
 

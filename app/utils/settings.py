@@ -574,6 +574,44 @@ class StageSettings:
 
 
 @dataclass
+class HdmiSettings:
+    """Sortie HDMI vers un mélangeur vidéo (ATEM, Roland V/AV…).
+
+    Source d'incrustation chroma key : fond plein cadre à la couleur de clé
+    + section texte composée comme la sortie OBS (mêmes réglages que la
+    page Navigateur OBS et l'envoi NDI). Le mélangeur supprime la couleur
+    de clé et incruste le texte sur la caméra.
+
+    Ajustables propre à la sortie HDMI : couleur de clé (le magenta/bleu
+    dépanne quand des vêtements ou décors contiennent du vert), taille du
+    texte (le renducaméra supporte souvent plus grand que l'écran), position
+    verticale fine et présence du bandeau d'annonces.
+    """
+
+    enabled: bool = False  # rouvrir la sortie HDMI au démarrage
+    screen: str = "auto"  # auto ou QScreen.name()
+    letterbox: bool = True  # marges de clé 16:9 si l'écran n'est pas 16:9
+    key_color: str = "green"  # green|magenta|blue
+    text_scale: int = 100  # taille de la section texte : 60..180 (%)
+    offset_y: int = 0  # décalage vertical : -300..300 px @1080
+    show_ticker: bool = True  # inclure le bandeau d'annonces
+
+    def sanitized(self) -> HdmiSettings:
+        key = str(self.key_color or "green").strip().lower()
+        if key not in ("green", "magenta", "blue"):
+            key = "green"
+        return HdmiSettings(
+            enabled=bool(self.enabled),
+            screen=str(self.screen or "auto").strip() or "auto",
+            letterbox=bool(self.letterbox),
+            key_color=key,
+            text_scale=max(60, min(180, int(self.text_scale or 100))),
+            offset_y=max(-300, min(300, int(self.offset_y or 0))),
+            show_ticker=bool(self.show_ticker),
+        )
+
+
+@dataclass
 class TickerSettings:
     """Bandeau défilant d'annonces sous la projection locale."""
     enabled: bool = False
@@ -629,6 +667,7 @@ class AppSettings:
     obs: ObsSettings = field(default_factory=ObsSettings)
     appearance: AppearanceSettings = field(default_factory=AppearanceSettings)
     stage: StageSettings = field(default_factory=StageSettings)
+    hdmi: HdmiSettings = field(default_factory=HdmiSettings)
     ticker: TickerSettings = field(default_factory=TickerSettings)
     # Thèmes de projection (façon ProPresenter) : le thème actif est le miroir
     # de ``projection`` ; les autres vivent dans ``themes``.
@@ -807,6 +846,18 @@ class AppSettings:
             stage.bg_color = _gs(st, "bg_color", stage.bg_color)
         stage = stage.sanitized()
 
+        hdmi = HdmiSettings()
+        hm = payload.get("hdmi")
+        if isinstance(hm, dict):
+            hdmi.enabled = _gb(hm, "enabled", hdmi.enabled)
+            hdmi.screen = _gs(hm, "screen", hdmi.screen)
+            hdmi.letterbox = _gb(hm, "letterbox", hdmi.letterbox)
+            hdmi.key_color = _gs(hm, "key_color", hdmi.key_color)
+            hdmi.text_scale = _gi(hm, "text_scale", hdmi.text_scale)
+            hdmi.offset_y = _gi(hm, "offset_y", hdmi.offset_y)
+            hdmi.show_ticker = _gb(hm, "show_ticker", hdmi.show_ticker)
+        hdmi = hdmi.sanitized()
+
         ticker = TickerSettings()
         tk = payload.get("ticker")
         if isinstance(tk, dict):
@@ -885,6 +936,7 @@ class AppSettings:
             obs=obs,
             appearance=appearance,
             stage=stage,
+            hdmi=hdmi,
             ticker=ticker,
             themes=themes,
             theme_assignments=theme_assignments,
@@ -911,6 +963,7 @@ class AppSettings:
             "obs": asdict(self.obs),
             "appearance": asdict(self.appearance),
             "stage": asdict(self.stage),
+            "hdmi": asdict(self.hdmi),
             "ticker": asdict(self.ticker),
             "themes": themes_payload,
             "theme_assignments": dict(self.theme_assignments),

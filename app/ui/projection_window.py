@@ -28,6 +28,7 @@ from PyQt6.QtWidgets import QGraphicsOpacityEffect, QWidget
 
 from app.ui.slide_canvas import SlideCanvas, ShadowTextLabel, _blur_pixmap
 from app.ui.ticker_overlay import TickerOverlay
+from app.utils import power_guard
 from app.utils.themes import ThemeRegistry
 
 __all__ = ["ProjectionWindow", "ShadowTextLabel", "_blur_pixmap"]
@@ -94,6 +95,12 @@ class ProjectionWindow(SlideCanvas):
         self._timer.timeout.connect(self._tick)
         self._timer.start()
 
+        # Sortie plein écran face public : ni curseur visible, ni mise en
+        # veille de l'écran pendant le service. Initialisés AVANT le plein
+        # écran : showEvent arrive dès showFullScreen(), en plein __init__.
+        self.setCursor(Qt.CursorShape.BlankCursor)
+        self._power_held = False
+
         self._apply_best_screen_fullscreen()
         self._tick()
 
@@ -116,6 +123,19 @@ class ProjectionWindow(SlideCanvas):
         if self._video_widget is not None:
             self._video_widget.setGeometry(self.rect())
         self._position_ticker()
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        self.setCursor(Qt.CursorShape.BlankCursor)
+        if not self._power_held:
+            self._power_held = True
+            power_guard.acquire()
+
+    def closeEvent(self, event) -> None:
+        if getattr(self, "_power_held", False):
+            self._power_held = False
+            power_guard.release()
+        super().closeEvent(event)
 
     def _position_ticker(self) -> None:
         ticker = getattr(self, "_ticker", None)

@@ -17,7 +17,13 @@ from PyQt6.QtCore import (
     pyqtSignal,
     pyqtSlot,
 )
-from PyQt6.QtGui import QColor, QDesktopServices, QLinearGradient, QPainter
+from PyQt6.QtGui import (
+    QColor,
+    QDesktopServices,
+    QGuiApplication,
+    QLinearGradient,
+    QPainter,
+)
 from PyQt6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -325,6 +331,7 @@ class SettingsTab(QWidget):
     projectionSettingsRequested  = pyqtSignal()
     themesRequested              = pyqtSignal()
     stageSettingsRequested       = pyqtSignal()
+    hdmiSettingsRequested        = pyqtSignal()
     tickerSettingsRequested      = pyqtSignal()
     obsSettingsRequested         = pyqtSignal()
     obsOutputSettingsRequested   = pyqtSignal()
@@ -380,6 +387,12 @@ class SettingsTab(QWidget):
             "users.svg", "#60a5fa", display_card,
         )
         display_card.add_item(self._stage_item)
+        self._hdmi_item = SettingsItem(
+            "Sortie HDMI / mixeur",
+            "Source d'incrustation verte pour ATEM, Roland V/AV et autres mélangeurs",
+            "cast.svg", "#4ade80", display_card,
+        )
+        display_card.add_item(self._hdmi_item)
         self._ticker_item = SettingsItem(
             tr("ticker_settings"), tr("ticker_settings_desc"),
             "megaphone.svg", "#fbbf24", display_card,
@@ -469,6 +482,7 @@ class SettingsTab(QWidget):
         self._projection_item.clicked.connect(self.projectionSettingsRequested.emit)
         self._themes_item.clicked.connect(self.themesRequested.emit)
         self._stage_item.clicked.connect(self.stageSettingsRequested.emit)
+        self._hdmi_item.clicked.connect(self.hdmiSettingsRequested.emit)
         self._ticker_item.clicked.connect(self.tickerSettingsRequested.emit)
         self._obs_connect_item.clicked.connect(self.obsSettingsRequested.emit)
         self._obs_style_item.clicked.connect(self.obsOutputSettingsRequested.emit)
@@ -499,6 +513,8 @@ class SettingsTab(QWidget):
             n_assign = len(getattr(settings, "theme_assignments", {}) or {})
             self._themes_item.set_detail(f"{max(1, n_themes)} · {n_assign} assign.")
             self._stage_item.set_detail("F6")
+            hdmi = getattr(settings, "hdmi", None)
+            self._hdmi_item.set_detail(self._hdmi_detail(hdmi))
             self._ticker_item.set_detail(
                 "Actif" if getattr(getattr(settings, "ticker", None), "enabled", False) else "Inactif"
             )
@@ -525,6 +541,24 @@ class SettingsTab(QWidget):
 
         except Exception as e:
             log.error("Erreur chargement paramètres: %s", e)
+
+    @staticmethod
+    def _hdmi_detail(hdmi) -> str:
+        if hdmi is None or not getattr(hdmi, "enabled", False):
+            return "Désactivée"
+        key_names = {"green": "vert", "magenta": "magenta", "blue": "bleu"}
+        key = key_names.get(str(getattr(hdmi, "key_color", "green")), "vert")
+        name = str(getattr(hdmi, "screen", "auto") or "auto")
+        if name == "auto":
+            return f"Auto · chroma {key}"
+        screen = next(
+            (s for s in QGuiApplication.screens() if str(s.name() or "") == name),
+            None,
+        )
+        if screen is None:
+            return f"{name} · introuvable"
+        geo = screen.geometry()
+        return f"{name} · {geo.width()}×{geo.height()} · chroma {key}"
 
     def showEvent(self, event) -> None:
         super().showEvent(event)

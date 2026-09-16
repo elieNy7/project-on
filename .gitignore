@@ -26,6 +26,7 @@ data/project_on.sqlite
 
 *.log
 build_logs_*.txt
+build_logs/
 
 # ── Excluded from the public GitHub repo ─────────────────────────────
 # Bundled databases are too large for git (>100 MB) — shipped via the

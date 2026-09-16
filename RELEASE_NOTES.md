@@ -1,3 +1,37 @@
+# Project-On 2.3.0
+
+**La sortie HDMI pour mélangeur vidéo : ATEM, Roland V/AV et compagnie entrent dans la régie** 🎛️ — Branchez une sortie HDMI du PC sur une entrée du mélangeur : Project-On envoie une source d'incrustation prête à l'emploi — fond vert chroma plein cadre + la section texte composée exactement comme la sortie OBS. Activez la clé chroma (vert) sur cette entrée dans le mélangeur, et seul le texte vient se poser sur la caméra. Projecteur ET mixeur peuvent travailler en même temps, chacun avec sa sortie.
+
+## Nouveautés
+
+- **Sortie HDMI / mixeur** 🎛️ : nouvelle sortie dédiée (Paramètres → Projection → Sortie HDMI / mixeur) — fond vert chroma `#00B140` plein cadre, section texte au style de la sortie OBS (mêmes réglages que la page Navigateur OBS et l'envoi NDI), bandeau d'annonces inclus, masquage « B » respecté (cadre uniforme).
+- **Incrustation ajustable avec aperçu temps réel** 🎚️ : couleur de clé au choix (vert standard, magenta ou bleu — pour quand la scène contient du vert), taille du texte de 60 à 180 %, position verticale fine (±300 px) pour éviter un habillage caméra, bandeau d'annonces inclus ou exclu — le tout réglé en direct dans la fenêtre avec un aperçu fidèle de la sortie (slide en cours ou texte de démonstration).
+- **Partie visible 100 % « key-safe »** 🛡️ : le bandeau incrusté ne contient plus aucun mélange avec la couleur de clé — panneau totalement opaque, badge et ligne de référence aplatis, accents trop proches de la clé automatiquement remplacés par un neutre. Le vert de la Bible ne « saute » plus à l'antenne : la clé du mélangeur ne garde que le fond uni.
+- **Mire de calibrage professionnelle (F8)** 📺 : barres de test, rampe de gris, zones utiles 93 % / 90 % et croix de centre pour le cadrage, bandeau d'informations (écran, résolution, couleur de clé) et pastilles des trois couleurs de clé — prélevez la pipette du mélangeur sur celle de votre choix.
+- **Écran cible + marges 16:9** 🖥️ : choisissez l'écran HDMI dans les réglages (résolution affichée, avertissement si ce n'est pas du 1920×1080) ; si l'écran n'est pas 16:9, des marges à la couleur de clé ramènent l'image au format du mélangeur — elles sont elles aussi supprimées par la clé.
+- **Curseur masqué + Windows maintenu éveillé** ⏰ : plus de pointeur de souris sur les sorties plein écran, et l'écran ne se coupe plus ni ne met en veille pendant toute la durée du service (projection locale comprise).
+- **Contrôle avant service enrichi** ✅ : le diagnostic vérifie la sortie HDMI — écran configuré encore branché, résolution adaptée à un mélangeur.
+- **Pilule HDMI dans la barre d'état** 🟢 : l'état de l'incrustation (écran en direct) est visible en permanence depuis la régie ; la sortie se rouvre automatiquement au lancement si elle était activée.
+
+## Comment brancher un mélangeur (ATEM, Roland V/AV…)
+
+1. Reliez une sortie HDMI de la carte graphique du PC à une entrée HDMI du mélangeur.
+2. Dans Windows (Affichage), réglez cet écran en **1920×1080**, mode **Étendre** (ne pas dupliiquer).
+3. Dans Project-On : Paramètres → Projection → **Sortie HDMI / mixeur** → choisissez cet écran et activez.
+4. Appuyez sur **F8** : la mire s'affiche sur la sortie — vérifiez qu'elle arrive sur la bonne entrée du mélangeur.
+5. Sur le mélangeur, activez la **clé chroma** sur cette entrée et prélevez la pipette sur la pastille de votre couleur dans la mire (vert `#00B140` par défaut, magenta et bleu disponibles) : le texte s'incruste sur la caméra.
+6. Astuce : la section texte suit le style de la sortie OBS — ajustez-le dans Diffusion & OBS → Style bandeau, la sortie HDMI l'imite immédiatement ; la couleur de clé, la taille du texte et la position verticale se règlent dans les réglages HDMI, avec aperçu en direct.
+
+Alternative sans câble : un convertisseur **NDI→HDMI** (BirdDog, Magewell…) alimente le mélangeur depuis la sortie NDI existante de Project-On.
+
+## Installation
+
+Téléchargez **`ProjectOn_2.3.0_Setup.exe`** ci-dessous et installez-le par-dessus la version existante : cantiques, playlists, réglages et base sont conservés.
+
+Windows 10 / 11 (64 bits) · fonctionne hors-ligne.
+
+---
+
 # Project-On 2.2.0
 
 **La projection passe au niveau supérieur : texte plein cadre, référence enfin séparée, taille intelligente façon PowerPoint** ✨ — Le bloc texte occupe désormais tout l'écran. La référence (Jean 3:16, titre de cantique…) vit dans sa propre zone épinglée en haut ou en bas, à taille fixe : plus jamais collée au texte ni poussée par lui. Et la taille du texte s'adapte comme dans PowerPoint — un verset court grossit pour remplir l'écran, un verset long rétrécit juste ce qu'il faut pour tenir en entier.
