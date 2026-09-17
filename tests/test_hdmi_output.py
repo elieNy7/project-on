@@ -516,3 +516,69 @@ def test_run_system_health_includes_hdmi_check(tmp_path: Path) -> None:
     )
     hdmi = [c for c in report.checks if c.key == "hdmi"]
     assert len(hdmi) == 1 and hdmi[0].status == "success"
+
+
+# ── Bandeau toujours lower third, jamais débordant ────────────────────────
+
+def _non_key_bounds(img) -> tuple[int, int]:
+    """Lignes extrêmes portant un pixel différent de la clé verte."""
+    numpy = __import__("numpy")
+    arr = numpy.asarray(img.convert("RGB")).astype(numpy.int32)
+    key = numpy.array(CHROMA_KEY_GREEN, dtype=numpy.int32)
+    dist = numpy.sqrt(((arr - key) ** 2).sum(axis=2))
+    rows = numpy.where((dist > 30).any(axis=1))[0]
+    assert rows.size > 0, "aucun contenu dessiné"
+    return int(rows.min()), int(rows.max())
+
+
+def test_mixer_forces_lower_third_even_when_obs_style_is_fullscreen(
+    tmp_path: Path,
+) -> None:
+    """La sortie HDMI est un bandeau : le mode géométrique de la page OBS
+    (plein écran, pour les paroles en direct) ne doit jamais y hériter."""
+    from app.ui.mixer_output_window import hdmi_band_config
+
+    forced = hdmi_band_config(
+        {"font_family": "Arial", "layout_mode": "fullscreen", "position": "top"}
+    )
+    assert forced["layout_mode"] == "lower_third"
+    assert forced["position"] == "bottom"
+    # Le style OBS passe bien au travers (police, couleurs…).
+    assert forced["font_family"] == "Arial"
+
+    img = render_obs_overlay_on_color(
+        forced,
+        {"text": "Car Dieu a tant aimé le monde", "reference": "Jean 3:16", "source": "bible"},
+    )
+    top, _bottom = _non_key_bounds(img)
+    # Le bandeau vit en bas : la moitié haute reste la couleur de clé.
+    assert top > img.height // 2, f"contenu dès y={top} : le bandeau déborde"
+
+
+def test_mixer_long_text_stays_confined_to_the_band(tmp_path: Path) -> None:
+    """Un texte très long rétrécit puis se tronque avec ellipse : le
+    bandeau ne recouvre jamais l'écran."""
+    from app.ui.mixer_output_window import hdmi_band_config
+
+    long_text = "\n".join(
+        f"Ligne {i} : benissez l'Eternel, vous toutes ses oeuvres," for i in range(30)
+    )
+    img = render_obs_overlay_on_color(
+        hdmi_band_config({"font_family": "Arial", "layout_mode": "lower_third"}),
+        {"text": long_text, "reference": "Psaume 103", "source": "bible"},
+    )
+    top, _bottom = _non_key_bounds(img)
+    # Zone utile : marge sûre 5 % + bord 64 px → le contenu démarre sous
+    # ~120 px, jamais au-dessus.
+    assert top >= 100, f"contenu dès y={top} : le texte déborde du bandeau"
+
+
+def test_renderer_fullscreen_mode_unchanged_for_other_outputs() -> None:
+    """Le mode plein écran reste disponible hors HDMI (page OBS, NDI) :
+    le forçage lower third vit dans la fenêtre mixeur, pas au moteur."""
+    img = render_obs_overlay_on_color(
+        {"font_family": "Arial", "layout_mode": "fullscreen"},
+        {"text": "Car Dieu a tant aimé le monde", "reference": "Jean 3:16"},
+    )
+    top, _bottom = _non_key_bounds(img)
+    assert top < 300, f"plein écran attendu près du haut, contenu à y={top}"

@@ -148,6 +148,10 @@ class OverlayStyleConfig:
     padding_vertical: int = 26
     border_radius: int = 22
     line_height: float = 1.16
+    # Plancher d'auto-ajustement : en mode bande (lower_third, subtitle),
+    # la typographie rétrécit jusqu'à cette taille plutôt que de laisser
+    # le bandeau déborder du cadre.
+    min_text_size: int = 22
     # Parité avec la page Navigateur OBS
     position: str = "bottom"  # bottom|top|center
     band_align: str = "center"  # left|center|right
@@ -214,6 +218,12 @@ class OverlayStyleConfig:
                 pass
         try:
             out.line_height = float(cfg.get("line_height") or out.line_height)
+        except Exception:
+            pass
+        try:
+            out.min_text_size = max(
+                12, min(80, int(cfg.get("min_text_size") or out.min_text_size))
+            )
         except Exception:
             pass
         out.position = str(cfg.get("position") or out.position).lower()
@@ -331,7 +341,6 @@ def render_obs_overlay(
     accent_gap = max(10, int(26 * scale))
     accent_w = max(3, int(7 * scale))
     inner_w = max(320, box_max_w - (pad_x * 2) - accent_w - accent_gap)
-    wrapped_text = _wrap_text(draw, text, font_text, inner_w)
 
     text_fill = _parse_rgba_tuple(cfg.text_color, (255, 255, 255, 242))
     ref_fill = _parse_rgba_tuple(cfg.ref_color, (255, 255, 255, 178))
@@ -387,34 +396,102 @@ def render_obs_overlay(
             255,
         )
 
-    line_spacing = max(4, int(cfg.text_size * (cfg.line_height - 1) * 0.72))
-    bbox = draw.multiline_textbbox(
-        (0, 0), wrapped_text, font=font_text, spacing=line_spacing, align="left"
+    # ── Mesure avec auto-ajustement : le bandeau ne doit JAMAIS déborder.
+    # En mode bande (lower_third, subtitle), la typographie rétrécit par
+    # pas de 10 % jusqu'à ce que le bandeau tienne dans la zone utile ;
+    # au plancher, les lignes sont tronquées avec ellipse plutôt que de
+    # recouvrir l'écran entier.
+    safe_margin = int(min(width, height) * cfg.safe_area_percent / 100)
+    margin = max(0, int(cfg.edge_margin)) + safe_margin
+    band_mode = layout_mode in ("lower_third", "subtitle")
+    available_h = (
+        max(int(height * 0.2), height - margin * 2) if band_mode else None
     )
-    text_w = (bbox[2] - bbox[0]) if bbox else 0
-    text_h = (bbox[3] - bbox[1]) if bbox else 0
+    min_text_px = max(12, int(cfg.min_text_size * scale))
 
-    ref_block = ""
-    ref_w = 0
-    ref_h = 0
-    if cfg.show_reference and ref.strip():
-        ref_block = _wrap_text(draw, ref, font_ref, inner_w)
-        ref_bbox = draw.multiline_textbbox(
-            (0, 0), ref_block, font=font_ref, spacing=4, align="left"
+    def _measure(size_text: int, size_ref: int):
+        f_text = _load_font(int(size_text))
+        f_ref = _load_font(int(size_ref))
+        spacing = max(4, int(size_text * (cfg.line_height - 1) * 0.72))
+        wrapped = _wrap_text(draw, text, f_text, inner_w)
+        bb = draw.multiline_textbbox(
+            (0, 0), wrapped, font=f_text, spacing=spacing, align="left"
         )
-        ref_w = (ref_bbox[2] - ref_bbox[0]) if ref_bbox else 0
-        ref_h = (ref_bbox[3] - ref_bbox[1]) if ref_bbox else 0
+        t_w = (bb[2] - bb[0]) if bb else 0
+        t_h = (bb[3] - bb[1]) if bb else 0
+        r_block = ""
+        r_w = 0
+        r_h = 0
+        if cfg.show_reference and ref.strip():
+            r_block = _wrap_text(draw, ref, f_ref, inner_w)
+            r_bb = draw.multiline_textbbox(
+                (0, 0), r_block, font=f_ref, spacing=4, align="left"
+            )
+            r_w = (r_bb[2] - r_bb[0]) if r_bb else 0
+            r_h = (r_bb[3] - r_bb[1]) if r_bb else 0
+        return f_text, f_ref, spacing, wrapped, t_w, t_h, r_block, r_w, r_h
+
+    def _box_height(t_h: int, r_block: str, r_h: int) -> int:
+        divider = 15 if r_block else 0
+        badge = r_h + 14 if r_block else 0
+        return max(t_h + badge + divider + pad_y * 2, int(136 * scale))
+
+    (
+        font_text,
+        font_ref,
+        line_spacing,
+        wrapped_text,
+        text_w,
+        text_h,
+        ref_block,
+        ref_w,
+        ref_h,
+    ) = _measure(cfg.text_size, cfg.ref_size)
+    box_h = _box_height(text_h, ref_block, ref_h)
+
+    if available_h is not None:
+        while box_h > available_h and cfg.text_size > min_text_px:
+            cfg.text_size = max(min_text_px, int(cfg.text_size * 0.9))
+            cfg.ref_size = max(10, int(cfg.ref_size * 0.9))
+            (
+                font_text,
+                font_ref,
+                line_spacing,
+                wrapped_text,
+                text_w,
+                text_h,
+                ref_block,
+                ref_w,
+                ref_h,
+            ) = _measure(cfg.text_size, cfg.ref_size)
+            box_h = _box_height(text_h, ref_block, ref_h)
+
+        if box_h > available_h and wrapped_text:
+            # Dernier recours : raccourcir le texte avec ellipse — le
+            # bandeau reste dans la zone utile, quoi qu'il arrive.
+            lines = wrapped_text.split("\n")
+            while len(lines) > 1 and box_h > available_h:
+                lines = lines[:-1]
+                candidate = "\n".join(lines) + " …"
+                bb = draw.multiline_textbbox(
+                    (0, 0),
+                    candidate,
+                    font=font_text,
+                    spacing=line_spacing,
+                    align="left",
+                )
+                text_w = (bb[2] - bb[0]) if bb else 0
+                text_h = (bb[3] - bb[1]) if bb else 0
+                box_h = _box_height(text_h, ref_block, ref_h)
+                wrapped_text = candidate
 
     divider_gap = 15 if ref_block else 0
     ref_badge_h = ref_h + 14 if ref_block else 0
     content_w = min(inner_w, max(text_w, ref_w + 42, 340))
     box_w = min(box_max_w, content_w + pad_x * 2 + accent_w + accent_gap)
-    box_h = text_h + ref_badge_h + divider_gap + pad_y * 2
-    box_h = max(box_h, int(136 * scale))
 
     # ── Placement du bandeau (position + band_align + décalages fins) ──
-    safe_margin = int(min(width, height) * cfg.safe_area_percent / 100)
-    margin = max(0, int(cfg.edge_margin)) + safe_margin
+    # (la marge est déjà calculée par le bloc d'auto-ajustement)
     if layout_mode == "fullscreen":
         box_w = width - (margin * 2)
         box_h = height - (margin * 2)

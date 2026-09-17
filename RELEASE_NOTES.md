@@ -11,6 +11,7 @@
 - **Recherche qui ne traîne plus** 🔎 : une recherche rapide ne peut plus être écrasée par le résultat d'une recherche plus lente lancée juste avant.
 - **Paramètres blindés** 🔐 : le mot de passe OBS n'est plus jamais écrit en clair (chiffré pour votre session Windows) ; un fichier de paramètres corrompu est récupéré depuis la dernière sauvegarde valide, avec un avertissement à l'ouverture — plus de retour silencieux aux valeurs par défaut.
 - **Sorties sécurisées** 🌐 : le serveur de la page OBS n'écoute plus que sur ce PC (127.0.0.1) ; la page est protégée contre l'injection de script via les annonces ; l'incrustation NDI arrête proprement ses ressources, sans destruction concurrente.
+- **Sortie HDMI : toujours un bandeau** 📺 : l'incrustation pour mélangeur reste un lower third, quel que soit le mode géométrique choisi pour la page OBS (plein écran des paroles compris) ; un texte très long rétrécit puis se raccourcit avec ellipse au lieu de recouvrir l'écran.
 - **Détails qui comptent** ✨ : la projection s'ouvre directement sur l'écran configuré (plus de flash sur le mauvais écran au lancement) ; deux médias de même nom ne s'écrasent plus ; une installation interrompue ne bloque plus les démarrages suivants ; l'installeur NDI vérifie la signature du téléchargement avant de l'exécuter.
 
 ## Installation

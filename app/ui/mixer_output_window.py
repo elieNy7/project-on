@@ -43,10 +43,28 @@ from app.utils.obs_overlay_render import (
     render_obs_overlay_on_color,
 )
 
-__all__ = ["MixerOutputWindow", "letterbox_rect", "CHROMA_KEY_GREEN"]
+__all__ = [
+    "MixerOutputWindow",
+    "letterbox_rect",
+    "hdmi_band_config",
+    "CHROMA_KEY_GREEN",
+]
 
 # Libellés de la mire pour chaque couleur de clé.
 KEY_COLOR_LABELS = {"green": "VERT", "magenta": "MAGENTA", "blue": "BLEU"}
+
+
+def hdmi_band_config(cfg: dict[str, Any] | None) -> dict[str, Any]:
+    """Config de composition du bandeau HDMI : TOUJOURS le lower third.
+
+    La sortie mixeur incruste un bandeau sur la caméra : le mode
+    géométrique choisi pour la page OBS (plein écran, panneau…) n'y
+    hérite jamais. L'ajustement vertical fin reste ``offset_y``.
+    """
+    out = dict(cfg or {})
+    out["layout_mode"] = "lower_third"
+    out["position"] = "bottom"
+    return out
 
 
 def letterbox_rect(width: int, height: int) -> QRect:
@@ -341,7 +359,7 @@ class MixerOutputWindow(QWidget):
     def _apply_slide(self, slide: dict[str, Any]) -> None:
         """Re-compose le cadre : couleur de clé + section texte façon OBS."""
         img = render_obs_overlay_on_color(
-            self._last_cfg,
+            hdmi_band_config(self._last_cfg),
             slide,
             bg_rgba=(*self._key_rgb, 255),
             width=self.RENDER_WIDTH,
