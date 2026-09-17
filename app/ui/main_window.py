@@ -103,6 +103,13 @@ class MainWindow(QMainWindow):
         self._announcements.set_seconds_per_slide(
             self._settings.ticker.announcement_seconds
         )
+        # Toute activation manuelle (bible, cantique, sermon, exposé, média)
+        # remplace le live : la boucle d'annonces en cours est closue sans
+        # restauration — le nouveau programme devient le live, sans écrasement
+        # par le slide d'annonce suivant.
+        self._project_controller.set_before_manual_load(
+            self._abandon_announcements_for_manual_load
+        )
 
         # Remote OBS control (obs-websocket 5.x) — scene switching on live/hide
         from app.utils.obs_websocket import ObsRemoteClient
@@ -224,10 +231,6 @@ class MainWindow(QMainWindow):
                 )
             if hasattr(self.library_panel.settings_tab, "aboutRequested"):
                 self.library_panel.settings_tab.aboutRequested.connect(self._show_about)
-            if hasattr(self.library_panel.settings_tab, "settingsApplied"):
-                self.library_panel.settings_tab.settingsApplied.connect(
-                    self._apply_settings_from_settings_tab
-                )
             if hasattr(self.library_panel.settings_tab, "preflightRequested"):
                 self.library_panel.settings_tab.preflightRequested.connect(
                     self._show_preflight_dialog
@@ -378,9 +381,7 @@ class MainWindow(QMainWindow):
             QTimer.singleShot(300, self._open_mixer_window)
 
         # Responsive: allow window to shrink on small screens
-        self.setMinimumSize(900, 550)
-
-        # Adapt initial size to screen resolution
+        self.setMinimumSize(900, 550)        # Adapt initial size to screen resolution
         screen = QApplication.primaryScreen()
         if screen:
             avail = screen.availableGeometry()
@@ -389,6 +390,40 @@ class MainWindow(QMainWindow):
             self.resize(w, h)
         else:
             self.resize(1400, 820)
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        if not getattr(self, "_startup_feedback_scheduled", False):
+            self._startup_feedback_scheduled = True
+            QTimer.singleShot(0, self._show_startup_warning)
+
+    def _show_startup_warning(self) -> None:
+        warning = self._settings.load_warning
+        if warning:
+            self._show_operator_warning("Paramètres à vérifier", warning)
+
+    def _show_operator_warning(self, title: str, message: str) -> None:
+        """Retour non bloquant : la régie reste utilisable, texte sans HTML."""
+        box = QMessageBox(QMessageBox.Icon.Warning, title, message,
+                          QMessageBox.StandardButton.Ok, self)
+        box.setTextFormat(Qt.TextFormat.PlainText)
+        box.setWindowModality(Qt.WindowModality.NonModal)
+        box.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        box.show()
+
+    def _save_settings(self) -> bool:
+        try:
+            self._settings.save(self._settings_path)
+        except Exception:
+            log.exception("Impossible d'enregistrer les paramètres")
+            self._show_operator_warning(
+                "Paramètres non enregistrés",
+                "Les réglages restent actifs pour cette session mais leur sauvegarde a échoué. "
+                "Vérifiez l'espace disque, les droits d'accès et le profil Windows, "
+                "puis réessayez avant de quitter.",
+            )
+            return False
+        return True
 
     def _poll_obs_status(self) -> None:
         """Vérifie le statut OBS et met à jour la barre de statut.
@@ -456,9 +491,10 @@ class MainWindow(QMainWindow):
         """
         fw = QApplication.focusWidget()
         # Les annonces en boucle cèdent immédiatement à toute action manuelle.
+        # La boucle s'arrête ET la touche agit d'emblée sur le live restauré —
+        # l'opérateur n'a pas besoin d'un second appui pour naviguer.
         if self._announcements.is_active:
             self._announcements.stop()
-            return
         if fw is not None and self.library_panel.isAncestorOf(fw):
             tabs = getattr(self.library_panel, "tabs", None)
             current = tabs.currentWidget() if tabs is not None else None
@@ -677,7 +713,7 @@ class MainWindow(QMainWindow):
                 self._settings.projection.bg_image,
                 self._settings.projection.bg_image_fit,
             )
-            self._settings.save(self._settings_path)
+            self._save_settings()
             self.preview_panel.set_settings(self._settings)
             self._refresh_settings_details()
         else:
@@ -732,7 +768,7 @@ class MainWindow(QMainWindow):
             self._settings.theme_assignments = assignments
             self._settings.active_theme_id = active_id
             self._settings.projection = active_style
-            self._settings.save(self._settings_path)
+            self._save_settings()
             self._write_presentation_config()
             self.preview_panel.set_settings(self._settings)
             self._refresh_settings_details()
@@ -756,7 +792,7 @@ class MainWindow(QMainWindow):
         if updated is None:
             return
         self._settings.obs = updated
-        self._settings.save(self._settings_path)
+        self._save_settings()
         self._obs.update_settings(updated)
         self._obs_remote.apply_settings(updated.remote)
         self._refresh_settings_details()
@@ -777,7 +813,7 @@ class MainWindow(QMainWindow):
 
         if dlg.exec() == QDialog.DialogCode.Accepted:
             self._settings.obs = dlg.get_obs_settings()
-            self._settings.save(self._settings_path)
+            self._save_settings()
             self._write_obs_config()
             self._obs.update_settings(self._settings.obs)
             self._refresh_settings_details()
@@ -801,7 +837,7 @@ class MainWindow(QMainWindow):
         theme, language = result
         self._settings.appearance.theme = theme
         self._settings.appearance.language = language
-        self._settings.save(self._settings_path)
+        self._save_settings()
 
         self._refresh_settings_details()
 
@@ -849,7 +885,17 @@ class MainWindow(QMainWindow):
         self._update_stage()
 
     def _sync_expose_highlight(self, row: int) -> None:
-        """Suit la projection dans l'onglet Exposé quand un chapitre est en direct."""
+        """Suit la projection dans l'onglet Exposé quand un chapitre est en direct.
+
+        Pendant la boucle d'annonces le live affiche des annonces : le
+        surlignage Exposé est suspendu ; l'arrêt de la boucle restitue
+        l'état du live (activeChanged(False) émis AVANT restore_live_state),
+        donc le suivi reprend sur les changements de slide suivants.
+        """
+        if self._announcements.is_active or getattr(
+            self, "_starting_announcements", False
+        ):
+            return
         try:
             chapter_id = self._library_controller.live_expose_chapter_id()
         except AttributeError:
@@ -864,7 +910,7 @@ class MainWindow(QMainWindow):
     def _on_reference_position_toggled(self, top: bool) -> None:
         """Bouton rapide Réf haut/bas : persiste et applique immédiatement."""
         self._settings.projection.reference_position = "top" if top else "bottom"
-        self._settings.save(self._settings_path)
+        self._save_settings()
         self._write_presentation_config()
         cfg = self._settings.projection.to_presentation_config()
         if self._projection_window is not None and self._projection_window.isVisible():
@@ -1025,7 +1071,7 @@ class MainWindow(QMainWindow):
         if dlg.exec() != QDialog.DialogCode.Accepted:
             return
         self._settings.ticker = dlg.get_settings()
-        self._settings.save(self._settings_path)
+        self._save_settings()
         # Diffusion partout : projection locale (config.json), sources
         # Navigateur OBS (config serveur) et sortie NDI (obs-config.json).
         self._write_presentation_config()
@@ -1034,6 +1080,16 @@ class MainWindow(QMainWindow):
         self._refresh_settings_details()
 
     # ── Boucle d'annonces ──────────────────────────────────────────────────
+
+    def _abandon_announcements_for_manual_load(self) -> None:
+        """Crochet « chargement manuel » : clos la boucle sans restauration.
+
+        Appelé par ProjectOnController avant tout load_program demandé par
+        l'opérateur. Sans ceci, la boucle active continuerait d'écraser le
+        nouveau programme au tick suivant.
+        """
+        if self._announcements.is_active:
+            self._announcements.abandon()
 
     def _toggle_announcements(self) -> None:
         if self._announcements.is_active:
@@ -1044,7 +1100,15 @@ class MainWindow(QMainWindow):
                 self, tr("announcement_loop"), tr("announcement_no_playlist")
             )
             return
-        if not self._announcements.start():
+        # load_program() publie les slides d'annonces AVANT que is_active()
+        # passe à True : suspend localement le suivi Exposé pendant ce
+        # démarrage pour ne pas surligner une annonce dans l'onglet Exposé.
+        self._starting_announcements = True
+        try:
+            started = self._announcements.start()
+        finally:
+            self._starting_announcements = False
+        if not started:
             QMessageBox.information(
                 self, tr("announcement_loop"), tr("announcement_no_playlist")
             )
@@ -1057,7 +1121,7 @@ class MainWindow(QMainWindow):
             self._announcements._seconds_per_slide
         )
         self._announcements.set_folder(folder_id)
-        self._settings.save(self._settings_path)
+        self._save_settings()
         QMessageBox.information(
             self, tr("announcement_loop"), tr("announcement_set_done")
         )
@@ -1134,7 +1198,7 @@ class MainWindow(QMainWindow):
 
         if dlg.exec() == QDialog.DialogCode.Accepted:
             self._apply_hdmi_settings(dlg.read_settings())
-            self._settings.save(self._settings_path)
+            self._save_settings()
         else:
             # Annulé : retour à l'état d'origine (fenêtre, écran, letterbox).
             self._apply_hdmi_settings(original)
@@ -1245,7 +1309,7 @@ class MainWindow(QMainWindow):
         if dlg.exec() != QDialog.DialogCode.Accepted:
             return
         self._settings.stage = dlg.get_settings()
-        self._settings.save(self._settings_path)
+        self._save_settings()
         if self._stage_window is not None:
             self._stage_window.apply_settings(self._settings.stage)
 

@@ -309,26 +309,54 @@ class HymnsDao:
 
             return hymn_id  # type: ignore
 
+    @staticmethod
+    def _identity_text(value: str) -> str:
+        import unicodedata
+        return " ".join(unicodedata.normalize("NFC", value).split()).casefold()
+
     def hymn_exists(self, title: str) -> bool:
+        """Exact normalized title identity, never substring/search-key matching.
+
+        Case and repeated whitespace are ignored; accents and punctuation are
+        significant. Existing callers therefore no longer reject Grâce merely
+        because Grâce infinie exists. Explicit duplicate imports remain allowed.
+        """
+        key = self._identity_text(title)
+        if not key:
+            return False
         with self._db.connect() as conn:
-            has_title_search = self._has_column(conn, "hymn", "title_search")
-            if has_title_search:
-                key = Database._search_key(title)
-                row = conn.execute(
-                    """
-                    SELECT 1
-                    FROM hymn
-                    WHERE title = ? OR title_search LIKE ?
-                    LIMIT 1
-                    """,
-                    (title, f"%{key}%"),
-                ).fetchone()
-            else:
-                row = conn.execute(
-                    "SELECT 1 FROM hymn WHERE title = ? LIMIT 1",
-                    (title,),
-                ).fetchone()
-            return row is not None
+            return any(self._identity_text(row[0]) == key
+                       for row in conn.execute("SELECT title FROM hymn"))
+
+    def exact_duplicate_exists(self, title: str, stanzas: list[str]) -> bool:
+        """True si un cantique d'identité exacte existe déjà.
+
+        L'identité exacte compare le titre normalisé (insensible à la casse et
+        aux espaces répétés) ET la suite exacte des strophes. Un titre contenu
+        dans un autre (« Grâce » vs « Grâce infinie ») ou un contenu différent
+        sous un titre identique ne constituent pas un doublon exact —
+        contrairement à :meth:`hymn_exists`, qui vérifie maintenant l'identité
+        exacte du titre seul.
+        """
+        key = self._identity_text(title)
+        if not key:
+            return False
+        normalized_stanzas = [self._identity_text(text) for text in stanzas]
+        with self._db.connect() as conn:
+            candidates = conn.execute("SELECT id, title FROM hymn").fetchall()
+
+            for candidate in candidates:
+                if self._identity_text(candidate["title"]) != key:
+                    continue
+                rows = conn.execute(
+                    "SELECT text FROM hymn_stanza WHERE hymn_id = ? "
+                    "ORDER BY stanza_no",
+                    (int(candidate["id"]),),
+                ).fetchall()
+                stored = [self._identity_text(r["text"]) for r in rows]
+                if stored == normalized_stanzas:
+                    return True
+            return False
 
     def _rebuild_fts(self, conn: sqlite3.Connection) -> None:
         """Recreate the contentless hymn FTS index from ``hymn_stanza``.

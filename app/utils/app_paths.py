@@ -4,7 +4,10 @@ import json
 import logging
 import os
 import shutil
+import sqlite3
 import sys
+import tempfile
+import uuid
 from pathlib import Path
 
 log = logging.getLogger(__name__)
@@ -216,19 +219,65 @@ def media_dir() -> Path:
     return d
 
 
+def _content_identity(path: Path) -> str:
+    """Empreinte stable du contenu d'un fichier (SHA-256 hexadécimal)."""
+    import hashlib
+
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def import_media_file(source: str | Path) -> Path | None:
-    """Copie un média dans la bibliothèque utilisateur (dédupliqué).
+    """Copie un média dans la bibliothèque utilisateur (dédupliqué par contenu).
 
     Retourne le chemin de la copie, ou None si la source est absente.
-    Un fichier de même nom et même taille déjà présent est réutilisé.
+
+    La déduplication repose sur l'identité du contenu (SHA-256), jamais sur le
+    couple nom/taille : deux fichiers différents ne peuvent plus s'écraser
+    mutuellement. Chaque copie est effectuée dans un fichier temporaire du
+    dossier cible puis publiée par renommage atomique : une copie interrompue
+    ne laisse jamais un fichier tronqué sous un nom définitif.
     """
     src = Path(str(source))
     if not src.is_file():
         return None
-    dest = media_dir() / src.name
-    if not dest.exists() or dest.stat().st_size != src.stat().st_size:
-        shutil.copy2(src, dest)
-    return dest
+
+    identity = _content_identity(src)
+    library = media_dir()
+    library.mkdir(parents=True, exist_ok=True)
+
+    # Include legacy filenames; equal size alone is never an identity check.
+    for candidate in sorted(library.iterdir()):
+        if (candidate.is_file() and not candidate.name.startswith(".importing-")
+                and candidate.suffix.lower() == src.suffix.lower()
+                and candidate.stat().st_size == src.stat().st_size
+                and _content_identity(candidate) == identity):
+            return candidate
+
+    dest = library / f"{src.stem[:80]}__{identity}{src.suffix.lower()}"
+    if dest.is_file():
+        # Un import précédent, même avec un autre nom source, a déjà publié
+        # exactement ce contenu.
+        if _content_identity(dest) == identity:
+            return dest
+        dest = library / f"{src.stem[:80]}__{uuid.uuid4().hex}{src.suffix.lower()}"
+
+    fd, name = tempfile.mkstemp(prefix=".importing-", dir=library)
+    os.close(fd)
+    temporary = Path(name)
+    try:
+        shutil.copy2(src, temporary)
+        if _content_identity(temporary) != identity:
+            raise OSError(f"Copie média incohérente : {src.name}")
+        with temporary.open("rb+") as handle:
+            os.fsync(handle.fileno())
+        os.replace(temporary, dest)
+        return dest
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def seed_default_backgrounds() -> None:
@@ -294,11 +343,37 @@ def seed_default_backgrounds() -> None:
         log.error("Error writing backgrounds marker: %s", e)
 
 
+def _sqlite_ok(path: Path) -> bool:
+    """Contrôle d'intégrité rapide d'un fichier base SQLite.
+
+    Toute connexion est fermée avant le retour : sur Windows, un descripteur
+    laissé ouvert empêcherait le renommage atomique suivant.
+    """
+    conn = None
+    try:
+        conn = sqlite3.connect(f"file:{path.as_posix()}?mode=ro", uri=True)
+        row = conn.execute("PRAGMA quick_check").fetchone()
+        return bool(row) and str(row[0]).lower() == "ok"
+    except sqlite3.Error:
+        return False
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except sqlite3.Error:
+                pass
+
+
 def ensure_data_initialized() -> None:
     """Ensure that the data directory and initial databases exist in AppData.
 
     If running as a bundled app and the database doesn't exist in AppData,
     copy the initial databases from the bundled resources.
+
+    Chaque copie est publiée par renommage atomique après vérification
+    d'intégrité : une interruption ne laisse jamais une base tronquée sous le
+    nom définitif, et la reprise est possible au lancement suivant. Une base
+    utilisateur existante n'est jamais remplacée en silence.
     """
     target_dir = data_dir()
     target_dir.mkdir(parents=True, exist_ok=True)
@@ -316,11 +391,35 @@ def ensure_data_initialized() -> None:
             continue
 
         dst_file = target_dir / src_file.name
-        if not dst_file.exists():
+        if dst_file.exists():
+            if _sqlite_ok(dst_file):
+                continue
+            # Base présente mais illisible : on ne sait pas distinguer un
+            # fichier utilisateur corrompu d'un vestige de copie interrompue.
+            # Par prudence, ne jamais remplacer en silence : l'erreur sera
+            # remontée par l'ouverture applicative de la base.
+            log.error(
+                "Base %s illisible : amorçage ignoré (aucun remplacement "
+                "silencieux)",
+                dst_file.name,
+            )
+            continue
+
+        temporary = target_dir / f"{src_file.name}.bootstrap-{os.getpid()}"
+        try:
+            shutil.copy2(src_file, temporary)
+            if not _sqlite_ok(temporary):
+                raise OSError(
+                    f"La base amorcée {src_file.name} a échoué au contrôle "
+                    "d'intégrité"
+                )
+            os.replace(temporary, dst_file)
+        except Exception as e:
+            log.error("Error copying initial data file %s: %s", src_file.name, e)
             try:
-                shutil.copy2(src_file, dst_file)
-            except Exception as e:
-                log.error("Error copying initial data file %s: %s", src_file.name, e)
+                temporary.unlink()
+            except OSError:
+                pass
 
 
 # Version du pack de données éditorial embarqué dans l'installeur.
@@ -340,14 +439,20 @@ def upgrade_data_pack(target_path: Path, bundled_path: Path) -> bool:
     antérieur à :data:`DATA_PACK_VERSION`, les lignes BK-AGES sont remplacées
     depuis la base embarquée dans une transaction atomique. Retourne True si
     une migration a été appliquée.
-    """
-    import sqlite3
 
+    Fiabilité : la reconstruction de l'index FTS des sermons est exécutée dans
+    la même transaction que le remplacement de contenu — l'index ne peut plus
+    rester obsolète après un remplacement à nombre de lignes identique. Le
+    marqueur de maintenance de démarrage est retiré de la transaction pour
+    replanifier la resynchronisation complète (titres, marqueurs) au prochain
+    lancement ; une sauvegarde de la base est prise avant migration.
+    """
     if not target_path.is_file() or not bundled_path.is_file():
         return False
+
     connection = None
     try:
-        connection = sqlite3.connect(target_path, timeout=120.0)
+        connection = sqlite3.connect(target_path, timeout=120.0, uri=True)
         row = connection.execute(
             "SELECT value FROM app_meta WHERE key = 'data_pack_version'"
         ).fetchone()
@@ -358,8 +463,29 @@ def upgrade_data_pack(target_path: Path, bundled_path: Path) -> bool:
             except (TypeError, ValueError):
                 pass
 
+        if target_path.resolve() == bundled_path.resolve():
+            return False
+        connection.execute("PRAGMA foreign_keys=ON")
+        connection.execute("ATTACH DATABASE ? AS pack", (bundled_path.resolve().as_uri() + "?mode=ro",))
+        if connection.execute("PRAGMA pack.quick_check").fetchone()[0] != "ok":
+            raise ValueError("Pack illisible")
+        chapters = connection.execute(
+            "SELECT date, tradition, COUNT(*) FROM pack.sermon "
+            "WHERE date LIKE 'BK-AGES-%' GROUP BY date, tradition"
+        ).fetchall()
+        if not chapters or any(row[2] != 1 for row in chapters):
+            raise ValueError("Pack vide ou chapitres ambigus")
+        if connection.execute(
+            "SELECT 1 FROM pack.sermon s WHERE s.date LIKE 'BK-AGES-%' AND "
+            "(trim(s.title)='' OR NOT EXISTS (SELECT 1 FROM pack.sermon_paragraph p "
+            "WHERE p.sermon_id=s.id AND trim(p.text) != '')) LIMIT 1"
+        ).fetchone():
+            raise ValueError("Pack incomplet")
+        from app.utils.backup_manager import create_database_backup
+        create_database_backup(target_path, target_path.with_name(
+            target_path.name + ".pre-datapack-" + uuid.uuid4().hex + ".db"))
+        connection.row_factory = sqlite3.Row
         connection.execute("BEGIN IMMEDIATE")
-        connection.execute("ATTACH DATABASE ? AS pack", (str(bundled_path),))
         connection.execute(
             """
             DELETE FROM sermon_paragraph
@@ -401,6 +527,12 @@ def upgrade_data_pack(target_path: Path, bundled_path: Path) -> bool:
             SELECT m.new_id, p.paragraph_no, p.ref, p.text, p.marker
             FROM pack.sermon_paragraph p
             JOIN _pack_map m ON m.old_id = p.sermon_id
+            WHERE NOT EXISTS (
+                SELECT 1 FROM pack.sermon_paragraph q
+                JOIN _pack_map n ON n.old_id = q.sermon_id
+                WHERE n.new_id = m.new_id AND q.paragraph_no = p.paragraph_no
+                  AND p.rowid < q.rowid
+            )
             """
         )
         connection.execute("DROP TABLE _pack_map")
@@ -411,9 +543,45 @@ def upgrade_data_pack(target_path: Path, bundled_path: Path) -> bool:
             """,
             (str(DATA_PACK_VERSION),),
         )
+        # Index de recherche : reconstruit dans la même transaction que le
+        # remplacement de contenu, pour que le résultat des recherches reflète
+        # immédiatement le nouveau contenu.
+        fts_exists = connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' "
+            "AND name='sermon_paragraph_fts'"
+        ).fetchone()
+        if fts_exists:
+            connection.execute("DROP TABLE IF EXISTS sermon_paragraph_fts")
+            connection.execute(
+                "CREATE VIRTUAL TABLE sermon_paragraph_fts USING fts5("
+                "text, ref, sermon_title, canonical_title, "
+                "content='', detail=none, "
+                "tokenize='unicode61 remove_diacritics 2')"
+            )
+            connection.execute(
+                """
+                INSERT INTO sermon_paragraph_fts
+                    (rowid, text, ref, sermon_title, canonical_title)
+                SELECT
+                    p.id,
+                    p.text,
+                    COALESCE(p.ref, ''),
+                    s.title,
+                    COALESCE(NULLIF(s.canonical_title, ''), s.title)
+                FROM sermon_paragraph p
+                JOIN sermon s ON s.id = p.sermon_id
+                """
+            )
+        # Marqueur durable : retirer le repère de maintenance terminée pour que
+        # le prochain démarrage resynchronise titres canoniques et index. Ceci
+        # fait partie de la transaction : si la migration échoue, le marqueur
+        # reste en place.
+            connection.execute(
+                "DELETE FROM app_meta WHERE key = 'startup_maintenance_version'"
+            )
         connection.execute("COMMIT")
-        connection.execute("DETACH DATABASE pack")
-        log.info("Data pack v%s appliqué à %s", DATA_PACK_VERSION, target_path)
+        # Le verrou d'écriture est libéré : publiée ou non, la sauvegarde
+        # pré-migration doit refléter la base d'origine vérifiée.
         return True
     except sqlite3.Error as error:
         log.error("Data pack upgrade impossible : %s", error)

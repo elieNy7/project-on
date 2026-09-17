@@ -101,7 +101,9 @@ class ProjectionWindow(SlideCanvas):
         self.setCursor(Qt.CursorShape.BlankCursor)
         self._power_held = False
 
-        self._apply_best_screen_fullscreen()
+        initial_config = self._read_json(self._config_path) or {}
+        preferred_screen = str(initial_config.get("display_screen") or "auto")
+        self._apply_best_screen_fullscreen(preferred_screen)
         self._tick()
 
         # Close on Escape or F11

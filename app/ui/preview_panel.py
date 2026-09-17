@@ -697,11 +697,21 @@ class PreviewPanel(QFrame):
             self._stage_button.setChecked(bool(active))
 
     def set_announcement_active(self, active: bool) -> None:
-        """Réflète l'état de la boucle d'annonces sur le bouton."""
+        """Réflète l'état de la boucle d'annonces sur le bouton.
+
+        Actif : le bouton devient l'action « Arrêter » (flèche stop) — un
+        appui ou une flèche de navigation arrête la boucle et restaure le
+        live. Inactif : retour au libellé « Annonces ».
+        """
         with QSignalBlocker(self._announce_button):
             self._announce_button.setChecked(bool(active))
-        # État porté par le style « checked » : libellé identique dans les
-        # deux cas pour garder la console compacte.
+        self._announce_button.setToolTip(
+            tr("announcements_stop_hint") if active else tr("announcement_loop")
+        )
+        self._announce_button.setAccessibleName(
+            tr("announcements_stop_hint") if active else tr("announcement_loop")
+        )
+        # État porté par le style « checked » : garder la console compacte.
 
     def set_project_active(self, active: bool) -> None:
         self._project_active = active

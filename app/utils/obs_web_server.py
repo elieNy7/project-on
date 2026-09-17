@@ -7,6 +7,7 @@ notifications are sent OUTSIDE the data lock to prevent deadlocks.
 
 import json
 import logging
+import os
 import queue
 import re
 import socket
@@ -20,6 +21,59 @@ from urllib.parse import urlparse
 from app.utils.app_paths import ensure_presentation_workdir
 
 log = logging.getLogger(__name__)
+
+FILE_BLOCK_SIZE = 64 * 1024
+SOCKET_TIMEOUT = 10.0
+SSE_HEARTBEAT = 5.0
+MAX_SSE_LISTENERS = 16
+
+
+def _inline_json(value: Any) -> str:
+    """JSON safe in an HTML script raw-text element (not HTML entities)."""
+    result = json.dumps(value, ensure_ascii=False)
+    for char in ("<", ">", "&", "\u2028", "\u2029"):
+        result = result.replace(char, f"\\u{ord(char):04x}")
+    return result
+
+
+def _byte_range(header: str, total: int) -> tuple[int, int]:
+    """Parse one byte range; reject unsupported/malformed/unsatisfiable ranges."""
+    match = re.fullmatch(r"bytes=([0-9]*)-([0-9]*)", header)
+    if not match or not any(match.groups()) or total <= 0:
+        raise ValueError("Invalid range")
+    first, last = match.groups()
+    if first:
+        start = int(first)
+        end = min(int(last), total - 1) if last else total - 1
+    else:
+        length = int(last)
+        if length <= 0:
+            raise ValueError("Invalid suffix")
+        start, end = max(0, total - length), total - 1
+    if start > end or start >= total:
+        raise ValueError("Unsatisfiable range")
+    return start, end
+
+
+def _copy_blocks(source, target, length: int) -> None:
+    while length > 0:
+        block = source.read(min(FILE_BLOCK_SIZE, length))
+        if not block:
+            break
+        target.write(block)
+        length -= len(block)
+
+
+def _offer_latest(q: queue.Queue, payload: Any) -> None:
+    """Caller serializes producers with _listeners_lock; never block the UI."""
+    try:
+        q.put_nowait(payload)
+    except queue.Full:
+        try:
+            q.get_nowait()
+        except queue.Empty:
+            pass
+        q.put_nowait(payload)
 
 
 class _QuietThreadingHTTPServer(ThreadingHTTPServer):
@@ -64,7 +118,11 @@ class _QuietThreadingHTTPServer(ThreadingHTTPServer):
 class ObsWebServer:
     """HTTP server for OBS Browser Source with SSE push."""
 
-    def __init__(self, port: int = 8080) -> None:
+    def __init__(self, port: int = 8080, host: str = "127.0.0.1") -> None:
+        # LAN binding is an explicit opt-in; this server has no authentication.
+        if not isinstance(host, str) or not host.strip():
+            raise ValueError("An explicit non-empty OBS bind host is required")
+        self._host = host.strip()
         self._port = port
         self._server: ThreadingHTTPServer | None = None
         self._thread: threading.Thread | None = None
@@ -85,6 +143,20 @@ class ObsWebServer:
         log.info("[OBS] Server init (SSE Mode) - port=%s base=%s", port, self._base_dir)
 
     # ── Properties ─────────────────────────────────────────────────────────
+
+    @property
+    def host(self) -> str:
+        return self._host
+
+    @host.setter
+    def host(self, value: str) -> None:
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError("An explicit non-empty OBS bind host is required")
+        value = value.strip()
+        if self._host != value:
+            self._host = value
+            if self.is_running():
+                self.restart()
 
     @property
     def port(self) -> int:
@@ -116,8 +188,8 @@ class ObsWebServer:
                 pass
 
             def setup(self):
+                self.request.settimeout(SOCKET_TIMEOUT)
                 super().setup()
-                self._write_lock = threading.Lock()
 
             # ── Routing ────────────────────────────────────────────────
 
@@ -243,9 +315,7 @@ class ObsWebServer:
                     cfg = server_ref._config.copy()
                     slide = server_ref._slide.copy()
 
-                init_json = json.dumps(
-                    {"config": cfg, "slide": slide}, ensure_ascii=False
-                )
+                init_json = _inline_json({"config": cfg, "slide": slide})
 
                 # Inject CSS and JS inline to avoid OBS cache issues
                 html = html_template.replace(
@@ -268,51 +338,54 @@ class ObsWebServer:
 
             def _serve_sse_stream(self):
                 """Serve Server-Sent Events (SSE) stream for real-time updates."""
-                self.send_response(200)
-                self.send_header("Content-Type", "text/event-stream")
-                self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
-                self.send_header("Connection", "keep-alive")
-                self.send_header("Access-Control-Allow-Origin", "*")
-                self.end_headers()
-
-                q = queue.Queue()
+                q = queue.Queue(maxsize=1)
                 with server_ref._listeners_lock:
+                    if len(server_ref._listeners) >= MAX_SSE_LISTENERS:
+                        self.send_error(503, "Too many event subscribers")
+                        return
                     server_ref._listeners.append(q)
+                try:
+                    self._stream_events(q)
+                except (OSError, TimeoutError):
+                    pass
+                finally:
+                    with server_ref._listeners_lock:
+                        if q in server_ref._listeners:
+                            server_ref._listeners.remove(q)
 
+            def _stream_events(self, q):
                 # Push initial state immediately
                 with server_ref._data_lock:
                     initial_payload = {
                         "config": server_ref._config.copy(),
                         "slide": server_ref._slide.copy(),
                     }
-                try:
-                    self.wfile.write(f"data: {json.dumps(initial_payload, ensure_ascii=False)}\n\n".encode("utf-8"))
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream")
+                self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+                self.send_header("Connection", "keep-alive")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(
+                    f"data: {json.dumps(initial_payload, ensure_ascii=False)}\n\n".encode(
+                        "utf-8"
+                    )
+                )
+                self.wfile.flush()
+                while server_ref.is_running():
+                    try:
+                        payload = q.get(timeout=SSE_HEARTBEAT)
+                        if payload is None:
+                            break
+                        self.wfile.write(
+                            f"data: {json.dumps(payload, ensure_ascii=False)}\n\n".encode(
+                                "utf-8"
+                            )
+                        )
+                    except queue.Empty:
+                        payload = None
+                    self.wfile.write(b": ping\n\n")
                     self.wfile.flush()
-                except Exception:
-                    with server_ref._listeners_lock:
-                        if q in server_ref._listeners:
-                            server_ref._listeners.remove(q)
-                    return
-
-                try:
-                    while server_ref.is_running():
-                        try:
-                            # 15-second timeout for keepalive ping
-                            payload = q.get(timeout=15.0)
-                            if payload is None:
-                                break
-
-                            self.wfile.write(f"data: {json.dumps(payload, ensure_ascii=False)}\n\n".encode("utf-8"))
-                            self.wfile.flush()
-                        except queue.Empty:
-                            self.wfile.write(b": ping\n\n")
-                            self.wfile.flush()
-                except Exception:
-                    pass
-                finally:
-                    with server_ref._listeners_lock:
-                        if q in server_ref._listeners:
-                            server_ref._listeners.remove(q)
 
 
             # ── Helpers ────────────────────────────────────────────────
@@ -346,16 +419,21 @@ class ObsWebServer:
                         fpath.suffix.lower(), "application/octet-stream"
                     )
                 try:
-                    body = fpath.read_bytes()
-                    self.send_response(200)
-                    self.send_header("Content-Type", ctype)
-                    self.send_header("Content-Length", str(len(body)))
-                    self.send_header("Access-Control-Allow-Origin", "*")
-                    self.send_header("Cache-Control", "no-cache")
-                    self.end_headers()
-                    self.wfile.write(body)
-                except Exception as exc:
-                    self.send_error(500, str(exc))
+                    fh = fpath.open("rb")
+                except OSError:
+                    self.send_error(404)
+                    return
+                try:
+                    with fh:
+                        length = os.fstat(fh.fileno()).st_size
+                        self.send_response(200)
+                        self.send_header("Content-Type", ctype)
+                        self.send_header("Content-Length", str(length))
+                        self.send_header("Cache-Control", "no-cache")
+                        self.end_headers()
+                        _copy_blocks(fh, self.wfile, length)
+                except (OSError, TimeoutError):
+                    self.close_connection = True
 
             def _video_file(self, fpath: Path, range_header: str = ""):
                 """Sert une vidéo avec support Range (lecture navigateur OBS)."""
@@ -367,38 +445,31 @@ class ObsWebServer:
                 )
                 total = fpath.stat().st_size
                 start, end = 0, total - 1
-                m = re.match(r"bytes=(\d*)-(\d*)", range_header or "")
-                if m and (m.group(1) or m.group(2)):
-                    if m.group(1):
-                        start = int(m.group(1))
-                    if m.group(2):
-                        end = min(int(m.group(2)), total - 1)
-                    else:
-                        end = total - 1
-                if start > end or start >= total:
-                    self.send_response(416)
-                    self.send_header("Content-Range", f"bytes */{total}")
-                    self.end_headers()
-                    return
+                range_header = (range_header or "").strip()
+                if range_header:
+                    try:
+                        start, end = _byte_range(range_header, total)
+                    except ValueError:
+                        self.send_response(416)
+                        self.send_header("Content-Range", f"bytes */{total}")
+                        self.end_headers()
+                        return
                 try:
                     with fpath.open("rb") as fh:
                         fh.seek(start)
-                        chunk = fh.read(end - start + 1)
-                    if start > 0 or end < total - 1:
-                        self.send_response(206)
-                        self.send_header(
-                            "Content-Range", f"bytes {start}-{end}/{total}"
-                        )
-                    else:
-                        self.send_response(200)
-                    self.send_header("Content-Type", ctype)
-                    self.send_header("Content-Length", str(len(chunk)))
-                    self.send_header("Accept-Ranges", "bytes")
-                    self.send_header("Access-Control-Allow-Origin", "*")
-                    self.send_header("Cache-Control", "no-cache")
-                    self.end_headers()
-                    self.wfile.write(chunk)
-                except Exception:
+                        self.send_response(206 if range_header else 200)
+                        if range_header:
+                            self.send_header(
+                                "Content-Range", f"bytes {start}-{end}/{total}"
+                            )
+                        self.send_header("Content-Type", ctype)
+                        self.send_header("Content-Length", str(end - start + 1))
+                        self.send_header("Accept-Ranges", "bytes")
+                        self.send_header("Access-Control-Allow-Origin", "*")
+                        self.send_header("Cache-Control", "no-cache")
+                        self.end_headers()
+                        _copy_blocks(fh, self.wfile, end - start + 1)
+                except (OSError, TimeoutError):
                     # Client déconnecté en cours de stream : non bloquant.
                     pass
 
@@ -412,12 +483,13 @@ class ObsWebServer:
                     self.send_header("Cache-Control", "no-cache")
                     self.end_headers()
                     self.wfile.write(body)
-                except Exception as exc:
-                    self.send_error(500, str(exc))
+                except (OSError, TimeoutError):
+                    self.close_connection = True
 
 
         try:
-            self._server = _QuietThreadingHTTPServer(("", self._port), _Handler)
+            self._server = _QuietThreadingHTTPServer((self._host, self._port), _Handler)
+            self._port = self._server.server_port
             self._thread = threading.Thread(
                 target=self._server.serve_forever, daemon=True
             )
@@ -435,11 +507,12 @@ class ObsWebServer:
             self._server.server_close()
             self._server = None
         self._thread = None
-        
+
         with self._listeners_lock:
-            for q in self._listeners:
-                q.put(None)
+            listeners = list(self._listeners)
             self._listeners.clear()
+        for q in listeners:
+            _offer_latest(q, None)
         log.info("[OBS] Server stopped")
 
     def restart(self) -> bool:
@@ -483,9 +556,12 @@ class ObsWebServer:
             }
         with self._listeners_lock:
             for q in self._listeners:
-                q.put(payload)
+                _offer_latest(q, payload)
 
     # ── URL ────────────────────────────────────────────────────────────────
 
     def get_url(self) -> str:
-        return f"http://127.0.0.1:{self._port}/obs"
+        host = self._host
+        if host in ("", "0.0.0.0", "::"):
+            host = "127.0.0.1"
+        return f"http://{host}:{self._port}/obs"

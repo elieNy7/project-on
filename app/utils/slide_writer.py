@@ -2,10 +2,21 @@ from __future__ import annotations
 
 import json
 import time
+from dataclasses import dataclass
 from pathlib import Path
 
 from app.utils.models import Slide
 from app.utils.text_utils import strip_hymn_projection_label
+
+
+@dataclass(frozen=True)
+class LiveSnapshot:
+    """Complete public live state, restorable identically."""
+
+    slide: Slide | None
+    hidden: bool
+    video_playing: bool
+    video_loop: bool
 
 
 class SlideWriter:
@@ -67,6 +78,28 @@ class SlideWriter:
     @property
     def video_playing(self) -> bool:
         return self._video_playing
+
+    def snapshot(self) -> LiveSnapshot:
+        """Capture the complete live state (slide, masking, video)."""
+        return LiveSnapshot(
+            slide=self._last_slide,
+            hidden=self._hidden,
+            video_playing=self._video_playing,
+            video_loop=self._video_loop,
+        )
+
+    def restore(self, snapshot: LiveSnapshot) -> None:
+        """Restore a state captured by :meth:`snapshot` exactly."""
+        self._hidden = bool(snapshot.hidden)
+        self._video_playing = bool(snapshot.video_playing)
+        self._video_loop = bool(snapshot.video_loop)
+        # Réécrit toujours la sortie : l'affichage distant (projection, OBS,
+        # NDI) a pu rester sur les annonces, la restauration doit repousser
+        # l'état capturé même s'il n'a pas changé en mémoire.
+        self._last_slide = snapshot.slide
+        # Reset is a one-shot command, not persistent playback state.
+        self._video_reset = False
+        self._write_current()
 
     def _write_current(self) -> None:
         self._presentation_dir.mkdir(parents=True, exist_ok=True)

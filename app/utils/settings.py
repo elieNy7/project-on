@@ -674,6 +674,7 @@ class AppSettings:
     themes: list = field(default_factory=list)
     theme_assignments: dict = field(default_factory=dict)
     active_theme_id: str = "default"
+    load_warning: str = field(default="", repr=False, compare=False)
 
     @staticmethod
     def default_path(project_root: Path) -> Path:
@@ -681,12 +682,9 @@ class AppSettings:
 
     @classmethod
     def load(cls, path: Path) -> AppSettings:
-        try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-        except Exception:
-            return cls()
-        if not isinstance(payload, dict):
-            return cls()
+        from app.utils.settings_storage import load_payload
+
+        payload, load_warning = load_payload(path)
 
         projection = ProjectionSettings()
         p = payload.get("projection")
@@ -817,6 +815,14 @@ class AppSettings:
                 except (TypeError, ValueError):
                     pass
                 obs.remote.password = str(remote_raw.get("password") or "")
+                protected = str(remote_raw.get("password_protected") or "")
+                if protected:
+                    from app.utils.settings_storage import unprotect_secret
+                    try:
+                        obs.remote.password = unprotect_secret(protected)
+                    except Exception:
+                        obs.remote.password = ""
+                        load_warning = (load_warning + " Le mot de passe OBS ne peut pas être déchiffré sur ce profil Windows ; saisissez-le à nouveau.").strip()
                 obs.remote.scene_on_live = str(remote_raw.get("scene_on_live") or "")
                 obs.remote.scene_on_hide = str(remote_raw.get("scene_on_hide") or "")
 
@@ -941,12 +947,13 @@ class AppSettings:
             themes=themes,
             theme_assignments=theme_assignments,
             active_theme_id=active_theme_id,
+            load_warning=load_warning,
         )
 
     def save(self, path: Path) -> None:
+        from app.utils.settings_storage import protect_secret, save_payload
         from app.utils.themes import Theme
 
-        path.parent.mkdir(parents=True, exist_ok=True)
         themes_payload = []
         for theme in self.themes:
             # Le thème actif est toujours enregistré depuis le miroir
@@ -969,8 +976,8 @@ class AppSettings:
             "theme_assignments": dict(self.theme_assignments),
             "active_theme_id": self.active_theme_id,
         }
-        tmp = path.with_suffix(path.suffix + ".tmp")
-        tmp.write_text(
-            json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
-        tmp.replace(path)
+        secret = str(self.obs.remote.password or "")
+        if secret:
+            payload["obs"]["remote"]["password"] = ""
+            payload["obs"]["remote"]["password_protected"] = protect_secret(secret)
+        save_payload(path, payload)

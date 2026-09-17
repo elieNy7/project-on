@@ -7,49 +7,191 @@ from pathlib import Path
 from typing import Any
 from xml.etree import ElementTree as ET
 
+# Bornes de robustesse pour les imports (cf. plan du 2026-09-17, lot 4).
+MAX_PPTX_SLIDES = 1000
+MAX_XML_UNCOMPRESSED_BYTES = 64 * 1024 * 1024  # 64 Mo par partie XML
+
+
+class PptxImportError(RuntimeError):
+    """Import PPTX impossible ou incomplet (fichier illisible, corrompu).
+
+    Le message est destiné à être affiché tel quel : il explique la cause
+    réelle au lieu de retourner silencieusement une liste partielle.
+    """
+
+
+def _read_member(zf: zipfile.ZipFile, name: str) -> bytes:
+    """Lit un membre ZIP en refusant de décompresser plus que la borne."""
+    with zf.open(name) as handle:
+        data = handle.read(MAX_XML_UNCOMPRESSED_BYTES + 1)
+    if len(data) > MAX_XML_UNCOMPRESSED_BYTES:
+        raise PptxImportError(
+            f"Partie XML trop volumineuse dans la présentation : {name} "
+            f"(limite {MAX_XML_UNCOMPRESSED_BYTES // (1024 * 1024)} Mo décompressés)."
+        )
+    return data
+
+
+def _safe_xml(data: bytes, name: str) -> ET.Element:
+    """Parse XML sans DTD : les parties OPC n'en contiennent jamais.
+
+    Refuser toute déclaration ``<!DOCTYPE``/``<!ENTITY`` avant le parsing
+    élimine l'expansion d'entités (« billion laughs ») sur un fichier
+    apporté par un tiers ; une variante minuscule serait de toute façon
+    rejetée par le parseur comme mal formée.
+    """
+    if b"<!DOCTYPE" in data or b"<!ENTITY" in data:
+        raise PptxImportError(
+            f"Déclaration de type de document interdite dans {name} : "
+            "présentation refusée."
+        )
+    return ET.fromstring(data)
+
+
+def _slide_parts_in_presentation_order(zf: zipfile.ZipFile) -> list[str]:
+    """Retourne les parties de slides dans l'ordre officiel du paquet OPC.
+
+    L'ordre de projection est défini par ``ppt/presentation.xml`` via ses
+    relations (``ppt/_rels/presentation.xml.rels``), PAS par les numéros des
+    fichiers ``ppt/slides/slideN.xml`` : un fichier réordonné (glisser-déposer
+    de slides dans PowerPoint) doit être lu dans l'ordre de la présentation.
+
+    Lève ``PptxImportError`` si une relation sldId ne pointe vers rien :
+    un import partiel silencieux est inacceptable.
+    """
+    presentation = _safe_xml(_read_member(zf, "ppt/presentation.xml"), "ppt/presentation.xml")
+    if "presentation" not in presentation.tag:
+        raise PptxImportError("ppt/presentation.xml inattendu dans le paquet.")
+
+    rels_name = "ppt/_rels/presentation.xml.rels"
+    if rels_name not in zf.namelist():
+        raise PptxImportError(
+            "Relations de présentation absentes "
+            "(ppt/_rels/presentation.xml.rels) : paquet invalide."
+        )
+    rels_root = _safe_xml(_read_member(zf, rels_name), rels_name)
+
+    rel_targets: dict[str, str] = {}
+    for rel in rels_root:
+        r_id = rel.get("Id", "")
+        target = rel.get("Target", "")
+        mode = rel.get("TargetMode", "Internal")
+        if not r_id or not target or mode == "External":
+            continue
+        rel_targets[r_id] = target
+
+    slide_tree = presentation.find(
+        "{http://schemas.openxmlformats.org/presentationml/2006/main}sldIdLst"
+    )
+    if slide_tree is None:
+        # Repli tolérant : chercher n'importe quel élément sldIdLst.
+        for element in presentation.iter():
+            if element.tag.split("}")[-1] == "sldIdLst":
+                slide_tree = element
+                break
+    if slide_tree is None:
+        return []
+
+    parts: list[str] = []
+    for sld_id in slide_tree:
+        rid = sld_id.get(
+            "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id"
+        )
+        if not rid:
+            continue
+        target = rel_targets.get(rid)
+        if not target:
+            raise PptxImportError(
+                f"Relation de slide manquante dans presentation.xml.rels : {rid}. "
+                "La présentation est incomplète ou corrompue."
+            )
+        normalized = target.replace("\\", "/")
+        # Les cibles sont relatives au dossier "ppt/".
+        if normalized.startswith("/"):
+            part = normalized.lstrip("/")
+        elif normalized.startswith("ppt/"):
+            part = normalized
+        else:
+            part = f"ppt/{normalized}"
+        parts.append(part)
+
+    return parts
+
 
 def extract_slides_from_pptx(pptx_path: Path) -> list[str]:
-    """Extract text content from each slide in a PPTX file.
-    Returns a list of strings, one per slide.
-    """
-    slides: list[str] = []
+    """Extract text content from each slide in official presentation order.
 
-    if not pptx_path.exists():
-        return slides
+    L'ordre suit ``ppt/presentation.xml`` (sldIdLst + relations), pas les
+    numéros de fichiers.  Lève ``PptxImportError`` au lieu de renvoyer
+    silencieusement une liste partielle quand le fichier est illisible,
+    corrompu, contient des slides sans texte détecté ou dépasse les bornes.
+    """
+    path = Path(pptx_path)
+    if not path.is_file():
+        raise PptxImportError(f"Fichier introuvable : {path}")
+    if not zipfile.is_zipfile(path):
+        raise PptxImportError(
+            f"Fichier illisible (pas une présentation PowerPoint valide) : {path.name}"
+        )
 
     try:
-        with zipfile.ZipFile(pptx_path, "r") as zf:
-            slide_files = sorted(
-                [n for n in zf.namelist() if re.match(r"ppt/slides/slide\d+\.xml", n)],
-                key=lambda x: int(re.search(r"slide(\d+)", x).group(1)),  # type: ignore
-            )
+        with zipfile.ZipFile(path, "r") as zf:
+            if "ppt/presentation.xml" not in zf.namelist():
+                raise PptxImportError(
+                    "Présentation invalide : ppt/presentation.xml est absent."
+                )
 
-            for slide_file in slide_files:
-                with zf.open(slide_file) as f:
-                    tree = ET.parse(f)
-                    root = tree.getroot()
+            parts = _slide_parts_in_presentation_order(zf)
+            if not parts:
+                raise PptxImportError(
+                    "Aucune slide référencée dans ppt/presentation.xml "
+                    "(sldIdLst vide ou absente)."
+                )
 
-                    texts: list[str] = []
-                    for p in root.iter():
-                        if p.tag.endswith("}p"):
-                            p_text = "".join(
-                                [
-                                    t.text
-                                    for t in p.iter()
-                                    if t.tag.endswith("}t") and t.text
-                                ]
-                            )
-                            if p_text.strip():
-                                texts.append(p_text.strip())
+            names = zf.namelist()
+            missing = [part for part in parts if part not in names]
+            if missing:
+                raise PptxImportError(
+                    "Slides manquantes dans le paquet : " + ", ".join(missing[:5])
+                    + ("…" if len(missing) > 5 else "")
+                    + ". Import interrompu pour éviter une présentation partielle."
+                )
+            if len(parts) > MAX_PPTX_SLIDES:
+                raise PptxImportError(
+                    f"Présentation trop grande : {len(parts)} slides "
+                    f"(maximum {MAX_PPTX_SLIDES})."
+                )
 
-                    slide_text = "\n".join(texts).strip()
-                    if slide_text:
-                        slides.append(slide_text)
+            slides: list[str] = []
+            for part_name in parts:
+                payload = _read_member(zf, part_name)
+                root = _safe_xml(payload, part_name)
 
-    except (zipfile.BadZipFile, ET.ParseError, KeyError):
-        pass
+                texts: list[str] = []
+                for p in root.iter():
+                    if p.tag.endswith("}p"):
+                        p_text = "".join(
+                            [
+                                t.text
+                                for t in p.iter()
+                                if t.tag.endswith("}t") and t.text
+                            ]
+                        )
+                        if p_text.strip():
+                            texts.append(p_text.strip())
 
-    return slides
+                slide_text = "\n".join(texts).strip()
+                if slide_text:
+                    slides.append(slide_text)
+
+            return slides
+
+    except PptxImportError:
+        raise
+    except (zipfile.BadZipFile, ET.ParseError, OSError) as exc:
+        raise PptxImportError(
+            f"Lecture de la présentation impossible : {path.name} ({exc})"
+        ) from exc
 
 
 def _clean_stanza_text(text: str, title: str) -> str:
@@ -499,10 +641,10 @@ def _build_hymn_result(title: str, stanzas: list[str]) -> dict[str, Any]:
 
 def parse_pptx_as_hymn(pptx_path: Path) -> dict[str, Any] | None:
     """Parse a PPTX file as a hymn.
-    - Title: filename without extension
-    - Stanzas: each slide becomes a stanza (title is removed from stanza text)
-    - If a chorus is detected, it is repeated after each verse
-    Returns None if no slides found.
+
+    Lève ``PptxImportError`` si le fichier est illisible ou corrompu (aucune
+    réussite silencieuse partielle).  Retourne None seulement si le paquet est
+    valide mais ne contient aucun texte exploitable.
     """
     path = Path(pptx_path)
     title = path.stem
@@ -513,21 +655,30 @@ def parse_pptx_as_hymn(pptx_path: Path) -> dict[str, Any] | None:
 
 def parse_pptx_folder(folder_path: Path) -> list[dict[str, Any]]:
     """Parse all PPTX files in a folder as hymns.
-    Returns a list of hymn dicts.
+
+    Retourne la liste des cantiques extraits.  Lève ``PptxImportError`` si un
+    fichier est illisible (message listant le fichier fautif) : un dossier ne
+    doit jamais produire un bilan qui ignore des échecs de lecture.
     """
     folder = Path(folder_path)
     if not folder.is_dir():
         return []
 
     hymns: list[dict[str, Any]] = []
-    for pptx_file in sorted(folder.glob("*.pptx")):
-        hymn = parse_pptx_as_hymn(pptx_file)
-        if hymn:
-            hymns.append(hymn)
+    failed: list[str] = []
+    for pattern in ("*.pptx", "*.ppsx"):
+        for pptx_file in sorted(folder.glob(pattern)):
+            try:
+                hymn = parse_pptx_as_hymn(pptx_file)
+            except PptxImportError as exc:
+                failed.append(f"{pptx_file.name} : {exc}")
+                continue
+            if hymn:
+                hymns.append(hymn)
 
-    for pptx_file in sorted(folder.glob("*.ppsx")):
-        hymn = parse_pptx_as_hymn(pptx_file)
-        if hymn:
-            hymns.append(hymn)
+    if failed:
+        raise PptxImportError(
+            "Import partiel refusé — fichiers illisibles :\n- " + "\n- ".join(failed)
+        )
 
     return hymns

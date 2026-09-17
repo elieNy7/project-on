@@ -22,10 +22,11 @@ class _DbWorker(QRunnable):
     class _Signals(QObject):
         finished = pyqtSignal(object)
 
-    def __init__(self, fn: Callable[[], Any], callback: Callable[[Any], None]) -> None:
+    def __init__(self, fn: Callable[[], Any], callback: Callable[[Any], None], preserve_error=False) -> None:
         super().__init__()
         self.setAutoDelete(True)
         self._fn = fn
+        self._preserve_error = preserve_error
         self._signals = self._Signals()
         self._signals.finished.connect(callback)
 
@@ -33,9 +34,9 @@ class _DbWorker(QRunnable):
     def run(self) -> None:
         try:
             result = self._fn()
-        except Exception:
+        except Exception as exc:
             log.exception("Tâche de base de données échouée (%s)", self._fn)
-            result = None
+            result = exc if self._preserve_error else None
         self._signals.finished.emit(result)
 
 
@@ -108,8 +109,26 @@ class LibraryController(QObject):
         self._live_expose_chapter_id: int | None = None
         self._current_playlist_folder_id: int | None = None
 
+        self._generations: dict[str, int] = {}
+        self._imports = set()
+        self._project.programChanged.connect(lambda _title: self._invalidate("live"))
+
         self._wire()
         self.refresh_all()
+
+    def _invalidate(self, *channels):
+        if not hasattr(self, "_generations"):
+            self._generations = {}
+        for channel in channels:
+            self._generations[channel] = self._generations.get(channel, 0) + 1
+
+    def _submit_latest(self, channel, fetch, callback):
+        self._invalidate(channel)
+        generation = self._generations[channel]
+        def done(result):
+            if self._generations.get(channel) == generation:
+                callback(result)
+        self._pool.start(_DbWorker(fetch, done))
 
     @staticmethod
     def _clean_text(value: Any) -> str:
@@ -338,6 +357,7 @@ class LibraryController(QObject):
             )
 
     def refresh_sermons(self) -> None:
+        self._invalidate("sermon_detail", "live")
         language = None
         tradition = None
         title_query = None
@@ -396,7 +416,7 @@ class LibraryController(QObject):
                 self._sermons_tab.set_years(result["years"])
             self._sermons_tab.set_sermons(result["sermons"])
 
-        self._pool.start(_DbWorker(_fetch, _on_done))
+        self._submit_latest("sermons", _fetch, _on_done)
 
     def on_sermon_selected(self, sermon_id: Any) -> None:
         self._current_sermon_id = sermon_id
@@ -408,6 +428,7 @@ class LibraryController(QObject):
         lang = self._current_sermon_language
 
         # Run heavy list_paragraphs in background
+
         def _fetch():
             return self._sermons_dao.list_paragraphs(sermon_id, lang)
 
@@ -419,7 +440,7 @@ class LibraryController(QObject):
             ).strip(" -")
             self._sermons_tab.set_paragraphs(prepared)
 
-        self._pool.start(_DbWorker(_fetch, _on_done))
+        self._submit_latest("sermon_detail", _fetch, _on_done)
 
     def _prepare_sermon_entries(
         self, paragraphs: list[dict[str, Any]], sermon_title: str, sermon_date: str
@@ -521,7 +542,7 @@ class LibraryController(QObject):
                 focus_entry=focus,
             )
 
-        self._pool.start(_DbWorker(_fetch, _on_done))
+        self._submit_latest("live", _fetch, _on_done)
 
     def on_paragraph_search(self, query: str) -> None:
         """Search across all paragraphs in background thread."""
@@ -529,6 +550,7 @@ class LibraryController(QObject):
         translator = None
         if hasattr(self._sermons_tab, "current_translator"):
             translator = self._sermons_tab.current_translator()
+
 
         def _fetch():
             return self._sermons_dao.search_paragraphs(
@@ -544,11 +566,12 @@ class LibraryController(QObject):
             if hasattr(self._sermons_tab, "set_search_results"):
                 self._sermons_tab.set_search_results(results)
 
-        self._pool.start(_DbWorker(_fetch, _on_done))
+        self._submit_latest("sermon_detail", _fetch, _on_done)
 
     # ── Exposé ────────────────────────────────────────────────────────────
 
     def refresh_expose(self) -> None:
+        self._invalidate("expose_chapter", "expose_detail", "live")
         if self._expose_tab is None:
             return
 
@@ -564,7 +587,7 @@ class LibraryController(QObject):
                 chapters = []
             self._expose_tab.set_chapters(chapters)
 
-        self._pool.start(_DbWorker(_fetch, _on_done))
+        self._submit_latest("expose", _fetch, _on_done)
 
     def on_expose_chapter_selected(self, chapter_id: Any) -> None:
         if self._expose_tab is None:
@@ -576,8 +599,12 @@ class LibraryController(QObject):
         else:
             self._current_expose_chapter_id = int(chapter_id)
 
+        chapter_id = self._current_expose_chapter_id
+        self._current_expose_page = None
+        self._invalidate("expose_detail")
+
         def _fetch():
-            return self._sermons_dao.list_expose_pages(self._current_expose_chapter_id)
+            return self._sermons_dao.list_expose_pages(chapter_id)
 
         def _on_done(pages):
             if pages is None:
@@ -589,7 +616,7 @@ class LibraryController(QObject):
             else:
                 self._expose_tab.set_paragraphs([])
 
-        self._pool.start(_DbWorker(_fetch, _on_done))
+        self._submit_latest("expose_chapter", _fetch, _on_done)
 
     def on_expose_page_selected(self, page_num: int) -> None:
         if self._expose_tab is None or self._current_expose_chapter_id is None:
@@ -619,7 +646,7 @@ class LibraryController(QObject):
                 paragraphs = []
             self._expose_tab.set_paragraphs(paragraphs)
 
-        self._pool.start(_DbWorker(_fetch, _on_done))
+        self._submit_latest("expose_detail", _fetch, _on_done)
 
     def on_expose_search(self, query: str) -> None:
         """Search across entire Exposé book in background."""
@@ -636,7 +663,7 @@ class LibraryController(QObject):
             if hasattr(self._expose_tab, "set_search_results"):
                 self._expose_tab.set_search_results(results)
 
-        self._pool.start(_DbWorker(_fetch, _on_done))
+        self._submit_latest("expose_detail", _fetch, _on_done)
 
     def _expose_book_prefix(self, ch_id: int | None) -> str:
         """Titre de l'ouvrage d'Exposé selon la tradition du chapitre."""
@@ -717,7 +744,7 @@ class LibraryController(QObject):
                 "sermon", chapter_title, entries, focus_entry=focus
             )
 
-        self._pool.start(_DbWorker(_fetch, _on_done))
+        self._submit_latest("live", _fetch, _on_done)
 
     def on_expose_paragraph_solo(
         self, reference: str, text: str, title: str = ""
@@ -754,7 +781,7 @@ class LibraryController(QObject):
             if hymns:
                 self.on_hymn_selected(int(hymns[0]["id"]))
 
-        self._pool.start(_DbWorker(_fetch, _on_done))
+        self._submit_latest("hymns", _fetch, _on_done)
 
     def on_hymn_selected(self, hymn_id: int) -> None:
         self._current_hymn_id = int(hymn_id)
@@ -859,33 +886,19 @@ class LibraryController(QObject):
         if not file_path:
             return
 
-        hymn_data = parse_pptx_as_hymn(Path(file_path))
-        if hymn_data is None:
-            QMessageBox.warning(
-                None,
-                "Import échoué",
-                f"Aucune slide trouvée dans le fichier:\n{file_path}",
-            )
-            return
+        self._import_pptx_paths([Path(file_path)])
 
-        title = hymn_data["title"]
-        if self._hymns_dao.hymn_exists(title):
-            reply = QMessageBox.question(
-                None,
-                "Cantique existant",
-                f'Un cantique avec le titre "{title}" existe déjà.\nVoulez-vous l\'importer quand même ?',
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            )
-            if reply != QMessageBox.StandardButton.Yes:
-                return
-
-        self._hymns_dao.import_hymn(title, hymn_data["stanzas"])
-        self.refresh_hymns()
-        QMessageBox.information(
-            None,
-            "Import réussi",
-            f'Cantique "{title}" importé avec {len(hymn_data["stanzas"])} strophe(s).',
-        )
+    def _import_pptx_paths(self, paths):
+        def process(path, cancel):
+            hymn = parse_pptx_as_hymn(path)
+            if not hymn or not hymn.get("stanzas"):
+                raise ValueError("Aucune slide exploitable")
+            if cancel.is_set():
+                raise InterruptedError()
+            if self._hymns_dao.hymn_exists(hymn["title"]):
+                return None
+            return self._hymns_dao.import_hymn(hymn["title"], hymn["stanzas"])
+        self._start_import("Import PowerPoint", paths, process, lambda report: self.refresh_hymns())
 
     def on_import_pptx_folder(self) -> None:
         folder_path = QFileDialog.getExistingDirectory(
@@ -896,30 +909,8 @@ class LibraryController(QObject):
         if not folder_path:
             return
 
-        hymns_data = parse_pptx_folder(Path(folder_path))
-        if not hymns_data:
-            QMessageBox.warning(
-                None,
-                "Import échoué",
-                f"Aucun fichier PPTX/PPSX valide trouvé dans:\n{folder_path}",
-            )
-            return
-
-        imported = 0
-        skipped = 0
-        for hymn_data in hymns_data:
-            title = hymn_data["title"]
-            if self._hymns_dao.hymn_exists(title):
-                skipped += 1
-                continue
-            self._hymns_dao.import_hymn(title, hymn_data["stanzas"])
-            imported += 1
-
-        self.refresh_hymns()
-        msg = f"{imported} cantique(s) importé(s)."
-        if skipped > 0:
-            msg += f"\n{skipped} cantique(s) ignoré(s) (déjà existants)."
-        QMessageBox.information(None, "Import terminé", msg)
+        paths = sorted(p for p in Path(folder_path).iterdir() if p.suffix.lower() in (".pptx", ".ppsx"))
+        self._import_pptx_paths(paths)
 
     def on_delete_hymn(self, hymn_id: int) -> None:
         """Delete a hymn after user confirmation."""
@@ -994,13 +985,19 @@ class LibraryController(QObject):
             return legacy if len(legacy) > len(hymns) else hymns
 
         def _on_done(hymns):
-            if hymns:
-                imported = self._show_import_dialog_for_hymns(hymns, pdf_path)
-                self._sequential_import_count += imported
-            # Always try next one
+            if isinstance(hymns, Exception):
+                QMessageBox.warning(None, "Import PDF", str(hymns))
+            elif hymns:
+                def after(report):
+                    self._sequential_import_count += len(report.succeeded)
+                    if report.cancelled:
+                        self._sequential_pdfs = []
+                    self._process_next_pdf_in_queue()
+                self._show_import_dialog_for_hymns(hymns, pdf_path, after)
+                return
             self._process_next_pdf_in_queue()
 
-        self._pool.start(_DbWorker(_parse, _on_done))
+        self._pool.start(_DbWorker(_parse, _on_done, preserve_error=True))
 
     def on_clear_all_hymns(self) -> None:
         """Clear all hymns after user confirmation."""
@@ -1057,6 +1054,9 @@ class LibraryController(QObject):
             return legacy if len(legacy) > len(hymns) else hymns
 
         def _on_parsed(hymns):
+            if isinstance(hymns, Exception):
+                QMessageBox.warning(None, "Import PDF", str(hymns))
+                return
             if hymns is None:
                 QMessageBox.critical(
                     None, "Erreur", "Une erreur est survenue lors de la lecture du PDF."
@@ -1075,37 +1075,32 @@ class LibraryController(QObject):
             self._show_import_dialog_for_hymns(hymns, path)
             self.refresh_hymns()
 
-        self._pool.start(_DbWorker(_parse, _on_parsed))
+        self._pool.start(_DbWorker(_parse, _on_parsed, preserve_error=True))
 
-    def _show_import_dialog_for_hymns(self, hymns: list[dict], path: Path) -> int:
-        """Helper to show the import dialog and perform the DB import. Returns count of imported hymns."""
-        dialog = PdfImportDialog(hymns, path.name, dao=self._hymns_dao)
-
+    def _show_import_dialog_for_hymns(self, hymns: list[dict], path: Path, after=None):
+        from app.utils.import_worker import ImportReport
+        # No DAO in the selection UI: duplicate queries belong to the worker.
+        dialog = PdfImportDialog(hymns, path.name)
         if dialog.exec() != dialog.DialogCode.Accepted:
-            return 0
-
-        selected_hymns = dialog.get_selected_hymns()
+            if after:
+                after(ImportReport(cancelled=True))
+            return
+        selected = dialog.get_selected_hymns()
         prefix = dialog.get_prefix()
-
-        if not selected_hymns:
-            return 0
-
-        imported = 0
-        skipped = 0
-
-        for hymn in selected_hymns:
+        def process(hymn, cancel):
             title = hymn.get("title", "")
-            stanzas = hymn.get("stanzas", [])
-
             if self._hymns_dao.hymn_exists(title):
-                skipped += 1
-                continue
-
-            self._hymns_dao.import_hymn(title, stanzas)
-            imported += 1
-
-        self._update_sort_keys_for_prefix(prefix)
-        return imported
+                return None
+            if cancel.is_set():
+                raise InterruptedError()
+            ident = self._hymns_dao.import_hymn(title, hymn.get("stanzas", []))
+            self._update_sort_keys_for_prefix(prefix)
+            return ident
+        def finished(report):
+            self.refresh_hymns()
+            if after:
+                after(report)
+        self._start_import("Import PDF", selected, process, finished)
 
     def _update_sort_keys_for_prefix(self, prefix: str) -> None:
         """Update sort_key for hymns with given prefix."""
@@ -1146,7 +1141,7 @@ class LibraryController(QObject):
             if hasattr(self._playlist_tab, "set_folders"):
                 self._playlist_tab.set_folders(folders, select_id=select_id)
 
-        self._pool.start(_DbWorker(_fetch, _on_done))
+        self._submit_latest("folders", _fetch, _on_done)
 
     def _refresh_playlist_items(self) -> None:
         """Recharge les slides du dossier de playlist courant."""
@@ -1165,7 +1160,7 @@ class LibraryController(QObject):
             if hasattr(self._playlist_tab, "set_items"):
                 self._playlist_tab.set_items(items)
 
-        self._pool.start(_DbWorker(_fetch, _on_done))
+        self._submit_latest("items", _fetch, _on_done)
 
     def on_playlist_folder_selected(self, folder_id: Any) -> None:
         self._current_playlist_folder_id = (
@@ -1216,19 +1211,7 @@ class LibraryController(QObject):
         folder_id = self._current_playlist_folder_id
         if folder_id is None:
             return
-        items = self._playlist_dao.list_items(folder_id)
-        index = next(
-            (i for i, it in enumerate(items) if int(it["id"]) == int(item_id)), None
-        )
-        target = index + int(delta) if index is not None else None
-        if index is None or not 0 <= target < len(items):
-            return
-        self._playlist_dao.update_item_sort_order(
-            int(items[index]["id"]), int(items[target]["sort_order"]), folder_id
-        )
-        self._playlist_dao.update_item_sort_order(
-            int(items[target]["id"]), int(items[index]["sort_order"]), folder_id
-        )
+        self._playlist_dao.move_item(int(item_id), int(delta), folder_id)
         self._refresh_playlist_items()
 
     def _show_add_to_playlist_dialog(self, folders: list, count: int):
@@ -1284,113 +1267,75 @@ class LibraryController(QObject):
 
     def _build_playlist_export(self, folder_id: int) -> dict[str, Any] | None:
         """Construit le dictionnaire d'export JSON (None si playlist vide)."""
-        from app.version import __version__
-
+        from app.utils.playlist_transfer import manifest
         folder = self._playlist_dao.get_folder(int(folder_id))
-        if folder is None:
-            return None
         items = self._playlist_dao.list_items(int(folder_id))
-        if not items:
+        if not folder or not items:
             return None
-        return {
-            "app": "Project-On",
-            "format": 1,
-            "app_version": __version__,
-            "name": str(folder.get("name") or "Playlist"),
-            "items": [
-                {
-                    "reference": self._clean_text(it.get("reference") or ""),
-                    "text": str(it.get("text") or ""),
-                }
-                for it in items
-            ],
-        }
+        return manifest(str(folder["name"]), items)
 
     @staticmethod
     def _read_playlist_file(path: str) -> tuple[str, list[tuple[str, str]]]:
-        """Lit un fichier d'export .json → (nom de playlist, entrées).
+        """Legacy text adapter; refuse lossy use with modern media files."""
+        from app.utils.playlist_transfer import _validate
+        payload = json.loads(Path(path).read_text(encoding="utf-8-sig"))
+        name, items = _validate(payload, Path(path).stem)
+        if any(it["background"] for it in items):
+            raise ValueError("Utiliser l'import transportable pour préserver les médias")
+        return name, [(it["reference"], it["text"]) for it in items]
 
-        Lève ``ValueError`` si le format est invalide.
-        """
-        payload = json.loads(Path(path).read_text(encoding="utf-8"))
-        if not isinstance(payload, dict) or not isinstance(payload.get("items"), list):
-            raise ValueError("format de playlist invalide")
-        entries = [
-            (str(it.get("reference") or ""), str(it.get("text") or ""))
-            for it in payload["items"]
-            if isinstance(it, dict) and str(it.get("text") or "").strip()
-        ]
-        return str(payload.get("name") or Path(path).stem), entries
+    def _start_import(self, title, items, process, refresh=None):
+        from PyQt6.QtWidgets import QProgressDialog
+        from app.utils.import_worker import ImportWorker
+        worker = ImportWorker(items, process)
+        dialog = QProgressDialog(title, "Annuler", 0, len(worker.items))
+        dialog.setMinimumDuration(0)
+        dialog.setAutoClose(False)
+        dialog.canceled.connect(worker.cancel)
+        worker.signals.progress.connect(lambda done, total: dialog.setValue(done))
+        if not hasattr(self, "_imports"):
+            self._imports = set()
+        self._imports.add(worker)
+        def finished(report):
+            self._imports.discard(worker)
+            dialog.close()
+            if refresh:
+                refresh(report)
+            QMessageBox.information(None, title, report.summary())
+        worker.signals.finished.connect(finished)
+        self._pool.start(worker)
+        return worker
+
+    def cancel_imports(self):
+        """Request cancellation at the next safe boundary; never kill DB threads."""
+        for worker in getattr(self, "_imports", ()):
+            worker.cancel()
 
     def on_playlist_folder_export(self, folder_id: int) -> None:
-        """Exporte une playlist en .json (partage entre ordinateurs)."""
-        payload = self._build_playlist_export(int(folder_id))
-        if payload is None:
-            name = str((self._playlist_dao.get_folder(int(folder_id)) or {}).get("name") or "Playlist")
-            QMessageBox.information(
-                self._playlist_tab,
-                "Export de la playlist",
-                f"La playlist « {name} » est vide : rien à exporter.",
-            )
-            return
-        target, _filter = QFileDialog.getSaveFileName(
-            self._playlist_tab,
-            "Exporter la playlist",
-            f"{payload['name']}.json",
-            "Playlist Project-On (*.json)",
-        )
+        from app.utils.playlist_transfer import export_playlist
+        target, _ = QFileDialog.getSaveFileName(
+            self._playlist_tab, "Exporter la playlist", "Playlist.projecton",
+            "Archive Project-On (*.projecton)")
         if not target:
             return
-        try:
-            Path(target).write_text(
-                json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
-            )
-        except OSError as exc:
-            QMessageBox.warning(
-                self._playlist_tab,
-                "Export de la playlist",
-                f"Impossible d'écrire le fichier :\n{exc}",
-            )
-            return
-        QMessageBox.information(
-            self._playlist_tab,
-            "Export de la playlist",
-            f"{len(payload['items'])} slide(s) exporté(s) vers :\n{target}",
-        )
+        def process(_, cancel):
+            folder = self._playlist_dao.get_folder(folder_id)
+            if folder is None:
+                raise ValueError("Playlist absente")
+            return export_playlist(target, folder["name"], self._playlist_dao.list_items(folder_id), cancel)
+        self._start_import("Export de playlist", [target], process)
 
     def on_playlist_import(self) -> None:
-        """Importe une playlist depuis un fichier .json exporté."""
-        source, _filter = QFileDialog.getOpenFileName(
-            self._playlist_tab,
-            "Importer une playlist",
-            "",
-            "Playlist Project-On (*.json);;Tous les fichiers (*)",
-        )
-        if not source:
-            return
-        try:
-            name, entries = self._read_playlist_file(source)
-        except (OSError, ValueError) as exc:
-            QMessageBox.warning(
-                self._playlist_tab,
-                "Import de playlist",
-                f"Fichier illisible ou invalide :\n{exc}",
-            )
-            return
-        if not entries:
-            QMessageBox.information(
-                self._playlist_tab,
-                "Import de playlist",
-                "La playlist ne contient aucun slide exploitable.",
-            )
-            return
-        name = self._clean_text(name) or "Playlist importée"
-        self._commit_to_playlist(None, name, entries)
-        QMessageBox.information(
-            self._playlist_tab,
-            "Import de playlist",
-            f"{len(entries)} slide(s) importé(s) dans « {name} ».",
-        )
+        from app.utils.playlist_transfer import import_playlist
+        from app.utils.app_paths import media_dir
+        source, _ = QFileDialog.getOpenFileName(
+            self._playlist_tab, "Importer une playlist", "",
+            "Playlist Project-On (*.projecton *.zip *.json)")
+        if source:
+            self._start_import("Import de playlist", [source],
+                lambda path, cancel: import_playlist(path, self._playlist_dao, media_dir(), cancel),
+                lambda report: self.refresh_playlists(
+                    select_id=report.succeeded[-1] if report.succeeded else None))
 
     def on_playlist_play(self, item_id: Any) -> None:
         """Projette la playlist du dossier courant, depuis le slide demandé.
@@ -1478,7 +1423,7 @@ class LibraryController(QObject):
                 "custom", title, entries, focus_entry=focus, entry_visuals=visuals
             )
 
-        self._pool.start(_DbWorker(_fetch, _on_done))
+        self._submit_latest("live", _fetch, _on_done)
 
     # ── Médias (images + vidéos) ──────────────────────────────────────────
 
@@ -1496,7 +1441,7 @@ class LibraryController(QObject):
             if hasattr(self._media_tab, "set_media"):
                 self._media_tab.set_media(items)
 
-        self._pool.start(_DbWorker(_fetch, _on_done))
+        self._submit_latest("media", _fetch, _on_done)
 
     def on_media_import(self, kind: str = "image") -> None:
         """Importe des fichiers média (copie dans la bibliothèque utilisateur)."""
@@ -1539,21 +1484,20 @@ class LibraryController(QObject):
             )
         if not paths:
             return
-        imported = 0
-        for path in paths:
+        def process(path, cancel):
             dest = import_media_file(path)
             if dest is None:
-                continue
-            self._media_dao.add_media(
-                dest.stem, str(dest), media_kind(str(dest))
-            )
-            imported += 1
-        if not imported:
-            return
-        if kind == "pptx":
-            self._render_pptx_in_background(paths[0])
-        else:
-            self.refresh_media()
+                raise ValueError(f"Copie impossible : {path}")
+            if cancel.is_set():
+                raise InterruptedError()
+            actual_kind = media_kind(str(dest))
+            if actual_kind == "powerpoint":
+                from app.utils.office_renderer import render_pptx_to_images
+                render_pptx_to_images(str(dest))
+            if cancel.is_set():
+                raise InterruptedError()
+            return self._media_dao.add_media(dest.stem, str(dest), actual_kind)
+        self._start_import("Import de médias", paths, process, lambda report: self.refresh_media())
 
     def _render_pptx_in_background(self, pptx_path: str) -> None:
         """Rend les slides d'un .pptx en arrière-plan puis rafraîchit la galerie."""
@@ -1642,7 +1586,7 @@ class LibraryController(QObject):
                     "image", name or "Présentation", entries, entry_visuals=visuals
                 )
 
-            self._pool.start(_DbWorker(_fetch, _on_done))
+            self._submit_latest("live", _fetch, _on_done)
             return
 
         self._project.load_media(path, name)

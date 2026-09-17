@@ -87,9 +87,9 @@ class Database:
             indexes_dropped = self._drop_obsolete_indexes(conn)
             maintenance_ran = False
             if self._startup_maintenance_needed(conn):
+                self._seed_demo_data_if_empty(conn)
                 self._ensure_sermon_search_metadata(conn)
                 self._ensure_hymn_search_metadata(conn)
-                self._seed_demo_data_if_empty(conn)
                 self._import_bible_json_translations(conn)
                 self._set_app_meta(
                     conn,

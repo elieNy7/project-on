@@ -187,12 +187,16 @@ class ObsRemoteClient(QObject):
 
         try:
             payload = json.loads(message)
-        except ValueError:
+        except (ValueError, TypeError, RecursionError):
             logger.warning("OBS remote: invalid JSON message")
             return
 
+        if not isinstance(payload, dict):
+            return
         op = payload.get("op")
-        data = payload.get("d") or {}
+        data = payload.get("d")
+        if type(op) is not int or not isinstance(data, dict):
+            return
 
         if op == OP_HELLO:
             self._handle_hello(data)
@@ -204,11 +208,19 @@ class ObsRemoteClient(QObject):
             self._handle_response(data)
 
     def _handle_hello(self, data: dict[str, Any]) -> None:
-        auth = data.get("authentication") or {}
+        if not isinstance(data, dict):
+            return
+        auth = data.get("authentication", {})
+        if not isinstance(auth, dict):
+            return
+        salt = auth.get("salt", "")
+        challenge = auth.get("challenge", "")
+        if not isinstance(salt, str) or not isinstance(challenge, str):
+            return
+        if "authentication" in data and (not salt or not challenge):
+            return
         identify = build_identify_payload(
-            self._settings.password,
-            str(auth.get("salt") or ""),
-            str(auth.get("challenge") or ""),
+            self._settings.password, salt, challenge
         )
         import json
 
@@ -218,6 +230,8 @@ class ObsRemoteClient(QObject):
             )
 
     def _handle_response(self, data: dict[str, Any]) -> None:
+        if not isinstance(data, dict):
+            return
         request_id = str(data.get("requestId") or "")
         callback = self._pending.pop(request_id, None)
         if callback is None:
@@ -256,19 +270,19 @@ class ObsRemoteClient(QObject):
         """Request the OBS scene list; emits scenesLoaded(list[str])."""
 
         def handle(data: dict[str, Any]) -> None:
-            status = data.get("requestStatus") or {}
-            if not status.get("result"):
-                self.errorOccurred.emit(
-                    "Impossible de lire les scènes OBS ("
-                    + str(status.get("comment") or "erreur")
-                    + ")"
-                )
+            if not isinstance(data, dict):
                 return
-            response = data.get("responseData") or {}
+            status = data.get("requestStatus")
+            if not isinstance(status, dict) or not status.get("result"):
+                return
+            response = data.get("responseData")
+            if not isinstance(response, dict):
+                self.errorOccurred.emit("Format de réponse OBS inattendu.")
+                return
             names = [
                 item.get("sceneName")
                 for item in response.get("scenes") or []
-                if item.get("sceneName")
+                if isinstance(item, dict) and isinstance(item.get("sceneName"), str)
             ]
             self.scenesLoaded.emit(list(names))
 
@@ -296,8 +310,8 @@ class ObsRemoteClient(QObject):
         """Create (or re-point) the Project-On browser source in a scene."""
 
         def on_created(data: dict[str, Any]) -> None:
-            status = data.get("requestStatus") or {}
-            if status.get("result"):
+            status = data.get("requestStatus") if isinstance(data, dict) else None
+            if isinstance(status, dict) and status.get("result"):
                 self.browserSourceCreated.emit(scene_name)
                 return
             # Most likely the input already exists — update its URL instead.

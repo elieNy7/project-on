@@ -1,3 +1,26 @@
+# Project-On 2.4.0
+
+**La grande passe fiabilité : vos données ne se perdent plus, le direct ne casse plus** 🛡️ — Une révision en profondeur de toute la chaîne : sauvegarde complète transportable, playlists qui embarquent leurs médias, boucle d'annonces qui rend le live à l'identique, imports PowerPoint/PDF corrigés, et des garde-fous de sécurité sur les sorties réseau et l'installation. Tout ce qui fonctionnait continue de fonctionner — 262 tests automatiques valident l'ensemble.
+
+## Nouveautés
+
+- **Sauvegarde complète (archive)** 📦 : Réglages → « Sauvegarde complète » crée un ZIP transportable avec la base, les médias, les fonds et les paramètres (secrets exclus). « Restaurer une archive » reconstruit un profil complet sur un autre poste — toujours vers un nouveau dossier, jamais par-dessus le profil actif. Intégrité vérifiée par empreintes SHA-256.
+- **Playlists enfin transportables** 🧳 : l'export d'une playlist embarque désormais ses médias (vidéos, images, PowerPoint) ; l'import sur un autre poste retrouve chaque fichier à l'octet près. Les anciens exports restent lisibles.
+- **Boucle d'annonces fiable** 🔁 : à l'arrêt de la boucle, le live revient EXACTEMENT comme avant — texte édité, masquage, lecture et boucle vidéo compris. Les images et vidéos de la playlist d'annonces passent enfin dans la boucle ; projeter un cantique pendant les annonces clos la boucle proprement au lieu de laisser les annonces écraser le nouveau programme ; les flèches naviguent dès le premier appui.
+- **Imports corrigés** 📑 : un PowerPoint réordonné importe ses strophes dans le bon ordre (ordre réel de présentation, plus de limite à 99 diapositives) ; les PDF remontent un diagnostic par page (pages vides ou ignorées signalées) ; les imports tournent en arrière-plan avec bilan et annulation entre fichiers.
+- **Recherche qui ne traîne plus** 🔎 : une recherche rapide ne peut plus être écrasée par le résultat d'une recherche plus lente lancée juste avant.
+- **Paramètres blindés** 🔐 : le mot de passe OBS n'est plus jamais écrit en clair (chiffré pour votre session Windows) ; un fichier de paramètres corrompu est récupéré depuis la dernière sauvegarde valide, avec un avertissement à l'ouverture — plus de retour silencieux aux valeurs par défaut.
+- **Sorties sécurisées** 🌐 : le serveur de la page OBS n'écoute plus que sur ce PC (127.0.0.1) ; la page est protégée contre l'injection de script via les annonces ; l'incrustation NDI arrête proprement ses ressources, sans destruction concurrente.
+- **Détails qui comptent** ✨ : la projection s'ouvre directement sur l'écran configuré (plus de flash sur le mauvais écran au lancement) ; deux médias de même nom ne s'écrasent plus ; une installation interrompue ne bloque plus les démarrages suivants ; l'installeur NDI vérifie la signature du téléchargement avant de l'exécuter.
+
+## Installation
+
+Téléchargez **`ProjectOn_2.4.0_Setup.exe`** ci-dessous et installez-le par-dessus la version existante : cantiques, playlists, réglages et base sont conservés.
+
+Windows 10 / 11 (64 bits) · fonctionne hors-ligne.
+
+---
+
 # Project-On 2.3.0
 
 **La sortie HDMI pour mélangeur vidéo : ATEM, Roland V/AV et compagnie entrent dans la régie** 🎛️ — Branchez une sortie HDMI du PC sur une entrée du mélangeur : Project-On envoie une source d'incrustation prête à l'emploi — fond vert chroma plein cadre + la section texte composée exactement comme la sortie OBS. Activez la clé chroma (vert) sur cette entrée dans le mélangeur, et seul le texte vient se poser sur la caméra. Projecteur ET mixeur peuvent travailler en même temps, chacun avec sa sortie.

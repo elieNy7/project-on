@@ -204,6 +204,10 @@ if "%DO_SIGN%"=="0" (
     exit /b 0
 )
 if not exist "%SIGN_PS1%" (
+    if "%SIGN_STRICT%"=="1" (
+        echo [ERROR] Script de signature introuvable: %SIGN_PS1%.
+        exit /b 1
+    )
     echo [WARN] Script de signature introuvable: %SIGN_PS1% ^(signature ignoree^).
     exit /b 0
 )
@@ -213,8 +217,16 @@ set "SIGN_RC=!errorlevel!"
 if "!SIGN_RC!"=="0" (
     echo [SIGN] !SIGN_LABEL! : OK.
 ) else if "!SIGN_RC!"=="2" (
+    if "%SIGN_STRICT%"=="1" (
+        echo [ERROR] !SIGN_LABEL! : aucun certificat de signature et SIGN_STRICT=1, build interrompu.
+        exit /b 1
+    )
     echo [WARN] !SIGN_LABEL! : aucun certificat de signature, build poursuivi non signe.
 ) else (
+    if "%SIGN_STRICT%"=="1" (
+        echo [ERROR] !SIGN_LABEL! : signature non appliquee, rc=!SIGN_RC! et SIGN_STRICT=1, build interrompu.
+        exit /b 1
+    )
     echo [WARN] !SIGN_LABEL! : signature non appliquee, rc=!SIGN_RC!, build poursuivi.
 )
 exit /b 0

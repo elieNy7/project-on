@@ -42,6 +42,11 @@ class PdfImportDialog(QDialog):
         self._selected_hymns_indices: set[int] = set(range(len(hymns)))
         self._dao = dao
         self._edits: dict[int, dict[str, Any]] = {}  # index -> {title, stanzas_text}
+        self._effective_titles: dict[int, str] = {}
+        # Compteur de révision : toute modification (préfixe, numéro de départ,
+        # édition manuelle) invalide le bilan affiché jusqu'au recalcul.
+        self._validation_revision = 0
+        self._validation_shown_revision = -1
 
         self.setWindowTitle(tr("pdf_import_title", name=pdf_name))
         self.setMinimumSize(800, 600)
@@ -76,6 +81,7 @@ class PdfImportDialog(QDialog):
         self.prefix_input.setStyleSheet(get_input_style())
         self.prefix_input.setMaximumWidth(100)
         self.prefix_input.textChanged.connect(self._update_preview)
+        self.prefix_input.textChanged.connect(self._invalidate_validation)
 
         start_label = QLabel(tr("pdf_start_number"))
         start_label.setStyleSheet(f"font-weight: 500; color: {Colors.TEXT_SECONDARY};")
@@ -84,6 +90,7 @@ class PdfImportDialog(QDialog):
         self.start_number.setMaximum(9999)
         self.start_number.setValue(1)
         self.start_number.valueChanged.connect(self._update_preview)
+        self.start_number.valueChanged.connect(self._invalidate_validation)
         self.start_number.setStyleSheet(get_input_style())
 
         prefix_layout.addWidget(prefix_label)
@@ -164,6 +171,7 @@ class PdfImportDialog(QDialog):
             }}
         """)
         self.preview_text.textChanged.connect(self._on_preview_edited)
+        self.preview_text.textChanged.connect(self._invalidate_validation)
         right_layout.addWidget(self.preview_text)
 
         edit_hint = QLabel(
@@ -361,26 +369,109 @@ class PdfImportDialog(QDialog):
         """Get the starting number."""
         return self.start_number.value()
 
+    def _invalidate_validation(self, *_args: object) -> None:
+        """Marque le bilan (doublons, titres) comme périmé après modification."""
+        self._validation_revision += 1
+        # Recalcul différé : coalescer les rafales de textChanged.
+        from PyQt6.QtCore import QTimer
+
+        QTimer.singleShot(0, self._refresh_validation)
+
+    def _refresh_validation(self) -> None:
+        """Recalcule titres effectifs et doublons si le bilan est périmé."""
+        if self._validation_shown_revision == self._validation_revision:
+            return
+        self._validation_shown_revision = self._validation_revision
+
+        effective_titles = {
+            index: self._effective_title(index)
+            for index in range(len(self._hymns))
+        }
+        self._effective_titles = effective_titles
+
+        # Mettre à jour chaque item : titre courant + état de doublon recalculé.
+        for row in range(self.hymns_list.count()):
+            item = self.hymns_list.item(row)
+            if item is None:
+                continue
+            index = item.data(Qt.ItemDataRole.UserRole)
+            if index is None or index >= len(self._hymns):
+                continue
+            title = effective_titles.get(index, "")
+            stanza_count = len(self._effective_stanzas(index))
+            if index in self._edits and self._edits[index].get("title"):
+                # Le texte d'item d'une édition manuelle est déjà à jour.
+                display = item.text().rsplit(" (", 1)[0]
+                display = f"{display} ({stanza_count} strophes)"
+            else:
+                display = f"{title} ({stanza_count} strophes)"
+            is_dup = bool(self._dao and self._dao.hymn_exists(title))
+            if is_dup:
+                display += " [Déjà présent]"
+                item.setForeground(QColor(Colors.TEXT_MUTED))
+            else:
+                item.setForeground(self.palette().text())
+            item.setData(Qt.ItemDataRole.UserRole + 1, is_dup)
+            if index not in self._edits:
+                item.setText(display)
+
+    def _effective_title(self, index: int) -> str:
+        """Titre final pour le cantique *index* (édition ou numérotation)."""
+        if index in self._edits and self._edits[index].get("title"):
+            return str(self._edits[index]["title"])
+        prefix = self.get_prefix()
+        number = self._effective_number(index)
+        original_title = self._hymns[index].get("title", "")
+        match = _TITLE_RE.match(original_title)
+        name = match.group(2) if match else original_title
+        return f"{prefix}-{number}. {name}"
+
+    def _effective_number(self, index: int) -> int:
+        """Numéro final : parsed, sinon numéro de départ + rang de sélection."""
+        hymn = self._hymns[index]
+        number = hymn.get("number")
+        try:
+            return int(number)
+        except (TypeError, ValueError):
+            pass
+        # Cantiques sans numéro détecté : utiliser la numérotation de départ.
+        order = sorted(self._selected_hymns_indices)
+        if index in order:
+            return self.get_start_number() + order.index(index)
+        return self.get_start_number() + index
+
+    def _effective_stanzas(self, index: int) -> list[str]:
+        if index in self._edits:
+            return list(self._edits[index].get("stanzas", []))
+        return list(self._hymns[index].get("stanzas", []))
+
     def get_selected_hymns(self) -> list[dict[str, Any]]:
-        """Get list of selected hymns with modifications."""
+        """Get list of selected hymns with modifications.
+
+        La numérotation de départ est réellement appliquée : les cantiques
+        sans numéro détecté reçoivent ``départ + rang de sélection`` et la
+        numérotation suit l'ordre d'affichage.
+        """
+        # Garantir un bilan à jour même si l'utilisateur valide très vite.
+        self._refresh_validation()
+
         result = []
-        for i in sorted(list(self._selected_hymns_indices)):
-            hymn = self._hymns[i]
-            if i in self._edits:
+        for row_order, index in enumerate(sorted(self._selected_hymns_indices)):
+            hymn = self._hymns[index]
+            if index in self._edits:
                 result.append(
                     {
-                        "number": hymn.get("number"),
-                        "title": self._edits[i]["title"],
-                        "stanzas": self._edits[i]["stanzas"],
+                        "number": self._effective_number(index),
+                        "title": self._edits[index]["title"],
+                        "stanzas": self._edits[index]["stanzas"],
                     }
                 )
             else:
-                # Apply title logic if not edited
-                prefix = self.get_prefix()
-                number = hymn.get("number", i + 1)
+                number = self._effective_number(index)
                 original_title = hymn.get("title", "")
                 match = _TITLE_RE.match(original_title)
                 name = match.group(2) if match else original_title
+                prefix = self.get_prefix()
 
                 result.append(
                     {

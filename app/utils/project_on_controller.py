@@ -1,14 +1,27 @@
 from __future__ import annotations
 
 from pathlib import Path
+from dataclasses import dataclass
+from typing import Callable
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
 from app.database.connection import Database
 from app.utils.constants import MAX_CHARS_PER_SLIDE, MIN_CHARS_PER_SLIDE
 from app.utils.models import Slide, SourceType
-from app.utils.slide_writer import SlideWriter
+from app.utils.slide_writer import LiveSnapshot, SlideWriter
 from app.utils.text_utils import strip_hymn_projection_label
+
+
+@dataclass(frozen=True)
+class LiveState:
+    """État public du direct : programme et writer, restaurable."""
+
+    slides: tuple[Slide, ...]
+    title: str
+    entry_start_rows: tuple[int | None, ...]
+    current_row: int
+    writer: LiveSnapshot
 
 
 class ProjectOnController(QObject):
@@ -37,6 +50,13 @@ class ProjectOnController(QObject):
         self._program_title: str = ""
         self._current_row = -1
         self._entry_start_rows: list[int | None] = []
+        # Crochet « activation manuelle » : appelé avant tout chargement
+        # demandé par l'opérateur (pas par la boucle d'annonces) pour que
+        # l'interface puisse clore celle-ci sans restauration obsolète.
+        self._before_manual_load: Callable[[], None] | None = None
+
+    def set_before_manual_load(self, handler: Callable[[], None] | None) -> None:
+        self._before_manual_load = handler
 
     # ── Properties ─────────────────────────────────────────────────────────
 
@@ -52,6 +72,11 @@ class ProjectOnController(QObject):
     def program_title(self) -> str:
         """Titre lisible du programme en cours (sermon, chapitre, cantique…)."""
         return self._program_title
+
+    @property
+    def live_state(self) -> LiveState:
+        """État public complet du direct (capturé sans copie coûteuse)."""
+        return self.capture_live_state()
 
     @property
     def program_count(self) -> int:
@@ -72,6 +97,7 @@ class ProjectOnController(QObject):
         focus_entry: int = 0,
         split: bool = True,
         entry_visuals: list[str] | None = None,
+        manual: bool = True,
     ) -> int:
         """Charge un programme de projection et projette l'entrée demandée.
 
@@ -84,7 +110,16 @@ class ProjectOnController(QObject):
         à chaque entrée un média : image ou vidéo (décision par extension).
         Une entrée à visuel produit une slide unique sans découpage —
         ``source`` bascule sur ``image``/``video``.
+
+        ``manual=False`` marque un chargement automatique (boucle
+        d'annonces) : le crochet ``set_before_manual_load`` n'est pas
+        déclenché — sinon la boucle se cloretrait elle-même.
         """
+        if manual and self._before_manual_load is not None:
+            try:
+                self._before_manual_load()
+            except Exception:
+                pass
         slides: list[Slide] = []
         entry_start_rows: list[int | None] = []
         for index, (reference, text) in enumerate(entries):
@@ -340,3 +375,33 @@ class ProjectOnController(QObject):
         self._slide_writer.write(None)
         self.currentRowChanged.emit(-1)
         self.currentSlideChanged.emit(None)
+
+    # ── État public du direct ──────────────────────────────────────────────
+
+    def capture_live_state(self) -> LiveState:
+        """Capture l'état complet du direct (programme + writer)."""
+        return LiveState(
+            slides=tuple(self._program_slides),
+            title=self._program_title,
+            entry_start_rows=tuple(self._entry_start_rows),
+            current_row=self._current_row,
+            writer=self._slide_writer.snapshot(),
+        )
+
+    def restore_live_state(self, state: LiveState) -> None:
+        """Restaure un état capturé, y compris l'édition en cours."""
+        self._program_slides = list(state.slides)
+        self._program_title = state.title
+        self._entry_start_rows = list(state.entry_start_rows)
+        self.programChanged.emit(self._program_title)
+        current = state.current_row
+        if 0 <= current < len(self._program_slides):
+            # Restaure la navigation sans réécrire la slide : l'état exact
+            # du writer (édition, masquage, vidéo) est réappliqué ensuite.
+            self._current_row = current
+            self.currentRowChanged.emit(current)
+        else:
+            self._current_row = -1
+            self.currentRowChanged.emit(-1)
+        self._slide_writer.restore(state.writer)
+        self.currentSlideChanged.emit(state.writer.slide)

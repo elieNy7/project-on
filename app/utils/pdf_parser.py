@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 import re
+import time
 from pathlib import Path
 from typing import Any
 
@@ -32,44 +33,163 @@ try:
 except ImportError:
     HAS_OCR = False
 
+# ── Budgets d'import (cf. plan du 2026-09-17, lot 4) ────────────────────────
+MAX_PDF_PAGES = 800
+# Pixels maximum rendus par page avant OCR (a2 = 2× ; 6000×4500 ≈ 27 Mpx).
+MAX_OCR_PIXELS = 40_000_000
+# Délai maximal par page d'OCR (l'OCR devient facultatif et borné, jamais
+# bloqué : une page scannée lente n'arrête plus l'import entier).
+DEFAULT_OCR_TIMEOUT_SECONDS = 15.0
 
-def read_pdf(pdf_path: Path) -> str:
+
+class PDFImportError(RuntimeError):
+    """Lecture PDF impossible ou hors budget (message affichable tel quel)."""
+
+
+def read_pdf(
+    pdf_path: Path,
+    *,
+    ocr: bool = True,
+    ocr_timeout_seconds: float = DEFAULT_OCR_TIMEOUT_SECONDS,
+    max_pages: int = MAX_PDF_PAGES,
+    diagnostics: dict[str, Any] | None = None,
+) -> str:
     """Read all text from PDF using column-aware block extraction.
 
-    Detects two-column layouts. If a page has no extractable text,
-    it attempts OCR using pytesseract.
+    Detects two-column layouts. If a page has no extractable text, it may
+    attempt OCR (facultatif, borné par ``ocr_timeout_seconds`` par page).
+
+    ``diagnostics`` (dict optionnel) reçoit la couverture par page :
+    ``{"total_pages", "pages_read", "pages_ocr", "pages_empty",
+    "pages_skipped": [{"page": n, "reason": str}], "ocr_disabled",
+    "elapsed_seconds"}`` — les pages ignorées restent visibles pour
+    l'utilisateur au lieu d'être perdues silencieusement.
+
+    Lève ``PDFImportError`` si le document dépasse ``max_pages`` (refus
+    explicite, pas de lecture partielle silencieuse).
     """
     if not HAS_FITZ:
         raise ImportError(
             "PyMuPDF (fitz) is required for PDF import. Install with: pip install pymupdf"
         )
 
+    started = time.monotonic()
     doc = fitz.open(pdf_path)
     try:
+        total_pages = int(doc.page_count)
+        if total_pages > max_pages:
+            raise PDFImportError(
+                f"PDF trop grand : {total_pages} pages "
+                f"(maximum {max_pages}). Import refusé pour éviter un "
+                "résultat partiel silencieux."
+            )
+
         full_text = ""
+        if diagnostics is not None:
+            diagnostics.setdefault("total_pages", total_pages)
+            diagnostics.setdefault("pages_read", 0)
+            diagnostics.setdefault("pages_ocr", 0)
+            diagnostics.setdefault("pages_empty", 0)
+            diagnostics.setdefault("pages_skipped", [])
+            diagnostics.setdefault("ocr_disabled", not ocr or not HAS_OCR)
+
         for page in doc:
             page_text = _extract_page_text_columns(page)
 
-            # If no text found, try OCR
-            if not page_text.strip() and HAS_OCR:
+            # If no text found, try OCR (facultatif, avec délai maximal)
+            if not page_text.strip() and ocr and HAS_OCR:
+                pix = None
                 try:
-                    # Render page to image
-                    pix = page.get_pixmap(
-                        matrix=fitz.Matrix(2, 2)
-                    )  # 2x scale for better OCR
-                    img_data = pix.tobytes("png")
-                    img = Image.open(io.BytesIO(img_data))
+                    area = page.rect.width * page.rect.height
+                    if area * 4 > MAX_OCR_PIXELS:
+                        if diagnostics is not None:
+                            diagnostics["pages_skipped"].append(
+                                {
+                                    "page": page.number + 1,
+                                    "reason": (
+                                        f"OCR ignoré : page trop grande "
+                                        f"({int(area * 4 / 1_000_000)} Mpx > "
+                                        f"{MAX_OCR_PIXELS // 1_000_000} Mpx)."
+                                    ),
+                                }
+                            )
+                        logger.warning(
+                            "OCR ignoré page %s : budget pixels dépassé",
+                            page.number + 1,
+                        )
+                    else:
+                        # Render page to image (2x scale for better OCR)
+                        pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
+                        img_data = pix.tobytes("png")
+                        img = Image.open(io.BytesIO(img_data))
 
-                    # Run OCR (French and English by default)
-                    # Note: tesseract must be installed on the system
-                    config = "--psm 3"  # Fully automatic page segmentation, but no OSD.
-                    page_text = pytesseract.image_to_string(
-                        img, lang="fra+eng", config=config
+                        # Run OCR (French and English by default)
+                        # Note: tesseract must be installed on the system
+                        config = "--psm 3"
+                        page_text = pytesseract.image_to_string(
+                            img,
+                            lang="fra+eng",
+                            config=config,
+                            timeout=ocr_timeout_seconds,
+                        )
+                        if diagnostics is not None:
+                            diagnostics["pages_ocr"] += 1
+                except pytesseract.TesseractError as exc:
+                    logger.warning(
+                        "OCR échoué sur la page %s : %s", page.number + 1, exc
                     )
-                except Exception:
-                    logger.exception("OCR échoué sur la page %s", page.number)
+                    if diagnostics is not None:
+                        diagnostics["pages_skipped"].append(
+                            {
+                                "page": page.number + 1,
+                                "reason": f"OCR en erreur : {exc}",
+                            }
+                        )
+                except RuntimeError:
+                    # Dépassement du délai OCR (pytesseract lève RuntimeError)
+                    logger.warning(
+                        "OCR trop lent sur la page %s (délai %ss dépassé)",
+                        page.number + 1,
+                        ocr_timeout_seconds,
+                    )
+                    if diagnostics is not None:
+                        diagnostics["pages_skipped"].append(
+                            {
+                                "page": page.number + 1,
+                                "reason": (
+                                    f"OCR trop lent (>{ocr_timeout_seconds:g} s) : "
+                                    "page ignorée."
+                                ),
+                            }
+                        )
+                except Exception as exc:
+                    logger.warning(
+                        "OCR échoué sur la page %s : %s", page.number + 1, exc
+                    )
+                    if diagnostics is not None:
+                        diagnostics["pages_skipped"].append(
+                            {"page": page.number + 1, "reason": f"OCR : {exc}"}
+                        )
+                finally:
+                    if pix is not None:
+                        pix = None
+            elif not page_text.strip() and diagnostics is not None:
+                diagnostics["pages_empty"] += 1
+                diagnostics["pages_skipped"].append(
+                    {
+                        "page": page.number + 1,
+                        "reason": (
+                            "Page sans texte (et OCR indisponible ou désactivé)."
+                        ),
+                    }
+                )
 
             full_text += page_text + "\n"
+            if diagnostics is not None:
+                diagnostics["pages_read"] += 1
+
+        if diagnostics is not None:
+            diagnostics["elapsed_seconds"] = round(time.monotonic() - started, 2)
     finally:
         doc.close()
     # Normalize typographic quotes to ASCII
@@ -310,19 +430,28 @@ def clean_latex_commands(text: str) -> str:
     return text.strip()
 
 
-def parse_hymns_from_pdf(pdf_path: Path, prefix: str = "PDF") -> list[dict[str, Any]]:
+def parse_hymns_from_pdf(
+    pdf_path: Path,
+    prefix: str = "PDF",
+    diagnostics: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
     """Parse hymns from a PDF file.
     Tries multiple formats to extract hymns.
 
     Args:
         pdf_path: Path to the PDF file
         prefix: Prefix for hymn titles (e.g., "CI", "CV", "PN", "AD")
+        diagnostics: dict optionnel rempli avec la couverture par page
+            (total, lues, OCR, vides, pages ignorées et leur raison).
 
     Returns:
         List of hymn dicts with 'number', 'title', and 'stanzas' keys
 
+    Raises:
+        PDFImportError: document trop grand (aucun résultat partiel silencieux).
+
     """
-    text = read_pdf(pdf_path)
+    text = read_pdf(pdf_path, diagnostics=diagnostics)
 
     # Try different parsing strategies in order of specificity
     # Format 1: "N\nTITLE IN UPPERCASE" (Cantiques-Inspir style)

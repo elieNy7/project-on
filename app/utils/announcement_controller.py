@@ -60,23 +60,29 @@ class AnnouncementController(QObject):
         """Prend la main sur la sortie avec la playlist d'annonces."""
         if self._active or self._folder_id is None:
             return False
-        entries = self._load_entries(self._folder_id)
+        entries, visuals = self._load_entries(self._folder_id)
         if not entries:
             return False
 
         controller = self._controller
-        # Instantané du live (slides, titre, rangée courante) pour restauration.
-        self._snapshot = (
-            list(controller._program_slides),
-            controller._program_title,
-            list(controller._entry_start_rows),
-            controller.current_row(),
-        )
+        # Instantané complet du live (slides, titre, rangée, état writer)
+        # pour une restauration à l'identique, édition comprise.
+        self._snapshot = controller.capture_live_state()
 
         self._announce_slides = entries
         self._index = 0
+        if controller.load_program(
+            "custom",
+            "Annonces",
+            entries,
+            split=False,
+            entry_visuals=visuals,
+            manual=False,
+        ) < 0:
+            # Aucun slide projetable : ne pas voler le live à vide.
+            self._snapshot = None
+            return False
         self._active = True
-        controller.load_program("custom", "Annonces", entries, split=False)
         self._timer.start()
         self.activeChanged.emit(True)
         return True
@@ -89,19 +95,24 @@ class AnnouncementController(QObject):
         self._active = False
         snapshot = self._snapshot
         self._snapshot = None
-        if snapshot is None:
-            self.activeChanged.emit(False)
+        self.activeChanged.emit(False)
+        if snapshot is not None:
+            self._controller.restore_live_state(snapshot)
+
+
+    def abandon(self) -> None:
+        """Prendre fin sans restaurer l'instantané (annulation volontaire).
+
+        À appeler par l'interface AVANT toute activation bibliothèque qui
+        remplacera le programme : la boucle s'arrête proprement (timer, état,
+        signal) et le programme suivant devient le nouveau live.
+        """
+        if not self._active:
             return
-        slides, title, entry_rows, current = snapshot
-        controller = self._controller
-        controller._program_slides = list(slides)
-        controller._program_title = str(title or "")
-        controller._entry_start_rows = list(entry_rows)
-        controller.programChanged.emit(controller._program_title)
-        if 0 <= current < len(controller._program_slides):
-            controller.set_current_row(current)
-        else:
-            controller.show_logo()
+        self._timer.stop()
+        self._active = False
+        self._announce_slides = []
+        self._snapshot = None
         self.activeChanged.emit(False)
 
     def toggle(self) -> bool:
@@ -120,13 +131,17 @@ class AnnouncementController(QObject):
 
     # ── Chargement des items de la playlist ────────────────────────────
 
-    def _load_entries(self, folder_id: int) -> list[tuple[str, str]]:
+    def _load_entries(
+        self, folder_id: int
+    ) -> tuple[list[tuple[str, str]], list[str]]:
+        """Charge les items : (entrées référence/texte, visuels associés)."""
         try:
             items = self._playlist_dao.list_items(folder_id)
         except Exception:
             log.exception("Échec du chargement de la playlist d'annonces")
-            return []
+            return [], []
         entries: list[tuple[str, str]] = []
+        visuals: list[str] = []
         title = "Annonces"
         try:
             folder = self._playlist_dao.get_folder(folder_id)
@@ -140,4 +155,5 @@ class AnnouncementController(QObject):
             is_media = str(item.get("source") or "") == "media" and background
             if is_media or text:
                 entries.append((reference, text if not is_media else ""))
-        return entries
+                visuals.append(background if is_media else "")
+        return entries, visuals

@@ -249,8 +249,16 @@ class NdiLowerThirdSender:
 
     @property
     def is_alive(self) -> bool:
-        """True tant que le thread d'envoi NDI tourne."""
-        return self._thread is not None and self._thread.is_alive()
+        """True tant que le thread d'envoi NDI tourne ET possède sa source.
+
+        Un thread en cours de nettoyage (source déjà détruite par son
+        finally) ne doit pas passer pour « en cours » auprès du superviseur.
+        """
+        return (
+            self._thread is not None
+            and self._thread.is_alive()
+            and self._ndi_send is not None
+        )
 
     @staticmethod
     def availability() -> NdiAvailability:
@@ -259,6 +267,13 @@ class NdiLowerThirdSender:
     def start(self) -> bool:
         if self.is_alive:
             return True  # déjà en cours
+        if self._thread is not None and self._thread.is_alive():
+            # Le thread précédent termine son nettoyage natif (sa source est
+            # déjà détruite) ; un nouveau départ partagerait un état mort.
+            self.last_error = (
+                "Arrêt NDI précédent pas encore terminé ; réessayez à l'instant."
+            )
+            return False
 
         self.last_error = ""
         np, ndi = _try_import_ndi()
@@ -301,8 +316,18 @@ class NdiLowerThirdSender:
 
     def stop(self) -> None:
         self._stop.set()
-        if self._thread is not None:
-            self._thread.join(timeout=2.0)
+        thread = self._thread
+        if thread is not None:
+            thread.join(timeout=2.0)
+            if thread.is_alive():
+                # Le thread est encore bloqué dans un appel natif : ne jamais
+                # détruire les ressources qu'il est susceptible d'utiliser.
+                # Son bloc finally de _run fait le nettoyage à sa sortie.
+                self._log_warning(
+                    "Thread NDI toujours vivant à l'arrêt : "
+                    "destruction native abandonnée au thread"
+                )
+                return
             self._thread = None
 
         if self._ndi is None:
@@ -491,82 +516,94 @@ class NdiLowerThirdSender:
         # Cadence corrigée en dérive : l'heure de la frame suivante est
         # calculée sur une horloge monotone, pas sur la durée du travail.
         next_frame = time.monotonic()
-        while not self._stop.is_set():
-            try:
-                cfg_mtime = (
-                    self._cfg_path.stat().st_mtime if self._cfg_path.exists() else -1.0
-                )
-            except Exception:
-                cfg_mtime = -1.0
-            if cfg_mtime != self._last_cfg_mtime:
-                self._last_cfg_mtime = cfg_mtime
-                self._last_cfg = self._read_json(self._cfg_path) or {}
-                needs_render = True
-
-            try:
-                slide_mtime = (
-                    self._slide_path.stat().st_mtime
-                    if self._slide_path.exists()
-                    else -1.0
-                )
-            except Exception:
-                slide_mtime = -1.0
-            if slide_mtime != self._last_slide_mtime:
-                self._last_slide_mtime = slide_mtime
-                self._last_payload = self._read_json(self._slide_path)
-                needs_render = True
-
-            # Only re-render (PIL raster) when the slide or config actually
-            # changed; the same cached frame is streamed at a steady rate.
-            if needs_render:
+        try:
+            while not self._stop.is_set():
                 try:
-                    frame = self._render(self._last_payload)
-                except Exception:
-                    frame = None
-                if frame is not None:
-                    last_frame = frame
-                self._refresh_ticker_resources()
-                needs_render = False
-
-            # Bandeau défilant : recomposé à chaque frame (seule la bande
-            # basse change), décalage piloté par une horloge monotone.
-            if self._ticker_res is not None:
-                now = time.monotonic()
-                if self._ticker_last:
-                    dt = min(0.5, now - self._ticker_last)
-                    self._ticker_offset = (
-                        self._ticker_offset + self._ticker_res["speed"] * dt
-                    ) % float(self._ticker_res["period"])
-                self._ticker_last = now
-                last_frame = self._apply_ticker(last_frame, self._ticker_offset)
-
-            # Reuse frame object; swap underlying data. Une erreur d'envoi
-            # (runtime arrêté, adaptateur réseau changé) n'interrompt pas la
-            # boucle : on réessaie, et on rend les armes après ~3 s d'échecs
-            # pour laisser le superviseur relancer proprement.
-            self._video_frame.data = last_frame
-            try:
-                self._ndi.send_send_video_v2(self._ndi_send, self._video_frame)
-                consecutive_send_errors = 0
-            except Exception as exc:
-                consecutive_send_errors += 1
-                self.last_error = f"Envoi NDI en échec : {exc}"
-                if consecutive_send_errors == 1:
-                    self._log_warning("Envoi NDI interrompu (%s)", exc)
-                if consecutive_send_errors >= 90:
-                    self._log_warning(
-                        "Envoi NDI abandonné après %d échecs consécutifs",
-                        consecutive_send_errors,
+                    cfg_mtime = (
+                        self._cfg_path.stat().st_mtime if self._cfg_path.exists() else -1.0
                     )
-                    break
+                except Exception:
+                    cfg_mtime = -1.0
+                if cfg_mtime != self._last_cfg_mtime:
+                    self._last_cfg_mtime = cfg_mtime
+                    self._last_cfg = self._read_json(self._cfg_path) or {}
+                    needs_render = True
 
-            next_frame += interval
-            delay = next_frame - time.monotonic()
-            if delay > 0:
-                time.sleep(delay)
-            else:
-                # On a pris du retard : on repart de l'instant présent.
-                next_frame = time.monotonic()
+                try:
+                    slide_mtime = (
+                        self._slide_path.stat().st_mtime
+                        if self._slide_path.exists()
+                        else -1.0
+                    )
+                except Exception:
+                    slide_mtime = -1.0
+                if slide_mtime != self._last_slide_mtime:
+                    self._last_slide_mtime = slide_mtime
+                    self._last_payload = self._read_json(self._slide_path)
+                    needs_render = True
+
+                # Only re-render (PIL raster) when the slide or config actually
+                # changed; the same cached frame is streamed at a steady rate.
+                if needs_render:
+                    try:
+                        frame = self._render(self._last_payload)
+                    except Exception:
+                        frame = None
+                    if frame is not None:
+                        last_frame = frame
+                    self._refresh_ticker_resources()
+                    needs_render = False
+
+                # Bandeau défilant : recomposé à chaque frame (seule la bande
+                # basse change), décalage piloté par une horloge monotone.
+                if self._ticker_res is not None:
+                    now = time.monotonic()
+                    if self._ticker_last:
+                        dt = min(0.5, now - self._ticker_last)
+                        self._ticker_offset = (
+                            self._ticker_offset + self._ticker_res["speed"] * dt
+                        ) % float(self._ticker_res["period"])
+                    self._ticker_last = now
+                    last_frame = self._apply_ticker(last_frame, self._ticker_offset)
+
+                # Reuse frame object; swap underlying data. Une erreur d'envoi
+                # (runtime arrêté, adaptateur réseau changé) n'interrompt pas la
+                # boucle : on réessaie, et on rend les armes après ~3 s d'échecs
+                # pour laisser le superviseur relancer proprement.
+                self._video_frame.data = last_frame
+                try:
+                    self._ndi.send_send_video_v2(self._ndi_send, self._video_frame)
+                    consecutive_send_errors = 0
+                except Exception as exc:
+                    consecutive_send_errors += 1
+                    self.last_error = f"Envoi NDI en échec : {exc}"
+                    if consecutive_send_errors == 1:
+                        self._log_warning("Envoi NDI interrompu (%s)", exc)
+                    if consecutive_send_errors >= 90:
+                        self._log_warning(
+                            "Envoi NDI abandonné après %d échecs consécutifs",
+                            consecutive_send_errors,
+                        )
+                        break
+
+                next_frame += interval
+                delay = next_frame - time.monotonic()
+                if delay > 0:
+                    time.sleep(delay)
+                else:
+                    # On a pris du retard : on repart de l'instant présent.
+                    next_frame = time.monotonic()
+        finally:
+            # Le thread est propriétaire de la source NDI : détruite ici,
+            # à sa sortie — jamais depuis l'extérieur pendant qu'il vit.
+            try:
+                if self._ndi_send is not None:
+                    self._ndi.send_destroy(self._ndi_send)
+            except Exception:
+                pass
+            finally:
+                self._ndi_send = None
+                self._video_frame = None
 
     @staticmethod
     def _log_warning(message: str, *args) -> None:

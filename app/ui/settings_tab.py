@@ -49,6 +49,7 @@ class _WorkerSignals(QObject):
     """Signaux pour les workers de fond (thread-safe via Qt signal/slot)."""
     optimize_done  = pyqtSignal(bool, int, int)  # (success, saved_bytes, new_size)
     backup_done = pyqtSignal(bool, str, int, str)
+    bundle_done = pyqtSignal(bool, str, int, str)
 
 
 class _OptimizeWorker(QRunnable):
@@ -108,6 +109,36 @@ class _BackupWorker(QRunnable):
             )
         except Exception as exc:
             self._signals.backup_done.emit(False, str(self._destination), 0, str(exc))
+
+
+class _BundleWorker(QRunnable):
+    """Archive complète (base + médias + fonds + paramètres) en arrière-plan."""
+
+    def __init__(self, source: Path, destination: Path, signals: _WorkerSignals) -> None:
+        super().__init__()
+        self.setAutoDelete(True)
+        self._source = source
+        self._destination = destination
+        self._signals = signals
+
+    @pyqtSlot()
+    def run(self) -> None:
+        from app.utils.app_paths import backgrounds_dir, media_dir
+        from app.utils.backup_manager import create_backup_bundle
+
+        try:
+            result = create_backup_bundle(
+                self._source,
+                self._destination,
+                media_root=media_dir(),
+                backgrounds_root=backgrounds_dir(),
+                settings_file=settings_path(),
+            )
+            self._signals.bundle_done.emit(
+                True, str(result.path), result.size_bytes, ""
+            )
+        except Exception as exc:
+            self._signals.bundle_done.emit(False, str(self._destination), 0, str(exc))
 
 
 # ─── Composants visuels ───────────────────────────────────────────────────────
@@ -348,6 +379,7 @@ class SettingsTab(QWidget):
         self._worker_signals = _WorkerSignals()
         self._worker_signals.optimize_done.connect(self._on_optimize_done)
         self._worker_signals.backup_done.connect(self._on_backup_done)
+        self._worker_signals.bundle_done.connect(self._on_bundle_done)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -441,6 +473,18 @@ class SettingsTab(QWidget):
             "database.svg", "#22c55e", data_card,
         )
         data_card.add_item(self._backup_db_item)
+        self._backup_bundle_item = SettingsItem(
+            "Sauvegarde complète (archive)",
+            "Base + médias + fonds + paramètres dans un ZIP transportable, restaurable sur un autre poste",
+            "database.svg", "#38bdf8", data_card,
+        )
+        data_card.add_item(self._backup_bundle_item)
+        self._restore_bundle_item = SettingsItem(
+            "Restaurer une archive",
+            "Reconstruit un profil complet depuis un ZIP — toujours vers un NOUVEAU dossier, jamais le profil actif",
+            "folder-open.svg", "#f472b6", data_card,
+        )
+        data_card.add_item(self._restore_bundle_item)
         self._optimize_item = SettingsItem(
             "Optimiser la base de données",
             "Compacte la base et rafraîchit les index pour accélérer les recherches",
@@ -490,6 +534,8 @@ class SettingsTab(QWidget):
         self._shortcuts_item.clicked.connect(self.shortcutsRequested.emit)
         self._about_item.clicked.connect(self.aboutRequested.emit)
         self._backup_db_item.clicked.connect(self._on_backup_db)
+        self._backup_bundle_item.clicked.connect(self._on_backup_bundle)
+        self._restore_bundle_item.clicked.connect(self._on_restore_bundle)
         self._optimize_item.clicked.connect(self._on_optimize_db)
         self._preflight_item.clicked.connect(self.preflightRequested.emit)
         self._open_data_folder_item.clicked.connect(self._on_open_data_folder)
@@ -610,6 +656,104 @@ class SettingsTab(QWidget):
                 "Erreur sauvegarde",
                 f"Impossible de sauvegarder la base.\n\n{message}",
             )
+
+    def _on_backup_bundle(self) -> None:
+        db_path = app_db_path()
+        if not db_path.exists():
+            QMessageBox.warning(self, "Sauvegarde impossible", "La base de données est introuvable.")
+            return
+
+        from PyQt6.QtWidgets import QFileDialog
+
+        default = data_dir() / f"project-on-complet-{self._timestamp()}.zip"
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Sauvegarde complète (archive)",
+            str(default),
+            "Archive Project-On (*.zip);;Tous les fichiers (*.*)",
+        )
+        if not file_path:
+            return
+
+        self._backup_bundle_item.set_detail("Archive en cours...")
+        self._backup_bundle_item.setEnabled(False)
+        worker = _BundleWorker(db_path, Path(file_path), self._worker_signals)
+        QThreadPool.globalInstance().start(worker)
+
+    def _on_bundle_done(
+        self, success: bool, file_path: str, size_bytes: int, message: str
+    ) -> None:
+        self._backup_bundle_item.setEnabled(True)
+        if success:
+            self._backup_bundle_item.set_detail("Archive vérifiée")
+            QMessageBox.information(
+                self,
+                "Sauvegarde complète terminée",
+                f"Archive transportable créée :\n{Path(file_path).name}\n\n"
+                f"Taille : {self._fmt_size(size_bytes)}\n\n"
+                "Restauration : Réglages → « Restaurer une archive » sur le poste "
+                "cible, dans un NOUVEAU dossier de profil.",
+            )
+        else:
+            self._backup_bundle_item.set_detail("Erreur")
+            QMessageBox.warning(
+                self,
+                "Erreur sauvegarde complète",
+                f"Impossible de créer l'archive.\n\n{message}",
+            )
+
+    def _on_restore_bundle(self) -> None:
+        from PyQt6.QtWidgets import QFileDialog
+
+        archive, _ = QFileDialog.getOpenFileName(
+            self,
+            "Restaurer une archive Project-On",
+            str(data_dir()),
+            "Archive Project-On (*.zip);;Tous les fichiers (*.*)",
+        )
+        if not archive:
+            return
+        target = QFileDialog.getExistingDirectory(
+            self, "Dossier PARENT du nouveau profil (le profil sera créé dedans)"
+        )
+        if not target:
+            return
+        profile_dir = Path(target) / "Project-On-restauré"
+        if profile_dir.exists():
+            QMessageBox.warning(
+                self,
+                "Restauration impossible",
+                f"Le dossier cible existe déjà :\n{profile_dir}\n\n"
+                "Choisissez un emplacement vierge.",
+            )
+            return
+        confirm = QMessageBox.question(
+            self,
+            "Confirmer la restauration",
+            "Le profil sera reconstruit dans :\n"
+            f"{profile_dir}\n\n"
+            "Le profil ACTIF n'est pas touché. Pour utiliser le profil restauré, "
+            "fermez Project-On puis relancez-le avec ce dossier de données.",
+        )
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+
+        from app.utils.backup_manager import restore_backup_bundle
+
+        try:
+            restored = restore_backup_bundle(Path(archive), profile_dir)
+        except Exception as exc:
+            self._restore_bundle_item.set_detail("Erreur")
+            QMessageBox.warning(
+                self, "Erreur de restauration", f"Restauration impossible.\n\n{exc}"
+            )
+            return
+        self._restore_bundle_item.set_detail("Profil reconstruit")
+        QMessageBox.information(
+            self,
+            "Restauration terminée",
+            f"Profil reconstruit et vérifié :\n{restored}",
+        )
 
     def _on_open_data_folder(self) -> None:
         from app.utils.app_paths import data_dir

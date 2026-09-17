@@ -330,7 +330,14 @@ class SermonsDao:
         language: str = "en",
         translator: str | None = None,
         limit: int = 100,
+        *,
+        substring_fallback: bool = True,
     ) -> list[dict[str, Any]]:
+        """Search FTS; legacy substring fallback remains opt-in by default.
+
+        Callers offering token-only search can disable fallback to avoid a
+        table scan on a valid empty FTS result. Unavailable FTS still falls back.
+        """
         out: list[dict[str, Any]] = []
         q = query.strip()
         if not q:
@@ -342,6 +349,7 @@ class SermonsDao:
             title_expr = self._title_expr(has_canonical_title)
             marker_expr = "COALESCE(NULLIF(p.marker, ''), p.ref, '')" if has_marker else "p.ref"
             rows: list[sqlite3.Row] = []
+            fts_succeeded = False
 
             if self._table_exists(conn, "sermon_paragraph_fts"):
                 fts_q = self._fts_query(q)
@@ -368,10 +376,11 @@ class SermonsDao:
                         sql += " ORDER BY bm25(sermon_paragraph_fts), s.date, p.paragraph_no LIMIT ?"
                         params.append(limit)
                         rows = conn.execute(sql, tuple(params)).fetchall()
+                        fts_succeeded = True
                     except sqlite3.Error:
                         rows = []
 
-            if not rows:
+            if not rows and (not fts_succeeded or substring_fallback):
                 sql = f"""
                     SELECT p.sermon_id, p.paragraph_no, p.ref, p.text,
                            {marker_expr} AS marker,

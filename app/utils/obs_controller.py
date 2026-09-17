@@ -31,9 +31,15 @@ class ObsController:
     - NDI: Network Device Interface for direct video streaming (requires NDI SDK)
     """
 
-    def __init__(self, settings: ObsSettings | None = None) -> None:
+    def __init__(
+        self, settings: ObsSettings | None = None, host: str = "127.0.0.1"
+    ) -> None:
+        # host explicite requis par ObsWebServer ; loopback par défaut.
+        # Passage LAN explicite (ex. "0.0.0.0" ou IP locale) sans réglage :
+        # l'intégration peut le proposer comme option dédiée.
+        self._host = host
         self._settings = settings or ObsSettings()
-        self._web_server = ObsWebServer(port=self._settings.web_port)
+        self._web_server = ObsWebServer(port=self._settings.web_port, host=self._host)
         self._ndi_sender = None
         self._slide_lock = threading.Lock()
         self._current_slide: dict = {"text": "", "reference": "", "hidden": True}
@@ -47,17 +53,22 @@ class ObsController:
     def start_server(self):
         if self._web_server is None:
             logger.info("Starting OBS web server instance")
-            self._web_server = ObsWebServer(self._settings.web_port)
-            self._web_server.start()
-        else:
-            logger.debug("OBS web server already running")
+            self._web_server = ObsWebServer(self._settings.web_port, host=self._host)
+        return self.start_web_server()
+
+    def set_web_host(self, host: str) -> None:
+        """Explicit LAN opt-in; caller owns persistence and exposure warning."""
+        self._web_server.host = host
+        self._host = self._web_server.host
 
     @property
     def settings(self) -> ObsSettings:
         return self._settings
 
-    def update_settings(self, settings: ObsSettings) -> None:
-        """Update OBS settings and apply changes immediately."""
+    def update_settings(self, settings: ObsSettings, host: str | None = None) -> None:
+        """Update settings; omitted host preserves the explicit current binding."""
+        if host is not None:
+            self.set_web_host(host)
         old_port = self._settings.web_port
         old_mode = self._settings.mode
         self._settings = settings

@@ -134,6 +134,45 @@ class PlaylistDao:
             )
             return cursor.lastrowid or 0
 
+    def move_item(self, item_id: int, delta: int, folder_id: int | None) -> bool:
+        """Move against a fresh ordering under one write transaction."""
+        with self._db.connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            rows = conn.execute(
+                "SELECT id FROM playlist_item WHERE folder_id IS ? ORDER BY sort_order, id",
+                (folder_id,),
+            ).fetchall()
+            ids = [row[0] for row in rows]
+            if item_id not in ids:
+                return False
+            index = ids.index(item_id)
+            target = index + int(delta)
+            if target < 0 or target >= len(ids):
+                return False
+            ids[index], ids[target] = ids[target], ids[index]
+            # Normalize ties as well, so imported older orderings stay movable.
+            conn.executemany(
+                "UPDATE playlist_item SET sort_order = ? WHERE id = ?",
+                [(rank, ident) for rank, ident in enumerate(ids, 1)],
+            )
+            return True
+
+    def import_folder(self, name: str, items: list[dict]) -> int:
+        """Insert a transferred folder and its media references atomically."""
+        with self._db.connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            order = conn.execute("SELECT COALESCE(MAX(sort_order), 0)+1 FROM playlist_folder").fetchone()[0]
+            folder_id = conn.execute(
+                "INSERT INTO playlist_folder(name, sort_order) VALUES (?, ?)", (name, order)
+            ).lastrowid
+            conn.executemany(
+                "INSERT INTO playlist_item(folder_id, source, reference, text, background, sort_order) VALUES (?, ?, ?, ?, ?, ?)",
+                [(folder_id, it.get("source", "custom"), it.get("reference", ""),
+                  it.get("text", ""), it.get("background", ""), rank)
+                 for rank, it in enumerate(items, 1)],
+            )
+            return int(folder_id)
+
     def update_item_background(self, item_id: int, background: str) -> bool:
         """Met à jour l'image de fond d'un slide."""
         with self._db.connect() as conn:

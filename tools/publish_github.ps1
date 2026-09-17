@@ -12,7 +12,10 @@
 param(
   [string]$Repo = "elieNy7/project-on",
   [string]$Version = "1.5.2",
-  [switch]$Private
+  [switch]$Private,
+  # Publication de release : l'installeur doit etre signe (Authenticode).
+  # -AllowUnsigned contourne explicitement ce garde-fou (dev/test only).
+  [switch]$AllowUnsigned
 )
 
 $ErrorActionPreference = "Stop"
@@ -37,6 +40,20 @@ if ($LASTEXITCODE -ne 0) {
 
 if (-not (Test-Path -LiteralPath $installer)) {
   throw "Installer not found: $installer"
+}
+
+# Garde-fou release : l'installeur publie doit porter une signature
+# Authenticode. Un artefact non signe (ou resigne par un autre certificat
+# que SIGN_THUMBPRINT si defini) arrete la publication.
+if (-not $AllowUnsigned) {
+  $sig = Get-AuthenticodeSignature -FilePath $installer
+  if (-not $sig.SignerCertificate) {
+    throw "Installer is NOT Authenticode-signed: $installer (use -AllowUnsigned for dev/test only)"
+  }
+  if ($env:SIGN_THUMBPRINT -and $sig.SignerCertificate.Thumbprint -ne $env:SIGN_THUMBPRINT) {
+    throw ("Installer signed by unexpected certificate: {0}" -f $sig.SignerCertificate.Subject)
+  }
+  Write-Host ("OK: installer signed by {0} (status: {1})" -f $sig.SignerCertificate.Subject, $sig.Status)
 }
 
 $assets = @($installer)

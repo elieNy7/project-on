@@ -21,6 +21,7 @@ stays identical.
 from __future__ import annotations
 
 import re
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -31,6 +32,14 @@ try:
     HAS_FITZ = True
 except ImportError:  # pragma: no cover - optional dependency
     HAS_FITZ = False
+
+# Bornes d'import (cf. plan du 2026-09-17, lot 4) : aucun résultat partiel
+# silencieux, le refus est explicite et affichable.
+MAX_PDF_PAGES = 800
+
+
+class PDFImportError(RuntimeError):
+    """Lecture PDF impossible ou hors budget (message affichable tel quel)."""
 
 
 HEADER_PATTERNS = (
@@ -95,20 +104,48 @@ def ordered_pdf_lines(
     page_start: int = 0,
     page_end: int | None = None,
     column_break: bool = False,
+    max_pages: int = MAX_PDF_PAGES,
+    diagnostics: dict[str, Any] | None = None,
 ) -> list[str]:
     if not HAS_FITZ:  # pragma: no cover - optional dependency
         raise ImportError(
             "PyMuPDF (fitz) est requis pour lire les PDF de cantiques. "
             "Installez-le avec : pip install pymupdf"
         )
+    started = time.monotonic()
     doc = fitz.open(pdf_path)
     try:
         end = doc.page_count if page_end is None else min(page_end, doc.page_count)
+        if page_start < 0 or page_start >= doc.page_count:
+            raise PDFImportError(
+                f"Plage de pages invalide : début {page_start + 1} hors document "
+                f"({doc.page_count} pages)."
+            )
+        if (end - page_start) > max_pages:
+            raise PDFImportError(
+                f"PDF trop grand : {end - page_start} pages à lire "
+                f"(maximum {max_pages}). Import refusé pour éviter un "
+                "résultat partiel silencieux."
+            )
         all_lines: list[str] = []
+        empty_pages: list[int] = []
 
         for page_index in range(page_start, end):
             page = doc[page_index]
-            page_dict = page.get_text("dict")
+            try:
+                page_dict = page.get_text("dict")
+            except Exception as exc:
+                # Une page illisible est signalée, jamais avalée : le bilan
+                # reste visible pour l'utilisateur.
+                if diagnostics is not None:
+                    diagnostics.setdefault("pages_skipped", []).append(
+                        {
+                            "page": page_index + 1,
+                            "reason": f"Extraction impossible : {exc}",
+                        }
+                    )
+                all_lines.append("")
+                continue
             page_width = page.rect.width
             page_height = page.rect.height
 
@@ -160,6 +197,16 @@ def ordered_pdf_lines(
                 page_lines = lines_to_text_lines(raw_lines)
 
             all_lines.extend(page_lines)
+            if not any(line.strip() for line in page_lines):
+                empty_pages.append(page_index + 1)
+
+        if diagnostics is not None:
+            diagnostics.setdefault("total_pages", int(doc.page_count))
+            diagnostics.setdefault("pages_read", end - page_start)
+            diagnostics.setdefault("pages_empty", len(empty_pages))
+            diagnostics.setdefault("pages_skipped", [])
+            diagnostics["pages_empty_list"] = empty_pages
+            diagnostics["elapsed_seconds"] = round(time.monotonic() - started, 2)
 
         return all_lines
     finally:
@@ -507,16 +554,25 @@ def parse_pdf_ranges(
 
 
 def parse_hymns_for_import(
-    pdf_path: Path, column_break: bool = True
+    pdf_path: Path,
+    column_break: bool = True,
+    diagnostics: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """Parse a hymnal PDF for the in-app import dialog.
 
     Returns a list of ``{"number": int, "title": str, "stanzas": list[str]}``
     dicts (the format expected by ``PdfImportDialog``). ``column_break`` defaults
     to True because hymnals break columns at stanza boundaries; it only affects
-    detected two-column pages.
+    detected two-column pages. ``diagnostics`` reçoit la couverture par page
+    (total, lues, vides, pages ignorées) pour un bilan visible.
+
+    Raises:
+        PDFImportError: PDF hors budget ou page illisible → refus explicite,
+            jamais un résultat partiel silencieux.
     """
-    lines = ordered_pdf_lines(pdf_path, column_break=column_break)
+    lines = ordered_pdf_lines(
+        pdf_path, column_break=column_break, diagnostics=diagnostics
+    )
     headers = parse_hymn_headers(lines)
     hymns: list[dict[str, Any]] = []
 
