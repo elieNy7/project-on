@@ -41,14 +41,22 @@ class ObsController:
         self._settings = settings or ObsSettings()
         self._web_server = ObsWebServer(port=self._settings.web_port, host=self._host)
         self._ndi_sender = None
+        # Lecteur vidéo partagé : le NDI lit ses images au lieu de décoder.
+        self._media_hub = None
         self._slide_lock = threading.Lock()
         self._current_slide: dict = {"text": "", "reference": "", "hidden": True}
-        # Charge utile du bandeau défilant (TickerSettings.to_payload),
-        # diffusée telle quelle à la page OBS via la config.
-        self._ticker_payload: dict = {}
-
         # Apply initial config
         self._apply_output_config()
+
+    def set_media_hub(self, hub) -> None:
+        """Branche la sortie NDI sur le lecteur vidéo partagé du processus."""
+        self._media_hub = hub
+        sender = self._ndi_sender
+        if sender is not None and hub is not None:
+            try:
+                sender.set_media_hub(hub)
+            except Exception:
+                logger.exception("Branchement du hub vidéo sur le NDI impossible")
 
     def start_server(self):
         if self._web_server is None:
@@ -94,24 +102,14 @@ class ObsController:
         self._settings.output = output
         self._apply_output_config()
 
-    def update_ticker(self, payload: dict) -> None:
-        """Diffuse le bandeau défilant aux sources Navigateur OBS.
-
-        Le NDI, lui, relit obs-config.json sur disque : voir
-        ``MainWindow._write_obs_config``.
-        """
-        self._ticker_payload = dict(payload or {})
-        self._apply_output_config()
-
     def _apply_output_config(self) -> None:
         """Apply output configuration to the web server.
 
         The broadcast config embeds every named scene's style so each OBS
-        browser source can pick its own look via ?scene=<id>, plus the
-        ticker payload shared by all sources.
+        browser source can pick its own look via ?scene=<id>.
         """
         try:
-            config = self._settings.to_full_obs_config(ticker=self._ticker_payload)
+            config = self._settings.to_full_obs_config()
             logger.debug("Applying OBS output config: %s", config)
             self._web_server.update_config(config)
         except Exception as e:
@@ -240,6 +238,7 @@ class ObsController:
         sender = NdiLowerThirdSender(
             presentation_dir=ensure_presentation_workdir(),
             source_name=self._settings.ndi_source_name or "Project-On",
+            hub=self._media_hub,
         )
         ok = sender.start()
         if not ok:

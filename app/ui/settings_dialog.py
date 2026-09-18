@@ -316,6 +316,64 @@ class ProjectionSettingsDialog(QDialog):
 
         layout.addWidget(bg_section)
 
+        # ═══════ Section: Médias ═══════
+        # Une image de la bibliothèque est un CONTENU : elle est projetée
+        # entière, jamais rognée, entourée d'un habillage.
+        media_section = SettingSection("Médias", "image.svg")
+
+        self._media_fit = QComboBox()
+        self._media_fit.addItem("Image entière (recommandé)", "contain")
+        self._media_fit.addItem("Remplir l'écran (recadre les bords)", "cover")
+        idx = self._media_fit.findData(
+            "cover" if str(settings.media_fit or "contain") == "cover" else "contain"
+        )
+        self._media_fit.setCurrentIndex(max(idx, 0))
+        media_section.addRow("Cadrage des images", self._media_fit)
+        _style_combo(self._media_fit)
+
+        self._media_backdrop = QComboBox()
+        self._media_backdrop.addItem("Fond flou de l'image (recommandé)", "blur")
+        self._media_backdrop.addItem("Noir uni", "black")
+        self._media_backdrop.addItem("Couleur du thème", "color")
+        idx = self._media_backdrop.findData(
+            str(settings.media_backdrop or "blur")
+            if str(settings.media_backdrop or "") in ("blur", "black", "color")
+            else "blur"
+        )
+        self._media_backdrop.setCurrentIndex(max(idx, 0))
+        media_section.addRow(
+            "Habillage autour",
+            self._media_backdrop,
+            "Ce qui remplit l'espace quand l'image ne couvre pas tout l'écran.",
+        )
+        _style_combo(self._media_backdrop)
+
+        self._media_backdrop_dim = QSpinBox()
+        self._media_backdrop_dim.setRange(0, 90)
+        self._media_backdrop_dim.setSuffix(" %")
+        self._media_backdrop_dim.setValue(
+            int(round(float(settings.media_backdrop_dim or 0.0) * 100))
+        )
+        media_section.addRow(
+            "Assombrir le fond",
+            self._media_backdrop_dim,
+            "L'image projetée elle-même n'est jamais assombrie.",
+        )
+
+        self._media_default_duration = QSpinBox()
+        self._media_default_duration.setRange(0, 120)
+        self._media_default_duration.setSuffix(" s")
+        self._media_default_duration.setValue(
+            int(settings.media_default_duration or 0)
+        )
+        media_section.addRow(
+            "Durée en diaporama",
+            self._media_default_duration,
+            "Durée d'affichage par défaut (0 = avance manuelle).",
+        )
+
+        layout.addWidget(media_section)
+
         # ═══════ Section: Transition ═══════
         anim_section = SettingSection("Transition", "sparkles.svg")
 
@@ -354,6 +412,10 @@ class ProjectionSettingsDialog(QDialog):
         self._uppercase.toggled.connect(self._on_change)
         self._bg_color_btn.colorChanged.connect(self._on_change)
         self._background_dimmer.valueChanged.connect(self._on_change)
+        self._media_fit.currentIndexChanged.connect(self._on_change)
+        self._media_backdrop.currentIndexChanged.connect(self._on_change)
+        self._media_backdrop_dim.valueChanged.connect(self._on_change)
+        self._media_default_duration.valueChanged.connect(self._on_change)
         self._anim_enabled.toggled.connect(self._on_change)
         self._anim_duration.valueChanged.connect(self._on_change)
 
@@ -486,6 +548,12 @@ class ProjectionSettingsDialog(QDialog):
         self._bg_image_path = ""
         self._bg_image_label.setText(self._bg_image_name_text())
         self._background_dimmer.setValue(int(round(d.background_dimmer * 100)))
+        self._media_fit.setCurrentIndex(self._media_fit.findData(d.media_fit))
+        self._media_backdrop.setCurrentIndex(
+            self._media_backdrop.findData(d.media_backdrop)
+        )
+        self._media_backdrop_dim.setValue(int(round(d.media_backdrop_dim * 100)))
+        self._media_default_duration.setValue(d.media_default_duration)
         self._anim_enabled.setChecked(d.animation_enabled)
         self._anim_duration.setValue(d.animation_duration)
         self._on_change()
@@ -510,6 +578,10 @@ class ProjectionSettingsDialog(QDialog):
             bg_color=self._bg_color_btn.color(),
             bg_image=self._bg_image_path,
             background_dimmer=self._background_dimmer.value() / 100.0,
+            media_fit=str(self._media_fit.currentData() or "contain"),
+            media_backdrop=str(self._media_backdrop.currentData() or "blur"),
+            media_backdrop_dim=self._media_backdrop_dim.value() / 100.0,
+            media_default_duration=self._media_default_duration.value(),
             animation_enabled=self._anim_enabled.isChecked(),
             animation_duration=self._anim_duration.value(),
         )

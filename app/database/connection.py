@@ -81,6 +81,10 @@ class Database:
                 self._apply_migration_v8(conn)
                 self._set_user_version(conn, 8)
                 current_version = 8
+            if current_version < 9:
+                self._apply_migration_v9(conn)
+                self._set_user_version(conn, 9)
+                current_version = 9
             self._ensure_playlist_tables(conn)
             self._ensure_media_tables(conn)
             # Cheap and idempotent: drop dead weight indexes on every launch.
@@ -912,6 +916,24 @@ class Database:
         if "loop" not in cols:
             conn.execute("ALTER TABLE media_item ADD COLUMN loop INTEGER DEFAULT 0")
 
+    def _apply_migration_v9(self, conn: sqlite3.Connection) -> None:
+        """Add duration_seconds to media_item (durée d'affichage en diaporama).
+
+        Même précaution que la v8 : sur une base neuve, media_item n'existe pas
+        encore pendant les migrations — ``_ensure_media_tables`` appliquera ce
+        patch juste après sa création.
+        """
+        exists = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='media_item'"
+        ).fetchone()
+        if not exists:
+            return
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(media_item)").fetchall()]
+        if "duration_seconds" not in cols:
+            conn.execute(
+                "ALTER TABLE media_item ADD COLUMN duration_seconds INTEGER DEFAULT 0"
+            )
+
     def _ensure_playlist_tables(self, conn: sqlite3.Connection) -> None:
         """S'assure que les tables playlist existent (pour les bases existantes)."""
         self._apply_migration_v3(conn)
@@ -927,6 +949,7 @@ class Database:
                 kind TEXT NOT NULL DEFAULT 'image',
                 sort_order INTEGER DEFAULT 0,
                 loop INTEGER DEFAULT 0,
+                duration_seconds INTEGER DEFAULT 0,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
             );
 
@@ -936,6 +959,8 @@ class Database:
         )
         # Bases créées avant 2.0 : ajout idempotent de la colonne boucle.
         self._apply_migration_v8(conn)
+        # Bases créées avant 2.5 : durée d'affichage par média.
+        self._apply_migration_v9(conn)
 
     def _import_bible_json_translations(self, conn: sqlite3.Connection) -> None:
         json_dir = bible_json_dir()

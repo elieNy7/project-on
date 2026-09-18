@@ -152,6 +152,12 @@ class SlideCanvas(QWidget):
     RENDER_WIDTH = 1920
     RENDER_HEIGHT = 1080
 
+    # Côté long maximal d'un visuel média chargé : une photo 24 Mpx n'apporte
+    # rien à l'écran et coûte cher à redessiner à chaque répétition.
+    _MAX_VISUAL_EDGE = 3840
+    # Côté long du pixmap de fond flou (réduit : le flou gomme les détails).
+    _BACKDROP_EDGE = 320
+
     def __init__(
         self,
         presentation_dir: Path | None = None,
@@ -163,6 +169,16 @@ class SlideCanvas(QWidget):
         self._current_slide: dict[str, Any] = {}
         self._background_pixmap = QPixmap()
         self._active_visual_path = ""
+        self._visual_cache_key: tuple[Any, ...] | None = None
+        # Visuel d'un média (image de la bibliothèque) projeté comme un
+        # CONTENU — image entière centrée sur fond flou — et non comme un fond
+        # décoratif rogné. Faux pour les fonds (fond global, thèmes, playlists).
+        self._media_content = False
+        self._media_backdrop_pixmap = QPixmap()
+        # Un média n'a de texte à protéger que si l'opérateur en a ajouté un :
+        # décidé par le rendu du contenu (voir _render_slide_content), jamais
+        # déduit du seul libellé de référence d'un média.
+        self._media_caption = False
         self._available_content_width = 0
         self._available_content_height = 0
         self._stage_accent = QColor(109, 180, 255, 210)
@@ -448,29 +464,34 @@ class SlideCanvas(QWidget):
         if not self._background_pixmap.isNull():
             has_text = bool(str(self._current_slide.get("text") or "").strip())
             has_ref = bool(str(self._current_slide.get("reference") or "").strip())
-            is_contain = str(cfg.get("bg_image_fit") or "cover") == "contain"
-            target = self._cover_rect(
-                self._background_pixmap.width(),
-                self._background_pixmap.height(),
-                rect,
-                contain=is_contain,
-            )
-            if self._kb_zoom != 1.0 or self._kb_pan != QPointF(0.0, 0.0):
-                target = self._apply_ken_burns(target)
-            painter.drawPixmap(
-                target,
-                self._background_pixmap,
-                QRectF(self._background_pixmap.rect()),
-            )
-            dimmer = max(
-                0.0, min(0.85, float(cfg.get("background_dimmer", 0.34)))
-            )
-            slide_style = self._choice(
-                cfg.get("slide_style"), ("cinematic", "clean", "split"), "cinematic"
-            )
-            self._paint_cinematic_scrim(
-                painter, rect, dimmer, has_text or has_ref, slide_style
-            )
+            if self._media_content:
+                # Média : contenu plein cadre (image entière + fond flou),
+                # sans voile ni Ken Burns — l'image projetée reste intacte.
+                self._paint_media_content(painter, rect, self._media_caption)
+            else:
+                is_contain = str(cfg.get("bg_image_fit") or "cover") == "contain"
+                target = self._cover_rect(
+                    self._background_pixmap.width(),
+                    self._background_pixmap.height(),
+                    rect,
+                    contain=is_contain,
+                )
+                if self._kb_zoom != 1.0 or self._kb_pan != QPointF(0.0, 0.0):
+                    target = self._apply_ken_burns(target)
+                painter.drawPixmap(
+                    target,
+                    self._background_pixmap,
+                    QRectF(self._background_pixmap.rect()),
+                )
+                dimmer = max(
+                    0.0, min(0.85, float(cfg.get("background_dimmer", 0.34)))
+                )
+                slide_style = self._choice(
+                    cfg.get("slide_style"), ("cinematic", "clean", "split"), "cinematic"
+                )
+                self._paint_cinematic_scrim(
+                    painter, rect, dimmer, has_text or has_ref, slide_style
+                )
         elif cfg.get("bg_gradient_enabled"):
             # Depth vignette on plain gradient backgrounds (skipped for the
             # « clean » style, which stays perfectly flat by design).
@@ -505,6 +526,99 @@ class SlideCanvas(QWidget):
         self._kb_zoom = max(1.0, float(zoom))
         self._kb_pan = QPointF(float(pan_x), float(pan_y))
         self.update()
+
+    # ── Média projeté comme contenu ────────────────────────────────────────
+
+    def _media_fit(self) -> str:
+        """Cadrage d'un média : « contain » (entier, défaut) ou « cover »."""
+        value = str(self._config.get("media_fit") or "contain").strip().lower()
+        return "cover" if value == "cover" else "contain"
+
+    def _media_backdrop(self) -> str:
+        """Habillage autour du média : « blur » (défaut), « black », « color »."""
+        value = str(self._config.get("media_backdrop") or "blur").strip().lower()
+        return value if value in ("blur", "black", "color") else "blur"
+
+    def _media_backdrop_dim(self) -> float:
+        try:
+            value = float(self._config.get("media_backdrop_dim", 0.45))
+        except (TypeError, ValueError):
+            value = 0.45
+        return max(0.0, min(0.9, value))
+
+    def media_layer_active(self) -> bool:
+        """Vrai quand la slide courante porte un média à projeter en contenu."""
+        return bool(self._media_content) and not self._background_pixmap.isNull()
+
+    def _paint_media_content(
+        self, painter: QPainter, rect, has_caption: bool = False
+    ) -> None:
+        """Projette le média comme un contenu, jamais comme un fond.
+
+        L'image entière (proportions préservées, agrandie si elle est plus
+        petite que l'écran) est centrée ; l'espace autour est comblé par une
+        copie floue et assombrie de la même image — aucune bande noire, aucun
+        rognage, et l'image nette n'est jamais voilée.
+        """
+        pixmap = self._background_pixmap
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+        mode = self._media_backdrop()
+
+        if mode == "blur" and not self._media_backdrop_pixmap.isNull():
+            backdrop = self._cover_rect(pixmap.width(), pixmap.height(), rect)
+            painter.drawPixmap(
+                backdrop,
+                self._media_backdrop_pixmap,
+                QRectF(self._media_backdrop_pixmap.rect()),
+            )
+        elif mode == "color":
+            painter.fillRect(
+                rect, self._parse_color(self._config.get("bg_color") or "#000000", 1.0)
+            )
+        else:
+            painter.fillRect(rect, QColor(0, 0, 0))
+
+        dim = self._media_backdrop_dim()
+        if dim > 0:
+            painter.fillRect(rect, QColor(0, 0, 0, int(255 * dim)))
+
+        target = self._cover_rect(
+            pixmap.width(),
+            pixmap.height(),
+            rect,
+            contain=self._media_fit() != "cover",
+        )
+        painter.drawPixmap(target, pixmap, QRectF(pixmap.rect()))
+
+        if has_caption:
+            # Édition rapide d'un média : léger voile bas, uniquement là où le
+            # texte ajouté vient se poser — l'image reste nette.
+            h = rect.height()
+            bottom = QLinearGradient(0, h * 0.45, 0, h)
+            bottom.setColorAt(0.0, QColor(0, 0, 0, 0))
+            bottom.setColorAt(1.0, QColor(0, 0, 0, 150))
+            painter.fillRect(rect, QBrush(bottom))
+
+    def compose_media_frame(self, size) -> QPixmap | None:
+        """Compose la couche média (fond + image nette) en un pixmap opaque.
+
+        Le moteur de transition s'en sert : le média participe ainsi à
+        l'animation, exactement comme le bloc texte. Renvoie ``None`` quand la
+        slide courante n'est pas un média.
+        """
+        if not self.media_layer_active():
+            return None
+        frame = QPixmap(size)
+        frame.fill(Qt.GlobalColor.black)
+        painter = QPainter(frame)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+        try:
+            self._paint_media_content(
+                painter, QRectF(0.0, 0.0, float(size.width()), float(size.height()))
+            )
+        finally:
+            painter.end()
+        return frame
 
     def _paint_cinematic_scrim(
         self,
@@ -691,11 +805,8 @@ class SlideCanvas(QWidget):
         sh = self.height() if self.height() > 100 else 1080
 
         edge_guard = max(0, min(240, int(cfg.get("safe_margin") or 0)))
-        # Inset bas optionnel (bandeau d'annonces en projection locale) :
-        # la scène ne glisse jamais SOUS le bandeau.
-        bottom_inset = max(0, int(getattr(self, "_stage_bottom_inset", 0) or 0))
         self._main_layout.setContentsMargins(
-            edge_guard, edge_guard, edge_guard, edge_guard + bottom_inset
+            edge_guard, edge_guard, edge_guard, edge_guard
         )
 
         mode = self._choice(
@@ -708,7 +819,7 @@ class SlideCanvas(QWidget):
             # (moins la marge de sécurité et la zone référence épinglée).
             # Les anciens pourcentages (content_width/content_height) ne
             # s'appliquent plus à ce mode.
-            stage_h = max(240, sh - edge_guard * 2 - bottom_inset)
+            stage_h = max(240, sh - edge_guard * 2)
             ref_zone_h = self._ref_zone_height(cfg, sh) if pinned_ref else 0
             gap = int(sh * 0.03) if pinned_ref else 0
             self._stage_layout.setSpacing(gap)
@@ -756,7 +867,7 @@ class SlideCanvas(QWidget):
             )
             available_height = max(
                 240,
-                int((sh - (edge_guard * 2) - bottom_inset) * height_pct / 100),
+                int((sh - (edge_guard * 2)) * height_pct / 100),
             )
 
         self._available_content_width = available_width
@@ -985,7 +1096,15 @@ class SlideCanvas(QWidget):
     def _render_slide_content(self, slide: dict[str, Any]) -> None:
         slide = dict(slide)
         hidden = bool(slide.get("hidden"))
-        visual_path = str(slide.get("image") or slide.get("background") or "")
+        # « image » = visuel d'un média de la bibliothèque → projeté comme un
+        # CONTENU (entier, fond flou). « background » = fond décoratif d'une
+        # diapo texte → cadrage cover/contain et voile de lisibilité, comme
+        # avant. Les deux étaient confondus : une image était donc rognée.
+        media_path = str(slide.get("image") or "").strip()
+        if hidden:
+            media_path = ""
+        background_path = str(slide.get("background") or "").strip()
+        visual_path = media_path or background_path
         if (
             not visual_path
             and not hidden
@@ -993,11 +1112,14 @@ class SlideCanvas(QWidget):
         ):
             visual_path = str(self._config.get("bg_image") or "")
         slide["_visual_key"] = visual_path
+        slide["_media_key"] = media_path
         self._current_slide = slide
+        self._media_content = bool(media_path)
         self._set_source_accent(str(slide.get("source") or "custom"))
         self._set_visual_background(visual_path)
 
         if hidden:
+            self._media_caption = False
             self.text_label.setText("")
             self.ref_label.setText("")
             self._accent_line.hide()
@@ -1167,18 +1289,35 @@ class SlideCanvas(QWidget):
         # Zone référence : visible uniquement quand elle porte une référence.
         self._ref_zone.setVisible(bool(has_ref))
         has_content = bool(text.strip() or has_ref)
+        # Seul un vrai texte posé sur un média justifie le voile de lisibilité :
+        # le libellé de référence d'un média n'est jamais projeté.
+        self._media_caption = bool(text.strip())
         self._stage_widget.setVisible(has_content)
         self._update_shell_style(cfg)
         self.update()
 
     def _set_visual_background(self, visual_path: str) -> None:
-        normalized = visual_path.strip()
-        if normalized == self._active_visual_path:
-            return
+        """Charge le visuel de la slide (média-contenu ou fond décoratif).
 
+        La clé de cache porte le chemin ET les réglages qui changent le
+        rendu (mode média, cadrage, flou) : régler le flou dans les paramètres
+        reconstruit bien l'image au lieu d'être ignoré.
+        """
+        normalized = visual_path.strip()
+        key = (
+            normalized,
+            bool(self._media_content),
+            self._media_fit(),
+            self._media_backdrop(),
+            self._BACKDROP_EDGE,
+        )
+        if key == self._visual_cache_key:
+            return
+        self._visual_cache_key = key
         self._active_visual_path = normalized
         if not normalized:
             self._background_pixmap = QPixmap()
+            self._media_backdrop_pixmap = QPixmap()
             self.update()
             return
 
@@ -1188,5 +1327,44 @@ class SlideCanvas(QWidget):
 
         # Static background — no motion, like a PowerPoint slide.
         pixmap = QPixmap(str(visual_file))
-        self._background_pixmap = pixmap if not pixmap.isNull() else QPixmap()
+        if pixmap.isNull():
+            self._background_pixmap = QPixmap()
+            self._media_backdrop_pixmap = QPixmap()
+            self.update()
+            return
+        self._background_pixmap = self._bounded_pixmap(pixmap)
+        self._media_backdrop_pixmap = (
+            self._build_media_backdrop(self._background_pixmap)
+            if self._media_content and self._media_backdrop() == "blur"
+            else QPixmap()
+        )
         self.update()
+
+    def _bounded_pixmap(self, pixmap: QPixmap) -> QPixmap:
+        """Ramène un visuel démesuré à une taille utile à l'écran."""
+        longest = max(pixmap.width(), pixmap.height())
+        if longest <= self._MAX_VISUAL_EDGE:
+            return pixmap
+        return pixmap.scaled(
+            self._MAX_VISUAL_EDGE,
+            self._MAX_VISUAL_EDGE,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+
+    def _build_media_backdrop(self, pixmap: QPixmap) -> QPixmap:
+        """Miniature floutée du visuel, étirée ensuite en plein cadre.
+
+        Le flou est calculé sur une miniature : le résultat est identique à
+        l'œil et le coût reste négligeable, même pour une photo 24 Mpx.
+        """
+        small = pixmap.scaled(
+            self._BACKDROP_EDGE,
+            self._BACKDROP_EDGE,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        # Rayon proportionnel : 40 px sur un écran 1080p, mis à l'échelle de
+        # la miniature pour un rendu identique une fois agrandi.
+        radius = max(1.0, 40.0 * small.width() / 1920.0)
+        return _blur_pixmap(small, radius)

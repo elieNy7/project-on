@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import Any
 
 from app.utils.app_paths import ndi_dir, resource_root
+from app.utils.media_render import compose_media_frame
+from app.utils.obs_overlay_render import animation_total_ms
 from app.utils.obs_overlay_render import (
     OverlayStyleConfig,
     _parse_rgba_tuple,
@@ -210,9 +212,17 @@ NdiLowerThirdConfig = OverlayStyleConfig
 
 
 class NdiLowerThirdSender:
-    def __init__(self, presentation_dir: Path, source_name: str) -> None:
+    def __init__(
+        self,
+        presentation_dir: Path,
+        source_name: str,
+        hub: Any = None,
+    ) -> None:
         self._presentation_dir = presentation_dir
         self._source_name = str(source_name or "Project-On").strip() or "Project-On"
+        # Lecteur vidéo partagé : les images y sont décodées une seule fois
+        # pour toutes les sorties (la projection garde son lecteur natif).
+        self._hub = hub
 
         self._slide_path = presentation_dir / "slide.json"
         self._cfg_path = presentation_dir / "obs-config.json"
@@ -233,12 +243,10 @@ class NdiLowerThirdSender:
         self._width = 1920
         self._height = 1080
 
-        # Bandeau défilant : ressources pré-rendues (ligne de texte, période)
-        # partagées entre les frames ; seule la bande basse est recomposée.
-        self._ticker_sig = None
-        self._ticker_res: dict[str, Any] | None = None
-        self._ticker_offset = 0.0
-        self._ticker_last = 0.0
+        # Entrée animée du bandeau : horodatage de départ + durée totale.
+        self._anim_started: float | None = None
+        self._anim_ms = 0
+        self._anim_loaded = False
 
         # Diagnostic du dernier échec (démarrage ou thread d'envoi).
         self.last_error: str = ""
@@ -246,6 +254,15 @@ class NdiLowerThirdSender:
     @property
     def source_name(self) -> str:
         return self._source_name
+
+    def set_media_hub(self, hub: Any) -> None:
+        """Branche (ou rebranche) le lecteur vidéo partagé."""
+        self._hub = hub
+        if hub is not None and self.is_alive:
+            try:
+                hub.set_numpy_enabled(True)
+            except Exception:
+                pass
 
     @property
     def is_alive(self) -> bool:
@@ -309,6 +326,13 @@ class NdiLowerThirdSender:
         video_frame.FourCC = ndi.FOURCC_VIDEO_TYPE_BGRA
 
         self._video_frame = video_frame
+        # Une vidéo peut apparaître à tout moment : le hub prépare alors aussi
+        # la copie numpy de ses images (coût nul quand aucune vidéo ne joue).
+        if self._hub is not None:
+            try:
+                self._hub.set_numpy_enabled(True)
+            except Exception:
+                pass
         self._stop.clear()
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._thread.start()
@@ -357,11 +381,64 @@ class NdiLowerThirdSender:
         """Style courant, lu de la charge utile OBS."""
         return OverlayStyleConfig.from_payload(self._last_cfg)
 
-    def _render(self, slide: dict[str, Any] | None) -> Any:
-        """Section texte façon OBS : composition PIL partagée, en BGRA."""
+    def _hub_video_frame(self, slide: dict[str, Any] | None) -> Any:
+        """Dernière image vidéo du lecteur partagé, ou ``None`` si aucune.
+
+        Le décodage appartient au hub (thread GUI) : ici on ne fait que copier
+        la trame courante. Aucun décodage dans ce thread — le budget de 33 ms
+        reste tenu par le bandeau et l'envoi.
+        """
+        hub = self._hub
+        if hub is None or not isinstance(slide, dict) or slide.get("hidden"):
+            return None
+        if not str(slide.get("video") or "").strip():
+            return None
+        try:
+            frame = hub.latest_bgra()
+        except Exception:
+            return None
+        if frame is None:
+            return None
+        if getattr(frame, "shape", None) != (self._height, self._width, 4):
+            return None
+        return frame
+
+    def _begin_animation(self, slide: dict[str, Any] | None) -> None:
+        """Prépare l'entrée animée : la durée vient de la page OBS."""
+        if not isinstance(slide, dict) or slide.get("hidden"):
+            self._anim_started = None
+            return
+        total = animation_total_ms(self._last_cfg, str(slide.get("text") or ""))
+        if total <= 0:
+            self._anim_started = None
+            return
+        self._anim_ms = total
+        self._anim_started = time.monotonic()
+
+    def _render(self, slide: dict[str, Any] | None, *, elapsed_ms=None) -> Any:
+        """Trame plein cadre : média opaque, sinon section texte façon OBS.
+
+        ``elapsed_ms`` compose une trame de l'entrée animée ; ``None`` donne
+        l'état final, identique à la page OBS stabilisée.
+        """
         assert self._np is not None
 
-        img = render_obs_overlay(self._last_cfg, slide, self._width, self._height)
+        media_path = ""
+        if isinstance(slide, dict) and not slide.get("hidden"):
+            media_path = str(slide.get("image") or "").strip()
+        if media_path:
+            # Le média est un contenu plein cadre : opaque partout (alpha 255),
+            # sans quoi le receveur NDI le découperait comme du texte.
+            frame = compose_media_frame(
+                media_path, self._width, self._height, self._last_cfg
+            )
+            if frame is not None:
+                rgba = self._np.array(frame.convert("RGBA"), dtype=self._np.uint8)
+                return rgba[:, :, [2, 1, 0, 3]].copy()
+
+        img = render_obs_overlay(
+            self._last_cfg, slide, self._width, self._height, elapsed_ms=elapsed_ms
+        )
         if img is None:
             return self._np.zeros(
                 (self._height, self._width, 4), dtype=self._np.uint8
@@ -371,132 +448,6 @@ class NdiLowerThirdSender:
         return bgra
 
     # ── Bandeau défilant (même charge utile que la page OBS) ──────────
-
-    def _ticker_config(self) -> dict[str, Any] | None:
-        """Payload « ticker » de obs-config.json, sanitisé. None si inactif."""
-        raw = self._last_cfg.get("ticker") if isinstance(self._last_cfg, dict) else None
-        if not isinstance(raw, dict) or not raw.get("enabled"):
-            return None
-        texts = [
-            str(t or "").strip()
-            for t in (raw.get("texts") or [])
-            if str(t or "").strip()
-        ]
-        if not texts:
-            return None
-
-        def _clamp(value, low, high, default):
-            try:
-                return max(low, min(high, int(float(value))))
-            except Exception:
-                return default
-
-        return {
-            "texts": texts,
-            "speed": max(
-                20.0, min(400.0, _clamp(raw.get("speed"), 20, 400, 90))
-            ),
-            "height": _clamp(raw.get("height"), 32, 220, 64),
-            "font_size": _clamp(raw.get("font_size"), 14, 90, 30),
-            "bg_color": str(raw.get("bg_color") or "rgba(5,10,22,0.82)"),
-            "text_color": str(raw.get("text_color") or "rgba(255,255,255,0.95)"),
-            "font_family": str(
-                (self._last_cfg or {}).get("font_family") or "Poppins"
-            ),
-        }
-
-    def _refresh_ticker_resources(self) -> None:
-        """(Re)construit la ligne de texte pré-rendue si la config a changé."""
-        cfg = self._ticker_config()
-        sig = (
-            tuple(
-                (key, repr(value))
-                for key, value in sorted(cfg.items())
-                if key != "speed"
-            )
-            if cfg is not None
-            else None
-        )
-        if sig == self._ticker_sig:
-            # La vitesse ne nécessite pas de re-rendu : appliquée en direct.
-            if self._ticker_res is not None and cfg is not None:
-                self._ticker_res["speed"] = float(cfg["speed"])
-            return
-        self._ticker_sig = sig
-        self._ticker_res = None
-        if cfg is None:
-            return
-
-        from PIL import Image, ImageDraw, ImageFont
-
-        height = int(cfg["height"])
-        px = int(cfg["font_size"])
-        try:
-            font = ImageFont.truetype(str(cfg["font_family"]), px)
-        except Exception:
-            try:
-                font = ImageFont.truetype("arial.ttf", px)
-            except Exception:
-                font = ImageFont.load_default()
-
-        separator = "   •   "
-        text = separator.join(cfg["texts"]) + separator
-        probe = ImageDraw.Draw(Image.new("RGBA", (8, 8)))
-        try:
-            text_w = int(probe.textlength(text, font=font)) + 24
-        except Exception:
-            text_w = self._width
-        text_w = max(1, text_w)
-
-        line = Image.new("RGBA", (text_w, height), (0, 0, 0, 0))
-        ldraw = ImageDraw.Draw(line)
-        text_fill = _parse_rgba_tuple(cfg["text_color"], (255, 255, 255, 242))
-        try:
-            bbox = ldraw.textbbox((0, 0), text, font=font)
-            y = max(0, (height - (bbox[3] - bbox[1])) // 2 - bbox[1])
-        except Exception:
-            y = max(0, (height - px) // 2)
-        ldraw.text((12, y), text, font=font, fill=text_fill)
-
-        self._ticker_res = {
-            "height": height,
-            "speed": float(cfg["speed"]),
-            "bg": _parse_rgba_tuple(cfg["bg_color"], (5, 10, 22, 209)),
-            "line": line,
-            "period": text_w,
-        }
-        self._ticker_last = 0.0
-
-    def _apply_ticker(self, base: Any, offset: float) -> Any:
-        """Compose la bande défilante sur une copie de l'image de base.
-
-        Seule la bande basse est réécrite : le reste de l'image (bandeau
-        texte, image de fond) est recopié tel quel, sans re-rendu PIL.
-        """
-        assert self._np is not None
-        res = self._ticker_res
-        if res is None:
-            return base
-
-        from PIL import Image, ImageDraw
-
-        height = min(int(res["height"]), self._height)
-        band = Image.new("RGBA", (self._width, height), (0, 0, 0, 0))
-        draw = ImageDraw.Draw(band)
-        draw.rectangle([0, 0, self._width, height], fill=res["bg"])
-
-        line = res["line"]
-        period = int(res["period"])
-        x = -(float(offset) % period)
-        while x < self._width:
-            band.paste(line, (int(x), 0), line)
-            x += period
-        draw.line([0, 0, self._width, 0], fill=(255, 255, 255, 26), width=1)
-
-        strip = self._np.array(band, dtype=self._np.uint8)[:, :, [2, 1, 0, 3]]
-        frame = base.copy()
-        frame[self._height - height :, :, :] = strip
-        return frame
 
     def _run(self) -> None:
         assert self._ndi is not None
@@ -541,30 +492,35 @@ class NdiLowerThirdSender:
                     self._last_slide_mtime = slide_mtime
                     self._last_payload = self._read_json(self._slide_path)
                     needs_render = True
+                    self._begin_animation(self._last_payload)
+
+                # Entrée animée : on recompose une trame par cycle tant que
+                # l'animation court, puis l'état final (une seule fois).
+                elapsed_ms = None
+                if self._anim_started is not None:
+                    elapsed_ms = (time.monotonic() - self._anim_started) * 1000.0
+                    if elapsed_ms >= self._anim_ms:
+                        self._anim_started = None
+                    else:
+                        needs_render = True
 
                 # Only re-render (PIL raster) when the slide or config actually
                 # changed; the same cached frame is streamed at a steady rate.
                 if needs_render:
                     try:
-                        frame = self._render(self._last_payload)
+                        frame = self._render(self._last_payload, elapsed_ms=elapsed_ms)
                     except Exception:
                         frame = None
                     if frame is not None:
                         last_frame = frame
-                    self._refresh_ticker_resources()
                     needs_render = False
 
-                # Bandeau défilant : recomposé à chaque frame (seule la bande
-                # basse change), décalage piloté par une horloge monotone.
-                if self._ticker_res is not None:
-                    now = time.monotonic()
-                    if self._ticker_last:
-                        dt = min(0.5, now - self._ticker_last)
-                        self._ticker_offset = (
-                            self._ticker_offset + self._ticker_res["speed"] * dt
-                        ) % float(self._ticker_res["period"])
-                    self._ticker_last = now
-                    last_frame = self._apply_ticker(last_frame, self._ticker_offset)
+                # Vidéo réellement lue : la dernière image du lecteur partagé
+                # remplace la trame statique (aucun décodage ici — le thread
+                # NDI ne fait que copier des octets).
+                video_frame = self._hub_video_frame(self._last_payload)
+                if video_frame is not None:
+                    self._np.copyto(last_frame, video_frame)
 
                 # Reuse frame object; swap underlying data. Une erreur d'envoi
                 # (runtime arrêté, adaptateur réseau changé) n'interrompt pas la

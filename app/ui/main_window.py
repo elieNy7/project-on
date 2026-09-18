@@ -5,7 +5,6 @@ import json
 import logging
 import sys
 import time
-from dataclasses import asdict
 from pathlib import Path
 
 from PyQt6.QtCore import QEvent, QObject, Qt, QTimer
@@ -77,7 +76,6 @@ class MainWindow(QMainWindow):
         presentation_dir = ensure_presentation_workdir()
 
         self._projection_window: ProjectionWindow | None = None
-        self._stage_window = None  # StageWindow | None
         self._mixer_window = None  # MixerOutputWindow | None
         self._presentation_dir = presentation_dir
         self._write_presentation_config()
@@ -87,28 +85,30 @@ class MainWindow(QMainWindow):
             db=db, presentation_dir=presentation_dir
         )
         self._obs = ObsController(settings=self._settings.obs)
-        # Le bandeau défilant fait partie de la config diffusée aux sources
-        # Navigateur OBS (la page et le NDI lisent le même payload).
-        self._obs.update_ticker(self._settings.ticker.to_payload())
+        # Lecteur vidéo partagé : l'aperçu, le mixeur HDMI et le NDI lisent les
+        # mêmes images — un seul décodage, aucune dérive entre les sorties.
+        # La projection plein écran garde son lecteur natif (son + matériel).
+        from app.utils.media_hub import shared_hub
 
-        # Boucle d'annonces (façon ProPresenter) : playlist dédiée + snapshot
-        # du live pour restauration à l'arrêt.
-        from app.database.dao_playlist import PlaylistDao
-        from app.utils.announcement_controller import AnnouncementController
+        self._media_hub = shared_hub()
+        self._obs.set_media_hub(self._media_hub)
+        # Aucune fenêtre de projection au démarrage : le lecteur partagé porte
+        # le son de la vidéo jusqu'à ce que la projection prenne la main.
+        self._set_hub_audio(enabled=True)
 
-        self._announcements = AnnouncementController(
-            self._project_controller, PlaylistDao(db), parent=self
-        )
-        self._announcements.set_folder(self._settings.ticker.announcement_folder_id)
-        self._announcements.set_seconds_per_slide(
-            self._settings.ticker.announcement_seconds
+        # Diaporama de médias : durée par média, avance automatique et
+        # restauration du live à l'arrêt.
+        from app.utils.slideshow_controller import SlideshowController
+
+        self._slideshow = SlideshowController(self._project_controller, parent=self)
+        self._slideshow.set_default_duration(
+            self._settings.projection.media_default_duration
         )
         # Toute activation manuelle (bible, cantique, sermon, exposé, média)
-        # remplace le live : la boucle d'annonces en cours est closue sans
-        # restauration — le nouveau programme devient le live, sans écrasement
-        # par le slide d'annonce suivant.
+        # remplace le live : le diaporama en cours est clos sans restauration —
+        # le nouveau programme devient le live, sans écrasement au tick suivant.
         self._project_controller.set_before_manual_load(
-            self._abandon_announcements_for_manual_load
+            self._abandon_slideshow_for_manual_load
         )
 
         # Remote OBS control (obs-websocket 5.x) — scene switching on live/hide
@@ -138,6 +138,7 @@ class MainWindow(QMainWindow):
         self.library_panel = LibraryPanel(splitter)
         self.preview_panel = PreviewPanel(splitter, self._settings)
         self.preview_panel.set_presentation_dir(presentation_dir)
+        self.preview_panel.set_media_hub(self._media_hub)
 
         # Apply refined shadows to panels for depth
         is_light_theme = get_theme() == "light"
@@ -193,6 +194,15 @@ class MainWindow(QMainWindow):
             media_tab=self.library_panel.media_tab,
         )
 
+        # Diaporama lancé depuis la galerie des médias (sélection ou
+        # bibliothèque entière) ou depuis une playlist de médias.
+        media_tab = self.library_panel.media_tab
+        if media_tab is not None and hasattr(media_tab, "slideshowRequested"):
+            media_tab.slideshowRequested.connect(self._start_slideshow)
+        playlist_tab = self.library_panel.playlist_tab
+        if playlist_tab is not None and hasattr(playlist_tab, "slideshowRequested"):
+            playlist_tab.slideshowRequested.connect(self._start_slideshow)
+
         if hasattr(self.library_panel, "settings_tab"):
             self.library_panel.settings_tab.projectionSettingsRequested.connect(
                 self._open_projection_settings
@@ -201,17 +211,9 @@ class MainWindow(QMainWindow):
                 self.library_panel.settings_tab.themesRequested.connect(
                     self._open_theme_manager
                 )
-            if hasattr(self.library_panel.settings_tab, "stageSettingsRequested"):
-                self.library_panel.settings_tab.stageSettingsRequested.connect(
-                    self._open_stage_settings
-                )
             if hasattr(self.library_panel.settings_tab, "hdmiSettingsRequested"):
                 self.library_panel.settings_tab.hdmiSettingsRequested.connect(
                     self._open_hdmi_settings
-                )
-            if hasattr(self.library_panel.settings_tab, "tickerSettingsRequested"):
-                self.library_panel.settings_tab.tickerSettingsRequested.connect(
-                    self._open_ticker_settings
                 )
             if hasattr(self.library_panel.settings_tab, "obsSettingsRequested"):
                 self.library_panel.settings_tab.obsSettingsRequested.connect(
@@ -257,19 +259,6 @@ class MainWindow(QMainWindow):
         self.preview_panel.videoLoopToggled.connect(
             self._project_controller.set_video_loop
         )
-        self.preview_panel.stageToggled.connect(
-            lambda on: self._open_stage() if on else self._close_stage()
-        )
-        self.preview_panel.stageMessageRequested.connect(self._send_stage_message)
-        self.preview_panel.announcementsToggled.connect(self._toggle_announcements)
-        self._announcements.activeChanged.connect(
-            self.preview_panel.set_announcement_active
-        )
-        # Menu contextuel Playlists : « Utiliser comme boucle d'annonces ».
-        if hasattr(self.library_panel, "playlist_tab"):
-            self.library_panel.playlist_tab.announcementLoopRequested.connect(
-                self._set_announcement_folder
-            )
 
         class _GlobalArrowNavFilter(QObject):
             def __init__(self, owner: MainWindow) -> None:
@@ -335,11 +324,6 @@ class MainWindow(QMainWindow):
         sc_f5.setContext(Qt.ShortcutContext.ApplicationShortcut)
         sc_f5.activated.connect(self._toggle_local_projection)
 
-        # F6 → Toggle écran scène (orateurs)
-        sc_f6 = QShortcut(QKeySequence(Qt.Key.Key_F6), self)
-        sc_f6.setContext(Qt.ShortcutContext.ApplicationShortcut)
-        sc_f6.activated.connect(self._toggle_stage)
-
         # F8 → Mire de la sortie HDMI mixeur (calibrage de l'entrée)
         sc_f8 = QShortcut(QKeySequence(Qt.Key.Key_F8), self)
         sc_f8.setContext(Qt.ShortcutContext.ApplicationShortcut)
@@ -373,9 +357,6 @@ class MainWindow(QMainWindow):
         # Premier check immédiat
         QTimer.singleShot(500, self._poll_obs_status)
         QTimer.singleShot(0, self._start_obs_output)
-        # Écran scène rouvert au démarrage si activé dans les réglages
-        if self._settings.stage.enabled:
-            QTimer.singleShot(200, self._open_stage)
         # Sortie HDMI mixeur rouverte au démarrage si activée
         if getattr(self._settings, "hdmi", None) and self._settings.hdmi.enabled:
             QTimer.singleShot(300, self._open_mixer_window)
@@ -493,8 +474,9 @@ class MainWindow(QMainWindow):
         # Les annonces en boucle cèdent immédiatement à toute action manuelle.
         # La boucle s'arrête ET la touche agit d'emblée sur le live restauré —
         # l'opérateur n'a pas besoin d'un second appui pour naviguer.
-        if self._announcements.is_active:
-            self._announcements.stop()
+        # Le diaporama cède lui aussi : la flèche agit sur le live restauré.
+        if getattr(self, "_slideshow", None) is not None and self._slideshow.is_active:
+            self._slideshow.stop()
         if fw is not None and self.library_panel.isAncestorOf(fw):
             tabs = getattr(self.library_panel, "tabs", None)
             current = tabs.currentWidget() if tabs is not None else None
@@ -640,15 +622,20 @@ class MainWindow(QMainWindow):
         cfg["themes"] = themes_payload
         cfg["theme_assignments"] = dict(theme_assignments)
         cfg["active_theme"] = active_theme_id
-        cfg["ticker"] = asdict(self._settings.ticker)
         return cfg
 
     def _write_obs_config(self) -> None:
-        cfg = self._settings.obs.to_full_obs_config(
-            ticker=self._settings.ticker.to_payload()
-        )
-        out = self._presentation_dir / "obs-config.json"
-        self._safe_write_json(out, cfg)
+        # Les médias se projettent avec les mêmes règles partout : la sortie
+        # OBS (page Navigateur, NDI) reprend le cadrage et l'habillage réglés
+        # pour la projection locale — une seule vérité dans les Réglages.
+        projection = self._settings.projection
+        out = self._settings.obs.output
+        out.media_fit = projection.media_fit
+        out.media_backdrop = projection.media_backdrop
+        out.media_backdrop_dim = projection.media_backdrop_dim
+        cfg = self._settings.obs.to_full_obs_config()
+        target = self._presentation_dir / "obs-config.json"
+        self._safe_write_json(target, cfg)
 
     def _refresh_settings_details(self) -> None:
         """Update detail labels on settings items to show current values."""
@@ -659,12 +646,31 @@ class MainWindow(QMainWindow):
         self, mode: str, image_path: str, fit: str = "cover"
     ) -> None:
         """Mirror the background type + image + fit onto the OBS output so both
-        projection layers share the same background."""
+        projection layers share the same background.
+
+        Les réglages média (cadrage, habillage) suivent le même chemin : ils
+        sont réglés une fois et s'appliquent à la page OBS et au NDI.
+        """
         out = self._settings.obs.output
+        projection = self._settings.projection
+        media_changed = (
+            out.media_fit != projection.media_fit
+            or out.media_backdrop != projection.media_backdrop
+            or abs(
+                float(out.media_backdrop_dim or 0.0)
+                - float(projection.media_backdrop_dim or 0.0)
+            )
+            > 1e-6
+        )
+        if media_changed:
+            out.media_fit = projection.media_fit
+            out.media_backdrop = projection.media_backdrop
+            out.media_backdrop_dim = projection.media_backdrop_dim
         if (
             out.bg_mode == mode
             and out.bg_image == image_path
             and out.bg_image_fit == fit
+            and not media_changed
         ):
             return
         out.bg_mode = mode
@@ -853,7 +859,32 @@ class MainWindow(QMainWindow):
 
         AboutDialog.show_about(self)
 
+    def _sync_media_hub(self, slide) -> None:
+        """Aligne le lecteur vidéo partagé sur la slide courante.
+
+        L'aperçu, le mixeur HDMI et le NDI lisent ce lecteur : ils jouent donc
+        réellement la vidéo, sans décoder le fichier une fois de plus, et
+        restent d'accord sur l'état lecture/pause/boucle de l'opérateur.
+        """
+        hub = getattr(self, "_media_hub", None)
+        if hub is None:
+            return
+        writer = self._project_controller.slide_writer
+        hub.set_loop(self._project_controller.video_loop)
+        video = ""
+        if slide is not None and not writer.is_hidden:
+            video = str(getattr(slide, "video_path", "") or "").strip()
+        if not video:
+            hub.stop()
+            return
+        hub.load(video)
+        if writer.video_playing:
+            hub.play()
+        else:
+            hub.pause()
+
     def _on_current_slide_changed(self, slide) -> None:
+        self._sync_media_hub(slide)
         if slide is None:
             self.preview_panel.set_slide("", "")
             self.preview_panel.set_slide_counter(-1, 0)
@@ -882,19 +913,14 @@ class MainWindow(QMainWindow):
         self.preview_panel.set_slide_counter(row, total)
         self.status_bar.update_slide(slide.source, slide.reference, row, total)
         self._sync_expose_highlight(row)
-        self._update_stage()
 
     def _sync_expose_highlight(self, row: int) -> None:
         """Suit la projection dans l'onglet Exposé quand un chapitre est en direct.
 
-        Pendant la boucle d'annonces le live affiche des annonces : le
-        surlignage Exposé est suspendu ; l'arrêt de la boucle restitue
-        l'état du live (activeChanged(False) émis AVANT restore_live_state),
-        donc le suivi reprend sur les changements de slide suivants.
+        Pendant un diaporama le live n'affiche pas le programme chargé :
+        le surlignage reprend à son arrêt (voir SlideshowController).
         """
-        if self._announcements.is_active or getattr(
-            self, "_starting_announcements", False
-        ):
+        if getattr(self, "_slideshow", None) is not None and self._slideshow.is_active:
             return
         try:
             chapter_id = self._library_controller.live_expose_chapter_id()
@@ -958,7 +984,8 @@ class MainWindow(QMainWindow):
         """Toggle visibility of text on projection and OBS."""
         self._project_controller.slide_writer.set_hidden(hidden)
         self.status_bar.set_hidden(hidden)
-        self._update_stage()
+        # Masquer les écritures coupe aussi la vidéo des sorties secondaires.
+        self._sync_media_hub(self._project_controller.current_slide())
         # Also update OBS
         slide = self._project_controller.current_slide()
         if slide:
@@ -981,7 +1008,8 @@ class MainWindow(QMainWindow):
         hidden = self._project_controller.slide_writer.toggle_hidden()
         self.preview_panel.set_hidden(hidden)
         self.status_bar.set_hidden(hidden)
-        self._update_stage()
+        # Masquer les écritures coupe aussi la vidéo des sorties secondaires.
+        self._sync_media_hub(self._project_controller.current_slide())
         # Also update OBS
         slide = self._project_controller.current_slide()
         if slide:
@@ -1061,74 +1089,52 @@ class MainWindow(QMainWindow):
         if self._projection_window is not None:
             self._projection_window.close()
             self._projection_window = None
+        # Sans fenêtre de projection, la bande son de la vidéo revient au
+        # lecteur partagé : les sorties HDMI/NDI ne restent jamais muettes.
+        self._set_hub_audio(enabled=True)
         self.preview_panel.set_project_active(False)
         self.status_bar.set_project_active(False)
 
-    def _open_ticker_settings(self) -> None:
-        from app.ui.ticker_dialog import TickerDialog
-
-        dlg = TickerDialog(self._settings.ticker, parent=self)
-        if dlg.exec() != QDialog.DialogCode.Accepted:
+    def _set_hub_audio(self, enabled: bool) -> None:
+        hub = getattr(self, "_media_hub", None)
+        if hub is None:
             return
-        self._settings.ticker = dlg.get_settings()
-        self._save_settings()
-        # Diffusion partout : projection locale (config.json), sources
-        # Navigateur OBS (config serveur) et sortie NDI (obs-config.json).
-        self._write_presentation_config()
-        self._write_obs_config()
-        self._obs.update_ticker(self._settings.ticker.to_payload())
-        self._refresh_settings_details()
+        try:
+            hub.set_audio_enabled(bool(enabled))
+        except Exception:
+            pass
 
-    # ── Boucle d'annonces ──────────────────────────────────────────────────
-
-    def _abandon_announcements_for_manual_load(self) -> None:
-        """Crochet « chargement manuel » : clos la boucle sans restauration.
+    def _abandon_slideshow_for_manual_load(self) -> None:
+        """Crochet « chargement manuel » : clos le diaporama sans restauration.
 
         Appelé par ProjectOnController avant tout load_program demandé par
-        l'opérateur. Sans ceci, la boucle active continuerait d'écraser le
+        l'opérateur. Sans ceci, le diaporama actif continuerait d'écraser le
         nouveau programme au tick suivant.
         """
-        if self._announcements.is_active:
-            self._announcements.abandon()
+        if getattr(self, "_slideshow", None) is not None and self._slideshow.is_active:
+            self._slideshow.abandon()
 
-    def _toggle_announcements(self) -> None:
-        if self._announcements.is_active:
-            self._announcements.stop()
+    def _start_slideshow(self, medias: list) -> None:
+        """Lance un diaporama (galerie, bibliothèque entière ou playlist)."""
+        slideshow = getattr(self, "_slideshow", None)
+        if slideshow is None:
             return
-        if self._announcements.folder_id is None:
-            QMessageBox.information(
-                self, tr("announcement_loop"), tr("announcement_no_playlist")
-            )
-            return
-        # load_program() publie les slides d'annonces AVANT que is_active()
-        # passe à True : suspend localement le suivi Exposé pendant ce
-        # démarrage pour ne pas surligner une annonce dans l'onglet Exposé.
-        self._starting_announcements = True
-        try:
-            started = self._announcements.start()
-        finally:
-            self._starting_announcements = False
-        if not started:
-            QMessageBox.information(
-                self, tr("announcement_loop"), tr("announcement_no_playlist")
-            )
-            return
-
-    def _set_announcement_folder(self, folder_id: int | None) -> None:
-        """Menu contextuel Playlists : désigne la boucle d'annonces."""
-        self._settings.ticker.announcement_folder_id = folder_id
-        self._settings.ticker.announcement_seconds = (
-            self._announcements._seconds_per_slide
+        slideshow.set_default_duration(
+            self._settings.projection.media_default_duration
         )
-        self._announcements.set_folder(folder_id)
-        self._save_settings()
-        QMessageBox.information(
-            self, tr("announcement_loop"), tr("announcement_set_done")
-        )
+        entries = self._library_controller.slideshow_entries(medias)
+        slideshow.start(entries)
+        self._refresh_settings_details()
 
     def _open_local_projection(self) -> None:
         if self._projection_window is None:
             self._projection_window = ProjectionWindow(self._presentation_dir)
+            # Fin de vidéo : le diaporama enchaîne sur le média suivant.
+            self._projection_window.videoFinished.connect(
+                lambda: self._slideshow.on_video_finished()
+                if getattr(self, "_slideshow", None) is not None
+                else None
+            )
             self._projection_window.destroyed.connect(
                 lambda: setattr(self, "_projection_window", None)
             )
@@ -1143,39 +1149,11 @@ class MainWindow(QMainWindow):
         self._projection_window.show()
         self._projection_window.raise_()
         self._projection_window.activateWindow()
+        # Le son repart par la projection : le lecteur partagé (aperçu, HDMI,
+        # NDI) redevient muet pour éviter deux bandes son en décalé.
+        self._set_hub_audio(enabled=False)
         self.preview_panel.set_project_active(True)
         self.status_bar.set_project_active(True)
-
-    # ── Écran scène (orateurs) ─────────────────────────────────────────────
-
-    def _toggle_stage(self) -> None:
-        if self._stage_window is not None:
-            self._close_stage()
-        else:
-            self._open_stage()
-
-    def _open_stage(self) -> None:
-        if self._stage_window is None:
-            from app.ui.stage_window import StageWindow
-
-            self._stage_window = StageWindow(self._settings.stage)
-            self._stage_window.destroyed.connect(
-                lambda: setattr(self, "_stage_window", None)
-            )
-            self._stage_window.destroyed.connect(
-                lambda: self.preview_panel.set_stage_active(False)
-            )
-            self._update_stage()
-        else:
-            self._stage_window.show()
-        self.preview_panel.set_stage_active(True)
-
-    def _close_stage(self) -> None:
-        window = self._stage_window
-        if window is not None:
-            window.close()
-            self._stage_window = None
-        self.preview_panel.set_stage_active(False)
 
     # ── Sortie HDMI / mixeur vidéo ─────────────────────────────────────
 
@@ -1231,7 +1209,6 @@ class MainWindow(QMainWindow):
                 key_color=hdmi.key_color,
                 text_scale=hdmi.text_scale,
                 offset_y=hdmi.offset_y,
-                show_ticker=hdmi.show_ticker,
             )
             self._mixer_window.destroyed.connect(
                 lambda: setattr(self, "_mixer_window", None)
@@ -1239,6 +1216,8 @@ class MainWindow(QMainWindow):
             self._mixer_window.destroyed.connect(
                 lambda: self.status_bar.set_hdmi_active(False)
             )
+            # Vidéo réellement lue sur la sortie mixeur, via le lecteur partagé.
+            self._mixer_window.set_media_hub(self._media_hub)
         else:
             hdmi = self._settings.hdmi
             self._mixer_window.set_screen(hdmi.screen)
@@ -1246,7 +1225,6 @@ class MainWindow(QMainWindow):
             self._mixer_window.set_key_color(hdmi.key_color)
             self._mixer_window.set_text_scale(hdmi.text_scale)
             self._mixer_window.set_offset_y(hdmi.offset_y)
-            self._mixer_window.set_ticker_enabled(hdmi.show_ticker)
             self._mixer_window.show()
         self._update_hdmi_status()
 
@@ -1277,63 +1255,6 @@ class MainWindow(QMainWindow):
         if window is not None:
             window.toggle_mire()
 
-    def _update_stage(self) -> None:
-        """Pousse le courant + le suivant vers l'écran scène."""
-        if self._stage_window is None:
-            return
-        slide = self._project_controller.current_slide()
-        hidden = self._project_controller.slide_writer.is_hidden
-        if slide is None:
-            self._stage_window.set_slide({"hidden": hidden})
-        else:
-            self._stage_window.set_slide(
-                {
-                    "reference": slide.reference,
-                    "text": slide.text,
-                    "source": slide.source,
-                    "hidden": hidden,
-                }
-            )
-        peek = self._project_controller.peek_next_slide()
-        if peek is None:
-            self._stage_window.set_next_slide(None)
-        else:
-            self._stage_window.set_next_slide(
-                {"reference": peek.reference, "text": peek.text}
-            )
-
-    def _open_stage_settings(self) -> None:
-        from app.ui.stage_window import StageSettingsDialog
-
-        dlg = StageSettingsDialog(self._settings.stage, parent=self)
-        if dlg.exec() != QDialog.DialogCode.Accepted:
-            return
-        self._settings.stage = dlg.get_settings()
-        self._save_settings()
-        if self._stage_window is not None:
-            self._stage_window.apply_settings(self._settings.stage)
-
-    def _send_stage_message(self) -> None:
-        from PyQt6.QtWidgets import QInputDialog
-
-        current = ""
-        if self._stage_window is not None:
-            current = self._stage_window._message_label.text()
-        text, ok = QInputDialog.getMultiLineText(
-            self,
-            tr("stage_send_message"),
-            tr("stage_message_hint"),
-            current,
-        )
-        if not ok:
-            return
-        if self._stage_window is None:
-            self._open_stage()
-        if str(text or "").strip():
-            self._stage_window.show_message(text)
-        else:
-            self._stage_window.clear_message()
-
     def closeEvent(self, event) -> None:
         """Handle application shutdown gracefully."""
         app = QApplication.instance()
@@ -1344,11 +1265,6 @@ class MainWindow(QMainWindow):
                 log.exception("Échec du retrait du filtre global de navigation")
         # Fermer la fenêtre de projection pour ne pas laisser un écran
         # plein écran zombie après la fermeture de la régie.
-        if getattr(self, "_stage_window", None) is not None:
-            try:
-                self._stage_window.close()
-            except Exception:
-                log.exception("Échec de fermeture de l'écran scène")
         if getattr(self, "_projection_window", None) is not None:
             try:
                 self._projection_window.close()

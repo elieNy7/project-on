@@ -1,5 +1,5 @@
 {
-  "version": 1789644681729,
+  "version": 1789734513150,
   "layout_mode": "subtitle",
   "font_family": "Poppins",
   "text_size": 29,
@@ -54,16 +54,10 @@
   "bg_mode": "image",
   "bg_image": "C:\\Users\\ELIE NYEMBO\\AppData\\Roaming\\Project-On\\backgrounds\\bg-bleu-nuit_16x9.png",
   "bg_image_fit": "cover",
+  "media_fit": "contain",
+  "media_backdrop": "blur",
+  "media_backdrop_dim": 0.45,
   "animation_direction": "right",
   "animation_style": "words",
-  "scenes": {},
-  "ticker": {
-    "enabled": false,
-    "texts": [],
-    "speed": 90,
-    "height": 64,
-    "bg_color": "rgba(5,10,22,0.82)",
-    "text_color": "rgba(255,255,255,0.95)",
-    "font_size": 30
-  }
+  "scenes": {}
 }

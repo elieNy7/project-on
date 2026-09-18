@@ -74,7 +74,6 @@ function applyConfig(cfg) {
             : configuredLayout,
     };
     currentConfig = { ...currentConfig, ...cfg };
-    configureTicker(currentConfig.ticker);
     const root = document.documentElement;
     const rootEl = document.getElementById('root');
     const lowerThird = document.getElementById('lower-third');
@@ -131,6 +130,13 @@ function applyConfig(cfg) {
             ltBgImage.classList.remove('visible');
             if (ltBody) ltBody.classList.remove('has-bg-image');
         }
+    }
+
+    // Médias : le cadrage et l'habillage suivent les réglages en direct.
+    const liveImage = document.getElementById('image-container');
+    if (liveImage && liveImage.classList.contains('visible') && liveImage.style.backgroundImage) {
+        liveImage.style.backgroundSize = (cfg.media_fit === 'cover') ? 'cover' : 'contain';
+        applyImageBackdrop(liveImage.style.backgroundImage);
     }
 
     root.style.setProperty('--bg-blur', cfg.bg_blur ? `${cfg.bg_blur_amount ?? 20}px` : '0px');
@@ -660,6 +666,41 @@ function getSourcePresentation(source) {
 }
 
 /* ── Slide Management ────────────────────────────────────────── */
+/* Fond autour du média : même image floutée, ou noir / couleur du thème.
+   Sans cette couche, une image 4:3 sur un écran 16:9 laisserait des bandes
+   noires — la projection locale, elle, les remplit. */
+function applyImageBackdrop(imageUrl) {
+    const backdrop = document.getElementById('image-backdrop');
+    const dim = document.getElementById('image-backdrop-dim');
+    const mode = String(currentConfig.media_backdrop || 'blur');
+    const rawDim = Number(currentConfig.media_backdrop_dim);
+    const dimValue = Number.isFinite(rawDim) ? Math.max(0, Math.min(0.9, rawDim)) : 0.45;
+    document.documentElement.style.setProperty('--media-backdrop-dim', String(dimValue));
+    if (backdrop) {
+        if (mode === 'blur') {
+            backdrop.style.background = '';
+            backdrop.style.backgroundImage = imageUrl;
+        } else {
+            backdrop.style.backgroundImage = '';
+            backdrop.style.background = (mode === 'color')
+                ? (currentConfig.bg_color || '#000000')
+                : '#000000';
+        }
+        backdrop.classList.add('visible');
+    }
+    if (dim) dim.classList.add('visible');
+}
+
+function clearImageBackdrop() {
+    const backdrop = document.getElementById('image-backdrop');
+    const dim = document.getElementById('image-backdrop-dim');
+    if (backdrop) {
+        backdrop.classList.remove('visible');
+        backdrop.style.backgroundImage = '';
+    }
+    if (dim) dim.classList.remove('visible');
+}
+
 async function setSlide(payload) {
     const slideStr = JSON.stringify(payload);
     if (slideStr === lastSlideStr) return;
@@ -739,6 +780,7 @@ async function setSlide(payload) {
             imgContainer.classList.remove('visible');
             imgContainer.style.backgroundImage = '';
         }
+        clearImageBackdrop();
         return;
     }
 
@@ -746,11 +788,16 @@ async function setSlide(payload) {
         resetAnimatedState(imgContainer);
         if (hasImage && !hasVideo) {
             const baseUrl = window.location.protocol === 'file:' ? 'http://127.0.0.1:8080' : '';
-            imgContainer.style.backgroundImage = `url('${baseUrl}/api/image?ts=${Date.now()}')`;
+            const imageUrl = `url('${baseUrl}/api/image?ts=${Date.now()}')`;
+            imgContainer.style.backgroundImage = imageUrl;
             imgContainer.classList.add('visible');
+            // Image entière (défaut) ou remplissage recadré, selon les réglages.
+            imgContainer.style.backgroundSize = (currentConfig.media_fit === 'cover') ? 'cover' : 'contain';
+            applyImageBackdrop(imageUrl);
         } else {
             imgContainer.classList.remove('visible');
             imgContainer.style.backgroundImage = '';
+            clearImageBackdrop();
         }
     }
 
@@ -854,84 +901,6 @@ async function setSlide(payload) {
             if (localToken === transitionToken) resetAnimatedState(innerWrapper);
         }
     }
-}
-
-/* ── Bandeau défilant d'annonces (même réglage que la projection locale) ── */
-const tickerState = {
-    raf: null,
-    offset: 0,
-    lastMs: 0,
-    period: 0,
-    speed: 90,
-};
-
-const TICKER_SEPARATOR = '   \u2022   ';
-
-function configureTicker(ticker) {
-    const el = document.getElementById('ticker');
-    const track = document.getElementById('ticker-track');
-    if (!el || !track) return;
-
-    const texts = (ticker && Array.isArray(ticker.texts) ? ticker.texts : [])
-        .map((t) => String(t || '').trim())
-        .filter(Boolean);
-    const enabled = !!(ticker && ticker.enabled) && texts.length > 0;
-
-    if (!enabled) {
-        el.classList.add('hidden');
-        if (tickerState.raf) {
-            cancelAnimationFrame(tickerState.raf);
-            tickerState.raf = null;
-        }
-        return;
-    }
-
-    const speed = Math.max(20, Math.min(400, Number(ticker.speed) || 90));
-    const height = Math.max(32, Math.min(220, Number(ticker.height) || 64));
-    const fontSize = Math.max(14, Math.min(90, Number(ticker.font_size) || 30));
-    const bg = (ticker.bg_color || 'rgba(5, 10, 22, 0.82)');
-    const fg = (ticker.text_color || 'rgba(255, 255, 255, 0.95)');
-
-    const rootStyle = document.documentElement.style;
-    rootStyle.setProperty('--ticker-bg', bg);
-    rootStyle.setProperty('--ticker-fg', fg);
-    rootStyle.setProperty('--ticker-font-size', `${fontSize}px`);
-    rootStyle.setProperty('--ticker-height', `${height}px`);
-    tickerState.speed = speed;
-
-    // Une « copie » = toutes les annonces + séparateur. On la répète
-    // suffisamment pour couvrir l'écran, puis on boucle sur la largeur
-    // d'une copie : défilement continu, sans temps mort.
-    const copy = `${texts.join(TICKER_SEPARATOR)}${TICKER_SEPARATOR}`;
-    track.textContent = copy;
-    const copyWidth = Math.max(1, track.scrollWidth);
-    const repeats = Math.max(2, Math.ceil((window.innerWidth + copyWidth) / copyWidth));
-    track.textContent = copy.repeat(repeats);
-    tickerState.period = copyWidth;
-    tickerState.offset = 0;
-    tickerState.lastMs = 0;
-
-    el.classList.remove('hidden');
-    if (!tickerState.raf) {
-        tickerState.raf = requestAnimationFrame(stepTicker);
-    }
-}
-
-function stepTicker(now) {
-    tickerState.raf = requestAnimationFrame(stepTicker);
-    const el = document.getElementById('ticker');
-    const track = document.getElementById('ticker-track');
-    if (!el || !track || el.classList.contains('hidden')) {
-        cancelAnimationFrame(tickerState.raf);
-        tickerState.raf = null;
-        return;
-    }
-    if (!tickerState.lastMs) tickerState.lastMs = now;
-    const dt = Math.min(0.1, (now - tickerState.lastMs) / 1000);
-    tickerState.lastMs = now;
-    const period = tickerState.period || Math.max(1, track.scrollWidth / 2);
-    tickerState.offset = (tickerState.offset + tickerState.speed * dt) % period;
-    track.style.transform = `translateX(${-tickerState.offset}px)`;
 }
 
 /* ── Realtime Updates (SSE with Polling Fallback) ────────────── */

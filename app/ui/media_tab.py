@@ -30,6 +30,15 @@ from app.ui.theme import (
 _THUMB_W, _THUMB_H = 168, 110
 
 
+def _duration_label(seconds: int) -> str:
+    """Durée lisible dans la galerie (« 8 s », « 1 min 30 »)."""
+    seconds = max(0, int(seconds))
+    if seconds < 60:
+        return f"{seconds} s"
+    minutes, rest = divmod(seconds, 60)
+    return f"{minutes} min {rest:02d}" if rest else f"{minutes} min"
+
+
 class MediaTab(QWidget):
     """Galerie de médias (images + vidéos) : projeter, ajouter à la playlist."""
 
@@ -38,8 +47,11 @@ class MediaTab(QWidget):
     itemDeleteRequested = pyqtSignal(int)
     itemRenameRequested = pyqtSignal(int, str)
     itemLoopRequested = pyqtSignal(int, bool)  # media_id, boucle on/off
+    itemDurationRequested = pyqtSignal(int, int)  # media_id, durée en secondes
     refreshRequested = pyqtSignal()
     mediaAddToPlaylistRequested = pyqtSignal(dict)  # {name, path, kind}
+    # Diaporama : liste ordonnée de médias ({id, name, path, kind, duration}).
+    slideshowRequested = pyqtSignal(list)
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -55,6 +67,16 @@ class MediaTab(QWidget):
         )
         header.addWidget(self.info_label)
         header.addStretch(1)
+
+        # Diaporama : enchaîne les médias sélectionnés (ou toute la
+        # bibliothèque) avec la durée réglée pour chacun.
+        self.slideshow_btn = QPushButton("Diaporama", self)
+        self.slideshow_btn.setIcon(app_icon("play.svg", Colors.TEXT_PRIMARY))
+        self.slideshow_btn.setToolTip(
+            "Enchaîner automatiquement les médias sélectionnés (Ctrl+clic pour "
+            "en choisir plusieurs), avec la durée d'affichage de chacun"
+        )
+        self.slideshow_btn.clicked.connect(self._on_slideshow_clicked)
 
         self.import_images_btn = QPushButton("Images", self)
         self.import_images_btn.setIcon(app_icon("image.svg", Colors.TEXT_PRIMARY))
@@ -90,6 +112,7 @@ class MediaTab(QWidget):
         self.delete_btn.clicked.connect(self._on_delete_clicked)
 
         for btn in (
+            self.slideshow_btn,
             self.import_images_btn,
             self.import_videos_btn,
             self.import_pptx_btn,
@@ -116,6 +139,11 @@ class MediaTab(QWidget):
         self.gallery.setWordWrap(True)
         self.gallery.setUniformItemSizes(False)
         self.gallery.setVerticalScrollMode(QListWidget.ScrollMode.ScrollPerPixel)
+        # Sélection multiple : « Lancer le diaporama » enchaîne les médias
+        # cochés dans l'ordre de la galerie.
+        self.gallery.setSelectionMode(
+            QListWidget.SelectionMode.ExtendedSelection
+        )
         self.gallery.setStyleSheet(
             f"""
             QListWidget {{
@@ -159,6 +187,7 @@ class MediaTab(QWidget):
             item.setData(257, name)
             item.setData(258, path)
             item.setData(259, kind)
+            item.setData(260, int(media.get("duration_seconds") or 0))
             item.setToolTip(f"{name}\n{path}")
 
             if kind == "image":
@@ -202,6 +231,9 @@ class MediaTab(QWidget):
                 label = f"PPT · {name}"
             else:
                 label = name
+            seconds = int(item.data(260) or 0)
+            if seconds > 0:
+                label = f"{label}  ·  {_duration_label(seconds)}"
             item.setText(label)
             self.gallery.addItem(item)
 
@@ -217,13 +249,52 @@ class MediaTab(QWidget):
             "name": str(item.data(257) or ""),
             "path": str(item.data(258) or ""),
             "kind": str(item.data(259) or "image"),
+            "duration_seconds": int(item.data(260) or 0),
         }
+
+    def selected_medias(self) -> list[dict[str, Any]]:
+        """Médias sélectionnés, dans l'ordre de la galerie (Ctrl+clic)."""
+        chosen: list[dict[str, Any]] = []
+        for item in self.gallery.selectedItems():
+            chosen.append(
+                {
+                    "id": int(item.data(256)),
+                    "name": str(item.data(257) or ""),
+                    "path": str(item.data(258) or ""),
+                    "kind": str(item.data(259) or "image"),
+                    "duration_seconds": int(item.data(260) or 0),
+                }
+            )
+        return chosen
+
+    def all_medias(self) -> list[dict[str, Any]]:
+        """Toute la bibliothèque, dans l'ordre affiché."""
+        return [
+            {
+                "id": int(self.gallery.item(row).data(256)),
+                "name": str(self.gallery.item(row).data(257) or ""),
+                "path": str(self.gallery.item(row).data(258) or ""),
+                "kind": str(self.gallery.item(row).data(259) or "image"),
+                "duration_seconds": int(self.gallery.item(row).data(260) or 0),
+            }
+            for row in range(self.gallery.count())
+        ]
 
     # ── Slots privés ──────────────────────────────────────────────────────
 
     def _current_id(self) -> int | None:
         media = self.selected_media()
         return int(media["id"]) if media else None
+
+    def _on_slideshow_clicked(self) -> None:
+        """Lance le diaporama : la sélection, sinon toute la bibliothèque."""
+        medias = self.selected_medias() or self.all_medias()
+        if medias:
+            self.slideshowRequested.emit(medias)
+
+    def _emit_slideshow(self, medias: list[dict[str, Any]]) -> None:
+        if medias:
+            self.slideshowRequested.emit(medias)
 
     def _on_double_clicked(self, item: QListWidgetItem) -> None:
         data = item.data(256)
@@ -250,12 +321,27 @@ class MediaTab(QWidget):
         item = self.gallery.itemAt(pos)
         if item is None:
             return
-        self.gallery.setCurrentItem(item)
+        if not item.isSelected():
+            # Clic droit sur un média hors sélection : il devient la sélection,
+            # comme dans l'explorateur Windows.
+            self.gallery.clearSelection()
+            self.gallery.setCurrentItem(item)
+            item.setSelected(True)
         media = self.selected_media() or {}
+        selection = self.selected_medias()
 
         menu = QMenu(self)
         menu.setStyleSheet(get_menu_style())
         act_project = menu.addAction(app_icon("cast.svg"), "Projeter")
+        if selection:
+            libelle = (
+                f"Lancer le diaporama ({len(selection)} médias)"
+                if len(selection) > 1
+                else "Lancer le diaporama"
+            )
+            act_slideshow = menu.addAction(app_icon("play.svg"), libelle)
+        else:
+            act_slideshow = None
         act_playlist = menu.addAction(app_icon("plus.svg"), "Ajouter à la playlist")
         act_rename = menu.addAction(app_icon("edit-3.svg"), "Renommer")
         is_video = str(media.get("kind") or "") == "video"
@@ -268,16 +354,62 @@ class MediaTab(QWidget):
             )
             act_loop.setCheckable(True)
             act_loop.setChecked(loop_on)
+        act_duration, duration_actions = self._build_duration_menu(menu, media)
         menu.addSeparator()
         act_delete = menu.addAction(app_icon("trash.svg"), "Retirer de la bibliothèque")
         chosen = menu.exec(self.gallery.mapToGlobal(pos))
         if chosen is act_project:
             self._on_double_clicked(item)
+        elif act_slideshow is not None and chosen is act_slideshow:
+            self._emit_slideshow(selection)
         elif chosen is act_playlist:
             self.mediaAddToPlaylistRequested.emit(media)
         elif chosen is act_rename:
             self._on_rename_clicked()
         elif act_loop is not None and chosen is act_loop:
             self.itemLoopRequested.emit(int(media.get("id")), act_loop.isChecked())
+        elif chosen is act_duration:
+            self._ask_duration(media)
+        elif chosen in duration_actions:
+            self.itemDurationRequested.emit(
+                int(media.get("id")), int(duration_actions[chosen])
+            )
         elif chosen is act_delete:
             self._on_delete_clicked()
+
+    # ── Durée d'affichage (diaporama) ─────────────────────────────────────
+
+    _DURATION_CHOICES = (3, 5, 8, 10, 15, 30)
+
+    def _build_duration_menu(self, menu: QMenu, media: dict[str, Any]):
+        """Sous-menu « Durée d'affichage » : préréglages + durée libre."""
+        submenu = menu.addMenu(app_icon("clock.svg"), "Durée d'affichage")
+        current = int(media.get("duration_seconds") or 0)
+        actions: dict[Any, int] = {}
+        act_none = submenu.addAction("Aucune (avance manuelle)")
+        act_none.setCheckable(True)
+        act_none.setChecked(current <= 0)
+        actions[act_none] = 0
+        submenu.addSeparator()
+        for seconds in self._DURATION_CHOICES:
+            action = submenu.addAction(f"{seconds} secondes")
+            action.setCheckable(True)
+            action.setChecked(current == seconds)
+            actions[action] = seconds
+        submenu.addSeparator()
+        act_custom = submenu.addAction("Durée personnalisée…")
+        return act_custom, actions
+
+    def _ask_duration(self, media: dict[str, Any]) -> None:
+        current = int(media.get("duration_seconds") or 0)
+        seconds, ok = QInputDialog.getInt(
+            self,
+            "Durée d'affichage",
+            "Secondes d'affichage en diaporama\n(0 = avance manuelle) :",
+            current,
+            0,
+            3600,
+            1,
+        )
+        if ok:
+            self.itemDurationRequested.emit(int(media.get("id")), int(seconds))

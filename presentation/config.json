@@ -40,6 +40,9 @@
   "bg_mode": "image",
   "bg_image": "C:\\Users\\ELIE NYEMBO\\AppData\\Roaming\\Project-On\\backgrounds\\bg-bleu-nuit_16x9.png",
   "bg_image_fit": "cover",
+  "media_fit": "contain",
+  "media_backdrop": "blur",
+  "media_backdrop_dim": 0.45,
   "animation_enabled": true,
   "animation_type": "fade",
   "animation_duration": 420,
@@ -88,6 +91,9 @@
       "bg_mode": "image",
       "bg_image": "C:\\Users\\ELIE NYEMBO\\AppData\\Roaming\\Project-On\\backgrounds\\bg-bleu-nuit_16x9.png",
       "bg_image_fit": "cover",
+      "media_fit": "contain",
+      "media_backdrop": "blur",
+      "media_backdrop_dim": 0.45,
       "animation_enabled": true,
       "animation_type": "fade",
       "animation_duration": 420,
@@ -136,6 +142,9 @@
       "bg_mode": "image",
       "bg_image": "C:\\Users\\ELIE NYEMBO\\AppData\\Roaming\\Project-On\\backgrounds\\bg-photo-montagnes-aube_16x9.png",
       "bg_image_fit": "cover",
+      "media_fit": "contain",
+      "media_backdrop": "blur",
+      "media_backdrop_dim": 0.45,
       "animation_enabled": true,
       "animation_type": "fade",
       "animation_duration": 420,
@@ -144,16 +153,5 @@
     }
   },
   "theme_assignments": {},
-  "active_theme": "default",
-  "ticker": {
-    "enabled": false,
-    "texts": [],
-    "speed": 90,
-    "height": 64,
-    "bg_color": "rgba(5,10,22,0.82)",
-    "text_color": "rgba(255,255,255,0.95)",
-    "font_size": 30,
-    "announcement_folder_id": null,
-    "announcement_seconds": 8
-  }
+  "active_theme": "default"
 }

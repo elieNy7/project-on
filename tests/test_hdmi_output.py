@@ -101,7 +101,6 @@ def test_hdmi_settings_overlay_fields_round_trip(tmp_path: Path) -> None:
         key_color="magenta",
         text_scale=140,
         offset_y=-80,
-        show_ticker=False,
     )
     settings.save(path)
 
@@ -109,7 +108,6 @@ def test_hdmi_settings_overlay_fields_round_trip(tmp_path: Path) -> None:
     assert loaded.hdmi.key_color == "magenta"
     assert loaded.hdmi.text_scale == 140
     assert loaded.hdmi.offset_y == -80
-    assert loaded.hdmi.show_ticker is False
 
 
 def test_hdmi_settings_sanitized_clamps_overlay_fields() -> None:
@@ -410,30 +408,6 @@ def test_mixer_window_scale_and_offset_live(tmp_path: Path) -> None:
     window.close()
 
 
-def test_mixer_window_ticker_can_be_excluded(tmp_path: Path) -> None:
-    qapp = _make_qapp()
-
-    from app.ui.mixer_output_window import MixerOutputWindow
-
-    _write_presentation(
-        tmp_path,
-        {"hidden": True},
-        {
-            "font_family": "Arial",
-            "ticker": {"enabled": True, "texts": ["Bienvenue à tous !"]},
-        },
-    )
-    window = MixerOutputWindow(tmp_path, screen="auto", show_ticker=False)
-    window._tick()
-    # Bandeau exclu : la config OBS « enabled » ne suffit pas à l'afficher.
-    assert window._ticker.isHidden() is True
-
-    window.set_ticker_enabled(True)
-    window._tick()
-    assert window._ticker.isHidden() is False
-    window.close()
-
-
 def test_mixer_window_missing_screen_falls_back(tmp_path: Path) -> None:
     qapp = _make_qapp()
 
@@ -531,46 +505,145 @@ def _non_key_bounds(img) -> tuple[int, int]:
     return int(rows.min()), int(rows.max())
 
 
-def test_mixer_forces_lower_third_even_when_obs_style_is_fullscreen(
-    tmp_path: Path,
-) -> None:
-    """La sortie HDMI est un bandeau : le mode géométrique de la page OBS
-    (plein écran, pour les paroles en direct) ne doit jamais y hériter."""
+def test_mixer_excludes_fullscreen_but_keeps_other_obs_modes() -> None:
+    """Le plein écran OBS ne peut pas devenir une incrustation ; les autres
+    modes géométriques (sous-titre, panneau latéral, carte focus) sont repris."""
     from app.ui.mixer_output_window import hdmi_band_config
 
     forced = hdmi_band_config(
         {"font_family": "Arial", "layout_mode": "fullscreen", "position": "top"}
     )
-    assert forced["layout_mode"] == "lower_third"
-    assert forced["position"] == "bottom"
-    # Le style OBS passe bien au travers (police, couleurs…).
+    assert forced["layout_mode"] == "lower_third"  # plein écran exclu
+    assert forced["position"] == "top"  # la position OBS, elle, est reprise
     assert forced["font_family"] == "Arial"
 
+    for mode in ("lower_third", "subtitle", "side_panel", "focus_card"):
+        kept = hdmi_band_config({"layout_mode": mode, "max_width": 60})
+        assert kept["layout_mode"] == mode
+
     img = render_obs_overlay_on_color(
-        forced,
+        hdmi_band_config({"font_family": "Arial", "layout_mode": "fullscreen"}),
         {"text": "Car Dieu a tant aimé le monde", "reference": "Jean 3:16", "source": "bible"},
     )
     top, _bottom = _non_key_bounds(img)
-    # Le bandeau vit en bas : la moitié haute reste la couleur de clé.
+    # Bandeau par défaut (bas) : la moitié haute reste la couleur de clé.
     assert top > img.height // 2, f"contenu dès y={top} : le bandeau déborde"
 
 
-def test_mixer_long_text_stays_confined_to_the_band(tmp_path: Path) -> None:
-    """Un texte très long rétrécit puis se tronque avec ellipse : le
-    bandeau ne recouvre jamais l'écran."""
+def test_band_animation_frames_differ_then_settle() -> None:
+    """L'entrée animée produit des trames distinctes puis l'état final."""
+    from app.ui.mixer_output_window import hdmi_band_config
+    from app.utils.obs_overlay_render import animation_total_ms
+
+    cfg = hdmi_band_config(
+        {
+            "font_family": "Arial",
+            "animation_enabled": True,
+            "animation_type": "fade",
+            "animation_duration": 400,
+            "animation_style": "block",
+            "show_kicker": False,
+            "show_reference": False,
+        }
+    )
+    slide = {"text": "Car Dieu a tant aimé le monde", "source": "bible"}
+    assert animation_total_ms(cfg, slide["text"]) == 400
+
+    def light_pixels(elapsed):
+        """Pixels clairs : le texte projeté (le panneau reste sombre)."""
+        numpy = __import__("numpy")
+        img = render_obs_overlay_on_color(cfg, slide, elapsed_ms=elapsed)
+        arr = numpy.asarray(img.convert("RGB")).astype(numpy.int32)
+        return int(((arr[:, :, 0] > 170) & (arr[:, :, 2] > 170)).sum())
+
+    start = light_pixels(0)
+    middle = light_pixels(200)
+    end = light_pixels(400)
+    assert start == 0, "le texte doit être invisible au départ"
+    assert 0 < middle < end, (start, middle, end)
+    # À la fin de l'animation et sans animation, le rendu est identique.
+    assert end == light_pixels(None)
+
+
+def test_band_words_animation_staggers_words() -> None:
+    """Révélation mot à mot : les mots apparaissent l'un après l'autre."""
+    from app.utils.obs_overlay_render import render_obs_overlay_on_color
+
+    cfg = {
+        "font_family": "Arial",
+        "animation_enabled": True,
+        "animation_type": "reveal",
+        "animation_duration": 300,
+        "animation_style": "words",
+        "show_kicker": False,
+        "show_reference": False,
+    }
+    slide = {"text": "un deux trois quatre cinq six", "source": "custom"}
+    first = _non_key_bounds(render_obs_overlay_on_color(cfg, slide, elapsed_ms=200))[0]
+    later = _non_key_bounds(render_obs_overlay_on_color(cfg, slide, elapsed_ms=700))[0]
+    # Le bloc de texte s'élargit (les mots arrivent avec un décalage) : à
+    # 200 ms la ligne est moins avancée qu'à 700 ms.
+    assert later >= first
+
+
+def test_mixer_long_text_is_clipped_like_the_obs_page(tmp_path: Path) -> None:
+    """Sans auto-ajustement, le texte garde sa taille et le bandeau est rogné.
+
+    C'est le comportement de la page OBS : `auto_fit` désactivé (réglage par
+    défaut de l'application) signifie « ne pas rétrécir » — le panneau se
+    limite à la zone utile (`max-height` + `overflow: hidden`) au lieu de
+    rétrécir la typographie, et il ne recouvre jamais l'écran entier.
+    """
     from app.ui.mixer_output_window import hdmi_band_config
 
     long_text = "\n".join(
         f"Ligne {i} : benissez l'Eternel, vous toutes ses oeuvres," for i in range(30)
     )
     img = render_obs_overlay_on_color(
-        hdmi_band_config({"font_family": "Arial", "layout_mode": "lower_third"}),
+        hdmi_band_config(
+            {
+                "font_family": "Arial",
+                "layout_mode": "lower_third",
+                "edge_margin": 40,
+                "safe_area_percent": 5,
+            }
+        ),
         {"text": long_text, "reference": "Psaume 103", "source": "bible"},
     )
     top, _bottom = _non_key_bounds(img)
-    # Zone utile : marge sûre 5 % + bord 64 px → le contenu démarre sous
-    # ~120 px, jamais au-dessus.
-    assert top >= 100, f"contenu dès y={top} : le texte déborde du bandeau"
+    # Le bandeau démarre à la zone utile : bord 40 px + zone sûre 5 % de
+    # 1080 (54 px) = 94 px, et déborde vers le bas — jamais par-dessus
+    # l'écran entier.
+    assert top == 94, f"bandeau attendu à la marge utile, contenu dès y={top}"
+
+
+def test_renderer_shrinks_only_when_auto_fit_is_enabled() -> None:
+    """`auto_fit` actif + `uniform_text_size` désactivé : la typographie
+    rétrécit pour tenir (règle exacte de la page OBS)."""
+    from app.ui.mixer_output_window import hdmi_band_config
+
+    long_text = "\n".join(f"Ligne {i} de la prédication" for i in range(12))
+    base_cfg = {
+        "font_family": "Arial",
+        "layout_mode": "lower_third",
+        "auto_fit": True,
+        "uniform_text_size": False,
+        "min_text_size": 18,
+        "max_lines": 10,
+        "text_size": 40,
+    }
+    shrunk = render_obs_overlay_on_color(
+        hdmi_band_config(base_cfg),
+        {"text": long_text, "source": "sermon"},
+    )
+    fixed = render_obs_overlay_on_color(
+        hdmi_band_config({**base_cfg, "auto_fit": False}),
+        {"text": long_text, "source": "sermon"},
+    )
+    top_shrunk, _ = _non_key_bounds(shrunk)
+    top_fixed, _ = _non_key_bounds(fixed)
+    # Le bandeau réduit démarre plus bas (donc moins haut) que celui figé.
+    assert top_shrunk > top_fixed
 
 
 def test_renderer_fullscreen_mode_unchanged_for_other_outputs() -> None:

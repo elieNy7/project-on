@@ -213,6 +213,9 @@ class LibraryController(QObject):
             self._media_tab.itemDeleteRequested.connect(self.on_media_delete)
             self._media_tab.itemRenameRequested.connect(self.on_media_rename)
             self._media_tab.itemLoopRequested.connect(self.on_media_set_loop)
+            self._media_tab.itemDurationRequested.connect(
+                self.on_media_set_duration
+            )
             self._media_tab.refreshRequested.connect(self.refresh_media)
             self._media_tab.mediaAddToPlaylistRequested.connect(
                 self.on_media_add_to_playlist
@@ -1626,6 +1629,50 @@ class LibraryController(QObject):
         """Active/désactive la boucle d'une vidéo de la bibliothèque."""
         self._media_dao.set_loop(int(media_id), bool(loop))
         self.refresh_media()
+
+    def on_media_set_duration(self, media_id: int, seconds: int) -> None:
+        """Durée d'affichage d'un média en diaporama (0 = avance manuelle)."""
+        self._media_dao.set_duration(int(media_id), int(seconds))
+        self.refresh_media()
+
+    def slideshow_entries(self, medias: list) -> list[dict[str, Any]]:
+        """Complète des entrées de diaporama avec le type et la durée réglés.
+
+        Une playlist ne connaît que le chemin du média : on retrouve ici sa
+        fiche de bibliothèque (type, durée d'affichage) pour que le diaporama
+        se comporte exactement comme depuis la galerie.
+        """
+        from app.utils.media_utils import media_kind
+
+        known = {
+            str(media.get("path") or ""): media
+            for media in self._media_dao.list_media()
+        }
+        entries: list[dict[str, Any]] = []
+        for media in medias or []:
+            payload = media or {}
+            path = str(payload.get("path") or "").strip()
+            if not path:
+                continue
+            record = known.get(path) or {}
+            try:
+                seconds = int(payload.get("duration_seconds") or 0)
+            except (TypeError, ValueError):
+                seconds = 0
+            if seconds <= 0:
+                try:
+                    seconds = int(record.get("duration_seconds") or 0)
+                except (TypeError, ValueError):
+                    seconds = 0
+            entries.append(
+                {
+                    "name": str(payload.get("name") or record.get("name") or ""),
+                    "path": path,
+                    "kind": str(payload.get("kind") or record.get("kind") or media_kind(path)),
+                    "duration_seconds": seconds,
+                }
+            )
+        return entries
 
     def on_media_add_to_playlist(self, payload: dict) -> None:
         """Ajoute un média (image/vidéo) à une playlist choisie."""

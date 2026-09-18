@@ -94,7 +94,7 @@ class SlideWriter:
         self._video_playing = bool(snapshot.video_playing)
         self._video_loop = bool(snapshot.video_loop)
         # Réécrit toujours la sortie : l'affichage distant (projection, OBS,
-        # NDI) a pu rester sur les annonces, la restauration doit repousser
+        # NDI) a pu rester sur un diaporama, la restauration doit repousser
         # l'état capturé même s'il n'a pas changé en mémoire.
         self._last_slide = snapshot.slide
         # Reset is a one-shot command, not persistent playback state.

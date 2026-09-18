@@ -1,3 +1,29 @@
+# Project-On 2.5.0
+
+**Les médias se projettent enfin pour ce qu'ils sont** 🖼️ — Une image de la bibliothèque n'est plus étirée en fond d'écran ni rognée : elle est projetée **entière**, centrée, agrandie juste ce qu'il faut pour occuper l'écran, entourée d'un fond flou tiré de la même image. Et sur **toutes** les sorties : projecteur, aperçu opérateur, page Navigateur OBS, sortie HDMI mixeur et sortie NDI. Les vidéos sont désormais réellement lues sur HDMI et NDI, et un **diaporama** enchaîne vos images avec une durée réglée **par média**. En parallèle, la régie s'allège : la console ne garde que l'essentiel, et le bandeau défilant d'annonces disparaît.
+
+## Nouveautés
+
+- **L'image projetée est respectée** 🖼️ : une image de la bibliothèque est projetée entière — proportions préservées, agrandie si elle est plus petite que l'écran, jamais rognée. Autour d'elle, un fond flou et assombri dérivé de la même image remplace les bandes noires. Sur un écran 4:3 comme sur un 16:9, le cadrage s'adapte tout seul.
+- **La même image partout** 🔁 : projection plein écran, aperçu opérateur, page Navigateur OBS, sortie HDMI pour mélangeur et sortie NDI appliquent le même cadrage et le même habillage. Ce que voit l'assemblée est exactement ce que montre l'aperçu.
+- **Vos diapositives PowerPoint entières** 📑 : une présentation importée n'est plus rognée sur un écran non 16:9 ; chaque page est projetée dans son intégralité.
+- **La vidéo est vraiment lue sur HDMI et NDI** 📺 : la vidéo joue réellement sur la sortie mixeur, sur la sortie NDI et dans l'aperçu — avec une seule lecture partagée par toutes les sorties (moins de charge machine, aucune dérive entre les écrans). Le son reste porté par la projection locale ; si vous fermez la fenêtre de projection (régie pour un mélangeur, sans projecteur), le lecteur partagé prend alors le son pour que la vidéo ne soit jamais muette.
+- **Diaporama avec durée par média** ⏱️ : clic droit dans la galerie → « Durée d'affichage » (3 s à 30 s, ou durée libre). Lancez ensuite le diaporama sur une sélection (Ctrl+clic), sur toute la bibliothèque (bouton « Diaporama ») ou sur les médias d'une playlist. Chaque image reste le temps prévu ; chaque vidéo passe au suivant dès qu'elle se termine ; l'opérateur reprend la main à la moindre flèche.
+- **Bandeau HDMI/NDI fidèle à la page OBS** 📺 : le bandeau de la sortie mixeur (et de l'envoi NDI) lit désormais **tous** les réglages OBS — police réellement embarquée avec sa graisse, taille, **contour du texte**, **ombre** (couleur et flou), **interlettre**, casse, **largeur du bandeau**, marges et zone sûre, arrondi, dégradé **à l'angle choisi**, image de fond **dans** le bandeau, **pastille de source** (Bible, Cantique, Prédication, Exposé, Visuel, Projection), séparateur, **badge de référence** (badge, texte nu ou en ligne), couleurs par source et opacité. Un changement de réglage OBS s'applique **immédiatement**, sans attendre la slide suivante. Les deux curseurs propres au HDMI (taille 60-180 %, position verticale) restent un ajustement fin : à 100 % et 0, le bandeau est la copie exacte de la page OBS.
+- **Modes géométriques repris, animations comprises** 🎬 : le bandeau suit aussi la **mise en page** choisie dans OBS — sous-titre, panneau latéral ou carte focus (le mode plein écran, lui, ne peut pas devenir une incrustation : il retombe sur le bandeau bas). Et il joue **l'entrée animée** de la page : fondu, glissement, zoom, flou, révélation latérale, **mot à mot** avec la pastille de source et le badge qui suivent leur propre tempo.
+- **Console allégée** 🧭 : l'aperçu opérateur ne garde que **Projeter**, **Masque** et **Modifier** (plus les commandes Lecture/Pause/Boucle/Stop quand une vidéo est projetée, les flèches de navigation et la position de la référence). Disparaissent : l'écran scène pour les orateurs (fenêtre, message aux orateurs et raccourci F6) et la boucle d'annonces.
+- **Bandeau défilant retiré** 📢 : le texte déroulant d'annonces est supprimé partout — réglage, projection locale, page Navigateur OBS, sortie HDMI et sortie NDI. Le texte projeté redevient ce qu'il doit être : le texte de la diapositive, plein cadre.
+- **Réglages « Médias »** 🎛️ : Réglages → Projection locale → Médias — cadrage (image entière ou remplir l'écran), habillage autour de l'image (fond flou de l'image, noir uni ou couleur du thème), assombrissement du fond et durée par défaut du diaporama.
+- **Détails qui comptent** ✨ : le fond image des diapositives de texte garde son rendu d'origine (c'est un fond, pas un média) ; « masquer les écritures » masque aussi le média sur les deux projections ; passer d'une image à l'autre s'anime désormais comme pour un texte (fondu, glissement, zoom, flou, balayage) ; une image très lourde est allégée au chargement et un fichier disparu ne casse jamais la projection.
+
+## Installation
+
+Téléchargez **`ProjectOn_2.5.0_Setup.exe`** ci-dessous et installez-le par-dessus la version existante : cantiques, playlists, réglages et base sont conservés.
+
+Windows 10 / 11 (64 bits) · fonctionne hors-ligne.
+
+---
+
 # Project-On 2.4.0
 
 **La grande passe fiabilité : vos données ne se perdent plus, le direct ne casse plus** 🛡️ — Une révision en profondeur de toute la chaîne : sauvegarde complète transportable, playlists qui embarquent leurs médias, boucle d'annonces qui rend le live à l'identique, imports PowerPoint/PDF corrigés, et des garde-fous de sécurité sur les sorties réseau et l'installation. Tout ce qui fonctionnait continue de fonctionner — 262 tests automatiques valident l'ensemble.

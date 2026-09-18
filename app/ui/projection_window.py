@@ -14,6 +14,7 @@ from PyQt6.QtCore import (
     Qt,
     QTimer,
     QVariantAnimation,
+    pyqtSignal,
 )
 from PyQt6.QtGui import (
     QImage,
@@ -27,7 +28,6 @@ from PyQt6.QtGui import (
 from PyQt6.QtWidgets import QGraphicsOpacityEffect, QWidget
 
 from app.ui.slide_canvas import SlideCanvas, ShadowTextLabel, _blur_pixmap
-from app.ui.ticker_overlay import TickerOverlay
 from app.utils import power_guard
 from app.utils.themes import ThemeRegistry
 
@@ -42,6 +42,10 @@ class ProjectionWindow(SlideCanvas):
     mécanique de fenêtre : écran cible, polling ``slide.json``/``config.json``,
     transitions et lecture vidéo.
     """
+
+    # Fin de lecture d'une vidéo (hors boucle) : la régie peut enchaîner
+    # (diaporama) sans scruter le lecteur.
+    videoFinished = pyqtSignal()
 
     def __init__(self, presentation_dir: Path, parent: QWidget | None = None) -> None:
         super().__init__(presentation_dir=presentation_dir, parent=parent)
@@ -63,12 +67,6 @@ class ProjectionWindow(SlideCanvas):
         self._active_video_path = ""
         self._multimedia_available = True
         self._video_loop = False
-
-        # Bandeau défilant d'annonces (ancré en bas, au-dessus de tout).
-        # Son hauteur réserve un inset bas sur la scène (voir _apply_ticker_config).
-        self._stage_bottom_inset = 0
-        self._ticker = TickerOverlay(self)
-        self._ticker.hide()
 
         # Slide transition engine (pixmap animation in paintEvent)
         self._trans: dict[str, Any] | None = None
@@ -124,7 +122,6 @@ class ProjectionWindow(SlideCanvas):
         super().resizeEvent(event)
         if self._video_widget is not None:
             self._video_widget.setGeometry(self.rect())
-        self._position_ticker()
 
     def showEvent(self, event) -> None:
         super().showEvent(event)
@@ -138,39 +135,6 @@ class ProjectionWindow(SlideCanvas):
             self._power_held = False
             power_guard.release()
         super().closeEvent(event)
-
-    def _position_ticker(self) -> None:
-        ticker = getattr(self, "_ticker", None)
-        if ticker is None:
-            return
-        height = ticker.height()
-        ticker.setGeometry(0, self.height() - height, self.width(), height)
-        ticker.raise_()
-
-    def _apply_ticker_config(self, cfg: dict[str, Any]) -> None:
-        """Bandeau défilant : configuré depuis config.json (clé « ticker »).
-
-        Le bandeau réserve aussi un inset bas sur la scène : la zone
-        référence/texte ne glisse jamais dessous.
-        """
-        ticker_cfg = cfg.get("ticker")
-        if not isinstance(ticker_cfg, dict):
-            self._stage_bottom_inset = 0
-            self._ticker.configure([], False)
-            return
-        enabled = bool(ticker_cfg.get("enabled"))
-        height = int(ticker_cfg.get("height") or 64)
-        self._stage_bottom_inset = max(0, height) if enabled else 0
-        self._ticker.configure(
-            texts=list(ticker_cfg.get("texts") or []),
-            enabled=enabled,
-            speed=int(ticker_cfg.get("speed") or 90),
-            height=height,
-            bg_color=str(ticker_cfg.get("bg_color") or "rgba(5,10,22,0.82)"),
-            text_color=str(ticker_cfg.get("text_color") or "rgba(255,255,255,0.95)"),
-            font_size=int(ticker_cfg.get("font_size") or 30),
-        )
-        self._position_ticker()
 
     # ── Lecture vidéo (QMediaPlayer, contrôle manuel opérateur) ───────────
 
@@ -243,6 +207,8 @@ class ProjectionWindow(SlideCanvas):
             else:
                 self._media_player.pause()
                 self._media_player.setPosition(0)
+                # Signalé une seule fois : la régie peut enchaîner (diaporama).
+                self.videoFinished.emit()
 
     # ── Pages web : supprimé (les Médias ne projettent plus de pages web) ─
 
@@ -338,10 +304,6 @@ class ProjectionWindow(SlideCanvas):
         self._theme_registry = ThemeRegistry(cfg)
         self._global_config = dict(cfg)
         self._theme_active: str | None = None
-        try:
-            self._apply_ticker_config(cfg)
-        except Exception:
-            log.exception("Échec de l'application du bandeau défilant")
         super()._apply_config(cfg)
         # Sélection de l'écran de sortie (préférence opérateur).
         preferred_screen = str(cfg.get("display_screen") or "auto")
@@ -381,7 +343,8 @@ class ProjectionWindow(SlideCanvas):
         text = str(slide.get("text") or "")
         ref = str(slide.get("reference") or "")
         hidden = bool(slide.get("hidden"))
-        visual = str(slide.get("image") or slide.get("background") or "")
+        media = str(slide.get("image") or "")
+        visual = media or str(slide.get("background") or "")
         if not visual and not hidden and self._config.get("bg_mode") == "image":
             visual = str(self._config.get("bg_image") or "")
 
@@ -402,6 +365,7 @@ class ProjectionWindow(SlideCanvas):
             text != self._current_slide.get("text")
             or ref != self._current_slide.get("reference")
             or visual != self._current_slide.get("_visual_key")
+            or media != self._current_slide.get("_media_key")
         )
         if changed:
             self._begin_transition(slide)
@@ -445,8 +409,13 @@ class ProjectionWindow(SlideCanvas):
         }.get(d, (0.0, -1.0))
 
     def _begin_transition(self, slide: dict[str, Any]) -> None:
-        """Anime l'arrivée de la nouvelle slide. Le fond reste continu ;
-        seul le bloc texte est animé comme un pixmap."""
+        """Anime l'arrivée de la nouvelle slide : bloc texte ET média.
+
+        Le visuel média étant désormais un contenu plein cadre, il participe
+        lui aussi à l'animation — sans quoi passer d'une image à l'autre se
+        ferait sans transition (la scène texte est vide pour un média, ce qui
+        bloquait court-circuitait l'animation).
+        """
         cfg = self._config
         anim_on = bool(cfg.get("animation_enabled", True))
         duration_value = cfg.get("animation_duration")
@@ -455,13 +424,14 @@ class ProjectionWindow(SlideCanvas):
         direction = str(cfg.get("animation_direction") or "up").lower()
         was_hidden = not self._stage_widget.isVisible()
         going_hidden = bool(slide.get("hidden"))
+        has_media = self.media_layer_active()
 
         if (
             not anim_on
             or anim_type == "none"
             or duration <= 0
-            or was_hidden
             or going_hidden
+            or (was_hidden and not has_media)
         ):
             self._trans = None
             self._fade_effect.setOpacity(1.0)
@@ -471,24 +441,28 @@ class ProjectionWindow(SlideCanvas):
         try:
             self._fade_effect.setOpacity(1.0)
             out_img, out_pos = self._grab_block()
+            out_media = self.compose_media_frame(self.size())
             self._render_slide_content(slide)
             in_img, in_pos = self._grab_block()
+            in_media = self.compose_media_frame(self.size())
         except Exception:
             self._trans = None
             self._fade_effect.setOpacity(1.0)
             self._render_slide_content(slide)
             return
 
-        if out_img is None or in_img is None:
+        if (out_img is None or in_img is None) and out_media is None and in_media is None:
             self._trans = None
             self._fade_effect.setOpacity(1.0)
             return
 
         self._trans = {
-            "out": QPixmap.fromImage(out_img),
+            "out": QPixmap.fromImage(out_img) if out_img is not None else None,
             "outpos": out_pos,
-            "in": QPixmap.fromImage(in_img),
+            "in": QPixmap.fromImage(in_img) if in_img is not None else None,
             "inpos": in_pos,
+            "out_media": out_media,
+            "in_media": in_media,
             "type": anim_type,
             "dir": direction,
         }
@@ -497,8 +471,18 @@ class ProjectionWindow(SlideCanvas):
         # aucune re-blur par frame.
         if anim_type == "blur":
             blur_radius = float(max(10, min(40, duration // 16)))
-            self._trans["out_blur"] = self._blurred_block(out_img, blur_radius)
-            self._trans["in_blur"] = self._blurred_block(in_img, blur_radius)
+            if out_img is not None:
+                self._trans["out_blur"] = self._blurred_block(out_img, blur_radius)
+            if in_img is not None:
+                self._trans["in_blur"] = self._blurred_block(in_img, blur_radius)
+            if out_media is not None:
+                self._trans["out_media_blur"] = self._blurred_block(
+                    out_media.toImage(), blur_radius
+                )
+            if in_media is not None:
+                self._trans["in_media_blur"] = self._blurred_block(
+                    in_media.toImage(), blur_radius
+                )
 
         # Hide the live content; the pixmaps carry the animation.
         self._fade_effect.setOpacity(0.0)
@@ -564,8 +548,8 @@ class ProjectionWindow(SlideCanvas):
         painter.setOpacity(1.0)
 
     def _paint_transition(self, painter) -> None:
-        """Dessine l'animation du bloc texte selon le type configuré :
-        fondu, glissement, zoom, flou ou balayage (reveal)."""
+        """Dessine l'animation du média puis du bloc texte selon le type
+        configuré : fondu, glissement, zoom, flou ou balayage (reveal)."""
         t = self._trans
         if not t:
             return
@@ -573,6 +557,9 @@ class ProjectionWindow(SlideCanvas):
         kind = str(t.get("type") or "fade")
         dx, dy = self._direction_vector(str(t.get("dir") or "up"))
         w, h = float(self.width()), float(self.height())
+
+        # Le média occupe tout le cadre : il se peint sous le bloc texte.
+        self._paint_media_transition(painter, t, e, kind, dx, dy, w, h)
 
         if kind == "slide":
             mv_x, mv_y = dx * w, dy * h
@@ -613,26 +600,16 @@ class ProjectionWindow(SlideCanvas):
         if kind == "reveal":
             self._draw_pix(painter, t["out"], t["outpos"].x(), t["outpos"].y(), 1.0, 1.0)
             in_pix = t["in"]
+            if in_pix is None:
+                return
             rect = QRectF(
                 t["inpos"].x(), t["inpos"].y(),
                 float(in_pix.width()), float(in_pix.height()),
             )
             # Balayage : le bord de révélation avance depuis le côté opposé
             # à la direction (monter = apparaître depuis le bas).
-            if dy < 0:
-                clip = QRectF(rect.left(), rect.bottom() - rect.height() * e,
-                              rect.width(), rect.height() * e)
-            elif dy > 0:
-                clip = QRectF(rect.left(), rect.top(),
-                              rect.width(), rect.height() * e)
-            elif dx < 0:
-                clip = QRectF(rect.right() - rect.width() * e, rect.top(),
-                              rect.width() * e, rect.height())
-            else:
-                clip = QRectF(rect.left(), rect.top(),
-                              rect.width() * e, rect.height())
             painter.save()
-            painter.setClipRect(clip)
+            painter.setClipRect(self._reveal_clip(rect, dx, dy, e))
             self._draw_pix(painter, in_pix, t["inpos"].x(), t["inpos"].y(), 1.0, 1.0)
             painter.restore()
             return
@@ -640,6 +617,73 @@ class ProjectionWindow(SlideCanvas):
         # fade (défaut) — fondu croisé élégant, façon PowerPoint.
         self._draw_pix(painter, t["out"], t["outpos"].x(), t["outpos"].y(), 1.0, 1.0 - e)
         self._draw_pix(painter, t["in"], t["inpos"].x(), t["inpos"].y(), 1.0, e)
+
+    def _paint_media_transition(self, painter, t, e, kind, dx, dy, w, h) -> None:
+        """Anime la couche média plein cadre avec le type de transition actif.
+
+        Sans cela, une image succédant à une autre apparaîtrait d'un coup : la
+        scène texte est vide pour un média, donc rien d'autre n'est animé.
+        """
+        out_media = t.get("out_media")
+        in_media = t.get("in_media")
+        if out_media is None and in_media is None:
+            return
+
+        if kind == "slide":
+            mv_x, mv_y = dx * w, dy * h
+            self._draw_pix(painter, out_media, mv_x * e, mv_y * e, 1.0, 1.0)
+            self._draw_pix(
+                painter, in_media, -mv_x * (1.0 - e), -mv_y * (1.0 - e), 1.0, 1.0
+            )
+            return
+
+        if kind == "scale":
+            self._draw_pix(painter, out_media, 0.0, 0.0, 1.0 + 0.06 * e, 1.0 - e)
+            self._draw_pix(painter, in_media, 0.0, 0.0, 0.94 + 0.06 * e, e)
+            return
+
+        if kind == "blur":
+            if e < 0.5:
+                p = e / 0.5
+                self._draw_pix(painter, out_media, 0.0, 0.0, 1.0, 1.0 - p)
+                self._draw_pix(painter, t.get("out_media_blur"), 0.0, 0.0, 1.0, p)
+            else:
+                p = (e - 0.5) / 0.5
+                self._draw_pix(painter, t.get("in_media_blur"), 0.0, 0.0, 1.0, 1.0 - p)
+                self._draw_pix(painter, in_media, 0.0, 0.0, 1.0, p)
+            return
+
+        if kind == "reveal":
+            self._draw_pix(painter, out_media, 0.0, 0.0, 1.0, 1.0)
+            if in_media is not None:
+                painter.save()
+                painter.setClipRect(
+                    self._reveal_clip(QRectF(0.0, 0.0, w, h), dx, dy, e)
+                )
+                self._draw_pix(painter, in_media, 0.0, 0.0, 1.0, 1.0)
+                painter.restore()
+            return
+
+        # fade (défaut) — fondu croisé.
+        self._draw_pix(painter, out_media, 0.0, 0.0, 1.0, 1.0 - e)
+        self._draw_pix(painter, in_media, 0.0, 0.0, 1.0, e)
+
+    @staticmethod
+    def _reveal_clip(rect: QRectF, dx: float, dy: float, e: float) -> QRectF:
+        """Rectangle révélé par un balayage (depuis le côté opposé au sens)."""
+        if dy < 0:
+            return QRectF(
+                rect.left(), rect.bottom() - rect.height() * e,
+                rect.width(), rect.height() * e,
+            )
+        if dy > 0:
+            return QRectF(rect.left(), rect.top(), rect.width(), rect.height() * e)
+        if dx < 0:
+            return QRectF(
+                rect.right() - rect.width() * e, rect.top(),
+                rect.width() * e, rect.height(),
+            )
+        return QRectF(rect.left(), rect.top(), rect.width() * e, rect.height())
 
     # ── Ken Burns (dérive lente du fond image) ────────────────────────────
 
@@ -661,6 +705,9 @@ class ProjectionWindow(SlideCanvas):
         active = (
             bool(self._config.get("ken_burns", True))
             and not self._background_pixmap.isNull()
+            # Un média projeté comme contenu ne dérive jamais : le zoom lent
+            # reste réservé aux fonds d'ambiance.
+            and not self.media_layer_active()
             and not bool(self._current_slide.get("hidden"))
         )
         running = self._kb_anim.state() == QVariantAnimation.State.Running

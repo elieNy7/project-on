@@ -16,7 +16,8 @@ class MediaDao:
             rows = conn.execute(
                 """
                 SELECT id, name, path, kind, sort_order, created_at,
-                       COALESCE(loop, 0) AS loop
+                       COALESCE(loop, 0) AS loop,
+                       COALESCE(duration_seconds, 0) AS duration_seconds
                 FROM media_item
                 ORDER BY sort_order, id
                 """,
@@ -27,7 +28,8 @@ class MediaDao:
         with self._db.connect() as conn:
             row = conn.execute(
                 """
-                SELECT id, name, path, kind, COALESCE(loop, 0) AS loop
+                SELECT id, name, path, kind, COALESCE(loop, 0) AS loop,
+                       COALESCE(duration_seconds, 0) AS duration_seconds
                 FROM media_item WHERE id = ?
                 """,
                 (int(media_id),),
@@ -40,6 +42,19 @@ class MediaDao:
             cursor = conn.execute(
                 "UPDATE media_item SET loop = ? WHERE id = ?",
                 (1 if loop else 0, int(media_id)),
+            )
+            return cursor.rowcount > 0
+
+    def set_duration(self, media_id: int, seconds: int) -> bool:
+        """Durée d'affichage d'un média en diaporama (0 = avance manuelle)."""
+        try:
+            value = max(0, min(3600, int(seconds)))
+        except (TypeError, ValueError):
+            value = 0
+        with self._db.connect() as conn:
+            cursor = conn.execute(
+                "UPDATE media_item SET duration_seconds = ? WHERE id = ?",
+                (value, int(media_id)),
             )
             return cursor.rowcount > 0
 

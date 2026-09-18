@@ -262,10 +262,6 @@ class HdmiSettingsDialog(QDialog):
             "Décalage fin du bandeau (px @1080) pour éviter un habillage caméra",
         )
 
-        self._ticker = QCheckBox("Inclure le bandeau d'annonces")
-        self._ticker.setChecked(bool(settings.show_ticker))
-        self._ticker.toggled.connect(self._on_change)
-        overlay_section.addWidget(self._ticker)
 
         layout.addWidget(overlay_section)
 
@@ -478,12 +474,15 @@ class HdmiSettingsDialog(QDialog):
             slide = dict(_DEMO_SLIDE)
 
         key = chroma_key_rgb(settings.key_color)
+        # Rendu à la résolution de sortie réelle puis réduction : les
+        # réglages en pixels (marges, offsets, tailles) doivent apparaître
+        # à l'échelle de l'écran, comme sur la sortie HDMI.
         img = render_obs_overlay_on_color(
             cfg,
             slide,
             bg_rgba=(*key, 255),
-            width=960,
-            height=540,
+            width=1920,
+            height=1080,
             text_scale=settings.text_scale / 100.0,
             offset_y=settings.offset_y,
         )
@@ -500,8 +499,7 @@ class HdmiSettingsDialog(QDialog):
             )
         )
         source = "texte de démonstration" if demo else "slide en cours"
-        ticker = "avec bandeau" if settings.show_ticker else "sans bandeau"
-        self._preview_hint.setText(f"Aperçu fidèle de la sortie · {source} · {ticker}")
+        self._preview_hint.setText(f"Aperçu fidèle de la sortie · {source}")
         if self._presentation_dir is not None:
             self._preview_slide_mtime = self._mtime(
                 self._presentation_dir / "slide.json"
@@ -521,7 +519,6 @@ class HdmiSettingsDialog(QDialog):
         self._key_color.setCurrentIndex(0)
         self._text_scale.setValue(100)
         self._offset_y.setValue(0)
-        self._ticker.setChecked(True)
 
     # ── Lecture / signaux ─────────────────────────────────────────────
 
@@ -541,7 +538,6 @@ class HdmiSettingsDialog(QDialog):
             key_color=str(self._key_color.currentData() or "green"),
             text_scale=int(self._text_scale.value()),
             offset_y=int(self._offset_y.value()),
-            show_ticker=self._ticker.isChecked(),
         ).sanitized()
 
     def _on_change(self, *_args) -> None:

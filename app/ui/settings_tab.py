@@ -361,9 +361,7 @@ class SettingsHeader(QFrame):
 class SettingsTab(QWidget):
     projectionSettingsRequested  = pyqtSignal()
     themesRequested              = pyqtSignal()
-    stageSettingsRequested       = pyqtSignal()
     hdmiSettingsRequested        = pyqtSignal()
-    tickerSettingsRequested      = pyqtSignal()
     obsSettingsRequested         = pyqtSignal()
     obsOutputSettingsRequested   = pyqtSignal()
     appearanceSettingsRequested  = pyqtSignal()
@@ -414,22 +412,12 @@ class SettingsTab(QWidget):
             "palette.svg", "#34d399", display_card,
         )
         display_card.add_item(self._themes_item)
-        self._stage_item = SettingsItem(
-            tr("stage_display"), tr("stage_display_desc"),
-            "users.svg", "#60a5fa", display_card,
-        )
-        display_card.add_item(self._stage_item)
         self._hdmi_item = SettingsItem(
             "Sortie HDMI / mixeur",
             "Source d'incrustation verte pour ATEM, Roland V/AV et autres mélangeurs",
             "cast.svg", "#4ade80", display_card,
         )
         display_card.add_item(self._hdmi_item)
-        self._ticker_item = SettingsItem(
-            tr("ticker_settings"), tr("ticker_settings_desc"),
-            "megaphone.svg", "#fbbf24", display_card,
-        )
-        display_card.add_item(self._ticker_item)
         cl.addWidget(display_card)
 
         # ── DIFFUSION ────────────────────────────────────────────────
@@ -525,9 +513,7 @@ class SettingsTab(QWidget):
         # ── Connexions ────────────────────────────────────────────────
         self._projection_item.clicked.connect(self.projectionSettingsRequested.emit)
         self._themes_item.clicked.connect(self.themesRequested.emit)
-        self._stage_item.clicked.connect(self.stageSettingsRequested.emit)
         self._hdmi_item.clicked.connect(self.hdmiSettingsRequested.emit)
-        self._ticker_item.clicked.connect(self.tickerSettingsRequested.emit)
         self._obs_connect_item.clicked.connect(self.obsSettingsRequested.emit)
         self._obs_style_item.clicked.connect(self.obsOutputSettingsRequested.emit)
         self._appearance_item.clicked.connect(self.appearanceSettingsRequested.emit)
@@ -558,12 +544,8 @@ class SettingsTab(QWidget):
             n_themes = len(getattr(settings, "themes", []) or [])
             n_assign = len(getattr(settings, "theme_assignments", {}) or {})
             self._themes_item.set_detail(f"{max(1, n_themes)} · {n_assign} assign.")
-            self._stage_item.set_detail("F6")
             hdmi = getattr(settings, "hdmi", None)
             self._hdmi_item.set_detail(self._hdmi_detail(hdmi))
-            self._ticker_item.set_detail(
-                "Actif" if getattr(getattr(settings, "ticker", None), "enabled", False) else "Inactif"
-            )
 
             o = settings.obs
             if o.mode == "web":

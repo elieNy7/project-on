@@ -10,16 +10,16 @@
 
 <body>
     <div id="root">
+        <!-- Fond du média : la même image, floutée et assombrie, autour de
+             l'image nette — exactement le rendu de la projection locale -->
+        <div id="image-backdrop" class="image-backdrop"></div>
+        <div id="image-backdrop-dim" class="image-backdrop-dim"></div>
+
         <!-- Full-screen image overlay -->
         <div id="image-container" class="image-container"></div>
 
         <!-- Full-screen video overlay (contrôle manuel depuis l'application) -->
         <video id="video-container" class="video-container"></video>
-
-        <!-- Bandeau défilant d'annonces (bas de l'écran, réglé dans l'app) -->
-        <div id="ticker" class="ticker hidden">
-            <div class="ticker-track" id="ticker-track"></div>
-        </div>
 
         <div id="lower-third" class="lower-third">
             <div class="lt-body">

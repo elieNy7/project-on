@@ -259,7 +259,8 @@ class PlaylistTab(QFrame):
     folderRenameRequested = pyqtSignal(int, str)
     folderDeleteRequested = pyqtSignal(int)
     folderExportRequested = pyqtSignal(int)
-    announcementLoopRequested = pyqtSignal(int)  # folder_id → boucle d'annonces
+    # Diaporama : médias du dossier choisi, dans l'ordre de la playlist.
+    slideshowRequested = pyqtSignal(list)
     importRequested = pyqtSignal()
     itemCreateRequested = pyqtSignal(int, str, str)  # folder_id, référence, texte
     itemUpdateRequested = pyqtSignal(int, str, str)  # item_id, référence, texte
@@ -515,10 +516,26 @@ class PlaylistTab(QFrame):
             item.setData(256, int(it["id"]))
             item.setData(257, str(it.get("reference") or ""))
             item.setData(258, str(it.get("text") or ""))
+            # Média rattaché (item « media ») : chemin conservé pour pouvoir
+            # lancer le dossier en diaporama.
+            if str(it.get("source") or "") == "media":
+                item.setData(259, str(it.get("background") or ""))
             self.items_list.addItem(item)
         self.info_label.setText(f"{len(items)} slide(s)")
         if items:
             self.items_list.setCurrentRow(0)
+
+    def media_entries(self) -> list[dict[str, Any]]:
+        """Médias du dossier courant, dans l'ordre (pour le diaporama)."""
+        medias: list[dict[str, Any]] = []
+        for row in range(self.items_list.count()):
+            item = self.items_list.item(row)
+            path = str(item.data(259) or "").strip()
+            if path:
+                medias.append(
+                    {"name": str(item.data(257) or ""), "path": path}
+                )
+        return medias
 
     # ── Slots privés ──────────────────────────────────────────────────────
 
@@ -600,8 +617,8 @@ class PlaylistTab(QFrame):
         act_export = menu.addAction(
             app_icon("download.svg"), "Exporter vers un fichier…"
         )
-        act_announce = menu.addAction(
-            app_icon("megaphone.svg"), tr("announcement_loop_use")
+        act_slideshow = menu.addAction(
+            app_icon("play.svg"), "Lancer en diaporama (médias)"
         )
         menu.addSeparator()
         act_rename = menu.addAction(app_icon("edit-3.svg"), "Renommer")
@@ -609,12 +626,22 @@ class PlaylistTab(QFrame):
         chosen = menu.exec(self.folders_list.mapToGlobal(pos))
         if chosen is act_export:
             self.folderExportRequested.emit(folder_id)
-        elif chosen is act_announce:
-            self.announcementLoopRequested.emit(folder_id)
+        elif chosen is act_slideshow:
+            self._emit_slideshow_for_folder(folder_id)
         elif chosen is act_rename:
             self._on_rename_folder_clicked()
         elif chosen is act_delete:
             self._on_delete_folder_clicked()
+
+    def _emit_slideshow_for_folder(self, folder_id: int) -> None:
+        """Demande le diaporama des médias du dossier (durées réglées ailleurs)."""
+        if folder_id != self.current_folder_id():
+            # Le contenu affiché n'est pas celui du dossier visé : on demande
+            # au contrôleur de charger ce dossier d'abord.
+            self.folderSelected.emit(folder_id)
+        medias = self.media_entries()
+        if medias:
+            self.slideshowRequested.emit(medias)
 
     # Slides
     def _on_new_item_clicked(self) -> None:

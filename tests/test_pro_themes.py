@@ -1,4 +1,4 @@
-"""Tests Project-On 2.0 : thèmes, écran scène, ticker, annonces, boucle vidéo."""
+"""Tests Project-On 2.0 : thèmes, aperçu fidèle, boucle vidéo."""
 
 from __future__ import annotations
 
@@ -14,10 +14,8 @@ from PyQt6.QtWidgets import QApplication
 
 from app.database.connection import Database, DatabaseConfig
 from app.database.dao_media import MediaDao
-from app.database.dao_playlist import PlaylistDao
-from app.utils.announcement_controller import AnnouncementController
 from app.utils.project_on_controller import ProjectOnController
-from app.utils.settings import AppSettings, StageSettings, TickerSettings
+from app.utils.settings import AppSettings
 from app.utils.slide_writer import SlideWriter
 from app.utils.models import Slide
 from app.utils.themes import (
@@ -144,10 +142,11 @@ def test_projection_window_applies_per_source_theme(qapp, tmp_path):
 
 def test_preview_renders_theme_pixmap(qapp):
     from app.ui.preview_panel import PreviewPanel
+    from app.ui.slide_canvas import SlideCanvas
 
     panel = PreviewPanel(settings=AppSettings())
     pix = panel._render_canvas_pixmap("Jean 3:16", "Car Dieu…", source="bible")
-    assert pix is not None and pix.width() == SlideCanvas_WIDTH
+    assert pix is not None and pix.width() == SlideCanvas.RENDER_WIDTH
 
 
 def test_preview_keeps_text_when_output_hidden(qapp):
@@ -182,99 +181,6 @@ def test_preview_keeps_text_when_output_hidden(qapp):
     assert panel._render_pixmap_full is before
 
 
-SlideCanvas_WIDTH = 1920
-
-
-# ── Écran scène ───────────────────────────────────────────────────────────
-
-def test_stage_settings_sanitized():
-    raw = StageSettings(text_size=9999, next_size=-4, bg_color="")
-    clean = raw.sanitized()
-    assert clean.text_size == 160
-    assert clean.next_size == 10
-    assert clean.bg_color  # fallback appliqué
-
-
-def test_stage_window_shows_slide_next_and_message(qapp):
-    from app.ui.stage_window import StageWindow
-
-    window = StageWindow(StageSettings())
-    window.set_slide({"reference": "Jean 3:16", "text": "Car Dieu…", "source": "bible"})
-    window.set_next_slide({"reference": "Jean 3:17", "text": "Afin que…"})
-    assert window._current_text.text() == "Car Dieu…"
-    assert window._next_text.text() == "Afin que…"
-    window.show_message("Pasteur, veuillez venir")
-    assert window._message_label.isVisible()
-    window.clear_message()
-    assert not window._message_label.isVisible()
-    # Slide masquée
-    window.set_slide({"reference": "", "text": "", "hidden": True})
-    assert window._current_text.text() == ""
-
-
-# ── Ticker ────────────────────────────────────────────────────────────────
-
-def test_ticker_settings_roundtrip(settings_path):
-    settings = AppSettings()
-    settings.ticker = TickerSettings(
-        enabled=True, texts=["Annonce A", "Annonce B"], speed=150, height=80
-    )
-    settings.save(settings_path)
-    loaded = AppSettings.load(settings_path)
-    assert loaded.ticker.enabled is True
-    assert loaded.ticker.texts == ["Annonce A", "Annonce B"]
-    assert loaded.ticker.speed == 150
-
-
-def test_ticker_overlay_renders(qapp):
-    from app.ui.ticker_overlay import TickerOverlay
-
-    ticker = TickerOverlay()
-    ticker.configure(["Annonce 1", "Annonce 2"], True, speed=120, height=64)
-    ticker.resize(1920, 64)
-    assert ticker.height() == 64
-    pix = ticker.grab()
-    assert not pix.isNull()
-    ticker.configure([], True)
-    assert not ticker.isVisible()
-
-
-# ── Boucle d'annonces ─────────────────────────────────────────────────────
-
-@pytest.fixture
-def live_setup(tmp_path: Path):
-    database = Database(DatabaseConfig(db_path=tmp_path / "ann.db"))
-    database.initialize()
-    controller = ProjectOnController(db=database, presentation_dir=tmp_path)
-    controller.load_program("bible", "Jean 3", [("Jean 3:16", "Car Dieu a tant aimé")])
-    return controller, PlaylistDao(database)
-
-
-def test_announcement_loop_restores_live(live_setup):
-    controller, playlist_dao = live_setup
-    folder_id = playlist_dao.create_folder("Annonces")
-    playlist_dao.add_item("custom", "Annonce 1", "Réunion mardi", folder_id=folder_id)
-    playlist_dao.add_item("custom", "Annonce 2", "Culte dimanche", folder_id=folder_id)
-
-    controller_announcements = AnnouncementController(controller, playlist_dao)
-    controller_announcements.set_folder(folder_id)
-    assert controller_announcements.start() is True
-    assert controller_announcements.is_active
-    assert controller.program_title == "Annonces"
-    assert controller.program_count == 2
-
-    controller_announcements.stop()
-    assert not controller_announcements.is_active
-    assert controller.program_title == "Jean 3"
-    assert controller.current_row() == 0
-    assert controller.current_slide().text == "Car Dieu a tant aimé"
-
-
-def test_announcement_loop_needs_playlist(live_setup):
-    controller, playlist_dao = live_setup
-    controller_announcements = AnnouncementController(controller, playlist_dao)
-    assert controller_announcements.start() is False
-    assert not controller_announcements.is_active
 
 
 # ── Boucle vidéo ──────────────────────────────────────────────────────────

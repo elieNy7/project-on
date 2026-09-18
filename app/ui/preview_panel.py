@@ -137,11 +137,6 @@ class PreviewPanel(QFrame):
     referencePositionToggled = pyqtSignal(bool)
     # Contrôle vidéo opérateur : "play" | "pause" | "stop"
     videoControlRequested = pyqtSignal(str)
-    # Écran scène : on/off + message opérateur
-    stageToggled = pyqtSignal(bool)
-    stageMessageRequested = pyqtSignal()
-    # Boucle d'annonces : lancer / arrêter
-    announcementsToggled = pyqtSignal()
     # Boucle vidéo : True = activer la relance automatique
     videoLoopToggled = pyqtSignal(bool)
 
@@ -583,38 +578,8 @@ class PreviewPanel(QFrame):
         self._video_stop_button.hide()
         self._video_loop_button.hide()
 
-        # Écran scène : activation + message opérateur (libellés courts :
-        # la console doit tenir sur une ligne même avec la vidéo en direct).
-        self._stage_button = PreviewControlButton(
-            "users.svg", tr("stage_toggle"), self.console_frame,
-            text=tr("stage_toggle_short"),
-        )
-        self._stage_button.setCheckable(True)
-        self._stage_button.toggled.connect(self.stageToggled.emit)
-        console_layout.addWidget(self._stage_button)
-
-        self._stage_message_button = PreviewControlButton(
-            "type.svg", tr("stage_send_message"), self.console_frame,
-            text=tr("stage_message_short"),
-        )
-        self._stage_message_button.clicked.connect(self.stageMessageRequested.emit)
-        console_layout.addWidget(self._stage_message_button)
-
-        # Boucle d'annonces : bouton bascule (rouge quand actif).
-        self._announce_button = PreviewControlButton(
-            "megaphone.svg", tr("announcement_loop"), self.console_frame,
-            text=tr("announcements_short"),
-        )
-        self._announce_button.setCheckable(True)
-        self._announce_button.clicked.connect(
-            lambda: self.announcementsToggled.emit()
-        )
-        console_layout.addWidget(self._announce_button)
-
-        # Lecteur vidéo de l'APERÇU (miniature, mutée) — créé paresseusement.
-        self._video_preview = None  # QVideoWidget | False (indisponible)
-        self._video_preview_player = None
-        self._video_preview_audio = None
+        # Vidéo de l'APERÇU : images du lecteur partagé (voir set_media_hub).
+        self._media_hub = None
         self._video_preview_path = ""
 
         # Édition rapide de la slide en direct (utile pour corriger une faute
@@ -691,28 +656,6 @@ class PreviewPanel(QFrame):
             QFrame.resizeEvent(self._slide_frame, event)
         self._refresh_image_pixmap()
 
-    def set_stage_active(self, active: bool) -> None:
-        """Synchronise le bouton scène avec l'état réel de la fenêtre."""
-        with QSignalBlocker(self._stage_button):
-            self._stage_button.setChecked(bool(active))
-
-    def set_announcement_active(self, active: bool) -> None:
-        """Réflète l'état de la boucle d'annonces sur le bouton.
-
-        Actif : le bouton devient l'action « Arrêter » (flèche stop) — un
-        appui ou une flèche de navigation arrête la boucle et restaure le
-        live. Inactif : retour au libellé « Annonces ».
-        """
-        with QSignalBlocker(self._announce_button):
-            self._announce_button.setChecked(bool(active))
-        self._announce_button.setToolTip(
-            tr("announcements_stop_hint") if active else tr("announcement_loop")
-        )
-        self._announce_button.setAccessibleName(
-            tr("announcements_stop_hint") if active else tr("announcement_loop")
-        )
-        # État porté par le style « checked » : garder la console compacte.
-
     def set_project_active(self, active: bool) -> None:
         self._project_active = active
         with QSignalBlocker(self._project_button):
@@ -786,67 +729,67 @@ class PreviewPanel(QFrame):
             else:
                 self.pause_video()
 
-    # ── Lecteur miniature de l'aperçu (muté, ratio = projection) ──────
+    # ── Vidéo : images du lecteur partagé (aucun décodage en plus) ────
 
-    def _ensure_video_preview(self) -> bool:
-        """Crée paresseusement le lecteur d'aperçu ; False si QtMultimedia manque."""
-        if self._video_preview is not None:
-            return self._video_preview is not False
+    def set_media_hub(self, hub) -> None:
+        """Branche l'aperçu sur le lecteur vidéo commun au reste des sorties.
+
+        L'aperçu ne décode plus rien lui-même : il affiche les images
+        normalisées du hub (1920×1080, bandes noires) — donc exactement ce que
+        voit la projection, sans troisième décodage du même fichier.
+        """
+        if hub is None:
+            return
+        if hub is self._media_hub:
+            return
+        self._media_hub = hub
         try:
-            from PyQt6.QtMultimedia import QAudioOutput, QMediaPlayer
-            from PyQt6.QtMultimediaWidgets import QVideoWidget
+            hub.frameReady.connect(self._on_hub_frame)
         except Exception:
-            self._video_preview = False
-            return False
+            pass
 
-        widget = QVideoWidget(self._slide_frame)
-        widget.setStyleSheet("background: black; border: none; border-radius: 10px;")
-        # Ratio préservé (letterbox) = exactement ce que voit l'écran projeté,
-        # sans jamais occuper l'écran entier.
-        widget.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
-        self._frame_layout.insertWidget(
-            self._frame_layout.indexOf(self._stage_footer), widget, 1
-        )
-        widget.hide()
-        self._video_preview = widget
-        self._video_preview_audio = QAudioOutput(self)
-        self._video_preview_audio.setMuted(True)  # le son sort en projection
-        self._video_preview_player = QMediaPlayer(self)
-        self._video_preview_player.setAudioOutput(self._video_preview_audio)
-        self._video_preview_player.setVideoOutput(self._video_preview)
-        return True
+    def _on_hub_frame(self) -> None:
+        """Nouvelle image vidéo : l'aperçu suit la lecture en direct."""
+        if not self._video_preview_path:
+            return
+        hub = self._media_hub
+        image = hub.latest_image() if hub is not None else None
+        if image is None:
+            return
+        self._render_pixmap_full = QPixmap.fromImage(image)
+        self.slide_view.setVisible(False)
+        self._empty_state.setVisible(False)
+        self._image_label.setVisible(True)
+        self._refresh_image_pixmap()
 
     def _show_video_preview(self, path: str) -> bool:
-        if not self._ensure_video_preview():
+        """Passe l'aperçu en mode vidéo ; False si aucun lecteur n'existe."""
+        hub = self._media_hub
+        if hub is None or not hub.available():
             return False
-        from PyQt6.QtCore import QUrl
-
-        if path != self._video_preview_path:
-            self._video_preview_path = path
-            self._video_preview_player.setSource(QUrl.fromLocalFile(path))
-        self._video_preview.show()
-        self._video_preview.raise_()
+        self._video_preview_path = path
+        hub.load(path)
         return True
 
-    def _hide_video_preview(self) -> None:
+    def _hide_video_preview(self, stop_hub: bool = True) -> None:
+        if self._video_preview_path and stop_hub:
+            hub = self._media_hub
+            if hub is not None:
+                hub.stop()
         self._video_preview_path = ""
-        if self._video_preview_player is not None:
-            self._video_preview_player.stop()
-        if self._video_preview:
-            self._video_preview.hide()
+        self._render_pixmap_full = None
 
     def play_video(self) -> None:
-        if self._ensure_video_preview() and self._video_preview_path:
-            self._video_preview_player.play()
+        if self._video_preview_path and self._media_hub is not None:
+            self._media_hub.play()
 
     def pause_video(self) -> None:
-        if self._ensure_video_preview() and self._video_preview_path:
-            self._video_preview_player.pause()
+        if self._video_preview_path and self._media_hub is not None:
+            self._media_hub.pause()
 
     def stop_video(self) -> None:
-        if self._ensure_video_preview() and self._video_preview_path:
-            self._video_preview_player.pause()
-            self._video_preview_player.setPosition(0)
+        if self._video_preview_path and self._media_hub is not None:
+            self._media_hub.restart()
 
     def set_slide(
         self,
@@ -889,7 +832,8 @@ class PreviewPanel(QFrame):
             self._render_pixmap_full = None
             self._empty_state.setVisible(False)
             if self._show_video_preview(vid):
-                # Cadre vidéo réel : le même ratio que la projection.
+                # Images du lecteur partagé : même ratio, mêmes bandes noires
+                # que la projection (voir _on_hub_frame).
                 self.slide_view.setVisible(False)
                 self._ref_label.setText(ref)
             else:

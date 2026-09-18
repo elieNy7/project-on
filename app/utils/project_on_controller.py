@@ -51,8 +51,8 @@ class ProjectOnController(QObject):
         self._current_row = -1
         self._entry_start_rows: list[int | None] = []
         # Crochet « activation manuelle » : appelé avant tout chargement
-        # demandé par l'opérateur (pas par la boucle d'annonces) pour que
-        # l'interface puisse clore celle-ci sans restauration obsolète.
+        # demandé par l'opérateur (pas par le diaporama) pour que l'interface
+        # puisse le clore sans restauration obsolète.
         self._before_manual_load: Callable[[], None] | None = None
 
     def set_before_manual_load(self, handler: Callable[[], None] | None) -> None:
@@ -111,9 +111,9 @@ class ProjectOnController(QObject):
         Une entrée à visuel produit une slide unique sans découpage —
         ``source`` bascule sur ``image``/``video``.
 
-        ``manual=False`` marque un chargement automatique (boucle
-        d'annonces) : le crochet ``set_before_manual_load`` n'est pas
-        déclenché — sinon la boucle se cloretrait elle-même.
+        ``manual=False`` marque un chargement automatique (diaporama) : le
+        crochet ``set_before_manual_load`` n'est pas déclenché — sinon le
+        diaporama se cloretrait lui-même.
         """
         if manual and self._before_manual_load is not None:
             try:
@@ -298,6 +298,16 @@ class ProjectOnController(QObject):
 
     def current_row(self) -> int:
         return self._current_row
+
+    def slide_at_row(self, row: int) -> Slide | None:
+        """Slide d'une rangée du programme, sans changer l'affichage.
+
+        Utilisé par le diaporama pour savoir si le média courant est une
+        vidéo (son tempo est alors la fin de lecture, pas une durée).
+        """
+        if not 0 <= int(row) < len(self._program_slides):
+            return None
+        return self._program_slides[int(row)]
 
     def entry_index_for_row(self, row: int) -> int | None:
         """Index de l'entrée d'origine qui produit la slide ``row``.

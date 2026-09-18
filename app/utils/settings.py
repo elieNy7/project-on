@@ -71,6 +71,10 @@ class ObsOutputSettings:
     bg_mode: str = "color"  # "color" or "image" (mutually exclusive background)
     bg_image: str = ""  # background image path (used only when bg_mode == "image")
     bg_image_fit: str = "cover"  # "cover" (remplir) or "contain" (contenir)
+    # Médias (page OBS) : même contrat que la projection locale.
+    media_fit: str = "contain"  # contain (entière) | cover (remplir, recadre)
+    media_backdrop: str = "blur"  # blur | black | color (couleur du thème)
+    media_backdrop_dim: float = 0.45  # assombrissement du fond autour de l'image
     # Animation refinement
     animation_direction: str = "up"  # up|down|left|right
     animation_style: str = "block"  # block|words (word-by-word broadcast reveal)
@@ -186,6 +190,23 @@ class ObsOutputSettings:
             "bg_mode": "image" if self.bg_mode == "image" else "color",
             "bg_image": str(self.bg_image or ""),
             "bg_image_fit": "contain" if self.bg_image_fit == "contain" else "cover",
+            "media_fit": "cover" if self.media_fit == "cover" else "contain",
+            "media_backdrop": (
+                str(self.media_backdrop)
+                if str(self.media_backdrop or "") in ("blur", "black", "color")
+                else "blur"
+            ),
+            "media_backdrop_dim": max(
+                0.0,
+                min(
+                    0.9,
+                    float(
+                        self.media_backdrop_dim
+                        if self.media_backdrop_dim is not None
+                        else 0.45
+                    ),
+                ),
+            ),
             "animation_direction": str(self.animation_direction or "up"),
             "animation_style": (
                 "words" if self.animation_style == "words" else "block"
@@ -255,20 +276,14 @@ class ObsSettings:
     scenes: list[ObsScene] = field(default_factory=list)
     remote: ObsRemoteSettings = field(default_factory=ObsRemoteSettings)
 
-    def to_full_obs_config(self, ticker: dict[str, Any] | None = None) -> dict[str, Any]:
-        """Base broadcast config plus one style payload per named scene.
-
-        ``ticker`` (charge utile de :meth:`TickerSettings.to_payload`) est
-        embarqué tel quel : la page OBS et l'envoi NDI animent le bandeau
-        d'annonces à partir de ces champs.
-        """
+    def to_full_obs_config(self) -> dict[str, Any]:
+        """Base broadcast config plus one style payload per named scene."""
         config = self.output.to_obs_config()
         config["scenes"] = {
             scene.id: scene.output.to_obs_config()
             for scene in self.scenes
             if scene.id
         }
-        config["ticker"] = dict(ticker or {})
         return config
 
 
@@ -317,6 +332,13 @@ class ProjectionSettings:
     bg_mode: str = "color"  # "color" or "image" (mutually exclusive background)
     bg_image: str = ""  # background image path (used only when bg_mode == "image")
     bg_image_fit: str = "cover"  # "cover" (remplir) or "contain" (contenir)
+    # ── Médias de la bibliothèque (images, diapositives PowerPoint) ──────
+    # Un média est projeté comme un CONTENU — image entière centrée, jamais
+    # rognée, entourée d'un habillage — et non comme un fond plein cadre.
+    media_fit: str = "contain"  # contain (entière) | cover (remplir, recadre)
+    media_backdrop: str = "blur"  # blur | black | color (couleur du thème)
+    media_backdrop_dim: float = 0.45  # assombrissement du fond autour de l'image
+    media_default_duration: int = 8  # s par défaut par média (0 = manuel)
     # Slide transitions (local projection)
     animation_enabled: bool = True
     animation_type: str = "fade"  # none|fade|slide|scale|blur|reveal
@@ -417,6 +439,23 @@ class ProjectionSettings:
             "bg_mode": "image" if self.bg_mode == "image" else "color",
             "bg_image": str(self.bg_image or ""),
             "bg_image_fit": "contain" if self.bg_image_fit == "contain" else "cover",
+            "media_fit": "cover" if self.media_fit == "cover" else "contain",
+            "media_backdrop": (
+                str(self.media_backdrop)
+                if str(self.media_backdrop or "") in ("blur", "black", "color")
+                else "blur"
+            ),
+            "media_backdrop_dim": max(
+                0.0,
+                min(
+                    0.9,
+                    float(
+                        self.media_backdrop_dim
+                        if self.media_backdrop_dim is not None
+                        else 0.45
+                    ),
+                ),
+            ),
             "animation_enabled": bool(self.animation_enabled),
             "animation_type": str(self.animation_type or "fade"),
             "animation_duration": int(
@@ -535,42 +574,12 @@ def _read_obs_output(d: dict, out: ObsOutputSettings) -> ObsOutputSettings:
     out.bg_mode = _gs(d, "bg_mode", out.bg_mode)
     out.bg_image = _gs(d, "bg_image", out.bg_image)
     out.bg_image_fit = _gs(d, "bg_image_fit", out.bg_image_fit)
+    out.media_fit = _gs(d, "media_fit", out.media_fit)
+    out.media_backdrop = _gs(d, "media_backdrop", out.media_backdrop)
+    out.media_backdrop_dim = _gf(d, "media_backdrop_dim", out.media_backdrop_dim)
     out.animation_direction = _gs(d, "animation_direction", out.animation_direction)
     out.animation_style = _gs(d, "animation_style", out.animation_style)
     return out
-
-
-@dataclass
-class StageSettings:
-    """Écran scène (façon ProPresenter Stage Display) : écran dédié aux
-    orateurs avec texte courant, suivant, horloge et messages."""
-    enabled: bool = False  # rouvrir l'écran scène au démarrage
-    display_screen: str = "auto"  # auto or QScreen.name()
-    font_family: str = "Poppins"
-    text_size: int = 54  # slide courante (px @1080p)
-    next_size: int = 30  # slide suivante
-    show_clock: bool = True
-    show_next: bool = True
-    show_reference: bool = True
-    text_color: str = "rgba(255,255,255,0.97)"
-    next_color: str = "rgba(140,200,150,0.80)"
-    bg_color: str = "#000000"
-
-    def sanitized(self) -> StageSettings:
-        s = StageSettings(
-            enabled=bool(self.enabled),
-            display_screen=str(self.display_screen or "auto"),
-            font_family=str(self.font_family or "Poppins"),
-            text_color=str(self.text_color or "rgba(255,255,255,0.97)"),
-            next_color=str(self.next_color or "rgba(140,200,150,0.80)"),
-            bg_color=str(self.bg_color or "#000000"),
-        )
-        s.text_size = max(16, min(160, int(self.text_size or 54)))
-        s.next_size = max(10, min(120, int(self.next_size or 30)))
-        s.show_clock = bool(self.show_clock)
-        s.show_next = bool(self.show_next)
-        s.show_reference = bool(self.show_reference)
-        return s
 
 
 @dataclass
@@ -594,7 +603,6 @@ class HdmiSettings:
     key_color: str = "green"  # green|magenta|blue
     text_scale: int = 100  # taille de la section texte : 60..180 (%)
     offset_y: int = 0  # décalage vertical : -300..300 px @1080
-    show_ticker: bool = True  # inclure le bandeau d'annonces
 
     def sanitized(self) -> HdmiSettings:
         key = str(self.key_color or "green").strip().lower()
@@ -607,58 +615,7 @@ class HdmiSettings:
             key_color=key,
             text_scale=max(60, min(180, int(self.text_scale or 100))),
             offset_y=max(-300, min(300, int(self.offset_y or 0))),
-            show_ticker=bool(self.show_ticker),
         )
-
-
-@dataclass
-class TickerSettings:
-    """Bandeau défilant d'annonces sous la projection locale."""
-    enabled: bool = False
-    texts: list = field(default_factory=list)  # une annonce par entrée
-    speed: int = 90  # pixels / seconde
-    height: int = 64  # hauteur du bandeau (px)
-    bg_color: str = "rgba(5,10,22,0.82)"
-    text_color: str = "rgba(255,255,255,0.95)"
-    font_size: int = 30  # px @1080p
-    # Playlist utilisée comme boucle d'annonces (None = aucune)
-    announcement_folder_id: int | None = None
-    announcement_seconds: int = 8  # durée par slide d'annonce
-
-    def sanitized(self) -> TickerSettings:
-        s = TickerSettings(
-            enabled=bool(self.enabled),
-            speed=max(20, min(400, int(self.speed or 90))),
-            height=max(32, min(220, int(self.height or 64))),
-            bg_color=str(self.bg_color or "rgba(5,10,22,0.82)"),
-            text_color=str(self.text_color or "rgba(255,255,255,0.95)"),
-            font_size=max(14, min(90, int(self.font_size or 30))),
-        )
-        s.texts = [
-            str(t or "").strip() for t in (self.texts or []) if str(t or "").strip()
-        ]
-        try:
-            s.announcement_folder_id = (
-                int(self.announcement_folder_id)
-                if self.announcement_folder_id is not None
-                else None
-            )
-        except (TypeError, ValueError):
-            s.announcement_folder_id = None
-        s.announcement_seconds = max(2, min(120, int(self.announcement_seconds or 8)))
-        return s
-
-    def to_payload(self) -> dict[str, Any]:
-        """Charge utile diffusée à la projection locale, OBS et NDI."""
-        return {
-            "enabled": bool(self.enabled),
-            "texts": list(self.texts or []),
-            "speed": max(20, min(400, int(self.speed or 90))),
-            "height": max(32, min(220, int(self.height or 64))),
-            "bg_color": str(self.bg_color or "rgba(5,10,22,0.82)"),
-            "text_color": str(self.text_color or "rgba(255,255,255,0.95)"),
-            "font_size": max(14, min(90, int(self.font_size or 30))),
-        }
 
 
 @dataclass
@@ -666,9 +623,7 @@ class AppSettings:
     projection: ProjectionSettings = field(default_factory=ProjectionSettings)
     obs: ObsSettings = field(default_factory=ObsSettings)
     appearance: AppearanceSettings = field(default_factory=AppearanceSettings)
-    stage: StageSettings = field(default_factory=StageSettings)
     hdmi: HdmiSettings = field(default_factory=HdmiSettings)
-    ticker: TickerSettings = field(default_factory=TickerSettings)
     # Thèmes de projection (façon ProPresenter) : le thème actif est le miroir
     # de ``projection`` ; les autres vivent dans ``themes``.
     themes: list = field(default_factory=list)
@@ -764,6 +719,16 @@ class AppSettings:
             projection.bg_image_fit = _gs(
                 p, "bg_image_fit", projection.bg_image_fit
             )
+            projection.media_fit = _gs(p, "media_fit", projection.media_fit)
+            projection.media_backdrop = _gs(
+                p, "media_backdrop", projection.media_backdrop
+            )
+            projection.media_backdrop_dim = _gf(
+                p, "media_backdrop_dim", projection.media_backdrop_dim
+            )
+            projection.media_default_duration = _gi(
+                p, "media_default_duration", projection.media_default_duration
+            )
             projection.animation_enabled = _gb(
                 p, "animation_enabled", projection.animation_enabled
             )
@@ -836,22 +801,6 @@ class AppSettings:
             if appearance.language not in ("fr", "en"):
                 appearance.language = "fr"
 
-        stage = StageSettings()
-        st = payload.get("stage")
-        if isinstance(st, dict):
-            stage.enabled = _gb(st, "enabled", stage.enabled)
-            stage.display_screen = _gs(st, "display_screen", stage.display_screen)
-            stage.font_family = _gs(st, "font_family", stage.font_family)
-            stage.text_size = _gi(st, "text_size", stage.text_size)
-            stage.next_size = _gi(st, "next_size", stage.next_size)
-            stage.show_clock = _gb(st, "show_clock", stage.show_clock)
-            stage.show_next = _gb(st, "show_next", stage.show_next)
-            stage.show_reference = _gb(st, "show_reference", stage.show_reference)
-            stage.text_color = _gs(st, "text_color", stage.text_color)
-            stage.next_color = _gs(st, "next_color", stage.next_color)
-            stage.bg_color = _gs(st, "bg_color", stage.bg_color)
-        stage = stage.sanitized()
-
         hdmi = HdmiSettings()
         hm = payload.get("hdmi")
         if isinstance(hm, dict):
@@ -861,32 +810,7 @@ class AppSettings:
             hdmi.key_color = _gs(hm, "key_color", hdmi.key_color)
             hdmi.text_scale = _gi(hm, "text_scale", hdmi.text_scale)
             hdmi.offset_y = _gi(hm, "offset_y", hdmi.offset_y)
-            hdmi.show_ticker = _gb(hm, "show_ticker", hdmi.show_ticker)
         hdmi = hdmi.sanitized()
-
-        ticker = TickerSettings()
-        tk = payload.get("ticker")
-        if isinstance(tk, dict):
-            ticker.enabled = _gb(tk, "enabled", ticker.enabled)
-            raw_texts = tk.get("texts")
-            if isinstance(raw_texts, list):
-                ticker.texts = [str(t or "") for t in raw_texts]
-            ticker.speed = _gi(tk, "speed", ticker.speed)
-            ticker.height = _gi(tk, "height", ticker.height)
-            ticker.bg_color = _gs(tk, "bg_color", ticker.bg_color)
-            ticker.text_color = _gs(tk, "text_color", ticker.text_color)
-            ticker.font_size = _gi(tk, "font_size", ticker.font_size)
-            raw_folder = tk.get("announcement_folder_id")
-            try:
-                ticker.announcement_folder_id = (
-                    int(raw_folder) if raw_folder is not None else None
-                )
-            except (TypeError, ValueError):
-                ticker.announcement_folder_id = None
-            ticker.announcement_seconds = _gi(
-                tk, "announcement_seconds", ticker.announcement_seconds
-            )
-        ticker = ticker.sanitized()
 
         # Guard: if a background image was selected but the file no longer
         # exists (e.g. removed during a defaults upgrade), fall back to the
@@ -896,6 +820,23 @@ class AppSettings:
                 not cfg.bg_image or not Path(cfg.bg_image).is_file()
             ):
                 cfg.bg_mode = "color"
+
+        # Réglages média : bornés ici pour qu'un fichier de paramètres édité à
+        # la main ne puisse jamais produire un rendu aberrant.
+        for cfg in (projection, obs.output):
+            cfg.media_fit = "cover" if str(cfg.media_fit or "") == "cover" else "contain"
+            if str(cfg.media_backdrop or "") not in ("blur", "black", "color"):
+                cfg.media_backdrop = "blur"
+            try:
+                dim = float(cfg.media_backdrop_dim)
+            except (TypeError, ValueError):
+                dim = 0.45
+            cfg.media_backdrop_dim = max(0.0, min(0.9, dim))
+        try:
+            duration = int(projection.media_default_duration)
+        except (TypeError, ValueError):
+            duration = 8
+        projection.media_default_duration = max(0, min(120, duration))
 
         # ── Thèmes de projection ─────────────────────────────────────
         from app.utils.themes import (
@@ -941,9 +882,7 @@ class AppSettings:
             projection=projection,
             obs=obs,
             appearance=appearance,
-            stage=stage,
             hdmi=hdmi,
-            ticker=ticker,
             themes=themes,
             theme_assignments=theme_assignments,
             active_theme_id=active_theme_id,
@@ -969,9 +908,7 @@ class AppSettings:
             "projection": asdict(self.projection),
             "obs": asdict(self.obs),
             "appearance": asdict(self.appearance),
-            "stage": asdict(self.stage),
             "hdmi": asdict(self.hdmi),
-            "ticker": asdict(self.ticker),
             "themes": themes_payload,
             "theme_assignments": dict(self.theme_assignments),
             "active_theme_id": self.active_theme_id,

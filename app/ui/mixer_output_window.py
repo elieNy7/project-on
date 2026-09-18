@@ -16,6 +16,7 @@ mélangeur — elles sont elles aussi supprimées par la clé chroma.
 
 import json
 import logging
+import time
 from pathlib import Path
 from typing import Any
 
@@ -34,8 +35,9 @@ from PyQt6.QtGui import (
 )
 from PyQt6.QtWidgets import QWidget
 
-from app.ui.ticker_overlay import TickerOverlay
 from app.utils import power_guard
+from app.utils.media_render import compose_media_frame
+from app.utils.obs_overlay_render import animation_total_ms
 from app.utils.obs_overlay_render import (
     CHROMA_KEY_COLORS,
     CHROMA_KEY_GREEN,
@@ -54,16 +56,27 @@ __all__ = [
 KEY_COLOR_LABELS = {"green": "VERT", "magenta": "MAGENTA", "blue": "BLEU"}
 
 
-def hdmi_band_config(cfg: dict[str, Any] | None) -> dict[str, Any]:
-    """Config de composition du bandeau HDMI : TOUJOURS le lower third.
+# Modes géométriques repris de la page OBS (le plein écran est exclu :
+# une incrustation plein cadre n'a plus de zone transparente à découper).
+BAND_LAYOUT_MODES = ("lower_third", "subtitle", "side_panel", "focus_card")
 
-    La sortie mixeur incruste un bandeau sur la caméra : le mode
-    géométrique choisi pour la page OBS (plein écran, panneau…) n'y
-    hérite jamais. L'ajustement vertical fin reste ``offset_y``.
+
+def hdmi_band_config(cfg: dict[str, Any] | None) -> dict[str, Any]:
+    """Config du bandeau HDMI : TOUS les réglages OBS, sauf le plein écran.
+
+    La sortie mixeur incruste une zone sur la caméra : le mode plein écran
+    de la page OBS n'y hérite jamais (il ne resterait aucun fond à
+    découper) et retombe sur le bandeau bas. Les autres modes sont
+    respectés tels quels : sous-titre, panneau latéral, carte focus — avec
+    tous les réglages de style (police et graisse, taille, contour, ombre,
+    interlettre, casse, largeur, marges, arrondi, dégradé, image de fond du
+    bandeau, pastille de source, séparateur, badge de référence, couleurs
+    par source, opacité) et l'entrée animée.
     """
     out = dict(cfg or {})
-    out["layout_mode"] = "lower_third"
-    out["position"] = "bottom"
+    mode = str(out.get("layout_mode") or "").strip().lower()
+    if mode not in BAND_LAYOUT_MODES:
+        out["layout_mode"] = "lower_third"
     return out
 
 
@@ -109,7 +122,6 @@ class MixerOutputWindow(QWidget):
         key_color: str = "green",
         text_scale: int = 100,
         offset_y: int = 0,
-        show_ticker: bool = True,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -123,6 +135,7 @@ class MixerOutputWindow(QWidget):
         self._last_slide_mtime: float = -1.0
         self._last_cfg_mtime: float = -1.0
         self._last_cfg: dict[str, Any] | None = None
+        self._last_slide: dict[str, Any] | None = None
 
         self._screen_pref = str(screen or "auto")
         self._exclude_screen = str(exclude_screen or "")
@@ -131,22 +144,30 @@ class MixerOutputWindow(QWidget):
         self._key_rgb: tuple[int, int, int] = CHROMA_KEY_GREEN
         self._text_scale = 100
         self._offset_y = 0
-        self._ticker_enabled = bool(show_ticker)
         self._active_screen = ""
         self._mire_enabled = False
         self._power_held = False
 
         self._frame_pixmap: QPixmap | None = None
-
-        # Bandeau d'annonces : mêmes réglages que la page OBS et le NDI
-        # (charge utile « ticker » de obs-config.json).
-        self._ticker = TickerOverlay(self)
-        self._ticker.hide()
+        # Vrai quand la trame courante est un média plein cadre (plus de clé).
+        self._frame_is_media = False
+        # Vidéo : images fournies par le lecteur partagé.
+        self._hub = None
+        self._video_active = False
+        self._video_pixmap: QPixmap | None = None
 
         self._timer = QTimer(self)
         self._timer.setInterval(250)
         self._timer.timeout.connect(self._tick)
         self._timer.start()
+
+        # Entrée animée du bandeau (miroir de la page OBS) : quelques trames
+        # au changement de texte, puis l'état final.
+        self._anim_started: float | None = None
+        self._anim_ms = 0
+        self._anim_timer = QTimer(self)
+        self._anim_timer.setInterval(30)
+        self._anim_timer.timeout.connect(self._on_animation_tick)
 
         self.setCursor(Qt.CursorShape.BlankCursor)
         self.set_key_color(key_color)
@@ -212,7 +233,6 @@ class MixerOutputWindow(QWidget):
 
     def set_letterbox(self, enabled: bool) -> None:
         self._letterbox_enabled = bool(enabled)
-        self._position_ticker()
         self.update()
 
     @property
@@ -250,23 +270,43 @@ class MixerOutputWindow(QWidget):
         self._offset_y = value
         self._rerender()
 
-    def set_ticker_enabled(self, enabled: bool) -> None:
-        """Inclut ou non le bandeau d'annonces sur cette sortie."""
-        enabled = bool(enabled)
-        if enabled == self._ticker_enabled:
-            return
-        self._ticker_enabled = enabled
-        if not enabled:
-            self._ticker.hide()
-        else:
-            # Rejoue la dernière configuration connue du bandeau.
-            self._last_cfg_mtime = -1.0
-            self._tick()
-
     def _rerender(self) -> None:
         """Force la recomposition du cadre au prochain tick."""
         self._last_slide_mtime = -1.0
         self._tick()
+
+    # ── Vidéo partagée (hub commun aux sorties) ───────────────────────
+
+    def set_media_hub(self, hub) -> None:
+        """Branche la sortie sur le lecteur partagé (images réellement lues).
+
+        Le mixeur ne décode rien lui-même : il peint les images normalisées du
+        hub, exactement comme la projection locale les affiche.
+        """
+        if hub is self._hub:
+            return
+        self._hub = hub
+        if hub is None:
+            return
+        try:
+            hub.frameReady.connect(self._on_hub_frame)
+        except Exception:
+            log.exception("Connexion du lecteur partagé à la sortie HDMI impossible")
+
+    def _on_hub_frame(self) -> None:
+        """Nouvelle image du hub : rafraîchit le cadre quand une vidéo joue."""
+        if not self._video_active:
+            return
+        hub = getattr(self, "_hub", None)
+        image = hub.latest_image() if hub is not None else None
+        if image is None:
+            return
+        self._video_pixmap = QPixmap.fromImage(image)
+        self.update()
+
+    def _stop_video_mode(self) -> None:
+        self._video_active = False
+        self._video_pixmap = None
 
     @property
     def active_screen(self) -> str:
@@ -292,16 +332,6 @@ class MixerOutputWindow(QWidget):
             return self.rect()
         return letterbox_rect(self.width(), self.height())
 
-    def _position_ticker(self) -> None:
-        rect = self._content_rect()
-        height = self._ticker.height()
-        self._ticker.setGeometry(
-            rect.left(), rect.bottom() + 1 - height, rect.width(), height
-        )
-        self._ticker.raise_()
-
-    # ── Contenu : polling slide.json / obs-config.json ────────────────
-
     def _read_json(self, path: Path) -> dict[str, Any] | None:
         try:
             if not path.exists() or not path.is_file():
@@ -325,39 +355,68 @@ class MixerOutputWindow(QWidget):
             cfg = self._read_json(self._cfg_path)
             if cfg is not None:
                 self._last_cfg = cfg
-                try:
-                    self._apply_ticker_config(cfg)
-                except Exception:
-                    log.exception("Échec du bandeau HDMI")
+                # Le bandeau lit TOUS les réglages OBS : un changement de
+                # style doit se voir immédiatement, sans attendre la slide
+                # suivante (comme la page Navigateur OBS).
+                if self._frame_is_media:
+                    self._frame_is_media = False
+                if self._last_slide is not None:
+                    try:
+                        self._apply_slide(self._last_slide)
+                    except Exception:
+                        log.exception("Échec de la recomposition HDMI après réglage")
 
         slide_mtime = self._mtime(self._slide_path)
         if slide_mtime != self._last_slide_mtime:
             self._last_slide_mtime = slide_mtime
             slide = self._read_json(self._slide_path)
             if slide is not None:
+                self._last_slide = slide
                 try:
                     self._apply_slide(slide)
                 except Exception:
                     log.exception("Échec de la composition HDMI")
 
-    def _apply_ticker_config(self, cfg: dict[str, Any]) -> None:
-        ticker_cfg = cfg.get("ticker")
-        if not isinstance(ticker_cfg, dict):
-            self._ticker.configure([], False)
-            return
-        self._ticker.configure(
-            texts=list(ticker_cfg.get("texts") or []),
-            enabled=bool(ticker_cfg.get("enabled")) and self._ticker_enabled,
-            speed=int(ticker_cfg.get("speed") or 90),
-            height=int(ticker_cfg.get("height") or 64),
-            bg_color=str(ticker_cfg.get("bg_color") or "rgba(5,10,22,0.82)"),
-            text_color=str(ticker_cfg.get("text_color") or "rgba(255,255,255,0.95)"),
-            font_size=int(ticker_cfg.get("font_size") or 30),
-        )
-        self._position_ticker()
-
     def _apply_slide(self, slide: dict[str, Any]) -> None:
-        """Re-compose le cadre : couleur de clé + section texte façon OBS."""
+        """Re-compose le cadre : vidéo, média plein cadre, sinon bandeau OBS.
+
+        Un média (image ou vidéo) projeté occupe toute la sortie : aucune
+        couleur de clé n'y subsiste, l'incrustation est alors inutile — choix
+        opérateur. Les diapositives texte gardent exactement le bandeau chroma
+        d'origine.
+        """
+        hidden = bool(slide.get("hidden"))
+        video_path = "" if hidden else str(slide.get("video") or "").strip()
+        if video_path:
+            # Les images viennent du lecteur partagé (voir _on_hub_frame) :
+            # la vidéo est réellement lue ici, comme sur la projection.
+            self._video_active = True
+            self._frame_is_media = False
+            self._video_pixmap = None
+            self.update()
+            return
+        self._stop_video_mode()
+
+        if not hidden:
+            media_path = str(slide.get("image") or "").strip()
+            if media_path:
+                frame = compose_media_frame(
+                    media_path, self.width(), self.height(), self._last_cfg
+                )
+                if frame is not None:
+                    # Trame pleine résolution d'écran : le média s'adapte au
+                    # format réel de la sortie, sans bandes de clé autour.
+                    self._frame_is_media = True
+                    self._frame_pixmap = self._pil_to_pixmap(frame.convert("RGB"))
+                    self.update()
+                    return
+
+        self._frame_is_media = False
+        self._render_band_frame(slide, elapsed_ms=None)
+        self._start_band_animation(slide)
+
+    def _render_band_frame(self, slide: dict[str, Any], elapsed_ms) -> None:
+        """Compose une trame du bandeau (``elapsed_ms=None`` = état final)."""
         img = render_obs_overlay_on_color(
             hdmi_band_config(self._last_cfg),
             slide,
@@ -366,8 +425,40 @@ class MixerOutputWindow(QWidget):
             height=self.RENDER_HEIGHT,
             text_scale=self._text_scale / 100.0,
             offset_y=self._offset_y,
+            elapsed_ms=elapsed_ms,
         )
-        rgb = img.convert("RGB")
+        self._frame_pixmap = self._pil_to_pixmap(img.convert("RGB"))
+        self.update()
+
+    def _start_band_animation(self, slide: dict[str, Any]) -> None:
+        """Prépare l'entrée animée : la page OBS donne la durée."""
+        total = animation_total_ms(
+            hdmi_band_config(self._last_cfg), str(slide.get("text") or "")
+        )
+        if total <= 0 or bool(slide.get("hidden")):
+            self._anim_started = None
+            self._anim_timer.stop()
+            return
+        self._anim_ms = total
+        self._anim_started = time.monotonic()
+        self._anim_timer.start()
+
+    def _on_animation_tick(self) -> None:
+        """Trame d'animation courante (puis état final, une seule fois)."""
+        if self._anim_started is None or self._last_slide is None:
+            self._anim_timer.stop()
+            return
+        elapsed = (time.monotonic() - self._anim_started) * 1000.0
+        if elapsed >= self._anim_ms:
+            self._anim_started = None
+            self._anim_timer.stop()
+            self._render_band_frame(self._last_slide, None)
+            return
+        self._render_band_frame(self._last_slide, elapsed)
+
+    @staticmethod
+    def _pil_to_pixmap(rgb) -> QPixmap:
+        """Convertit une image PIL RVB en QPixmap (copie du tampon)."""
         data = rgb.tobytes()
         qimg = QImage(
             data,
@@ -377,8 +468,7 @@ class MixerOutputWindow(QWidget):
             QImage.Format.Format_RGB888,
         )
         # copy() : QImage référence le tampon PIL sans le copier.
-        self._frame_pixmap = QPixmap.fromImage(qimg.copy())
-        self.update()
+        return QPixmap.fromImage(qimg.copy())
 
     # ── Peinture ──────────────────────────────────────────────────────
 
@@ -386,13 +476,30 @@ class MixerOutputWindow(QWidget):
         painter = QPainter(self)
         content = self._content_rect()
 
-        # Tout l'écran garde la couleur de clé, marges comprises : la clé
-        # du mélangeur supprime aussi les bandes letterbox.
-        painter.fillRect(self.rect(), QColor(*self._key_rgb))
-
         if self._mire_enabled:
+            painter.fillRect(self.rect(), QColor(*self._key_rgb))
             self._paint_mire(painter, content)
             return
+
+        if self._video_active:
+            # Vidéo : image normale sur bandes noires, comme la projection.
+            painter.fillRect(self.rect(), QColor(0, 0, 0))
+            if self._video_pixmap is not None:
+                painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+                painter.drawPixmap(content, self._video_pixmap)
+            return
+
+        if self._frame_is_media and self._frame_pixmap is not None:
+            # Média plein cadre : la trame couvre toute la sortie — pas de
+            # couleur de clé, pas de marges letterbox.
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+            painter.drawPixmap(self.rect(), self._frame_pixmap)
+            return
+
+        # Diapo texte : tout l'écran garde la couleur de clé, marges
+        # comprises — la clé du mélangeur supprime aussi les bandes
+        # letterbox.
+        painter.fillRect(self.rect(), QColor(*self._key_rgb))
 
         if self._frame_pixmap is not None:
             painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
@@ -574,7 +681,13 @@ class MixerOutputWindow(QWidget):
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
-        self._position_ticker()
+        # Un média est composé à la taille réelle de la sortie : il se
+        # recompose au changement d'écran, comme le fait la projection.
+        if self._frame_is_media and self._last_slide is not None:
+            try:
+                self._apply_slide(self._last_slide)
+            except Exception:
+                log.exception("Échec de la recomposition du média HDMI")
 
     def showEvent(self, event) -> None:
         super().showEvent(event)
@@ -584,6 +697,7 @@ class MixerOutputWindow(QWidget):
             power_guard.acquire()
 
     def closeEvent(self, event) -> None:
+        self._anim_timer.stop()
         if self._power_held:
             self._power_held = False
             power_guard.release()
