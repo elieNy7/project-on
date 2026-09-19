@@ -361,3 +361,72 @@ def test_focus_card_mode_follows_the_page() -> None:
     top, bottom, left, right = _panel_box(arr)
     assert (right - left + 1) <= 1180, (left, right)
     assert (bottom - top + 1) >= 560, (top, bottom)
+
+
+def test_long_text_never_overflows_the_panel() -> None:
+    """Le texte se replie à la largeur réelle : jamais rogné par le panneau.
+
+    Le retour à la ligne doit tenir compte de l'interlettre (le mesurer sans
+    elle faisait déborder les lignes, donc couper les mots sur HDMI/NDI).
+    """
+    arr = _rgb(
+        {
+            "edge_margin": 40,
+            "safe_area_percent": 4,
+            "max_width": 100,
+            "padding_horizontal": 100,
+            "letter_spacing": 3,
+            "text_size": 40,
+            "text_transform": "uppercase",
+            "show_kicker": False,
+            "show_reference": False,
+            "bg_color": "rgba(8, 13, 23, 1)",
+            "bg_opacity": 1.0,
+        },
+        slide={
+            "text": (
+                "Et Dieu les bénit; et Dieu leur dit: Fructifiez, et multipliez, "
+                "et remplissez la terre et l assujettissez; et dominez sur les "
+                "poissons de la mer, et sur les oiseaux des cieux, et sur tout "
+                "être vivant qui se meut sur la terre."
+            ),
+            "reference": "Genèse 1:28",
+            "source": "bible",
+        },
+    )
+    top, bottom, left, right = _panel_box(arr)
+    mask = _light_mask(arr)
+    text_top, text_bottom, text_left, text_right = _text_bounds(arr, mask)
+    # Le texte reste dans la marge interne du panneau (padding 100 px).
+    assert text_left >= left + 95, (text_left - left)
+    assert text_right <= right - 95, (right - text_right)
+    assert text_top >= top and text_bottom <= bottom
+
+    # Le texte occupe plusieurs lignes, équilibrées (text-wrap: balance) :
+    # aucune ligne n'est démesurément courte par rapport à la plus longue.
+    widths = _line_widths(mask)
+    assert len(widths) >= 3, widths
+    assert min(widths) >= max(widths) * 0.55, widths
+
+
+def _line_widths(mask) -> list:
+    """Largeur de chaque ligne de texte rendue (bandes de plus de 20 px)."""
+    filled_rows = [index for index, filled in enumerate(mask.any(axis=1)) if filled]
+    if not filled_rows:
+        return []
+    bands = []
+    start = previous = filled_rows[0]
+    for index in filled_rows[1:]:
+        if index - previous > 8:  # un trou d'accent ne coupe pas la ligne
+            bands.append((start, previous + 1))
+            start = index
+        previous = index
+    bands.append((start, previous + 1))
+    widths = []
+    for top, bottom in bands:
+        if bottom - top <= 20:
+            continue
+        columns = numpy.where(mask[top:bottom].any(axis=0))[0]
+        if columns.size:
+            widths.append(int(columns.max() - columns.min() + 1))
+    return widths

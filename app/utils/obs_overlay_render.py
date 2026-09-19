@@ -951,35 +951,89 @@ def render_obs_overlay(
     # ── Texte : lignes, mesures, auto-ajustement ────────────────────────
     draw_probe = ImageDraw.Draw(Image.new("RGBA", (8, 8)))
 
-    def _lines_for(value: str, font) -> list[str]:
+    def _wrap_at(value: str, limit: float, font) -> list[str]:
+        """Découpe gourmande à une largeur donnée, interlettre comprise.
+
+        Mesurer sans l'interlettre faisait déborder le texte du panneau (donc
+        rogner les mots) : la page, elle, mesure le rendu réel.
+        """
         spacing = int(cfg.letter_spacing)
-        wrapped = _wrap_text(draw_probe, value, font, text_area_w)
         lines_out: list[str] = []
-        for raw_line in wrapped.split("\n"):
-            if _tracked_width(draw_probe, raw_line, font, spacing) <= text_area_w:
-                lines_out.append(raw_line)
+        for paragraph in str(value or "").replace("\r", "").split("\n"):
+            words = [word for word in paragraph.split(" ") if word]
+            if not words:
+                lines_out.append("")
                 continue
-            # Un mot plus large que la zone (URL, mot composé) : coupe nette.
-            current = ""
-            for char in raw_line:
-                candidate = current + char
-                if (
-                    _tracked_width(draw_probe, candidate, font, spacing)
-                    > text_area_w
-                    and current
-                ):
+            current = words[0]
+            for word in words[1:]:
+                candidate = f"{current} {word}"
+                if _tracked_width(draw_probe, candidate, font, spacing) <= limit:
+                    current = candidate
+                else:
                     lines_out.append(current)
+                    current = word
+            lines_out.append(current)
+        return lines_out
+
+    def _lines_for(value: str, font, balance: bool = False) -> list[str]:
+        """Lignes du bloc, avec l'équilibrage de la page (`text-wrap: balance`).
+
+        Le navigateur n'utilise pas un remplissage gourmand : il répartit les
+        mots pour que les lignes soient aussi égales que possible (sans
+        changer leur nombre). C'est la plus petite largeur qui conserve le
+        même nombre de lignes.
+        """
+        spacing = int(cfg.letter_spacing)
+        greedy = _wrap_at(value, float(text_area_w), font)
+        if not balance or len(greedy) <= 1 or len(greedy) > 6:
+            return _hard_break(greedy, font)
+
+        longest_word = 0.0
+        for line in greedy:
+            for word in line.split(" "):
+                if word:
+                    longest_word = max(
+                        longest_word,
+                        _tracked_width(draw_probe, word, font, spacing),
+                    )
+        low, high = min(longest_word, float(text_area_w)), float(text_area_w)
+        while high - low > 1.0:
+            middle = (low + high) / 2.0
+            if len(_wrap_at(value, middle, font)) <= len(greedy):
+                high = middle
+            else:
+                low = middle
+        return _hard_break(_wrap_at(value, high, font), font)
+
+    def _hard_break(lines_in: list[str], font) -> list[str]:
+        """Coupe les mots plus larges que la zone utile (URL, mot composé)."""
+        spacing = int(cfg.letter_spacing)
+        final: list[str] = []
+        for line in lines_in:
+            if _tracked_width(draw_probe, line, font, spacing) <= text_area_w:
+                final.append(line)
+                continue
+            current = ""
+            for char in line:
+                if (
+                    current
+                    and _tracked_width(draw_probe, current + char, font, spacing)
+                    > text_area_w
+                ):
+                    final.append(current)
                     current = char
                 else:
-                    current = candidate
+                    current += char
             if current:
-                lines_out.append(current)
-        return lines_out
+                final.append(current)
+        return final
 
     def _measure(size: int, ref_size: int):
         font_text = _font(size, cfg.font_weight)
         font_ref = _font(ref_size, "bold")  # .lt-ref-text { font-weight: 700 }
-        body_lines = _lines_for(text, font_text) if text.strip() else []
+        body_lines = (
+            _lines_for(text, font_text, balance=True) if text.strip() else []
+        )
         ref_lines = _lines_for(ref, font_ref) if (cfg.show_reference and ref.strip()) else []
         line_h = size * max(
             1.12 if layout_mode == "subtitle" else 1.0,
