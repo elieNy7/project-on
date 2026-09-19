@@ -357,9 +357,8 @@ class MainWindow(QMainWindow):
         # Premier check immédiat
         QTimer.singleShot(500, self._poll_obs_status)
         QTimer.singleShot(0, self._start_obs_output)
-        # Sortie HDMI mixeur rouverte au démarrage si activée
-        if getattr(self._settings, "hdmi", None) and self._settings.hdmi.enabled:
-            QTimer.singleShot(300, self._open_mixer_window)
+        # La sortie HDMI ne s'ouvre JAMAIS au démarrage : elle s'active à la
+        # demande (Réglages → Sortie HDMI) et se quitte par Échap.
 
         # Responsive: allow window to shrink on small screens
         self.setMinimumSize(900, 550)        # Adapt initial size to screen resolution
@@ -1218,6 +1217,9 @@ class MainWindow(QMainWindow):
             )
             # Vidéo réellement lue sur la sortie mixeur, via le lecteur partagé.
             self._mixer_window.set_media_hub(self._media_hub)
+            # Échap : quitter la sortie désactive le réglage (sinon la régie
+            # afficherait « active » alors que rien n'est projeté).
+            self._mixer_window.escapeRequested.connect(self._leave_hdmi_mode)
         else:
             hdmi = self._settings.hdmi
             self._mixer_window.set_screen(hdmi.screen)
@@ -1227,6 +1229,18 @@ class MainWindow(QMainWindow):
             self._mixer_window.set_offset_y(hdmi.offset_y)
             self._mixer_window.show()
         self._update_hdmi_status()
+
+    def _leave_hdmi_mode(self) -> None:
+        """Échap sur la sortie HDMI : on éteint la sortie, pas juste la fenêtre."""
+        window = self._mixer_window
+        if window is not None:
+            window.close()
+            self._mixer_window = None
+        if self._settings.hdmi.enabled:
+            self._settings.hdmi.enabled = False
+            self._save_settings()
+        self.status_bar.set_hdmi_active(False)
+        self._refresh_settings_details()
 
     def _close_mixer(self) -> None:
         window = self._mixer_window

@@ -16,6 +16,8 @@ from pathlib import Path
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PIL import Image  # noqa: E402
+from PyQt6.QtCore import Qt  # noqa: E402
+from PyQt6.QtGui import QShortcut  # noqa: E402
 from PyQt6.QtWidgets import QApplication, QPushButton  # noqa: E402
 
 from app.database.connection import Database, DatabaseConfig  # noqa: E402
@@ -88,5 +90,25 @@ def test_main_window_console_and_slideshow_wiring(tmp_path: Path, monkeypatch) -
         )
         assert not window._slideshow.is_active
         assert window._project_controller.program_title == "Culte"
+
+        # ── 5. Sortie HDMI : fermée au démarrage, quittée par Échap ─────
+        assert window._mixer_window is None, "la sortie HDMI s'ouvre au démarrage"
+        window._settings.hdmi.enabled = True
+        app.processEvents()
+        assert window._mixer_window is None, "la sortie HDMI s'ouvre au démarrage"
+
+        window._open_mixer_window()
+        mixer = window._mixer_window
+        assert mixer is not None
+        touches = [
+            shortcut.key().toString() for shortcut in mixer.findChildren(QShortcut)
+        ]
+        assert "Esc" in touches, touches
+        for shortcut in mixer.findChildren(QShortcut):
+            if shortcut.key() == Qt.Key.Key_Escape:
+                shortcut.activated.emit()  # l'opérateur quitte le mode HDMI
+        app.processEvents()
+        assert window._mixer_window is None, "la fenêtre HDMI reste ouverte"
+        assert window._settings.hdmi.enabled is False, "le réglage HDMI reste actif"
     finally:
         window.close()

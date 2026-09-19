@@ -1321,7 +1321,9 @@ def render_obs_overlay(
     tail_layer = Image.new("RGBA", (band_w, band_h), (0, 0, 0, 0))
     tail_draw = ImageDraw.Draw(tail_layer)
     if ref_lines and cfg.reference_style != "inline" and layout_mode != "subtitle":
-        divider_y = cursor_y + (inner_gap // 2 if body_lines else 0)
+        # La page applique le gap complet de part et d'autre du séparateur
+        # (.lt-inner gap) : le badge ne colle jamais au texte.
+        divider_y = cursor_y + (inner_gap if body_lines else 0)
         line_w = min(stack_w, 620)
         if align_mode == "left":
             line_x = stack_x
@@ -1342,7 +1344,7 @@ def render_obs_overlay(
         )
         divider = _with_alpha(divider, 0.52)
         tail_layer.alpha_composite(divider, (line_x, divider_y + 1))
-        cursor_y = divider_y + 2 + inner_gap // 2
+        cursor_y = divider_y + 2 + inner_gap
 
     if show_ref:
         cursor_y = _draw_reference(

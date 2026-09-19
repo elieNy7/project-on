@@ -22,7 +22,7 @@ from typing import Any
 
 log = logging.getLogger(__name__)
 
-from PyQt6.QtCore import QRect, Qt, QTimer
+from PyQt6.QtCore import QRect, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import (
     QColor,
     QFont,
@@ -112,6 +112,9 @@ class MixerOutputWindow(QWidget):
     RENDER_WIDTH = 1920
     RENDER_HEIGHT = 1080
 
+    # Échap / F11 : quitter la sortie (désactive le réglage côté régie).
+    escapeRequested = pyqtSignal()
+
     def __init__(
         self,
         presentation_dir: Path,
@@ -176,10 +179,17 @@ class MixerOutputWindow(QWidget):
         self._apply_screen()
         self._tick()
 
+        # Échap (et F11, comme la projection) quitte réellement le mode
+        # HDMI : la sortie est désactivée, pas seulement la fenêtre fermée.
         esc_shortcut = QShortcut(QKeySequence(Qt.Key.Key_Escape), self)
-        esc_shortcut.activated.connect(self.close)
+        esc_shortcut.activated.connect(self._request_leave)
         f11_shortcut = QShortcut(QKeySequence(Qt.Key.Key_F11), self)
-        f11_shortcut.activated.connect(self.close)
+        f11_shortcut.activated.connect(self._request_leave)
+
+    def _request_leave(self) -> None:
+        """Quitte la sortie HDMI : la régie désactive le réglage puis ferme."""
+        self.escapeRequested.emit()
+        self.close()
 
     # ── Écran cible ───────────────────────────────────────────────────
 
