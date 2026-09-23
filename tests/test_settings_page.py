@@ -14,7 +14,7 @@ from PySide6.QtWidgets import QApplication, QPushButton
 from app.database.connection import Database, DatabaseConfig
 from app.utils.app_paths import settings_path
 
-SECTIONS = ("projection", "themes", "hdmi", "obs", "obs_output", "appearance")
+SECTIONS = ("projection", "hdmi", "obs", "obs_output", "appearance")
 
 
 @pytest.fixture
@@ -61,7 +61,8 @@ def test_projection_change_is_applied_and_saved_without_a_button(window) -> None
 
     assert window._settings.projection.text_size == changed.text_size
     presentation_cfg = json.loads((window._presentation_dir / "config.json").read_text(encoding="utf-8"))
-    assert "themes" in presentation_cfg  # full config, theme registry included
+    assert presentation_cfg["text_size"] == changed.text_size
+    assert "themes" not in presentation_cfg  # a single projection style
     window._flush_settings_save()
     saved = json.loads(settings_path().read_text(encoding="utf-8"))
     assert saved["projection"]["text_size"] == changed.text_size
@@ -168,7 +169,7 @@ def test_projection_screen_modes() -> None:
     combo = page._display_screen
     assert combo.toolTip() == combo.currentText()  # clipped choice stays readable
 
-    # Standalone (theme style editor): scrolls and keeps Cancel / Save.
+    # Standalone dialog: scrolls and keeps Cancel / Save.
     dialog = ProjectionSettingsDialog(ProjectionSettings())
     assert dialog.findChildren(QScrollArea)
     visible = {b.text() for b in dialog.findChildren(QPushButton) if b.isVisibleTo(dialog)}
@@ -177,30 +178,27 @@ def test_projection_screen_modes() -> None:
         w.deleteLater()
 
 
-# ── Themes screen ─────────────────────────────────────────────────────────
+# ── HDMI screen ───────────────────────────────────────────────────────────
 
 
-def test_themes_screen_is_one_visible_column() -> None:
+def test_hdmi_screen_fits_the_page() -> None:
     QApplication.instance() or QApplication([])
-    from app.ui.theme_dialog import ThemeDialog
-    from app.utils.settings import AppSettings
+    from PySide6.QtWidgets import QScrollArea, QSizePolicy
 
-    screen = ThemeDialog(AppSettings(), embedded=True)
-    screen.resize(460, 900)
-    screen.show()
+    from app.ui.hdmi_settings_dialog import HdmiSettingsDialog
+    from app.ui.setting_cards import SettingRow
+    from app.utils.settings import HdmiSettings
+
+    screen = HdmiSettingsDialog(HdmiSettings(), embedded=True)
     try:
-        # Selected-theme card and assignments are in the single column.
-        assert screen._btn_edit_style.isVisible()
-        assert all(c.isVisible() for c in screen._assign_combos.values())
-        assert screen._active_badge.isVisible()  # the default theme is active
-        # The list is sized to its themes, not stretched over the page.
-        assert screen._theme_list.height() < 200
-
-        emitted = []
-        screen.themesLiveChanged.connect(lambda *args: emitted.append(args))
-        combo = next(iter(screen._assign_combos.values()))
-        combo.setCurrentIndex(combo.count() - 1)
-        assert emitted  # every change is broadcast for immediate apply
+        assert not screen.findChildren(QScrollArea)  # the page scrolls
+        # The preview never takes its own pixmap as minimum width.
+        policy = screen._preview.sizePolicy().horizontalPolicy()
+        assert policy == QSizePolicy.Policy.Ignored
+        assert screen._preview.minimumWidth() <= 240
+        # Calibration pattern is a real button inside a setting card.
+        assert isinstance(screen._mire_btn.parentWidget(), SettingRow)
+        screen.set_live_status("Active")
+        assert screen._status.text() == "Active"
     finally:
-        screen.close()
         screen.deleteLater()

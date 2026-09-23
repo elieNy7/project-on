@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -65,6 +66,14 @@ class SettingRow(QFrame):
             )
             label_col.addWidget(desc)
 
+        # A control that wants to stretch (slider, expanding list) is capped;
+        # otherwise it would squeeze the label to one word per line.
+        stretches = bool(
+            widget.sizePolicy().horizontalPolicy().value & QSizePolicy.PolicyFlag.ExpandFlag.value
+        )
+        if stretches:
+            # Like Windows Settings: the label keeps the room it needs.
+            widget.setMaximumWidth(min(widget.maximumWidth(), 280))
         layout.addLayout(label_col, 1)
         layout.addWidget(widget, 0, Qt.AlignmentFlag.AlignVCenter)
         self._toggle = widget if isinstance(widget, QCheckBox) else None

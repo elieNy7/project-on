@@ -980,15 +980,7 @@ class PreviewPanel(QFrame):
         canvas = self._ensure_canvas()
         if canvas is None:
             return None
-        cfg = self._canvas_style_config()
-        effective: dict = cfg
-        if cfg:
-            from app.utils.themes import ThemeRegistry
-
-            registry = ThemeRegistry(cfg)
-            theme_style = registry.style_for(str(source or ""))
-            if theme_style is not None:
-                effective = theme_style
+        effective = self._canvas_style_config()
         if effective != self._canvas_cfg:
             self._canvas_cfg = effective
             try:

@@ -626,11 +626,6 @@ class AppSettings:
     obs: ObsSettings = field(default_factory=ObsSettings)
     appearance: AppearanceSettings = field(default_factory=AppearanceSettings)
     hdmi: HdmiSettings = field(default_factory=HdmiSettings)
-    # Thèmes de projection (façon ProPresenter) : le thème actif est le miroir
-    # de ``projection`` ; les autres vivent dans ``themes``.
-    themes: list = field(default_factory=list)
-    theme_assignments: dict = field(default_factory=dict)
-    active_theme_id: str = "default"
     load_warning: str = field(default="", repr=False, compare=False)
 
     @staticmethod
@@ -842,80 +837,21 @@ class AppSettings:
             duration = 8
         projection.media_default_duration = max(0, min(120, duration))
 
-        # ── Thèmes de projection ─────────────────────────────────────
-        from app.utils.themes import (
-            ASSIGNABLE_SOURCES,
-            DEFAULT_THEME_ID,
-            Theme,
-            default_theme,
-            make_theme_id,
-        )
-
-        themes: list[Theme] = []
-        raw_themes = payload.get("themes")
-        if isinstance(raw_themes, list):
-            seen_ids: list[str] = []
-            for raw in raw_themes:
-                theme = Theme.from_payload(raw) if isinstance(raw, dict) else None
-                if theme is None:
-                    continue
-                if theme.id in seen_ids:
-                    theme.id = make_theme_id(theme.id, seen_ids)
-                seen_ids.append(theme.id)
-                themes.append(theme)
-
-        active_theme_id = str(payload.get("active_theme_id") or DEFAULT_THEME_ID)
-        if not any(t.id == active_theme_id for t in themes):
-            if themes:
-                active_theme_id = themes[0].id
-            else:
-                themes = [default_theme(projection)]
-                active_theme_id = DEFAULT_THEME_ID
-
-        theme_assignments: dict[str, str] = {}
-        raw_assign = payload.get("theme_assignments")
-        valid_ids = {t.id for t in themes}
-        if isinstance(raw_assign, dict):
-            for source, theme_id in raw_assign.items():
-                s = str(source or "").lower()
-                t = str(theme_id or "").strip()
-                if s in ASSIGNABLE_SOURCES and t in valid_ids:
-                    theme_assignments[s] = t
-
         return cls(
             projection=projection,
             obs=obs,
             appearance=appearance,
             hdmi=hdmi,
-            themes=themes,
-            theme_assignments=theme_assignments,
-            active_theme_id=active_theme_id,
             load_warning=load_warning,
         )
 
     def save(self, path: Path) -> None:
         from app.utils.settings_storage import protect_secret, save_payload
-        from app.utils.themes import Theme
-
-        themes_payload = []
-        for theme in self.themes:
-            # Le thème actif est toujours enregistré depuis le miroir
-            # ``projection`` : une seule source de vérité du style actif.
-            if theme.id == self.active_theme_id:
-                theme = Theme(
-                    id=theme.id,
-                    name=theme.name,
-                    style=copy.deepcopy(self.projection),
-                )
-            themes_payload.append(theme.to_payload())
         payload = {
             "projection": asdict(self.projection),
             "obs": asdict(self.obs),
             "appearance": asdict(self.appearance),
             "hdmi": asdict(self.hdmi),
-            "themes": themes_payload,
-            "theme_assignments": dict(self.theme_assignments),
-            "active_theme_id": self.active_theme_id,
         }
         secret = str(self.obs.remote.password or "")
         if secret:

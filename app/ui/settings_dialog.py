@@ -92,7 +92,7 @@ class ProjectionSettingsDialog(QDialog):
             layout.addWidget(header)
             main_layout.addWidget(content)
         else:
-            # Standalone (theme style editor): own scroll area and footer.
+            # Standalone dialog: own scroll area and Cancel / Save footer.
             layout.setContentsMargins(24, 20, 24, 16)
             layout.setSizeConstraint(QVBoxLayout.SizeConstraint.SetMinimumSize)
             layout.addWidget(header)
@@ -289,7 +289,7 @@ class ProjectionSettingsDialog(QDialog):
         self._media_backdrop = QComboBox()
         self._media_backdrop.addItem("Fond flou de l'image (recommandé)", "blur")
         self._media_backdrop.addItem("Noir uni", "black")
-        self._media_backdrop.addItem("Couleur du thème", "color")
+        self._media_backdrop.addItem("Couleur de fond", "color")
         idx = self._media_backdrop.findData(
             str(settings.media_backdrop or "blur")
             if str(settings.media_backdrop or "") in ("blur", "black", "color")

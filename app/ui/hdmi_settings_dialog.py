@@ -23,9 +23,9 @@ from PySide6.QtWidgets import (
 
 from app.ui.icons import app_icon
 from app.ui.obs_output_settings_dialog import DIALOG_STYLE
-from app.ui.setting_cards import SettingSection
+from app.ui.setting_cards import PageHeader, SettingSection, fit_combos
 from app.ui.settings_dialog import _style_combo
-from app.ui.theme import Colors, Typography
+from app.ui.theme import Colors, Radius, Typography
 from app.utils.obs_overlay_render import chroma_key_rgb, render_obs_overlay_on_color
 from app.utils.settings import HdmiSettings
 
@@ -95,52 +95,30 @@ class HdmiSettingsDialog(QDialog):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        # ── Header ──
-        header = QFrame(self)
-        header.setStyleSheet(f"""
-            QFrame {{
-                background: {Colors.BG_SECONDARY};
-                border-bottom: 1px solid {Colors.BORDER_DEFAULT};
-            }}
-        """)
-        h_layout = QHBoxLayout(header)
-        h_layout.setContentsMargins(24, 16, 24, 14)
-        h_layout.setSpacing(14)
-
-        icon_lbl = QLabel()
-        icon_lbl.setPixmap(app_icon("cast.svg").pixmap(28, 28))
-        icon_lbl.setStyleSheet("background: transparent; border: none;")
-        h_layout.addWidget(icon_lbl)
-
-        title_col = QVBoxLayout()
-        title_col.setSpacing(2)
-        title = QLabel("Sortie HDMI / mixeur")
-        title.setStyleSheet(
-            f"font-size: {Typography.SIZE_TITLE}px; font-weight: 700; "
-            f"color: {Colors.TEXT_PRIMARY}; background: transparent; border: none;"
+        header = PageHeader(
+            "Sortie HDMI / mixeur",
+            "Source d'incrustation pour ATEM, Roland V/AV et autres mélangeurs.",
+            on_reset=self._reset_overlay,
         )
-        title_col.addWidget(title)
-        subtitle = QLabel("Source d'incrustation pour ATEM, Roland V/AV et autres mélangeurs")
-        subtitle.setStyleSheet(
-            f"font-size: {Typography.SIZE_CONTROL}px; color: {Colors.TEXT_SECONDARY}; "
-            "background: transparent; border: none;"
-        )
-        title_col.addWidget(subtitle)
-        h_layout.addLayout(title_col, 1)
-        main_layout.addWidget(header)
-
-        # ── Contenu défilant ──
-        scroll = QScrollArea(self)
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.Shape.NoFrame)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
 
         content = QWidget()
         content.setStyleSheet("background: transparent;")
         layout = QVBoxLayout(content)
-        layout.setContentsMargins(24, 20, 24, 16)
         layout.setSpacing(14)
+        layout.addWidget(header)
+        if embedded:
+            # Inside the settings page, which scrolls as a whole.
+            layout.setContentsMargins(16, 16, 16, 16)
+            main_layout.addWidget(content)
+        else:
+            layout.setContentsMargins(24, 20, 24, 16)
+            scroll = QScrollArea(self)
+            scroll.setWidgetResizable(True)
+            scroll.setFrameShape(QFrame.Shape.NoFrame)
+            scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+            scroll.setWidget(content)
+            main_layout.addWidget(scroll, 1)
 
         howto = QLabel(
             "Brancher une sortie HDMI du PC sur une entrée du mélangeur, régler "
@@ -151,11 +129,11 @@ class HdmiSettingsDialog(QDialog):
         howto.setWordWrap(True)
         howto.setStyleSheet(f"""
             color: {Colors.TEXT_PRIMARY};
-            background: {Colors.BG_TERTIARY};
+            background: {Colors.ACCENT_SECONDARY_GLOW};
             border: 1px solid {Colors.BORDER_DEFAULT};
-            border-radius: 10px;
-            padding: 12px 14px;
-            font-size: {Typography.SIZE_CONTROL}px;
+            border-radius: {Radius.SM}px;
+            padding: 10px 12px;
+            font-size: {Typography.SIZE_FILTER}px;
         """)
         layout.addWidget(howto)
 
@@ -166,9 +144,11 @@ class HdmiSettingsDialog(QDialog):
         self._preview.setAlignment(
             Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter
         )
-        self._preview.setMinimumSize(440, 248)  # 16:9, tient dans la carte
+        # The label shows a pixmap scaled to its own width: it must not take
+        # that pixmap as its minimum, or it could never shrink with the page.
+        self._preview.setMinimumSize(240, 248)
         self._preview.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+            QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed
         )
         self._preview.setStyleSheet(f"""
             QLabel {{
@@ -204,7 +184,7 @@ class HdmiSettingsDialog(QDialog):
         self._text_scale.setRange(60, 180)
         self._text_scale.setSingleStep(5)
         self._text_scale.setValue(int(settings.text_scale or 100))
-        self._text_scale.setMinimumWidth(240)
+        self._text_scale.setMinimumWidth(160)
         self._text_scale.setStyleSheet(_SLIDER_STYLE)
         self._text_scale_label = QLabel(f"{int(settings.text_scale or 100)} %")
         self._text_scale_label.setFixedWidth(52)
@@ -236,7 +216,7 @@ class HdmiSettingsDialog(QDialog):
         self._offset_y.setRange(-300, 300)
         self._offset_y.setSingleStep(10)
         self._offset_y.setValue(int(settings.offset_y or 0))
-        self._offset_y.setMinimumWidth(240)
+        self._offset_y.setMinimumWidth(160)
         self._offset_y.setStyleSheet(_SLIDER_STYLE)
         self._offset_y_label = QLabel(self._format_offset(int(settings.offset_y or 0)))
         self._offset_y_label.setFixedWidth(52)
@@ -306,45 +286,42 @@ class HdmiSettingsDialog(QDialog):
         # ═══════ Section: Vérification ═══════
         check_section = SettingSection("Vérification", "check-circle.svg")
 
-        mire_row = QHBoxLayout()
-        mire_row.setSpacing(10)
-        self._mire_btn = QPushButton("Afficher / masquer la mire")
-        self._mire_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._mire_btn = QPushButton("Afficher / masquer")
         self._mire_btn.setToolTip(
             "Mire de calibrage (F8) : barres, rampe de gris, zones utiles et "
             "pastilles de couleur pour prélever la pipette du mélangeur."
         )
         self._mire_btn.clicked.connect(self.mireToggled.emit)
-        mire_row.addWidget(self._mire_btn)
-        mire_row.addStretch(1)
-        check_section.addWidget(self._wrap_layout(mire_row))
+        check_section.addRow(
+            "Mire de calibrage (F8)",
+            self._mire_btn,
+            "Barres, rampe de gris et pastilles pour régler la clé du mélangeur",
+        )
 
         self._status = QLabel("Inactive")
         self._status.setWordWrap(True)
         self._status.setStyleSheet(
             f"color: {Colors.TEXT_SECONDARY}; background: transparent; "
-            f"border: none; font-size: {Typography.SIZE_CONTROL}px;"
+            f"border: none; font-size: {Typography.SIZE_FILTER}px;"
         )
-        check_section.addWidget(self._status)
+        check_section.addRow("État de la sortie", self._status)
         layout.addWidget(check_section)
 
         note = QLabel(
             "Le style du bandeau (police, couleurs, disposition) suit la sortie "
-            "OBS — Diffusion & OBS → Style bandeau. Le masquage « B » vide "
-            "l'incrustation ; la mire F8 sert au calibrage du mélangeur."
+            "OBS : Paramètres → Modes & style OBS. Masquer (B) vide "
+            "l'incrustation ; la mire (F8) sert au calibrage du mélangeur."
         )
         note.setWordWrap(True)
         note.setStyleSheet(
-            f"color: {Colors.TEXT_MUTED}; background: transparent; "
-            f"border: none; font-size: {Typography.SIZE_CONTROL}px;"
+            f"color: {Colors.TEXT_SECONDARY}; background: transparent; "
+            f"border: none; font-size: {Typography.SIZE_META}px;"
         )
         layout.addWidget(note)
-
         layout.addStretch(1)
-        scroll.setWidget(content)
-        main_layout.addWidget(scroll, 1)
+        fit_combos(content)
 
-        # ── Boutons ──
+        # ── Footer (standalone dialog only) ──
         btn_frame = QFrame(self)
         btn_frame.setStyleSheet(f"""
             QFrame {{
@@ -355,58 +332,14 @@ class HdmiSettingsDialog(QDialog):
         btn_layout = QHBoxLayout(btn_frame)
         btn_layout.setContentsMargins(24, 12, 24, 12)
         btn_layout.addStretch(1)
-
-        reset_btn = QPushButton("Réglages par défaut")
-        reset_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        reset_btn.setStyleSheet(f"""
-            QPushButton {{
-                background: transparent;
-                border: 1px solid {Colors.BORDER_DEFAULT};
-                border-radius: 8px;
-                padding: 8px 18px;
-                color: {Colors.TEXT_SECONDARY};
-                font-size: {Typography.SIZE_CONTROL}px;
-            }}
-            QPushButton:hover {{ color: {Colors.TEXT_PRIMARY}; border-color: {Colors.BORDER_FOCUS}; }}
-        """)
-        reset_btn.clicked.connect(self._reset_overlay)
-        btn_layout.addWidget(reset_btn)
-
         cancel_btn = QPushButton("Annuler")
-        cancel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        cancel_btn.setStyleSheet(f"""
-            QPushButton {{
-                background: {Colors.BG_TERTIARY};
-                border: 1px solid {Colors.BORDER_DEFAULT};
-                border-radius: 8px;
-                padding: 8px 22px;
-                color: {Colors.TEXT_PRIMARY};
-                font-size: {Typography.SIZE_CONTROL}px;
-            }}
-            QPushButton:hover {{ background: {Colors.SURFACE_ACTIVE}; border-color: {Colors.BORDER_FOCUS}; }}
-        """)
         cancel_btn.clicked.connect(self.reject)
         btn_layout.addWidget(cancel_btn)
-
         save_btn = QPushButton("Enregistrer")
-        save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        save_btn.setStyleSheet(f"""
-            QPushButton {{
-                background: {Colors.ACCENT_PRIMARY};
-                border: none;
-                border-radius: 8px;
-                padding: 8px 22px;
-                color: {Colors.PROJECT_BUTTON_TEXT};
-                font-size: {Typography.SIZE_CONTROL}px;
-                font-weight: 600;
-            }}
-            QPushButton:hover {{ background: {Colors.ACCENT_LIGHT}; }}
-        """)
+        save_btn.setObjectName("AccentButton")
         save_btn.clicked.connect(self.accept)
         btn_layout.addWidget(save_btn)
-        if embedded:  # settings page: every change applies immediately
-            cancel_btn.hide()
-            save_btn.hide()
+        btn_frame.setVisible(not embedded)  # the settings page applies at once
         main_layout.addWidget(btn_frame)
 
         # Aperçu live : re-rendu à chaque changement + suivi de la slide.
@@ -526,14 +459,6 @@ class HdmiSettingsDialog(QDialog):
         self._offset_y.setValue(0)
 
     # ── Lecture / signaux ─────────────────────────────────────────────
-
-    @staticmethod
-    def _wrap_layout(inner: QHBoxLayout) -> QWidget:
-        wrap = QWidget()
-        wrap.setStyleSheet("background: transparent; border: none;")
-        inner.setContentsMargins(0, 0, 0, 0)
-        wrap.setLayout(inner)
-        return wrap
 
     def read_settings(self) -> HdmiSettings:
         return HdmiSettings(

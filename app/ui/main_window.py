@@ -230,10 +230,6 @@ class MainWindow(QMainWindow):
             self.library_panel.settings_tab.projectionSettingsRequested.connect(
                 self._open_projection_settings
             )
-            if hasattr(self.library_panel.settings_tab, "themesRequested"):
-                self.library_panel.settings_tab.themesRequested.connect(
-                    self._open_theme_manager
-                )
             if hasattr(self.library_panel.settings_tab, "hdmiSettingsRequested"):
                 self.library_panel.settings_tab.hdmiSettingsRequested.connect(
                     self._open_hdmi_settings
@@ -748,38 +744,9 @@ class MainWindow(QMainWindow):
         out = self._presentation_dir / "config.json"
         self._safe_write_json(out, cfg)
 
-    def _build_projection_config(
-        self,
-        themes=None,
-        theme_assignments=None,
-        active_theme_id=None,
-        active_style=None,
-    ) -> dict:
-        """Config de projection : style actif + registre de thèmes.
-
-        Les thèmes transitent par config.json pour que la fenêtre de
-        projection résolve elle-même le style par type de contenu.
-        """
-        themes = self._settings.themes if themes is None else themes
-        theme_assignments = (
-            self._settings.theme_assignments
-            if theme_assignments is None
-            else theme_assignments
-        )
-        active_theme_id = (
-            self._settings.active_theme_id if active_theme_id is None else active_theme_id
-        )
-        cfg = (active_style or self._settings.projection).to_presentation_config()
-        themes_payload: dict[str, dict] = {}
-        for theme in themes:
-            if theme.id == active_theme_id:
-                themes_payload[theme.id] = dict(cfg)
-            else:
-                themes_payload[theme.id] = theme.to_payload()["style"]
-        cfg["themes"] = themes_payload
-        cfg["theme_assignments"] = dict(theme_assignments)
-        cfg["active_theme"] = active_theme_id
-        return cfg
+    def _build_projection_config(self) -> dict:
+        """Config de projection (config.json) : le style de projection."""
+        return self._settings.projection.to_presentation_config()
 
     def _write_obs_config(self) -> None:
         # Les médias se projettent avec les mêmes règles partout : la sortie
@@ -849,7 +816,6 @@ class MainWindow(QMainWindow):
     def _setup_settings_page(self) -> None:
         page = self.library_panel.settings_page
         page.register("projection", tr("local_projection"), "monitor.svg", self._build_projection_section)
-        page.register("themes", "Thèmes", "palette.svg", self._build_themes_section)
         page.register("hdmi", "Sortie HDMI", "cast.svg", self._build_hdmi_section)
         page.register("obs", tr("connectivity"), "wifi.svg", self._build_obs_section)
         page.register("obs_output", tr("lower_third_style"), "layout.svg", self._build_obs_output_section)
@@ -878,9 +844,6 @@ class MainWindow(QMainWindow):
     # Historical entry points (settings overview cards, output chips, menus).
     def _open_projection_settings(self) -> None:
         self._show_settings_section("projection")
-
-    def _open_theme_manager(self) -> None:
-        self._show_settings_section("themes")
 
     def _open_obs_settings(self) -> None:
         self._show_settings_section("obs")
@@ -920,21 +883,6 @@ class MainWindow(QMainWindow):
         self._sync_obs_background(projection.bg_mode, projection.bg_image, projection.bg_image_fit)
         # Media framing is shared with the OBS page / NDI output.
         self._write_obs_config()
-        self._settings_changed()
-
-    def _build_themes_section(self) -> QWidget:
-        from app.ui.theme_dialog import ThemeDialog
-
-        dlg = embed_dialog(ThemeDialog, self._settings)
-        dlg.themesLiveChanged.connect(self._apply_theme_state)
-        return dlg
-
-    def _apply_theme_state(self, themes, assignments, active_id, active_style) -> None:
-        self._settings.themes = list(themes)
-        self._settings.theme_assignments = dict(assignments)
-        self._settings.active_theme_id = active_id
-        self._settings.projection = active_style
-        self._apply_projection_config()
         self._settings_changed()
 
     def _build_hdmi_section(self) -> QWidget:

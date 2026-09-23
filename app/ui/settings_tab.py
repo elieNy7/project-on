@@ -360,7 +360,6 @@ class SettingsHeader(QFrame):
 
 class SettingsTab(QWidget):
     projectionSettingsRequested  = Signal()
-    themesRequested              = Signal()
     hdmiSettingsRequested        = Signal()
     obsSettingsRequested         = Signal()
     obsOutputSettingsRequested   = Signal()
@@ -407,11 +406,6 @@ class SettingsTab(QWidget):
             "monitor.svg", "#a78bfa", display_card,
         )
         display_card.add_item(self._projection_item)
-        self._themes_item = SettingsItem(
-            tr("themes_manager"), tr("themes_manager_desc"),
-            "palette.svg", "#34d399", display_card,
-        )
-        display_card.add_item(self._themes_item)
         self._hdmi_item = SettingsItem(
             "Sortie HDMI / mixeur",
             "Source d'incrustation verte pour ATEM, Roland V/AV et autres mélangeurs",
@@ -512,7 +506,6 @@ class SettingsTab(QWidget):
 
         # ── Connexions ────────────────────────────────────────────────
         self._projection_item.clicked.connect(self.projectionSettingsRequested.emit)
-        self._themes_item.clicked.connect(self.themesRequested.emit)
         self._hdmi_item.clicked.connect(self.hdmiSettingsRequested.emit)
         self._obs_connect_item.clicked.connect(self.obsSettingsRequested.emit)
         self._obs_style_item.clicked.connect(self.obsOutputSettingsRequested.emit)
@@ -541,9 +534,6 @@ class SettingsTab(QWidget):
             self._projection_item.set_detail(
                 f"{style} · {p.font_family} · {p.text_size}px"
             )
-            n_themes = len(getattr(settings, "themes", []) or [])
-            n_assign = len(getattr(settings, "theme_assignments", {}) or {})
-            self._themes_item.set_detail(f"{max(1, n_themes)} · {n_assign} assign.")
             hdmi = getattr(settings, "hdmi", None)
             self._hdmi_item.set_detail(self._hdmi_detail(hdmi))
 
