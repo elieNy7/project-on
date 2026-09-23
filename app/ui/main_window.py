@@ -10,7 +10,9 @@ from pathlib import Path
 from PySide6.QtCore import QEvent, QObject, Qt, QTimer
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
+    QAbstractSpinBox,
     QApplication,
+    QComboBox,
     QDialog,
     QHBoxLayout,
     QLineEdit,
@@ -56,6 +58,13 @@ from app.utils.translations import set_language, tr
 from app.version import __version__
 
 log = logging.getLogger(__name__)
+
+
+def _is_text_entry(widget: QWidget | None) -> bool:
+    """Widgets where the operator types (Escape must stay local to them)."""
+    if isinstance(widget, (QLineEdit, QTextEdit, QPlainTextEdit, QAbstractSpinBox)):
+        return not getattr(widget, "isReadOnly", lambda: False)()
+    return isinstance(widget, QComboBox) and widget.isEditable()
 
 
 class MainWindow(QMainWindow):
@@ -263,6 +272,15 @@ class MainWindow(QMainWindow):
                 self._owner = owner
 
             def eventFilter(self, obj: QObject, event: QEvent) -> bool:
+                if (
+                    event.type() == QEvent.Type.ShortcutOverride
+                    and event.key() == Qt.Key.Key_Escape
+                    and _is_text_entry(QApplication.focusWidget())
+                ):
+                    # Escape while typing belongs to the field: it must never
+                    # reach the "close projection" shortcut.
+                    event.accept()
+                    return False
                 if event.type() != QEvent.Type.KeyPress:
                     return False
 
