@@ -103,3 +103,48 @@ def test_appearance_change_is_saved_and_explained(window) -> None:
 def test_output_chip_opens_the_matching_section(window) -> None:
     window.command_bar.outputClicked.emit("hdmi")
     assert _page(window).current_key() == "hdmi"
+
+
+# ── OBS lower-third screen (single Fluent column) ─────────────────────────
+
+
+@pytest.fixture
+def obs_screen():
+    QApplication.instance() or QApplication([])
+    from app.ui.obs_output_settings_dialog import ObsOutputSettingsDialog
+    from app.utils.settings import ObsSettings
+
+    screen = ObsOutputSettingsDialog(ObsSettings(), embedded=True)
+    yield screen
+    screen.deleteLater()
+
+
+def test_obs_checkboxes_become_wrapping_setting_cards(obs_screen) -> None:
+    from PySide6.QtWidgets import QCheckBox
+
+    from app.ui.obs_output_settings_dialog import SettingRow
+
+    boxes = obs_screen.findChildren(QCheckBox)
+    assert boxes and all(not b.text() for b in boxes)  # labels moved to cards
+    assert all(b.accessibleName() for b in boxes)  # still named for screen readers
+
+    card = next(r for r in obs_screen.findChildren(SettingRow) if r._toggle is obs_screen._show_ref)
+    before = obs_screen._show_ref.isChecked()
+    QTest.mouseClick(card, Qt.MouseButton.LeftButton)
+    assert obs_screen._show_ref.isChecked() is not before
+
+
+def test_obs_pages_are_sized_to_the_visible_tab(obs_screen) -> None:
+    heights = set()
+    for index in range(4):
+        obs_screen._on_nav_clicked(index)
+        heights.add(obs_screen._stack.minimumSizeHint().height())
+    assert len(heights) > 1  # a short tab leaves no blank space
+
+
+def test_obs_preset_still_applies(obs_screen) -> None:
+    emitted = []
+    obs_screen.obsSettingsChanged.connect(emitted.append)
+    obs_screen._apply_preset({"layout_mode": "fullscreen", "text_size": 61})
+    obs_screen._change_timer.timeout.emit()
+    assert emitted and emitted[-1].output.layout_mode == "fullscreen"

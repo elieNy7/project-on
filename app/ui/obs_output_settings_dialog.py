@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QMessageBox,
     QPushButton,
-    QScrollArea,
+    QSizePolicy,
     QSlider,
     QSpinBox,
     QStackedWidget,
@@ -28,7 +28,8 @@ from PySide6.QtWidgets import (
 )
 
 from app.ui.icons import app_icon
-from app.ui.theme import Colors, Radius, Typography, get_scroll_area_style
+from app.ui.theme import Colors, Radius, Typography, get_tab_button_style
+from app.utils.flow_layout import FlowLayout
 from app.utils.fonts import get_available_fonts
 from app.utils.settings import ObsScene, ObsOutputSettings, ObsSettings, scene_slug
 from app.utils.translations import tr
@@ -399,141 +400,125 @@ class ColorPickerButton(QPushButton):
 
 
 class SettingRow(QFrame):
-    """A single setting row with label and control."""
+    """Windows 11 setting card: label and description on the left (they wrap
+    on narrow widths), the control on the right."""
 
     def __init__(self, label: str, widget: QWidget, description: str = "", parent=None):
         super().__init__(parent)
+        self.setObjectName("SettingRow")
         self.setStyleSheet(f"""
-            QFrame {{
-                background: transparent;
-                border-bottom: 1px solid {Colors.BORDER_DEFAULT};
+            QFrame#SettingRow {{
+                background: {Colors.BG_CARD};
+                border: 1px solid {Colors.BORDER_SUBTLE};
+                border-radius: {Radius.SM}px;
             }}
         """)
 
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(4, 12, 4, 12)
-        layout.setSpacing(20)
+        layout.setContentsMargins(16, 10, 16, 10)
+        layout.setSpacing(16)
 
-        # Label column
         label_col = QVBoxLayout()
-        label_col.setSpacing(3)
+        label_col.setSpacing(2)
 
         lbl = QLabel(label)
+        lbl.setWordWrap(True)
         lbl.setStyleSheet(
-            f"font-size: {Typography.SIZE_LABEL}px; font-weight: 500; color: {Colors.TEXT_PRIMARY}; border: none;"
+            f"font-size: {Typography.SIZE_BODY}px; color: {Colors.TEXT_PRIMARY};"
+            " border: none; background: transparent;"
         )
         label_col.addWidget(lbl)
 
         if description:
             desc = QLabel(description)
-            desc.setStyleSheet(
-                f"font-size: {Typography.SIZE_CONTROL}px; color: {Colors.TEXT_SECONDARY}; border: none;"
-            )
             desc.setWordWrap(True)
+            desc.setStyleSheet(
+                f"font-size: {Typography.SIZE_META}px; color: {Colors.TEXT_SECONDARY};"
+                " border: none; background: transparent;"
+            )
             label_col.addWidget(desc)
 
         layout.addLayout(label_col, 1)
-        layout.addWidget(widget)
+        layout.addWidget(widget, 0, Qt.AlignmentFlag.AlignVCenter)
+        self._toggle = widget if isinstance(widget, QCheckBox) else None
+        if self._toggle is not None:
+            self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+    def mouseReleaseEvent(self, event) -> None:  # noqa: N802
+        # A switch card toggles when clicked anywhere, like Windows Settings.
+        if (
+            self._toggle is not None
+            and self._toggle.isEnabled()
+            and event.button() == Qt.MouseButton.LeftButton
+        ):
+            self._toggle.toggle()
+        super().mouseReleaseEvent(event)
 
 
 class SettingSection(QFrame):
-    """A section with title and settings."""
+    """A group of setting cards under a plain section title (Windows 11)."""
 
     def __init__(self, title: str, icon_name: str = "", parent=None):
         super().__init__(parent)
-        self.setStyleSheet(f"""
-            SettingSection {{
-                background: {Colors.BG_SECONDARY};
-                border: 1px solid {Colors.BORDER_DEFAULT};
-                border-radius: 14px;
-            }}
-        """)
+        self.setStyleSheet("SettingSection { background: transparent; border: none; }")
 
         self._layout = QVBoxLayout(self)
-        self._layout.setContentsMargins(20, 18, 20, 14)
+        self._layout.setContentsMargins(0, 0, 0, 0)
         self._layout.setSpacing(2)
 
-        # Header
         header = QHBoxLayout()
-        header.setSpacing(10)
-
+        header.setContentsMargins(2, 0, 0, 6)
+        header.setSpacing(8)
         if icon_name:
             icon_label = QLabel()
-            icon_label.setPixmap(app_icon(icon_name).pixmap(20, 20))
+            icon_label.setPixmap(app_icon(icon_name, Colors.TEXT_SECONDARY).pixmap(16, 16))
             icon_label.setStyleSheet("background: transparent; border: none;")
             header.addWidget(icon_label)
-
         title_label = QLabel(title)
         title_label.setStyleSheet(
-            f"font-size: {Typography.SIZE_SECTION}px; font-weight: 600; color: {Colors.ACCENT_LIGHT}; background: transparent; border: none;"
+            f"font-size: {Typography.SIZE_BODY}px; font-weight: {Typography.WEIGHT_SEMIBOLD};"
+            f" color: {Colors.TEXT_PRIMARY}; background: transparent; border: none;"
         )
         header.addWidget(title_label, 1)
-
         self._layout.addLayout(header)
 
-        # Separator (optional, keeping minimal line)
-        sep = QFrame()
-        sep.setFixedHeight(1)
-        sep.setStyleSheet(f"background: {Colors.BORDER_DEFAULT}; border: none;")
-        self._layout.addWidget(sep)
-        self._layout.addSpacing(4)
-
     def addRow(self, label: str, widget: QWidget, description: str = "") -> None:
-        row = SettingRow(label, widget, description)
-        self._layout.addWidget(row)
+        self._layout.addWidget(SettingRow(label, widget, description))
 
     def addWidget(self, widget: QWidget) -> None:
+        if isinstance(widget, QCheckBox) and widget.text():
+            # A checkbox label cannot wrap: it becomes a setting card whose
+            # (wrapping) title is the label, with the box on the right.
+            text = widget.text()
+            widget.setText("")
+            widget.setAccessibleName(text)
+            self._layout.addWidget(SettingRow(text, widget, widget.toolTip()))
+            return
         self._layout.addWidget(widget)
 
 
-class NavButton(QPushButton):
-    """Navigation button for sidebar."""
+class _CurrentPageStack(QStackedWidget):
+    """Stack sized to the visible page, not to the tallest one (no blank
+    space under a short page once the settings page scrolls as a whole)."""
 
-    def __init__(self, text: str, icon_name: str, parent=None):
-        super().__init__(parent)
-        self.setText(text)
-        self.setIcon(app_icon(icon_name))
-        self.setIconSize(QSize(20, 20))
+    def sizeHint(self) -> QSize:  # noqa: N802
+        page = self.currentWidget()
+        return page.sizeHint() if page is not None else super().sizeHint()
+
+    def minimumSizeHint(self) -> QSize:  # noqa: N802
+        page = self.currentWidget()
+        return page.minimumSizeHint() if page is not None else super().minimumSizeHint()
+
+
+class PivotButton(QPushButton):
+    """Horizontal section tab (Fluent pivot)."""
+
+    def __init__(self, text: str, parent=None):
+        super().__init__(text, parent)
         self.setCheckable(True)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setFixedHeight(46)
-        self._update_style(False)
-
-    def _update_style(self, checked: bool) -> None:
-        if checked:
-            self.setStyleSheet(f"""
-            QPushButton {{
-                background: {Colors.ACCENT_GLOW_STRONG};
-                border: 1px solid {Colors.BORDER_FOCUS};
-                border-left: 3px solid {Colors.ACCENT_PRIMARY};
-                    border-radius: 8px;
-                    padding: 10px 14px;
-                    text-align: left;
-                    font-size: {Typography.SIZE_LABEL}px;
-                    font-weight: 600;
-                color: {Colors.ACCENT_PRIMARY};
-                }}
-            """)
-        else:
-            self.setStyleSheet(f"""
-                QPushButton {{
-                    background: transparent;
-                    border: none;
-                    border-radius: 8px;
-                    padding: 10px 14px;
-                    text-align: left;
-                    font-size: {Typography.SIZE_LABEL}px;
-                    color: {Colors.TEXT_MUTED};
-                }}
-                QPushButton:hover {{
-                    background: {Colors.SURFACE_HOVER};
-                    color: {Colors.TEXT_SECONDARY};
-                }}
-            """)
-
-    def setChecked(self, checked: bool) -> None:
-        super().setChecked(checked)
-        self._update_style(checked)
+        self.toggled.connect(lambda checked: self.setStyleSheet(get_tab_button_style(checked)))
+        self.setStyleSheet(get_tab_button_style(False))
 
 
 class ObsOutputSettingsDialog(QDialog):
@@ -572,205 +557,127 @@ class ObsOutputSettingsDialog(QDialog):
         self._change_timer.setSingleShot(True)
         self._change_timer.timeout.connect(self._emit_settings_changed)
 
-        main_layout = QHBoxLayout(self)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(0)
+        root = QVBoxLayout(self)
+        root.setContentsMargins(16, 16, 16, 16)
+        root.setSpacing(16)
 
-        # ===== SIDEBAR =====
-        sidebar = QFrame()
-        sidebar.setMinimumWidth(160)
-        sidebar.setMaximumWidth(220)
-        sidebar.setStyleSheet(f"""
-            QFrame {{
-                background: {Colors.BG_SECONDARY};
-                border-right: 1px solid {Colors.BORDER_DEFAULT};
-            }}
-        """)
-        sidebar_layout = QVBoxLayout(sidebar)
-        sidebar_layout.setContentsMargins(14, 18, 14, 18)
-        sidebar_layout.setSpacing(4)
-
-        # Logo/Title
-        title_frame = QFrame()
-        title_frame.setStyleSheet("background: transparent;")
-        title_layout = QHBoxLayout(title_frame)
-        title_layout.setContentsMargins(8, 8, 8, 16)
-        title_layout.setSpacing(10)
-
-        logo = QLabel()
-        logo.setPixmap(app_icon("monitor.svg").pixmap(24, 24))
-        logo.setStyleSheet("background: transparent;")
-        title_layout.addWidget(logo)
-
-        title = QLabel("Projection OBS")
+        # ── Header ──
+        header = QHBoxLayout()
+        header.setSpacing(12)
+        title_col = QVBoxLayout()
+        title_col.setSpacing(2)
+        title = QLabel("Bandeau OBS")
         title.setStyleSheet(
-            f"font-size: {Typography.SIZE_TITLE}px; font-weight: 700; color: {Colors.TEXT_PRIMARY}; background: transparent;"
+            f"font-size: {Typography.SIZE_DIALOG_TITLE}px; font-weight: {Typography.WEIGHT_SEMIBOLD};"
+            f" color: {Colors.TEXT_PRIMARY}; background: transparent;"
         )
-        title_layout.addWidget(title, 1)
-        sidebar_layout.addWidget(title_frame)
-
-        # Navigation buttons
-        nav_items = [
-            ("Disposition", "layout.svg"),
-            ("Texte", "type.svg"),
-            ("Couleurs", "palette.svg"),
-            ("Effets", "sparkles.svg"),
-        ]
-
-        for i, (text, icon) in enumerate(nav_items):
-            btn = NavButton(text, icon)
-            btn.clicked.connect(lambda checked, idx=i: self._on_nav_clicked(idx))
-            self._nav_buttons.append(btn)
-            sidebar_layout.addWidget(btn)
-
-        sidebar_layout.addStretch()
-
-        # Reset button at bottom
+        title_col.addWidget(title)
+        subtitle = QLabel(
+            "Style du texte diffusé dans OBS et en NDI : composition, texte, couleurs, effets."
+        )
+        subtitle.setWordWrap(True)
+        subtitle.setStyleSheet(
+            f"font-size: {Typography.SIZE_FILTER}px; color: {Colors.TEXT_SECONDARY}; background: transparent;"
+        )
+        title_col.addWidget(subtitle)
+        header.addLayout(title_col, 1)
         reset_btn = QPushButton("Réinitialiser")
-        reset_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        reset_btn.setStyleSheet(f"""
-            QPushButton {{
-                background: {Colors.GLASS_MEDIUM};
-                border: 1px solid {Colors.BORDER_DEFAULT};
-                border-radius: 8px;
-                padding: 10px;
-                color: {Colors.ACCENT_DANGER};
-                font-size: {Typography.SIZE_CONTROL}px;
-            }}
-            QPushButton:hover {{
-                background: {Colors.GLASS_HEAVY};
-                border-color: {Colors.ACCENT_DANGER};
+        reset_btn.setToolTip("Revenir au style par défaut pour le style édité")
+        reset_btn.clicked.connect(self._reset_defaults)
+        header.addWidget(reset_btn, 0, Qt.AlignmentFlag.AlignTop)
+        root.addLayout(header)
+
+        # ── Edited style (base or per-OBS-scene) ──
+        self._create_scene_bar(root)
+
+        # ── Preview and presets ──
+        preview_card = QFrame()
+        preview_card.setObjectName("PreviewCard")
+        preview_card.setStyleSheet(f"""
+            QFrame#PreviewCard {{
+                background: {Colors.BG_CARD};
+                border: 1px solid {Colors.BORDER_SUBTLE};
+                border-radius: {Radius.LG}px;
             }}
         """)
-        reset_btn.clicked.connect(self._reset_defaults)
-        sidebar_layout.addWidget(reset_btn)
+        preview_layout = QVBoxLayout(preview_card)
+        preview_layout.setContentsMargins(16, 14, 16, 14)
+        preview_layout.setSpacing(10)
+        preview_hdr = QLabel("Aperçu")
+        preview_hdr.setStyleSheet(
+            f"font-size: {Typography.SIZE_BODY}px; font-weight: {Typography.WEIGHT_SEMIBOLD};"
+            f" color: {Colors.TEXT_PRIMARY}; background: transparent;"
+        )
+        preview_layout.addWidget(preview_hdr)
+        self._preview_widget = ObsPreviewWidget(settings)
+        self._preview_widget.setMinimumHeight(170)
+        self._preview_widget.setMaximumHeight(260)
+        preview_layout.addWidget(self._preview_widget)
+        preview_help = QLabel(
+            "Simulation de l'apparence dans OBS ; flou et ombres avancées peuvent légèrement différer."
+        )
+        preview_help.setWordWrap(True)
+        preview_help.setStyleSheet(
+            f"font-size: {Typography.SIZE_META}px; color: {Colors.TEXT_SECONDARY}; background: transparent;"
+        )
+        preview_layout.addWidget(preview_help)
+        preset_hdr = QLabel("Préréglages")
+        preset_hdr.setStyleSheet(
+            f"font-size: {Typography.SIZE_FILTER}px; font-weight: {Typography.WEIGHT_SEMIBOLD};"
+            f" color: {Colors.TEXT_PRIMARY}; background: transparent; padding-top: 4px;"
+        )
+        preview_layout.addWidget(preset_hdr)
+        self._create_preset_buttons(preview_layout)
+        root.addWidget(preview_card)
 
-        main_layout.addWidget(sidebar)
+        # ── Pivot tabs + pages ──
+        pivot = QHBoxLayout()
+        pivot.setSpacing(4)
+        for i, text in enumerate(("Disposition", "Texte", "Couleurs", "Effets")):
+            btn = PivotButton(text)
+            btn.clicked.connect(lambda _checked=False, idx=i: self._on_nav_clicked(idx))
+            self._nav_buttons.append(btn)
+            pivot.addWidget(btn)
+        pivot.addStretch(1)
+        root.addLayout(pivot)
 
-        # ===== CONTENT AREA =====
-        content_wrapper = QHBoxLayout()  # Horizontal split for preview
-
-        content = QWidget()
-        content.setStyleSheet(f"background: {Colors.BG_PRIMARY};")
-        content.setObjectName("SettingsContent")
-        content_layout = QVBoxLayout(content)
-        content_layout.setContentsMargins(28, 24, 28, 20)
-        content_layout.setSpacing(20)
-
-        # Stacked widget for pages
-        self._stack = QStackedWidget()
+        self._stack = _CurrentPageStack()
         self._stack.setStyleSheet("background: transparent;")
-
-        # Scene selector bar (base style vs per-OBS-scene styles)
-        self._create_scene_bar(content_layout)
-
-        # Create all pages
+        self._stack.currentChanged.connect(self._fit_stack_to_page)
         self._create_layout_page(settings)
         self._create_text_page(settings)
         self._create_colors_page(settings)
         self._create_effects_page(settings)
+        root.addWidget(self._stack)
+        root.addStretch(1)
 
-        content_layout.addWidget(self._stack, 1)
-
-        # Preview Panel (Right Side)
-        preview_panel = QFrame()
-        preview_panel.setMinimumWidth(240)
-        preview_panel.setMaximumWidth(360)
-        preview_panel.setStyleSheet(f"""
-            QFrame {{
-                background: {Colors.BG_SECONDARY};
-                border-left: 1px solid {Colors.BORDER_DEFAULT};
-            }}
-        """)
-        preview_layout = QVBoxLayout(preview_panel)
-        preview_layout.setContentsMargins(16, 24, 16, 24)
-        preview_layout.setSpacing(16)
-
-        preview_hdr = QLabel("Aperçu en direct")
-        preview_hdr.setStyleSheet(
-            f"font-size: {Typography.SIZE_SECTION}px; font-weight: 600; color: {Colors.ACCENT_LIGHT};"
-        )
-        preview_layout.addWidget(preview_hdr)
-
-        self._preview_widget = ObsPreviewWidget(settings)
-        preview_layout.addWidget(self._preview_widget)
-
-        preview_help = QLabel(
-            "L'aperçu simule l'apparence sur OBS. Certains effets (flou, ombres avancées) peuvent varier légèrement."
-        )
-        preview_help.setWordWrap(True)
-        preview_help.setStyleSheet(f"font-size: {Typography.SIZE_META}px; color: {Colors.TEXT_MUTED};")
-        preview_layout.addWidget(preview_help)
-
-        # Presets section in preview
-        preview_layout.addSpacing(20)
-        preset_hdr = QLabel("Préréglages (Styles)")
-        preset_hdr.setStyleSheet(
-            f"font-size: {Typography.SIZE_LABEL}px; font-weight: 600; color: {Colors.TEXT_SECONDARY};"
-        )
-        preview_layout.addWidget(preset_hdr)
-
-        self._create_preset_buttons(preview_layout)
-
-        preview_layout.addStretch()
-
-        content_wrapper.addWidget(content, 1)
-        content_wrapper.addWidget(preview_panel)
-
-        # Bottom controls wrapper
-        final_layout = QVBoxLayout()
-        final_layout.addLayout(content_wrapper, 1)
-
-        # Bottom buttons
+        # Standalone dialog only: the settings page applies changes at once.
         btn_layout = QHBoxLayout()
-        btn_layout.setContentsMargins(28, 0, 28, 20)
         btn_layout.addStretch()
-
         cancel_btn = QPushButton(tr("cancel"))
-        cancel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        cancel_btn.setStyleSheet(f"""
-            QPushButton {{
-                background: {Colors.SURFACE_HOVER};
-                border: 1px solid {Colors.BORDER_DEFAULT};
-                border-radius: 8px;
-                padding: 10px 24px;
-                color: {Colors.TEXT_SECONDARY};
-                font-size: {Typography.SIZE_CONTROL}px;
-            }}
-            QPushButton:hover {{
-                background: {Colors.SURFACE_ACTIVE};
-            }}
-        """)
         cancel_btn.clicked.connect(self.reject)
         btn_layout.addWidget(cancel_btn)
-
         ok_btn = QPushButton("Appliquer")
-        ok_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        ok_btn.setStyleSheet(f"""
-            QPushButton {{
-                background: {Colors.ACCENT_PRIMARY};
-                border: 1px solid {Colors.ACCENT_PRIMARY};
-                border-radius: 8px;
-                padding: 10px 24px;
-                color: {Colors.PROJECT_BUTTON_TEXT};
-                font-size: {Typography.SIZE_CONTROL}px;
-                font-weight: 500;
-            }}
-            QPushButton:hover {{
-                background: {Colors.ACCENT_SECONDARY};
-            }}
-        """)
+        ok_btn.setObjectName("AccentButton")
         ok_btn.clicked.connect(self.accept)
         btn_layout.addWidget(ok_btn)
         if embedded:  # settings page: every change applies immediately
             cancel_btn.hide()
             ok_btn.hide()
-
-        final_layout.addLayout(btn_layout)
-        main_layout.addLayout(final_layout, 1)
+        root.addLayout(btn_layout)
 
         # Select first nav button
         self._nav_buttons[0].setChecked(True)
+        self._fit_stack_to_page(0)
+
+        # Drop-downs keep a reasonable width instead of their longest entry,
+        # so the screen fits next to the live monitors; the open list still
+        # shows every choice in full.
+        for combo in self.findChildren(QComboBox):
+            if combo is self._scene_combo:
+                continue
+            combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+            combo.setMinimumContentsLength(12)
 
         # Connect signals for live updates
         self._connect_signals()
@@ -804,13 +711,18 @@ class ObsOutputSettingsDialog(QDialog):
         self._on_change()
 
     def _add_scroll_page(self, widget: QWidget) -> int:
-        """Helper to wrap a page in a scroll area before adding to stack."""
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-        scroll.setStyleSheet(get_scroll_area_style())
-        scroll.setWidget(widget)
-        return self._stack.addWidget(scroll)
+        """Add a page to the stack. The settings page scrolls as a whole, so
+        pages are not wrapped in their own scroll area."""
+        return self._stack.addWidget(widget)
+
+    def _fit_stack_to_page(self, index: int) -> None:
+        """Size the stack to the visible page only (not the tallest one)."""
+        for i in range(self._stack.count()):
+            page = self._stack.widget(i)
+            policy = QSizePolicy.Policy.Preferred if i == index else QSizePolicy.Policy.Ignored
+            page.setSizePolicy(QSizePolicy.Policy.Preferred, policy)
+        self._stack.adjustSize()
+        self._stack.updateGeometry()
 
     # ── Scene management ───────────────────────────────────────────────
 
@@ -822,96 +734,66 @@ class ObsOutputSettingsDialog(QDialog):
 
     def _create_scene_bar(self, layout: QVBoxLayout) -> None:
         bar = QFrame()
+        bar.setObjectName("SceneCard")
         bar.setStyleSheet(f"""
-            QFrame {{
-                background: {Colors.BG_SECONDARY};
-                border: 1px solid {Colors.BORDER_DEFAULT};
-                border-radius: 10px;
+            QFrame#SceneCard {{
+                background: {Colors.BG_CARD};
+                border: 1px solid {Colors.BORDER_SUBTLE};
+                border-radius: {Radius.LG}px;
             }}
         """)
         bar_layout = QVBoxLayout(bar)
-        bar_layout.setContentsMargins(14, 10, 14, 10)
-        bar_layout.setSpacing(6)
+        bar_layout.setContentsMargins(16, 12, 16, 12)
+        bar_layout.setSpacing(8)
 
         top_row = QHBoxLayout()
-        top_row.setSpacing(8)
-
-        label = QLabel("Style édité :")
+        top_row.setSpacing(10)
+        label = QLabel("Style édité")
         label.setStyleSheet(
-            f"font-size: {Typography.SIZE_CONTROL}px; color: {Colors.TEXT_SECONDARY}; background: transparent;"
+            f"font-size: {Typography.SIZE_BODY}px; color: {Colors.TEXT_PRIMARY}; background: transparent;"
         )
         top_row.addWidget(label)
-
         self._scene_combo = QComboBox()
-        self._scene_combo.setMinimumWidth(220)
+        self._scene_combo.setMinimumWidth(160)
+        self._scene_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self._refresh_scene_combo()
         top_row.addWidget(self._scene_combo, 1)
-
-        btn_style = f"""
-            QPushButton {{
-                background: {Colors.BG_ELEVATED};
-                border: 1px solid {Colors.BORDER_DEFAULT};
-                border-radius: 6px;
-                padding: 6px 10px;
-                color: {Colors.TEXT_SECONDARY};
-                font-size: {Typography.SIZE_CONTROL}px;
-            }}
-            QPushButton:hover {{
-                background: {Colors.SURFACE_HOVER};
-                border-color: {Colors.ACCENT_PRIMARY};
-                color: {Colors.TEXT_PRIMARY};
-            }}
-        """
-        add_btn = QPushButton("＋ Scène")
-        add_btn.setToolTip("Créer un style indépendant pour une scène OBS")
-        add_btn.setStyleSheet(btn_style)
-        add_btn.clicked.connect(self._add_scene)
-        top_row.addWidget(add_btn)
-
-        self._rename_btn = QPushButton("Renommer")
-        self._rename_btn.setStyleSheet(btn_style)
-        self._rename_btn.clicked.connect(self._rename_scene)
-        top_row.addWidget(self._rename_btn)
-
-        self._dup_btn = QPushButton("Dupliquer")
-        self._dup_btn.setStyleSheet(btn_style)
-        self._dup_btn.clicked.connect(self._duplicate_scene)
-        top_row.addWidget(self._dup_btn)
-
-        self._del_btn = QPushButton("Supprimer")
-        self._del_btn.setStyleSheet(f"""
-            QPushButton {{
-                background: {Colors.BG_ELEVATED};
-                border: 1px solid {Colors.BORDER_DEFAULT};
-                border-radius: 6px;
-                padding: 6px 10px;
-                color: {Colors.ACCENT_DANGER};
-                font-size: {Typography.SIZE_CONTROL}px;
-            }}
-            QPushButton:hover {{
-                background: {Colors.SURFACE_HOVER};
-                border-color: {Colors.ACCENT_DANGER};
-            }}
-        """)
-        self._del_btn.clicked.connect(self._delete_scene)
-        top_row.addWidget(self._del_btn)
-
         bar_layout.addLayout(top_row)
 
+        actions = QWidget()
+        actions.setStyleSheet("background: transparent;")
+        flow = FlowLayout(actions, margin=0, hSpacing=6, vSpacing=6)
+        add_btn = QPushButton("Nouvelle scène")
+        add_btn.setIcon(app_icon("plus.svg", Colors.TEXT_PRIMARY))
+        add_btn.setToolTip("Créer un style indépendant pour une scène OBS")
+        add_btn.clicked.connect(self._add_scene)
+        flow.addWidget(add_btn)
+        self._rename_btn = QPushButton("Renommer")
+        self._rename_btn.clicked.connect(self._rename_scene)
+        flow.addWidget(self._rename_btn)
+        self._dup_btn = QPushButton("Dupliquer")
+        self._dup_btn.clicked.connect(self._duplicate_scene)
+        flow.addWidget(self._dup_btn)
+        self._del_btn = QPushButton("Supprimer")
+        self._del_btn.setStyleSheet(f"QPushButton {{ color: {Colors.ACCENT_DANGER}; }}")
+        self._del_btn.clicked.connect(self._delete_scene)
+        flow.addWidget(self._del_btn)
+        copy_btn = QPushButton("Copier l'URL")
+        copy_btn.setIcon(app_icon("copy.svg", Colors.TEXT_PRIMARY))
+        copy_btn.clicked.connect(self._copy_scene_url)
+        self._scene_copy_btn = copy_btn
+        flow.addWidget(copy_btn)
+        bar_layout.addWidget(actions)
+
         self._scene_url_label = QLabel("")
+        self._scene_url_label.setWordWrap(True)
         self._scene_url_label.setTextInteractionFlags(
             Qt.TextInteractionFlag.TextSelectableByMouse
         )
         self._scene_url_label.setStyleSheet(
-            f"font-size: {Typography.SIZE_META}px; color: {Colors.TEXT_MUTED}; background: transparent;"
+            f"font-size: {Typography.SIZE_META}px; color: {Colors.TEXT_SECONDARY}; background: transparent;"
         )
         bar_layout.addWidget(self._scene_url_label)
-
-        copy_btn = QPushButton("Copier l'URL de la scène")
-        copy_btn.setStyleSheet(btn_style)
-        copy_btn.clicked.connect(self._copy_scene_url)
-        self._scene_copy_btn = copy_btn
-        bar_layout.addWidget(copy_btn)
 
         self._scene_combo.currentIndexChanged.connect(self._on_scene_selected)
         self._update_scene_bar_state()
@@ -1423,7 +1305,7 @@ class ObsOutputSettingsDialog(QDialog):
         self._bg_opacity = QSlider(Qt.Orientation.Horizontal)
         self._bg_opacity.setRange(0, 100)
         self._bg_opacity.setValue(int(settings.bg_opacity * 100))
-        self._bg_opacity.setMinimumWidth(240)
+        self._bg_opacity.setMinimumWidth(160)
         self._bg_opacity.setStyleSheet(f"""
             QSlider {{
                 min-height: 24px;
@@ -1510,7 +1392,7 @@ class ObsOutputSettingsDialog(QDialog):
         self._overall_opacity = QSlider(Qt.Orientation.Horizontal)
         self._overall_opacity.setRange(0, 100)
         self._overall_opacity.setValue(int(settings.opacity * 100))
-        self._overall_opacity.setMinimumWidth(240)
+        self._overall_opacity.setMinimumWidth(160)
         self._overall_opacity.setStyleSheet(
             self._bg_opacity.styleSheet()
         )  # Reuse style
@@ -2093,31 +1975,16 @@ class ObsOutputSettingsDialog(QDialog):
             ),
         ]
 
-        grid = QVBoxLayout()
-        grid.setSpacing(6)
-
+        chips = QWidget()
+        chips.setStyleSheet("background: transparent;")
+        flow = FlowLayout(chips, margin=0, hSpacing=6, vSpacing=6)
         for name, params in presets:
             btn = QPushButton(name)
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            btn.setStyleSheet(f"""
-                QPushButton {{
-                    background: {Colors.BG_ELEVATED};
-                    border: 1px solid {Colors.BORDER_DEFAULT};
-                    border-radius: 6px;
-                    padding: 8px;
-                    color: {Colors.TEXT_SECONDARY};
-                    font-size: {Typography.SIZE_CONTROL}px;
-                }}
-                QPushButton:hover {{
-                    background: {Colors.SURFACE_HOVER};
-                    border: 1px solid {Colors.ACCENT_PRIMARY};
-                    color: {Colors.TEXT_PRIMARY};
-                }}
-            """)
-            btn.clicked.connect(lambda checked, p=params: self._apply_preset(p))
-            grid.addWidget(btn)
-
-        layout.addLayout(grid)
+            btn.setToolTip(f"Appliquer le préréglage « {name} » au style édité")
+            btn.clicked.connect(lambda checked=False, p=params: self._apply_preset(p))
+            flow.addWidget(btn)
+        layout.addWidget(chips)
 
     def _apply_preset(self, params: dict):
         """Apply a set of parameters to the UI."""
