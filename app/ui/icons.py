@@ -777,6 +777,21 @@ ICONS = {
           <path d="m18 15-6-6-6 6" />
         </svg>
     """,
+    "check.svg": """
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M20 6 9 17l-5-5" />
+        </svg>
+    """,
     "chevron-down.svg": """
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -954,6 +969,29 @@ def app_icon(name: str, color: str | None = None) -> QIcon:
         pixmap.loadFromData(tinted.encode("utf-8"))
         icon.addPixmap(pixmap)
     return icon
+
+
+def icon_file(name: str, color: str, stroke_width: float | None = None) -> str:
+    """Write a tinted Lucide icon to the cache and return its path for QSS.
+
+    Style sheets reference sub-control images (check marks, combo arrows) by
+    file URL, so the SVG is materialised once per colour.
+    """
+    import hashlib
+    import tempfile
+
+    svg = ICONS[name].replace("currentColor", color)
+    if stroke_width is not None:
+        svg = svg.replace('stroke-width="2"', f'stroke-width="{stroke_width}"')
+    digest = hashlib.sha1(svg.encode("utf-8")).hexdigest()[:12]
+    cache = Path(tempfile.gettempdir()) / "project-on-icons"
+    target = cache / f"{Path(name).stem}-{digest}.svg"
+    if not target.exists():
+        cache.mkdir(parents=True, exist_ok=True)
+        tmp = target.with_suffix(".tmp")
+        tmp.write_text(svg.strip(), encoding="utf-8")
+        tmp.replace(target)
+    return target.as_posix()
 
 
 def app_logo_icon() -> QIcon:

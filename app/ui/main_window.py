@@ -8,11 +8,10 @@ import time
 from pathlib import Path
 
 from PySide6.QtCore import QEvent, QObject, Qt, QTimer
-from PySide6.QtGui import QColor, QKeySequence, QShortcut
+from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
     QDialog,
-    QGraphicsDropShadowEffect,
     QLineEdit,
     QMainWindow,
     QMessageBox,
@@ -34,11 +33,14 @@ from app.ui.theme import (
     Colors,
     Radius,
     Spacing,
+    build_app_stylesheet,
     get_main_window_style,
-    get_theme,
     get_splitter_style,
     set_theme,
+    set_window_backdrop,
+    window_backdrop_enabled,
 )
+from app.ui.window_effects import apply_mica, prepare_for_mica
 from app.utils.app_paths import (
     app_db_path,
     data_dir,
@@ -69,6 +71,8 @@ class MainWindow(QMainWindow):
         set_language(self._settings.appearance.language)
 
         self.setWindowTitle(f"Project-On v{__version__}")
+        if window_backdrop_enabled():
+            prepare_for_mica(self)
 
         self.setWindowIcon(app_logo_icon())
         self.setStyleSheet(get_main_window_style())
@@ -140,21 +144,6 @@ class MainWindow(QMainWindow):
         self.preview_panel.set_presentation_dir(presentation_dir)
         self.preview_panel.set_media_hub(self._media_hub)
 
-        # Keep panel separation subtle so the library and preview remain the
-        # visual focus in both themes.
-        is_light_theme = get_theme() == "light"
-        for panel in (self.library_panel, self.preview_panel):
-            shadow = QGraphicsDropShadowEffect(self)
-            shadow.setBlurRadius(18 if is_light_theme else 22)
-            shadow.setXOffset(0)
-            shadow.setYOffset(2 if is_light_theme else 3)
-            shadow.setColor(
-                QColor(15, 23, 42, 25)
-                if is_light_theme
-                else QColor(2, 6, 14, 85)
-            )
-            panel.setGraphicsEffect(shadow)
-
         splitter.addWidget(self.library_panel)
         splitter.addWidget(self.preview_panel)
 
@@ -176,7 +165,7 @@ class MainWindow(QMainWindow):
             QFrame#StatusBar {{
                 background: {Colors.BG_TERTIARY};
                 border: 1px solid {Colors.BORDER_SUBTLE};
-                border-radius: 12px;
+                border-radius: {Radius.LG}px;
                 color: {Colors.TEXT_SECONDARY};
                 min-height: 28px;
             }}
@@ -372,8 +361,26 @@ class MainWindow(QMainWindow):
         else:
             self.resize(1400, 820)
 
+    def event(self, event) -> bool:
+        # Changing window flags recreates the native window, which drops the
+        # DWM backdrop: re-apply it to the new handle.
+        if event.type() == QEvent.Type.WinIdChange and window_backdrop_enabled():
+            QTimer.singleShot(0, self._apply_backdrop)
+        return super().event(event)
+
+    def _apply_backdrop(self) -> None:
+        if not window_backdrop_enabled() or apply_mica(self):
+            return
+        # No backdrop after all: fall back to the opaque window base.
+        set_window_backdrop(False)
+        self.setStyleSheet(get_main_window_style())
+        app = QApplication.instance()
+        if app is not None:
+            app.setStyleSheet(build_app_stylesheet())
+
     def showEvent(self, event) -> None:
         super().showEvent(event)
+        self._apply_backdrop()
         if not getattr(self, "_startup_feedback_scheduled", False):
             self._startup_feedback_scheduled = True
             QTimer.singleShot(0, self._show_startup_warning)

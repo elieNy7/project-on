@@ -1,7 +1,7 @@
 """Centralized theme system for Project-On.
 
-A refined, premium design language for a church presentation
-application. Deep obsidian tones with warm gold accents — reverent, cinematic and modern.
+Fluent design language (Windows 11): calm layered surfaces, 4/8 px corner
+radii, Segoe UI Variable, and Project-On's warm gold as the accent colour.
 """
 
 from __future__ import annotations
@@ -26,237 +26,191 @@ def get_theme() -> str:
 
 
 class Colors:
-    """Application color palette — Premium Dark Mode with Cinematic Accents.
+    """Application color tokens — Fluent (Windows 11) surfaces, gold accent.
 
-    Default values are the Dark theme. _apply_palette() overwrites them
-    at startup so code always reads from Colors.* without branching.
+    Attribute values are assigned by _apply_palette() from _DARK_PALETTE or
+    _LIGHT_PALETTE, so code always reads Colors.* without branching.
+
+    Surface ladder (WinUI 3 naming in brackets):
+      WINDOW_BG      window base, shows Mica when enabled [SolidBackgroundBase]
+      BG_PRIMARY     opaque window base colour [SolidBackgroundBase]
+      BG_SECONDARY   content layer / panels [LayerFillDefault]
+      BG_CARD        cards [CardBackgroundFillDefault]
+      BG_ELEVATED    flyouts, menus, popups [AcrylicInAppFillDefault]
+      BG_SURFACE     rest state of controls [ControlFillDefault]
+      BG_INPUT*      text inputs [TextControlFill*]
     """
 
-    # ── Base backgrounds ──────────────────────────────────────────────
-    BG_PRIMARY = "#04070d"
-    BG_SECONDARY = "#090f1a"
-    BG_TERTIARY = "#0f1928"
-    BG_ELEVATED = "#152234"
-    BG_SURFACE = "#1d2d42"
-    BG_CARD = "#0d1622"
-    BG_INPUT = "#0c1521"
-    BG_INPUT_HOVER = "#121e2f"
-    BG_INPUT_FOCUS = "#142234"
-    BG_TOOLTIP = "#182a3e"
-
-    # ── Glass morphism ────────────────────────────────────────────────
-    GLASS_LIGHT = "rgba(203, 213, 225, 0.035)"
-    GLASS_MEDIUM = "rgba(203, 213, 225, 0.07)"
-    GLASS_HEAVY = "rgba(203, 213, 225, 0.12)"
-    GLASS_ACCENT = "rgba(236, 182, 97, 0.08)"
-    GLASS_ACCENT_STRONG = "rgba(236, 182, 97, 0.15)"
-
-    # ── Surfaces ──────────────────────────────────────────────────────
-    SURFACE = "#0f1928"
-    SURFACE_HOVER = "#15283e"
-    SURFACE_ACTIVE = "#1c3250"
-    SURFACE_RAISED = "#223a58"
-
-    # ── Text ──────────────────────────────────────────────────────────
-    TEXT_PRIMARY = "#f2f5f9"
-    TEXT_SECONDARY = "#bcc8d8"
-    TEXT_MUTED = "#8296ac"
-    TEXT_DISABLED = "#4d6075"
-    TEXT_PLACEHOLDER = "#5d7288"
-
-    # ── Accents ───────────────────────────────────────────────────────
-    ACCENT_PRIMARY = "#ecb661"
-    ACCENT_LIGHT = "#f8dd9d"
-    ACCENT_DARK = "#c6922f"
-    ACCENT_GLOW = "rgba(236, 182, 97, 0.10)"
-    ACCENT_GLOW_STRONG = "rgba(236, 182, 97, 0.22)"
-    ACCENT_GRADIENT_START = "#d9a541"
-    ACCENT_GRADIENT_END = "#f3cd78"
-
-    ACCENT_SECONDARY = "#6db4ff"
-    ACCENT_SECONDARY_GLOW = "rgba(109, 180, 255, 0.12)"
-
-    ACCENT_SUCCESS = "#4ade80"
-    ACCENT_SUCCESS_GLOW = "rgba(74, 222, 128, 0.12)"
-    ACCENT_WARNING = "#f6ad55"
-    ACCENT_WARNING_GLOW = "rgba(246, 173, 85, 0.12)"
-    ACCENT_DANGER = "#fb7185"
-    ACCENT_DANGER_GLOW = "rgba(251, 113, 133, 0.12)"
-
-    # ── Source colors ─────────────────────────────────────────────────
-    SRC_BIBLE = "#4ade80"
-    SRC_SERMON = "#f6ad55"
-    SRC_HYMN = "#c4a7ff"
-    SRC_CUSTOM = "#5cb8ff"
-    SRC_IMAGE = "#7a8fa8"
-
-    # ── Borders ───────────────────────────────────────────────────────
-    BORDER_SUBTLE = "rgba(148, 163, 184, 0.09)"
-    BORDER_DEFAULT = "rgba(148, 163, 184, 0.15)"
-    BORDER_HOVER = "rgba(203, 213, 225, 0.26)"
-    BORDER_FOCUS = "#6db4ff"
-    BORDER_ACCENT = "rgba(236, 182, 97, 0.32)"
-
-    # ── Gradients ─────────────────────────────────────────────────────
-    MAIN_GRADIENT_START = "#03060b"
-    MAIN_GRADIENT_MID = "#060e1a"
-    MAIN_GRADIENT_END = "#0a1424"
-    PANEL_GRADIENT_END = "#071020"
-    SIDEBAR_GRADIENT_START = "#0c1828"
-    SIDEBAR_GRADIENT_END = "#090f1a"
-    CARD_GRADIENT_START = "#0d1622"
-    CARD_GRADIENT_END = "#0b121d"
-
-    # ── Shadows ───────────────────────────────────────────────────────
-    SHADOW_COLOR = "rgba(0, 0, 0, 0.50)"
-    SHADOW_COLOR_LIGHT = "rgba(0, 0, 0, 0.25)"
-
-    # ── Misc ──────────────────────────────────────────────────────────
-    SCROLLBAR_HANDLE = "rgba(148, 163, 184, 0.28)"
-    PROJECT_BUTTON_TEXT = "#04070d"
-    APP_STYLESHEET_NAME = "dark"
+    SHADOW_COLOR = "rgba(0, 0, 0, 0.26)"
+    SHADOW_COLOR_LIGHT = "rgba(0, 0, 0, 0.14)"
 
 
+# Opaque equivalents of the WinUI 3 alpha fills composited on the base colour,
+# so tokens stay valid inside QPainter code and nested widgets.
 _DARK_PALETTE = {
-    "BG_PRIMARY": "#04070d",
-    "BG_SECONDARY": "#090f1a",
-    "BG_TERTIARY": "#0f1928",
-    "BG_ELEVATED": "#152234",
-    "BG_SURFACE": "#1d2d42",
-    "BG_CARD": "#0d1622",
-    "BG_INPUT": "#0c1521",
-    "BG_INPUT_HOVER": "#121e2f",
-    "BG_INPUT_FOCUS": "#142234",
-    "BG_TOOLTIP": "#182a3e",
-    "GLASS_LIGHT": "rgba(203, 213, 225, 0.035)",
-    "GLASS_MEDIUM": "rgba(203, 213, 225, 0.07)",
-    "GLASS_HEAVY": "rgba(203, 213, 225, 0.12)",
-    "GLASS_ACCENT": "rgba(236, 182, 97, 0.08)",
-    "GLASS_ACCENT_STRONG": "rgba(236, 182, 97, 0.15)",
-    "SURFACE": "#0f1928",
-    "SURFACE_HOVER": "#15283e",
-    "SURFACE_ACTIVE": "#1c3250",
-    "SURFACE_RAISED": "#223a58",
-    "TEXT_PRIMARY": "#f2f5f9",
-    "TEXT_SECONDARY": "#bcc8d8",
-    "TEXT_MUTED": "#8296ac",
-    "TEXT_DISABLED": "#4d6075",
-    "TEXT_PLACEHOLDER": "#5d7288",
-    "ACCENT_PRIMARY": "#ecb661",
-    "ACCENT_LIGHT": "#f8dd9d",
-    "ACCENT_DARK": "#c6922f",
-    "ACCENT_GLOW": "rgba(236, 182, 97, 0.10)",
-    "ACCENT_GLOW_STRONG": "rgba(236, 182, 97, 0.22)",
-    "ACCENT_GRADIENT_START": "#d9a541",
-    "ACCENT_GRADIENT_END": "#f3cd78",
-    "ACCENT_SECONDARY": "#6db4ff",
-    "ACCENT_SECONDARY_GLOW": "rgba(109, 180, 255, 0.12)",
-    "ACCENT_SUCCESS": "#4ade80",
-    "ACCENT_SUCCESS_GLOW": "rgba(74, 222, 128, 0.12)",
-    "ACCENT_WARNING": "#f6ad55",
-    "ACCENT_WARNING_GLOW": "rgba(246, 173, 85, 0.12)",
-    "ACCENT_DANGER": "#fb7185",
-    "ACCENT_DANGER_GLOW": "rgba(251, 113, 133, 0.12)",
-    "SRC_BIBLE": "#4ade80",
-    "SRC_SERMON": "#f6ad55",
-    "SRC_HYMN": "#c4a7ff",
-    "SRC_CUSTOM": "#6db4ff",
-    "SRC_IMAGE": "#8296ac",
-    "BORDER_SUBTLE": "rgba(148, 163, 184, 0.09)",
-    "BORDER_DEFAULT": "rgba(148, 163, 184, 0.15)",
-    "BORDER_HOVER": "rgba(203, 213, 225, 0.26)",
-    "BORDER_FOCUS": "#6db4ff",
-    "BORDER_ACCENT": "rgba(236, 182, 97, 0.32)",
-    "SHADOW_SM": "0 2px 8px rgba(0, 0, 0, 0.35)",
-    "SHADOW_MD": "0 8px 32px rgba(0, 0, 0, 0.50)",
-    "SHADOW_LG": "0 24px 64px rgba(0, 0, 0, 0.65)",
-    "SHADOW_ACCENT": "0 4px 20px rgba(236, 182, 97, 0.15)",
-    "MAIN_GRADIENT_START": "#03060b",
-    "MAIN_GRADIENT_MID": "#060e1a",
-    "MAIN_GRADIENT_END": "#0a1424",
-    "PANEL_GRADIENT_END": "#071020",
-    "SIDEBAR_GRADIENT_START": "#0c1828",
-    "SIDEBAR_GRADIENT_END": "#090f1a",
-    "CARD_GRADIENT_START": "#0d1622",
-    "CARD_GRADIENT_END": "#0b121d",
-    "SCROLLBAR_HANDLE": "rgba(148, 163, 184, 0.28)",
-    "PROJECT_BUTTON_TEXT": "#04070d",
+    "WINDOW_BG": "#202020",
+    "BG_PRIMARY": "#202020",
+    "BG_SECONDARY": "#272727",
+    "BG_TERTIARY": "#2c2c2c",
+    "BG_ELEVATED": "#2c2c2c",
+    "BG_SURFACE": "#2d2d2d",
+    "BG_CARD": "#2b2b2b",
+    "BG_INPUT": "#2d2d2d",
+    "BG_INPUT_HOVER": "#323232",
+    "BG_INPUT_FOCUS": "#1f1f1f",
+    "BG_TOOLTIP": "#2c2c2c",
+    "GLASS_LIGHT": "rgba(255, 255, 255, 0.035)",
+    "GLASS_MEDIUM": "rgba(255, 255, 255, 0.06)",
+    "GLASS_HEAVY": "rgba(255, 255, 255, 0.09)",
+    "GLASS_ACCENT": "rgba(240, 190, 100, 0.08)",
+    "GLASS_ACCENT_STRONG": "rgba(240, 190, 100, 0.15)",
+    "SURFACE": "#2b2b2b",
+    "SURFACE_HOVER": "#323232",
+    "SURFACE_ACTIVE": "#383838",
+    "SURFACE_RAISED": "#3c3c3c",
+    "TEXT_PRIMARY": "#ffffff",
+    "TEXT_SECONDARY": "#c8c8c8",
+    "TEXT_MUTED": "#9d9d9d",
+    "TEXT_DISABLED": "#5d5d5d",
+    "TEXT_PLACEHOLDER": "#8b8b8b",
+    "ACCENT_PRIMARY": "#f0be64",
+    "ACCENT_LIGHT": "#f7d48f",
+    "ACCENT_DARK": "#d9a441",
+    "ACCENT_GLOW": "rgba(240, 190, 100, 0.10)",
+    "ACCENT_GLOW_STRONG": "rgba(240, 190, 100, 0.20)",
+    "ACCENT_GRADIENT_START": "#f0be64",
+    "ACCENT_GRADIENT_END": "#f0be64",
+    "ACCENT_SECONDARY": "#60cdff",
+    "ACCENT_SECONDARY_GLOW": "rgba(96, 205, 255, 0.12)",
+    "ACCENT_SUCCESS": "#6ccb5f",
+    "ACCENT_SUCCESS_GLOW": "rgba(108, 203, 95, 0.12)",
+    "ACCENT_WARNING": "#fce100",
+    "ACCENT_WARNING_GLOW": "rgba(252, 225, 0, 0.12)",
+    "ACCENT_DANGER": "#ff99a4",
+    "ACCENT_DANGER_GLOW": "rgba(255, 153, 164, 0.12)",
+    "SRC_BIBLE": "#6ccb5f",
+    "SRC_SERMON": "#f7a35c",
+    "SRC_HYMN": "#c7a6ff",
+    "SRC_CUSTOM": "#60cdff",
+    "SRC_IMAGE": "#9d9d9d",
+    "BORDER_SUBTLE": "rgba(255, 255, 255, 0.055)",
+    "BORDER_DEFAULT": "rgba(255, 255, 255, 0.085)",
+    "BORDER_HOVER": "rgba(255, 255, 255, 0.16)",
+    "BORDER_FOCUS": "#f0be64",
+    "BORDER_STRONG": "rgba(255, 255, 255, 0.45)",
+    "SLIDER_THUMB": "#454545",
+    "BORDER_ACCENT": "rgba(240, 190, 100, 0.40)",
+    "SHADOW_SM": "0 2px 4px rgba(0, 0, 0, 0.26)",
+    "SHADOW_MD": "0 8px 16px rgba(0, 0, 0, 0.26)",
+    "SHADOW_LG": "0 32px 64px rgba(0, 0, 0, 0.37)",
+    "SHADOW_ACCENT": "0 4px 12px rgba(240, 190, 100, 0.15)",
+    "MAIN_GRADIENT_START": "#202020",
+    "MAIN_GRADIENT_MID": "#202020",
+    "MAIN_GRADIENT_END": "#202020",
+    "PANEL_GRADIENT_END": "#272727",
+    "SIDEBAR_GRADIENT_START": "#202020",
+    "SIDEBAR_GRADIENT_END": "#202020",
+    "CARD_GRADIENT_START": "#2b2b2b",
+    "CARD_GRADIENT_END": "#2b2b2b",
+    "SCROLLBAR_HANDLE": "rgba(255, 255, 255, 0.36)",
+    "PROJECT_BUTTON_TEXT": "#1a1a1a",
     "APP_STYLESHEET_NAME": "dark",
 }
 
 _LIGHT_PALETTE = {
-    # ── Ivory + navy: bright, calm work surfaces with a restrained gold accent.
-    "BG_PRIMARY": "#f5f5f1",
-    "BG_SECONDARY": "#fbfbf8",
-    "BG_TERTIARY": "#eef0f3",
-    "BG_ELEVATED": "#ffffff",
-    "BG_SURFACE": "#e9edf1",
-    "BG_CARD": "#ffffff",
-    "BG_INPUT": "#ffffff",
-    "BG_INPUT_HOVER": "#f4f6f8",
+    "WINDOW_BG": "#f3f3f3",
+    "BG_PRIMARY": "#f3f3f3",
+    "BG_SECONDARY": "#f9f9f9",
+    "BG_TERTIARY": "#f6f6f6",
+    "BG_ELEVATED": "#fcfcfc",
+    "BG_SURFACE": "#fbfbfb",
+    "BG_CARD": "#fbfbfb",
+    "BG_INPUT": "#fbfbfb",
+    "BG_INPUT_HOVER": "#f6f6f6",
     "BG_INPUT_FOCUS": "#ffffff",
-    "BG_TOOLTIP": "#172033",
-    "GLASS_LIGHT": "rgba(30, 41, 59, 0.025)",
-    "GLASS_MEDIUM": "rgba(30, 41, 59, 0.055)",
-    "GLASS_HEAVY": "rgba(30, 41, 59, 0.10)",
-    "GLASS_ACCENT": "rgba(139, 100, 22, 0.08)",
-    "GLASS_ACCENT_STRONG": "rgba(139, 100, 22, 0.15)",
-    "SURFACE": "#eef0f3",
-    "SURFACE_HOVER": "#e6eaf0",
-    "SURFACE_ACTIVE": "#dfe5ed",
-    "SURFACE_RAISED": "#d6dee8",
-    "TEXT_PRIMARY": "#1e293b",
-    "TEXT_SECONDARY": "#38465a",
-    "TEXT_MUTED": "#59677a",
-    "TEXT_DISABLED": "#667085",
-    "TEXT_PLACEHOLDER": "#5c6879",
-    "ACCENT_PRIMARY": "#8b6416",
-    "ACCENT_LIGHT": "#805a12",
-    "ACCENT_DARK": "#6e4c10",
-    "ACCENT_GLOW": "rgba(139, 100, 22, 0.09)",
-    "ACCENT_GLOW_STRONG": "rgba(139, 100, 22, 0.17)",
-    "ACCENT_GRADIENT_START": "#79550e",
-    "ACCENT_GRADIENT_END": "#96701f",
-    "ACCENT_SECONDARY": "#285f99",
-    "ACCENT_SECONDARY_GLOW": "rgba(40, 95, 153, 0.10)",
-    "ACCENT_SUCCESS": "#1d7047",
-    "ACCENT_SUCCESS_GLOW": "rgba(29, 112, 71, 0.10)",
-    "ACCENT_WARNING": "#8c510c",
-    "ACCENT_WARNING_GLOW": "rgba(140, 81, 12, 0.10)",
-    "ACCENT_DANGER": "#b42318",
-    "ACCENT_DANGER_GLOW": "rgba(180, 35, 24, 0.10)",
-    "SRC_BIBLE": "#1d7047",
-    "SRC_SERMON": "#8c510c",
+    "BG_TOOLTIP": "#f9f9f9",
+    "GLASS_LIGHT": "rgba(0, 0, 0, 0.024)",
+    "GLASS_MEDIUM": "rgba(0, 0, 0, 0.045)",
+    "GLASS_HEAVY": "rgba(0, 0, 0, 0.075)",
+    "GLASS_ACCENT": "rgba(138, 96, 16, 0.08)",
+    "GLASS_ACCENT_STRONG": "rgba(138, 96, 16, 0.15)",
+    "SURFACE": "#fbfbfb",
+    "SURFACE_HOVER": "#f0f0f0",
+    "SURFACE_ACTIVE": "#e8e8e8",
+    "SURFACE_RAISED": "#e2e2e2",
+    "TEXT_PRIMARY": "#1b1b1b",
+    "TEXT_SECONDARY": "#474747",
+    "TEXT_MUTED": "#666666",
+    "TEXT_DISABLED": "#a0a0a0",
+    "TEXT_PLACEHOLDER": "#707070",
+    "ACCENT_PRIMARY": "#8a6010",
+    "ACCENT_LIGHT": "#76520e",
+    "ACCENT_DARK": "#6a4a0c",
+    "ACCENT_GLOW": "rgba(138, 96, 16, 0.09)",
+    "ACCENT_GLOW_STRONG": "rgba(138, 96, 16, 0.17)",
+    "ACCENT_GRADIENT_START": "#8a6010",
+    "ACCENT_GRADIENT_END": "#8a6010",
+    "ACCENT_SECONDARY": "#005fb8",
+    "ACCENT_SECONDARY_GLOW": "rgba(0, 95, 184, 0.10)",
+    "ACCENT_SUCCESS": "#0f7b0f",
+    "ACCENT_SUCCESS_GLOW": "rgba(15, 123, 15, 0.10)",
+    "ACCENT_WARNING": "#9d5d00",
+    "ACCENT_WARNING_GLOW": "rgba(157, 93, 0, 0.10)",
+    "ACCENT_DANGER": "#c42b1c",
+    "ACCENT_DANGER_GLOW": "rgba(196, 43, 28, 0.10)",
+    "SRC_BIBLE": "#0f7b0f",
+    "SRC_SERMON": "#9d5d00",
     "SRC_HYMN": "#6d4bac",
-    "SRC_CUSTOM": "#285f99",
-    "SRC_IMAGE": "#59677a",
-    "BORDER_SUBTLE": "rgba(30, 41, 59, 0.09)",
-    "BORDER_DEFAULT": "rgba(30, 41, 59, 0.16)",
-    "BORDER_HOVER": "rgba(30, 41, 59, 0.27)",
-    "BORDER_FOCUS": "#285f99",
-    "BORDER_ACCENT": "rgba(139, 100, 22, 0.40)",
-    "SHADOW_SM": "0 2px 8px rgba(30, 41, 59, 0.08)",
-    "SHADOW_MD": "0 8px 24px rgba(30, 41, 59, 0.10)",
-    "SHADOW_LG": "0 20px 48px rgba(30, 41, 59, 0.13)",
-    "SHADOW_ACCENT": "0 4px 18px rgba(139, 100, 22, 0.12)",
-    "MAIN_GRADIENT_START": "#f0f1ed",
-    "MAIN_GRADIENT_MID": "#f5f5f1",
-    "MAIN_GRADIENT_END": "#fafaf7",
-    "PANEL_GRADIENT_END": "#fbfbf8",
-    "SIDEBAR_GRADIENT_START": "#ffffff",
-    "SIDEBAR_GRADIENT_END": "#f2f3ef",
-    "CARD_GRADIENT_START": "#ffffff",
-    "CARD_GRADIENT_END": "#fbfbf8",
-    "SCROLLBAR_HANDLE": "rgba(30, 41, 59, 0.25)",
+    "SRC_CUSTOM": "#005fb8",
+    "SRC_IMAGE": "#666666",
+    "BORDER_SUBTLE": "rgba(0, 0, 0, 0.058)",
+    "BORDER_DEFAULT": "rgba(0, 0, 0, 0.09)",
+    "BORDER_HOVER": "rgba(0, 0, 0, 0.16)",
+    "BORDER_FOCUS": "#8a6010",
+    "BORDER_STRONG": "rgba(0, 0, 0, 0.45)",
+    "SLIDER_THUMB": "#ffffff",
+    "BORDER_ACCENT": "rgba(138, 96, 16, 0.40)",
+    "SHADOW_SM": "0 2px 4px rgba(0, 0, 0, 0.14)",
+    "SHADOW_MD": "0 8px 16px rgba(0, 0, 0, 0.14)",
+    "SHADOW_LG": "0 32px 64px rgba(0, 0, 0, 0.19)",
+    "SHADOW_ACCENT": "0 4px 12px rgba(138, 96, 16, 0.12)",
+    "MAIN_GRADIENT_START": "#f3f3f3",
+    "MAIN_GRADIENT_MID": "#f3f3f3",
+    "MAIN_GRADIENT_END": "#f3f3f3",
+    "PANEL_GRADIENT_END": "#f9f9f9",
+    "SIDEBAR_GRADIENT_START": "#f3f3f3",
+    "SIDEBAR_GRADIENT_END": "#f3f3f3",
+    "CARD_GRADIENT_START": "#fbfbfb",
+    "CARD_GRADIENT_END": "#fbfbfb",
+    "SCROLLBAR_HANDLE": "rgba(0, 0, 0, 0.38)",
     "PROJECT_BUTTON_TEXT": "#ffffff",
     "APP_STYLESHEET_NAME": "light",
 }
+
+
+_window_backdrop = False
 
 
 def _apply_palette(theme: str) -> None:
     palette = _LIGHT_PALETTE if theme == "light" else _DARK_PALETTE
     for key, value in palette.items():
         setattr(Colors, key, value)
+    if _window_backdrop:
+        Colors.WINDOW_BG = "transparent"
+
+
+def set_window_backdrop(translucent: bool) -> None:
+    """Let the main window base show the system backdrop (Mica)."""
+    global _window_backdrop
+    _window_backdrop = bool(translucent)
+    _apply_palette(_current_theme)
+
+
+def window_backdrop_enabled() -> bool:
+    return _window_backdrop
+
+
+_apply_palette(_current_theme)
 
 
 class Spacing:
@@ -275,15 +229,15 @@ class Spacing:
 
 
 class Radius:
-    """Border radius scale (px)."""
+    """Corner radii — Fluent uses 4 px for controls and 8 px for cards/overlays."""
 
     NONE = 0
-    XS = 4
-    SM = 8
-    MD = 12
-    LG = 14
-    XL = 18
-    XXL = 24
+    XS = 2
+    SM = 4
+    MD = 4
+    LG = 8
+    XL = 8
+    XXL = 12
     FULL = 9999
 
 
@@ -295,8 +249,9 @@ class Typography:
     body copy, compact filters, and deliberately quiet numerical metadata.
     """
 
-    PRIMARY_FAMILY = "'Poppins', 'Segoe UI', sans-serif"
-    FAMILY = "Poppins"
+    # Segoe UI Variable ships with Windows 11; Qt falls back to Segoe UI on 10.
+    PRIMARY_FAMILY = "'Segoe UI Variable Text', 'Segoe UI', sans-serif"
+    FAMILY = "Segoe UI Variable Text"
 
     SIZE_2XS = 10
     SIZE_2XS_PT = 7
@@ -357,7 +312,7 @@ class Shadows:
 
     @staticmethod
     def accent() -> str:
-        return f"0 4px 20px rgba(236, 182, 97, 0.15)"
+        return Colors.SHADOW_ACCENT
 
     @staticmethod
     def inset() -> str:
@@ -373,20 +328,17 @@ def _scrollbar_v() -> str:
     return f"""
         QScrollBar:vertical {{
             background: transparent;
-            width: 10px;
-            margin: 6px 2px;
-            border-radius: 5px;
+            width: 8px;
+            margin: 4px 2px;
         }}
         QScrollBar::handle:vertical {{
             background: {Colors.SCROLLBAR_HANDLE};
-            border-radius: 5px;
+            border-radius: 2px;
             min-height: 40px;
         }}
-        QScrollBar::handle:vertical:hover {{
-            background: {Colors.ACCENT_PRIMARY};
-        }}
+        QScrollBar::handle:vertical:hover,
         QScrollBar::handle:vertical:pressed {{
-            background: {Colors.ACCENT_DARK};
+            background: {Colors.TEXT_MUTED};
         }}
         QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
             height: 0;
@@ -401,21 +353,17 @@ def _scrollbar_h() -> str:
     return f"""
         QScrollBar:horizontal {{
             background: transparent;
-            height: 10px;
-            margin: 2px 6px;
-            border-radius: 5px;
+            height: 8px;
+            margin: 2px 4px;
         }}
         QScrollBar::handle:horizontal {{
             background: {Colors.SCROLLBAR_HANDLE};
-            border-radius: 5px;
+            border-radius: 2px;
             min-width: 56px;
         }}
-        QScrollBar::handle:horizontal:hover {{
-            background: {Colors.ACCENT_PRIMARY};
-        }}
-
+        QScrollBar::handle:horizontal:hover,
         QScrollBar::handle:horizontal:pressed {{
-            background: {Colors.ACCENT_DARK};
+            background: {Colors.TEXT_MUTED};
         }}
         QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
             width: 0;
@@ -427,11 +375,11 @@ def _scrollbar_h() -> str:
 
 
 def _tooltip_bg() -> str:
-    return "#ffffff" if Colors.APP_STYLESHEET_NAME == "light" else Colors.BG_TOOLTIP
+    return Colors.BG_TOOLTIP
 
 
 def _tooltip_text() -> str:
-    return "#111827" if Colors.APP_STYLESHEET_NAME == "light" else Colors.TEXT_PRIMARY
+    return Colors.TEXT_PRIMARY
 
 
 def color_with_alpha(color: str, alpha: int) -> QColor:
@@ -440,23 +388,29 @@ def color_with_alpha(color: str, alpha: int) -> QColor:
     return qcolor
 
 
+def _argb(color: QColor) -> str:
+    return color.name(QColor.NameFormat.HexArgb)
+
+
 def item_hover_color() -> QColor:
+    # Fluent SubtleFillColorSecondary
     if get_theme() == "light":
-        return color_with_alpha("#172033", 12)
-    return color_with_alpha("#cbd5e1", 14)
+        return color_with_alpha("#000000", 10)
+    return color_with_alpha("#ffffff", 15)
 
 
 def item_selection_color(strong: bool = False) -> QColor:
-    alpha = 38 if get_theme() == "light" else 32
-    if strong:
-        alpha += 12
-    return color_with_alpha(Colors.ACCENT_PRIMARY, alpha)
+    # Fluent list selection is a neutral fill; the accent lives in the
+    # selection pill on the left edge, not in the background.
+    if get_theme() == "light":
+        return color_with_alpha("#000000", 18 if strong else 10)
+    return color_with_alpha("#ffffff", 24 if strong else 15)
 
 
 def item_separator_color() -> QColor:
     if get_theme() == "light":
-        return color_with_alpha("#172033", 18)
-    return color_with_alpha("#94a3b8", 22)
+        return color_with_alpha("#000000", 15)
+    return color_with_alpha("#ffffff", 14)
 
 
 def selected_text_color() -> QColor:
@@ -464,7 +418,7 @@ def selected_text_color() -> QColor:
 
 
 def selected_badge_text_color() -> QColor:
-    return QColor("#ffffff" if get_theme() == "light" else Colors.BG_PRIMARY)
+    return QColor(Colors.PROJECT_BUTTON_TEXT)
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -472,14 +426,100 @@ def selected_badge_text_color() -> QColor:
 # ═══════════════════════════════════════════════════════════════════════
 
 
+def _join(selector: str, state: str) -> str:
+    return ", ".join(f"{part.strip()}{state}" for part in selector.split(","))
+
+
+def _input_rules(selector: str, padding: str) -> str:
+    """Fluent text control: flat fill, stronger bottom stroke, and an accent
+    underline while focused."""
+    return f"""
+        {selector} {{
+            background: {Colors.BG_INPUT};
+            border: 1px solid {Colors.BORDER_DEFAULT};
+            border-bottom: 1px solid {Colors.BORDER_STRONG};
+            border-radius: {Radius.MD}px;
+            padding: {padding};
+            color: {Colors.TEXT_PRIMARY};
+            selection-background-color: {Colors.ACCENT_PRIMARY};
+            selection-color: {Colors.PROJECT_BUTTON_TEXT};
+        }}
+        {_join(selector, ":hover")} {{
+            background: {Colors.BG_INPUT_HOVER};
+        }}
+        {_join(selector, ":focus")} {{
+            background: {Colors.BG_INPUT_FOCUS};
+            border-bottom: 2px solid {Colors.BORDER_FOCUS};
+        }}
+        {_join(selector, ":disabled")} {{
+            color: {Colors.TEXT_DISABLED};
+            border-bottom: 1px solid {Colors.BORDER_DEFAULT};
+        }}
+    """
+
+
+def _button_rules(padding: str, font_size: int) -> str:
+    """Fluent standard button: flat control fill, hairline stroke, regular
+    weight, subtle hover and a dimmed pressed state."""
+    return f"""
+        QPushButton {{
+            background: {Colors.BG_SURFACE};
+            border: 1px solid {Colors.BORDER_DEFAULT};
+            border-radius: {Radius.SM}px;
+            padding: {padding};
+            font-size: {font_size}px;
+            font-weight: {Typography.WEIGHT_NORMAL};
+            color: {Colors.TEXT_PRIMARY};
+        }}
+        QPushButton:hover {{
+            background: {Colors.SURFACE_HOVER};
+        }}
+        QPushButton:pressed {{
+            background: {Colors.BG_SECONDARY};
+            color: {Colors.TEXT_SECONDARY};
+        }}
+        QPushButton:disabled {{
+            background: {Colors.BG_SECONDARY};
+            border: 1px solid {Colors.BORDER_SUBTLE};
+            color: {Colors.TEXT_DISABLED};
+        }}
+    """
+
+
+def _menu_rules() -> str:
+    return f"""
+        QMenu {{
+            background: {Colors.BG_ELEVATED};
+            border: 1px solid {Colors.BORDER_DEFAULT};
+            border-radius: {Radius.LG}px;
+            padding: 4px;
+        }}
+        QMenu::item {{
+            padding: 7px 28px 7px 12px;
+            margin: 1px 0;
+            border-radius: {Radius.SM}px;
+            color: {Colors.TEXT_PRIMARY};
+            font-size: {Typography.SIZE_CONTROL}px;
+        }}
+        QMenu::item:selected {{
+            background: {_argb(item_selection_color())};
+            color: {Colors.TEXT_PRIMARY};
+        }}
+        QMenu::item:disabled {{
+            color: {Colors.TEXT_DISABLED};
+        }}
+        QMenu::separator {{
+            height: 1px;
+            background: {Colors.BORDER_DEFAULT};
+            margin: 4px 0;
+        }}
+    """
+
+
 def get_panel_style() -> str:
     return f"""
         QFrame#Panel {{
-            background: qlineargradient(
-                x1:0, y1:0, x2:1, y2:1,
-                stop:0 {Colors.BG_SECONDARY},
-                stop:1 {Colors.PANEL_GRADIENT_END}
-            );
+            background: {Colors.BG_SECONDARY};
             border: 1px solid {Colors.BORDER_SUBTLE};
             border-radius: {Radius.LG}px;
         }}
@@ -489,11 +529,7 @@ def get_panel_style() -> str:
 def get_card_style() -> str:
     return f"""
         QFrame#Card {{
-            background: qlineargradient(
-                x1:0, y1:0, x2:0, y2:1,
-                stop:0 {Colors.CARD_GRADIENT_START},
-                stop:1 {Colors.CARD_GRADIENT_END}
-            );
+            background: {Colors.BG_CARD};
             border: 1px solid {Colors.BORDER_SUBTLE};
             border-radius: {Radius.LG}px;
         }}
@@ -504,36 +540,35 @@ def get_list_style(
     accent: str = Colors.ACCENT_PRIMARY, borderless: bool = False
 ) -> str:
     if borderless:
-        frame = f"background: transparent;\n            border: none;"
+        frame = "background: transparent;\n            border: none;"
     else:
         frame = (
             f"background: {Colors.BG_SECONDARY};\n"
             f"            border: 1px solid {Colors.BORDER_SUBTLE};\n"
-            f"            border-radius: {Radius.MD}px;"
+            f"            border-radius: {Radius.LG}px;"
         )
     return f"""
         QListWidget {{
             {frame}
             outline: none;
-            padding: 6px;
+            padding: 4px;
         }}
         QListWidget::item {{
-            padding: 8px 12px;
+            padding: 7px 12px 7px 9px;
             border-radius: {Radius.SM}px;
             margin: 1px 2px;
-            color: {Colors.TEXT_SECONDARY};
-            font-size: {Typography.SIZE_MD}px;
-            border: 1px solid transparent;
+            color: {Colors.TEXT_PRIMARY};
+            font-size: {Typography.SIZE_BODY}px;
+            border: none;
+            border-left: 3px solid transparent;
         }}
         QListWidget::item:selected {{
-            background: {Colors.ACCENT_GLOW};
-            color: {Colors.ACCENT_LIGHT};
-            border: 1px solid {Colors.ACCENT_GLOW_STRONG};
-            font-weight: {Typography.WEIGHT_SEMIBOLD};
+            background: {_argb(item_selection_color())};
+            color: {Colors.TEXT_PRIMARY};
+            border-left: 3px solid {Colors.ACCENT_PRIMARY};
         }}
         QListWidget::item:hover:!selected {{
-            background: {Colors.GLASS_MEDIUM};
-            color: {Colors.TEXT_PRIMARY};
+            background: {_argb(item_hover_color())};
         }}
         {_scrollbar_v()}
     """
@@ -544,13 +579,13 @@ def get_tree_style() -> str:
         QTreeView {{
             background: {Colors.BG_SECONDARY};
             border: 1px solid {Colors.BORDER_SUBTLE};
-            border-radius: {Radius.MD}px;
+            border-radius: {Radius.LG}px;
             outline: none;
-            padding: 6px;
+            padding: 4px;
         }}
         QTreeView::item {{
             border-radius: {Radius.SM}px;
-            margin: 2px 0;
+            margin: 1px 0;
             padding: 6px 6px;
             font-size: {Typography.SIZE_BODY}px;
             color: {Colors.TEXT_PRIMARY};
@@ -577,23 +612,9 @@ def get_tree_style() -> str:
 
 def get_input_style() -> str:
     return f"""
+        {_input_rules("QLineEdit", "6px 11px")}
         QLineEdit {{
-            background: {Colors.BG_INPUT};
-            border: 1px solid {Colors.BORDER_DEFAULT};
-            border-radius: {Radius.MD}px;
-            padding: 8px 14px;
             font-size: {Typography.SIZE_FILTER}px;
-            color: {Colors.TEXT_PRIMARY};
-            selection-background-color: {Colors.ACCENT_GLOW_STRONG};
-            selection-color: {Colors.ACCENT_PRIMARY};
-        }}
-        QLineEdit:hover {{
-            background: {Colors.BG_INPUT_HOVER};
-            border-color: {Colors.BORDER_HOVER};
-        }}
-        QLineEdit:focus {{
-            background: {Colors.BG_INPUT_FOCUS};
-            border: 1px solid {Colors.BORDER_FOCUS};
         }}
         QLineEdit::placeholder {{
             color: {Colors.TEXT_PLACEHOLDER};
@@ -602,38 +623,43 @@ def get_input_style() -> str:
 
 
 def get_combo_style() -> str:
+    from app.ui.icons import icon_file
+
+    arrow = icon_file("chevron-down.svg", Colors.TEXT_SECONDARY, stroke_width=1.75)
     return f"""
         QComboBox {{
-            background: {Colors.BG_INPUT};
+            background: {Colors.BG_SURFACE};
             border: 1px solid {Colors.BORDER_DEFAULT};
             border-radius: {Radius.MD}px;
-            padding: 6px 14px;
+            padding: 5px 11px;
             font-size: {Typography.SIZE_FILTER}px;
             color: {Colors.TEXT_PRIMARY};
-            min-height: 26px;
+            min-height: 22px;
         }}
         QComboBox:hover {{
-            background: {Colors.BG_INPUT_HOVER};
-            border-color: {Colors.BORDER_HOVER};
+            background: {Colors.SURFACE_HOVER};
         }}
         QComboBox:focus {{
-            background: {Colors.BG_INPUT_FOCUS};
             border: 1px solid {Colors.BORDER_FOCUS};
+        }}
+        QComboBox:disabled {{
+            color: {Colors.TEXT_DISABLED};
         }}
         QComboBox::drop-down {{
             border: none;
-            width: 24px;
+            width: 28px;
         }}
         QComboBox::down-arrow {{
-            image: none;
-            width: 0;
+            image: url("{arrow}");
+            width: 12px;
+            height: 12px;
         }}
         QComboBox QAbstractItemView {{
             background-color: {Colors.BG_ELEVATED};
             border: 1px solid {Colors.BORDER_DEFAULT};
-            border-radius: {Radius.SM}px;
-            selection-background-color: {Colors.ACCENT_GLOW_STRONG};
-            selection-color: {Colors.ACCENT_PRIMARY};
+            border-radius: {Radius.LG}px;
+            selection-background-color: {_argb(item_selection_color())};
+            selection-color: {Colors.TEXT_PRIMARY};
             color: {Colors.TEXT_PRIMARY};
             outline: none;
             padding: 4px;
@@ -642,84 +668,32 @@ def get_combo_style() -> str:
 
 
 def get_button_style(accent: str = Colors.ACCENT_PRIMARY) -> str:
-    """Flat, professional button style."""
-    return f"""
-        QPushButton {{
-            background: {Colors.BG_SURFACE};
-            border: 1px solid {Colors.BORDER_DEFAULT};
-            border-radius: {Radius.SM}px;
-            padding: 8px {Spacing.LG}px;
-            font-size: {Typography.SIZE_CONTROL}px;
-            font-weight: {Typography.WEIGHT_SEMIBOLD};
-            color: {Colors.TEXT_PRIMARY};
-        }}
-        QPushButton:hover {{
-            background: {Colors.SURFACE_ACTIVE};
-            border-color: {Colors.BORDER_HOVER};
-            color: {Colors.ACCENT_LIGHT};
-        }}
-        QPushButton:pressed {{
-            background: {Colors.BG_ELEVATED};
-        }}
-        QPushButton:disabled {{
-            background: transparent;
-            border: 1px solid {Colors.BORDER_SUBTLE};
-            color: {Colors.TEXT_DISABLED};
-        }}
-    """
+    """Fluent standard button."""
+    return _button_rules(f"6px {Spacing.LG}px", Typography.SIZE_CONTROL)
 
 
 def get_compact_button_style(accent: str = Colors.ACCENT_PRIMARY) -> str:
-    """Bouton compact (28 px) pour les barres d'actions d'onglets.
+    """Bouton compact pour les barres d'actions d'onglets.
 
-    Même contrat visuel que :func:`get_button_style`, en réduit : padding
-    serré et police 11 px — pensé pour les barres à plusieurs boutons.
+    Même contrat visuel que :func:`get_button_style`, en réduit.
     """
-    return f"""
-        QPushButton {{
-            background: {Colors.BG_SURFACE};
-            border: 1px solid {Colors.BORDER_DEFAULT};
-            border-radius: {Radius.SM}px;
-            padding: 4px 10px;
-            font-size: {Typography.SIZE_XS}px;
-            font-weight: {Typography.WEIGHT_SEMIBOLD};
-            color: {Colors.TEXT_PRIMARY};
-        }}
-        QPushButton:hover {{
-            background: {Colors.SURFACE_ACTIVE};
-            border-color: {Colors.BORDER_HOVER};
-            color: {Colors.ACCENT_LIGHT};
-        }}
-        QPushButton:pressed {{
-            background: {Colors.BG_ELEVATED};
-        }}
-        QPushButton:disabled {{
-            background: transparent;
-            border: 1px solid {Colors.BORDER_SUBTLE};
-            color: {Colors.TEXT_DISABLED};
-        }}
-    """
+    return _button_rules("4px 10px", Typography.SIZE_META)
 
 
 def get_accent_button_style() -> str:
-    """Primary accent button with gradient."""
+    """Fluent accent button: solid accent fill, contrasting text."""
     return f"""
         QPushButton {{
-            background: qlineargradient(
-                x1:0, y1:0, x2:1, y2:0,
-                stop:0 {Colors.ACCENT_GRADIENT_START},
-                stop:1 {Colors.ACCENT_GRADIENT_END}
-            );
+            background: {Colors.ACCENT_PRIMARY};
             border: 1px solid {Colors.ACCENT_DARK};
             border-radius: {Radius.SM}px;
-            padding: 8px {Spacing.LG}px;
+            padding: 6px {Spacing.LG}px;
             font-size: {Typography.SIZE_CONTROL}px;
-            font-weight: {Typography.WEIGHT_BOLD};
+            font-weight: {Typography.WEIGHT_SEMIBOLD};
             color: {Colors.PROJECT_BUTTON_TEXT};
         }}
         QPushButton:hover {{
             background: {Colors.ACCENT_LIGHT};
-            border-color: {Colors.ACCENT_PRIMARY};
         }}
         QPushButton:pressed {{
             background: {Colors.ACCENT_DARK};
@@ -733,25 +707,23 @@ def get_accent_button_style() -> str:
 
 
 def get_icon_button_style(size: int = 32) -> str:
-    radius = Radius.SM if size < 36 else Radius.MD
     return f"""
         QPushButton {{
             background: transparent;
             border: 1px solid transparent;
-            border-radius: {radius}px;
+            border-radius: {Radius.SM}px;
             min-width: {size}px; max-width: {size}px;
             min-height: {size}px; max-height: {size}px;
         }}
         QPushButton:hover {{
             background: {Colors.GLASS_MEDIUM};
-            border: 1px solid {Colors.BORDER_SUBTLE};
         }}
         QPushButton:pressed {{
-            background: {Colors.GLASS_HEAVY};
+            background: {Colors.GLASS_LIGHT};
         }}
         QPushButton:checked {{
             background: {Colors.ACCENT_GLOW};
-            border: 1px solid {Colors.ACCENT_GLOW_STRONG};
+            border: 1px solid {Colors.BORDER_ACCENT};
         }}
     """
 
@@ -763,63 +735,64 @@ def get_splitter_style() -> str:
             margin: 0;
         }}
         QSplitter::handle:horizontal {{
-            width: 2px;
+            width: 4px;
         }}
         QSplitter::handle:vertical {{
-            height: 2px;
+            height: 4px;
         }}
         QSplitter::handle:hover {{
-            background: {Colors.ACCENT_PRIMARY};
+            background: {Colors.BORDER_HOVER};
         }}
     """
 
 
 def get_tab_button_style(active: bool = False) -> str:
+    """Fluent pivot item: the selected label is primary text over a short
+    accent underline; idle items use secondary text."""
     if active:
         return f"""
             QPushButton {{
-                background: {Colors.ACCENT_GLOW};
+                background: transparent;
                 border: none;
-                border-bottom: 2px solid {Colors.ACCENT_PRIMARY};
+                border-bottom: 3px solid {Colors.ACCENT_PRIMARY};
                 border-radius: 0;
-                padding: 10px 16px;
+                padding: 8px 14px;
                 font-size: {Typography.SIZE_CONTROL}px;
                 font-weight: {Typography.WEIGHT_SEMIBOLD};
-                color: {Colors.ACCENT_PRIMARY};
+                color: {Colors.TEXT_PRIMARY};
             }}
         """
     return f"""
         QPushButton {{
             background: transparent;
             border: none;
-            border-bottom: 2px solid transparent;
+            border-bottom: 3px solid transparent;
             border-radius: 0;
-            padding: 10px 16px;
+            padding: 8px 14px;
             font-size: {Typography.SIZE_CONTROL}px;
-            font-weight: {Typography.WEIGHT_MEDIUM};
-            color: {Colors.TEXT_MUTED};
+            font-weight: {Typography.WEIGHT_NORMAL};
+            color: {Colors.TEXT_SECONDARY};
         }}
         QPushButton:hover {{
-            color: {Colors.TEXT_SECONDARY};
-            background: {Colors.GLASS_MEDIUM};
+            color: {Colors.TEXT_PRIMARY};
         }}
     """
 
 
 def get_header_style() -> str:
-    return f"""
-        QFrame {{
-            background: {Colors.BG_SECONDARY};
+    return """
+        QFrame {
+            background: transparent;
             border: none;
             border-radius: 0;
-        }}
+        }
     """
 
 
-def get_surface_panel_style(radius: int = Radius.MD) -> str:
+def get_surface_panel_style(radius: int = Radius.LG) -> str:
     return f"""
         QFrame {{
-            background: {Colors.BG_TERTIARY};
+            background: {Colors.BG_CARD};
             border: 1px solid {Colors.BORDER_SUBTLE};
             border-radius: {radius}px;
         }}
@@ -828,18 +801,9 @@ def get_surface_panel_style(radius: int = Radius.MD) -> str:
 
 def get_preview_text_style() -> str:
     return f"""
+        {_input_rules("QPlainTextEdit", "10px 12px")}
         QPlainTextEdit {{
-            background-color: {Colors.BG_SECONDARY};
-            border: 1px solid {Colors.BORDER_DEFAULT};
-            border-radius: {Radius.MD}px;
-            padding: 12px;
-            color: {Colors.TEXT_PRIMARY};
-            selection-background-color: {Colors.ACCENT_GLOW_STRONG};
-            selection-color: {Colors.TEXT_PRIMARY};
             placeholder-text-color: {Colors.TEXT_PLACEHOLDER};
-        }}
-        QPlainTextEdit:focus {{
-            border: 1px solid {Colors.BORDER_FOCUS};
         }}
     """
 
@@ -858,8 +822,8 @@ def get_label_style(size: int = Typography.SIZE_LABEL, muted: bool = False) -> s
 def get_title_style() -> str:
     return f"""
         QLabel {{
-            font-size: {Typography.SIZE_TITLE}px;
-            font-weight: {Typography.WEIGHT_BOLD};
+            font-size: {Typography.SIZE_DIALOG_TITLE}px;
+            font-weight: {Typography.WEIGHT_SEMIBOLD};
             color: {Colors.TEXT_PRIMARY};
             background: transparent;
         }}
@@ -870,7 +834,7 @@ def get_subtitle_style() -> str:
     return f"""
         QLabel {{
             font-size: {Typography.SIZE_CONTROL}px;
-            font-weight: {Typography.WEIGHT_MEDIUM};
+            font-weight: {Typography.WEIGHT_NORMAL};
             color: {Colors.TEXT_SECONDARY};
             background: transparent;
         }}
@@ -880,40 +844,18 @@ def get_subtitle_style() -> str:
 def get_badge_style(color: str = Colors.ACCENT_PRIMARY) -> str:
     return f"""
         QLabel {{
-            background: {Colors.ACCENT_GLOW};
+            background: {Colors.GLASS_MEDIUM};
             color: {color};
             border-radius: {Radius.SM}px;
             padding: 2px 8px;
             font-size: {Typography.SIZE_NUMBER}px;
-            font-weight: {Typography.WEIGHT_BOLD};
+            font-weight: {Typography.WEIGHT_SEMIBOLD};
         }}
     """
 
 
 def get_menu_style() -> str:
-    return f"""
-        QMenu {{
-            background: {Colors.BG_ELEVATED};
-            border: 1px solid {Colors.BORDER_DEFAULT};
-            border-radius: {Radius.MD}px;
-            padding: 6px;
-        }}
-        QMenu::item {{
-            padding: 8px 16px;
-            border-radius: {Radius.SM}px;
-            color: {Colors.TEXT_PRIMARY};
-            font-size: {Typography.SIZE_CONTROL}px;
-        }}
-        QMenu::item:selected {{
-            background: {Colors.ACCENT_GLOW_STRONG};
-            color: {Colors.ACCENT_PRIMARY};
-        }}
-        QMenu::separator {{
-            height: 1px;
-            background: {Colors.BORDER_SUBTLE};
-            margin: 4px 8px;
-        }}
-    """
+    return _menu_rules()
 
 
 def get_scroll_area_style() -> str:
@@ -930,9 +872,9 @@ def get_scroll_area_style() -> str:
 def get_toolbar_style() -> str:
     return f"""
         QFrame#Toolbar {{
-            background: {Colors.BG_TERTIARY};
+            background: {Colors.BG_CARD};
             border: 1px solid {Colors.BORDER_SUBTLE};
-            border-radius: {Radius.MD}px;
+            border-radius: {Radius.LG}px;
             padding: 4px;
         }}
     """
@@ -941,7 +883,7 @@ def get_toolbar_style() -> str:
 def get_divider_style() -> str:
     return f"""
         QFrame#Divider {{
-            background: {Colors.BORDER_SUBTLE};
+            background: {Colors.BORDER_DEFAULT};
             max-height: 1px;
             min-height: 1px;
         }}
@@ -956,60 +898,56 @@ def get_divider_style() -> str:
 def get_main_window_style() -> str:
     return f"""
         QMainWindow {{
-            background: qlineargradient(
-                x1:0, y1:0, x2:1, y2:1,
-                stop:0 {Colors.MAIN_GRADIENT_START},
-                stop:0.50 {Colors.MAIN_GRADIENT_MID},
-                stop:1 {Colors.MAIN_GRADIENT_END}
-            );
+            background: {Colors.WINDOW_BG};
         }}
         QWidget {{
             color: {Colors.TEXT_PRIMARY};
-            font-family: {Typography.FAMILY};
+            font-family: {Typography.PRIMARY_FAMILY};
             font-size: {Typography.SIZE_BODY}px;
         }}
         QToolTip {{
             background-color: {_tooltip_bg()};
             border: 1px solid {Colors.BORDER_DEFAULT};
             border-radius: {Radius.SM}px;
-            padding: 6px 12px;
+            padding: 6px 10px;
             color: {_tooltip_text()};
-            font-size: {Typography.SIZE_CONTROL}px;
+            font-size: {Typography.SIZE_FILTER}px;
             opacity: 255;
         }}
     """
 
 
 def build_app_stylesheet() -> str:
-    """Return the global QSS for the currently selected theme."""
+    """Return the global QSS for the currently selected theme (Fluent)."""
+    from app.ui.icons import icon_file
+
+    check = icon_file("check.svg", Colors.PROJECT_BUTTON_TEXT, stroke_width=3)
+    hover = _argb(item_hover_color())
+    selected = _argb(item_selection_color())
     return f"""
         QWidget {{
-            font-family: "Poppins", "Segoe UI", sans-serif;
+            font-family: {Typography.PRIMARY_FAMILY};
             font-size: {Typography.SIZE_BODY}px;
             color: {Colors.TEXT_PRIMARY};
             outline: none;
-            selection-background-color: {Colors.ACCENT_GLOW_STRONG};
-            selection-color: {Colors.ACCENT_LIGHT};
+            selection-background-color: {Colors.ACCENT_PRIMARY};
+            selection-color: {Colors.PROJECT_BUTTON_TEXT};
         }}
 
         QMainWindow {{
-            background: {Colors.BG_PRIMARY};
+            background: {Colors.WINDOW_BG};
         }}
 
         QDialog,
         QMessageBox {{
-            background: {Colors.BG_SECONDARY};
-            border: 1px solid {Colors.BORDER_DEFAULT};
-            border-radius: {Radius.LG}px;
+            background: {Colors.BG_PRIMARY};
         }}
 
         QLabel#PanelTitle {{
             font-size: {Typography.SIZE_SECTION}px;
-            font-weight: {Typography.WEIGHT_BOLD};
-            color: {Colors.ACCENT_PRIMARY};
+            font-weight: {Typography.WEIGHT_SEMIBOLD};
+            color: {Colors.TEXT_PRIMARY};
             padding: 12px 16px;
-            letter-spacing: 0.5px;
-            text-transform: uppercase;
         }}
 
         QLabel#TopBarTitle {{
@@ -1019,19 +957,19 @@ def build_app_stylesheet() -> str:
         }}
 
         QLabel#DescLabel {{
-            color: {Colors.TEXT_MUTED};
-            font-size: {Typography.SIZE_CONTROL}px;
+            color: {Colors.TEXT_SECONDARY};
+            font-size: {Typography.SIZE_FILTER}px;
             border: none;
             background: transparent;
         }}
 
         QLabel#Badge {{
-            background: {Colors.ACCENT_GLOW};
-            color: {Colors.ACCENT_PRIMARY};
+            background: {Colors.GLASS_MEDIUM};
+            color: {Colors.TEXT_SECONDARY};
             border-radius: {Radius.SM}px;
             padding: 2px 8px;
             font-size: {Typography.SIZE_NUMBER}px;
-            font-weight: {Typography.WEIGHT_BOLD};
+            font-weight: {Typography.WEIGHT_SEMIBOLD};
         }}
 
         QFrame#Panel,
@@ -1041,180 +979,97 @@ def build_app_stylesheet() -> str:
             border-radius: {Radius.LG}px;
         }}
 
-        QFrame#Card {{
-            background: qlineargradient(
-                x1:0, y1:0, x2:0, y2:1,
-                stop:0 {Colors.CARD_GRADIENT_START},
-                stop:1 {Colors.CARD_GRADIENT_END}
-            );
+        QFrame#Card,
+        QFrame#Toolbar,
+        QFrame#TopBar {{
+            background: {Colors.BG_CARD};
             border: 1px solid {Colors.BORDER_SUBTLE};
             border-radius: {Radius.LG}px;
         }}
 
-        QFrame#Toolbar {{
-            background: {Colors.BG_TERTIARY};
-            border: 1px solid {Colors.BORDER_SUBTLE};
-            border-radius: {Radius.MD}px;
-        }}
-
         QFrame#TopBar {{
-            background: {Colors.BG_TERTIARY};
-            border: 1px solid {Colors.BORDER_SUBTLE};
-            border-radius: {Radius.MD}px;
-            min-height: 52px;
+            min-height: 48px;
         }}
 
-        QLineEdit,
-        QSpinBox,
-        QComboBox {{
-            background-color: {Colors.BG_INPUT};
-            border: 1px solid {Colors.BORDER_DEFAULT};
-            border-radius: {Radius.MD}px;
-            padding: 8px 14px;
-            color: {Colors.TEXT_PRIMARY};
-            selection-background-color: {Colors.ACCENT_GLOW_STRONG};
-            selection-color: {Colors.ACCENT_PRIMARY};
+        {_input_rules("QLineEdit, QSpinBox, QDoubleSpinBox", "5px 11px")}
+        QLineEdit, QSpinBox, QDoubleSpinBox {{
             font-size: {Typography.SIZE_FILTER}px;
         }}
 
-        QTextEdit,
-        QPlainTextEdit {{
-            background-color: {Colors.BG_INPUT};
-            border: 1px solid {Colors.BORDER_DEFAULT};
-            border-radius: {Radius.MD}px;
-            padding: 8px 14px;
-            color: {Colors.TEXT_PRIMARY};
-            selection-background-color: {Colors.ACCENT_GLOW_STRONG};
-            selection-color: {Colors.ACCENT_PRIMARY};
-            font-size: {Typography.SIZE_BODY}px;
-        }}
-
-        QLineEdit:hover,
-        QSpinBox:hover,
-        QComboBox:hover {{
-            background-color: {Colors.BG_INPUT_HOVER};
-            border-color: {Colors.BORDER_HOVER};
-        }}
-
-        QLineEdit:focus,
-        QSpinBox:focus,
-        QComboBox:focus {{
-            background-color: {Colors.BG_INPUT_FOCUS};
-            border: 2px solid {Colors.BORDER_FOCUS};
-        }}
+        {_input_rules("QTextEdit, QPlainTextEdit", "8px 11px")}
 
         QLineEdit::placeholder {{
             color: {Colors.TEXT_PLACEHOLDER};
         }}
 
-        QComboBox::drop-down {{
+        QSpinBox::up-button, QSpinBox::down-button,
+        QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {{
+            width: 18px;
             border: none;
-            width: 28px;
+            background: transparent;
         }}
 
-        QComboBox QAbstractItemView,
-        QMenu {{
-            background-color: {Colors.BG_ELEVATED};
-            border: 1px solid {Colors.BORDER_DEFAULT};
-            border-radius: {Radius.MD}px;
-            color: {Colors.TEXT_PRIMARY};
-            outline: none;
-            padding: 6px;
-            font-size: {Typography.SIZE_CONTROL}px;
-        }}
+        {get_combo_style()}
+
+        {_menu_rules()}
 
         QToolTip {{
             background-color: {_tooltip_bg()};
             border: 1px solid {Colors.BORDER_DEFAULT};
-            border-radius: {Radius.MD}px;
+            border-radius: {Radius.SM}px;
             color: {_tooltip_text()};
-            padding: 8px 12px;
-            font-size: {Typography.SIZE_CONTROL}px;
+            padding: 6px 10px;
+            font-size: {Typography.SIZE_FILTER}px;
             opacity: 255;
         }}
 
-        QMenu::item {{
-            padding: 8px 16px;
-            border-radius: {Radius.SM}px;
-            color: {Colors.TEXT_PRIMARY};
-            font-size: {Typography.SIZE_CONTROL}px;
+        {_button_rules("6px 16px", Typography.SIZE_CONTROL)}
+
+        QPushButton:focus {{
+            border: 1px solid {Colors.BORDER_FOCUS};
         }}
 
-        QMenu::item:selected {{
-            background: {Colors.ACCENT_GLOW_STRONG};
-            color: {Colors.ACCENT_PRIMARY};
-        }}
-
-        QPushButton {{
-            background: {Colors.BG_SURFACE};
-            border: 1px solid {Colors.BORDER_DEFAULT};
-            border-radius: {Radius.SM}px;
-            padding: 8px 16px;
-            color: {Colors.TEXT_PRIMARY};
-            font-size: {Typography.SIZE_CONTROL}px;
+        QPushButton#ProjectButton,
+        QPushButton#AccentButton {{
+            background: {Colors.ACCENT_PRIMARY};
+            color: {Colors.PROJECT_BUTTON_TEXT};
+            border: 1px solid {Colors.ACCENT_DARK};
             font-weight: {Typography.WEIGHT_SEMIBOLD};
         }}
 
-        QPushButton:hover {{
-            background: {Colors.SURFACE_ACTIVE};
-            border-color: {Colors.BORDER_HOVER};
-            color: {Colors.ACCENT_LIGHT};
-        }}
-
-        QPushButton:pressed {{
-            background: {Colors.SURFACE_HOVER};
-        }}
-
-        QPushButton:focus {{
-            border: 2px solid {Colors.BORDER_FOCUS};
-        }}
-
-        QPushButton:disabled {{
-            color: {Colors.TEXT_DISABLED};
-            background: transparent;
-            border-color: {Colors.BORDER_SUBTLE};
-        }}
-
-        QPushButton#ProjectButton {{
-            background: qlineargradient(
-                x1:0, y1:0, x2:1, y2:0,
-                stop:0 {Colors.ACCENT_GRADIENT_START},
-                stop:1 {Colors.ACCENT_GRADIENT_END}
-            );
-            color: {Colors.PROJECT_BUTTON_TEXT};
-            border: 1px solid {Colors.ACCENT_DARK};
-            font-weight: {Typography.WEIGHT_BOLD};
-        }}
-
-        QPushButton#ProjectButton:hover {{
+        QPushButton#ProjectButton:hover,
+        QPushButton#AccentButton:hover {{
             background: {Colors.ACCENT_LIGHT};
-            border-color: {Colors.ACCENT_PRIMARY};
         }}
 
-        QPushButton#ProjectButton:pressed {{
+        QPushButton#ProjectButton:pressed,
+        QPushButton#AccentButton:pressed {{
             background: {Colors.ACCENT_DARK};
         }}
 
-        QPushButton#AccentButton {{
-            background: qlineargradient(
-                x1:0, y1:0, x2:1, y2:0,
-                stop:0 {Colors.ACCENT_GRADIENT_START},
-                stop:1 {Colors.ACCENT_GRADIENT_END}
-            );
-            color: {Colors.PROJECT_BUTTON_TEXT};
-            border: 1px solid {Colors.ACCENT_DARK};
-            font-weight: {Typography.WEIGHT_BOLD};
-        }}
-
         QPushButton#IconButton {{
-            padding: 8px;
+            padding: 6px;
             background: transparent;
             border: 1px solid transparent;
         }}
 
         QPushButton#IconButton:hover {{
             background: {Colors.GLASS_MEDIUM};
-            border-color: {Colors.BORDER_DEFAULT};
+        }}
+
+        QToolButton {{
+            background: transparent;
+            border: 1px solid transparent;
+            border-radius: {Radius.SM}px;
+            padding: 4px;
+        }}
+
+        QToolButton:hover {{
+            background: {Colors.GLASS_MEDIUM};
+        }}
+
+        QToolButton:pressed {{
+            background: {Colors.GLASS_LIGHT};
         }}
 
         QListView,
@@ -1224,41 +1079,30 @@ def build_app_stylesheet() -> str:
         QTableWidget {{
             background-color: {Colors.BG_SECONDARY};
             border: 1px solid {Colors.BORDER_SUBTLE};
-            border-radius: {Radius.MD}px;
-            color: {Colors.TEXT_SECONDARY};
+            border-radius: {Radius.LG}px;
+            color: {Colors.TEXT_PRIMARY};
             font-size: {Typography.SIZE_BODY}px;
         }}
 
         QListView::item,
         QListWidget::item {{
-            padding: 8px 12px;
+            padding: 7px 12px;
             border-radius: {Radius.SM}px;
             margin: 1px 2px;
-            color: {Colors.TEXT_SECONDARY};
+            color: {Colors.TEXT_PRIMARY};
         }}
 
         QListView::item:hover,
         QListWidget::item:hover {{
-            background: {Colors.GLASS_MEDIUM};
-            color: {Colors.TEXT_PRIMARY};
+            background: {hover};
         }}
 
         QListView::item:selected,
         QListWidget::item:selected,
         QTableView::item:selected,
         QTableWidget::item:selected {{
-            background: {Colors.ACCENT_GLOW};
-            color: {Colors.ACCENT_LIGHT};
-            border: 1px solid {Colors.ACCENT_GLOW_STRONG};
-            font-weight: {Typography.WEIGHT_SEMIBOLD};
-        }}
-
-        QListView::item:focus,
-        QListWidget::item:focus,
-        QTableView::item:focus,
-        QTableWidget::item:focus {{
-            border: 2px solid {Colors.BORDER_FOCUS};
-            border-radius: {Radius.SM}px;
+            background: {selected};
+            color: {Colors.TEXT_PRIMARY};
         }}
 
         QTabWidget::pane {{
@@ -1268,111 +1112,113 @@ def build_app_stylesheet() -> str:
 
         QTabBar::tab {{
             background: transparent;
-            padding: 10px 22px;
+            padding: 8px 14px;
             margin: 0 2px;
-            color: {Colors.TEXT_MUTED};
+            color: {Colors.TEXT_SECONDARY};
             font-size: {Typography.SIZE_CONTROL}px;
-            font-weight: {Typography.WEIGHT_SEMIBOLD};
-            border-bottom: 2px solid transparent;
+            border-bottom: 3px solid transparent;
         }}
 
         QTabBar::tab:hover {{
             color: {Colors.TEXT_PRIMARY};
-            background: {Colors.GLASS_LIGHT};
-            border-top-left-radius: {Radius.SM}px;
-            border-top-right-radius: {Radius.SM}px;
         }}
 
         QTabBar::tab:selected {{
-            color: {Colors.ACCENT_PRIMARY};
-            border-bottom: 2px solid {Colors.ACCENT_PRIMARY};
+            color: {Colors.TEXT_PRIMARY};
+            font-weight: {Typography.WEIGHT_SEMIBOLD};
+            border-bottom: 3px solid {Colors.ACCENT_PRIMARY};
         }}
 
         QCheckBox,
         QRadioButton {{
-            color: {Colors.TEXT_SECONDARY};
+            color: {Colors.TEXT_PRIMARY};
             spacing: 8px;
             font-size: {Typography.SIZE_LABEL}px;
+            background: transparent;
         }}
 
         QCheckBox::indicator,
         QRadioButton::indicator {{
-            width: 16px;
-            height: 16px;
-            border: 1px solid {Colors.BORDER_HOVER};
-            background: {Colors.BG_INPUT};
+            width: 18px;
+            height: 18px;
+            border: 1px solid {Colors.BORDER_STRONG};
+            background: {Colors.GLASS_LIGHT};
         }}
 
         QCheckBox::indicator {{
-            border-radius: 5px;
+            border-radius: {Radius.SM}px;
         }}
 
         QRadioButton::indicator {{
-            border-radius: 8px;
+            border-radius: 10px;
         }}
 
         QCheckBox::indicator:hover,
         QRadioButton::indicator:hover {{
-            border-color: {Colors.ACCENT_PRIMARY};
-            background: {Colors.ACCENT_GLOW};
+            background: {Colors.GLASS_MEDIUM};
         }}
 
         QCheckBox::indicator:checked {{
             background: {Colors.ACCENT_PRIMARY};
             border-color: {Colors.ACCENT_PRIMARY};
+            image: url("{check}");
+        }}
+
+        QCheckBox::indicator:checked:hover {{
+            background: {Colors.ACCENT_LIGHT};
         }}
 
         QRadioButton::indicator:checked {{
-            background: {Colors.ACCENT_PRIMARY};
-            border: 3px solid {Colors.BG_PRIMARY};
-            outline: 1px solid {Colors.ACCENT_PRIMARY};
+            background: {Colors.PROJECT_BUTTON_TEXT};
+            border: 5px solid {Colors.ACCENT_PRIMARY};
+            width: 10px;
+            height: 10px;
+        }}
+
+        QCheckBox::indicator:disabled,
+        QRadioButton::indicator:disabled {{
+            border-color: {Colors.TEXT_DISABLED};
+            background: transparent;
         }}
 
         QGroupBox {{
-            color: {Colors.TEXT_MUTED};
+            color: {Colors.TEXT_PRIMARY};
+            background: {Colors.BG_CARD};
             border: 1px solid {Colors.BORDER_SUBTLE};
             border-radius: {Radius.LG}px;
-            margin-top: 16px;
-            padding-top: 12px;
-            font-size: {Typography.SIZE_META}px;
-            font-weight: {Typography.WEIGHT_BOLD};
-            letter-spacing: 0.5px;
-            text-transform: uppercase;
+            margin-top: 28px;
+            padding: 12px;
+            font-size: {Typography.SIZE_BODY}px;
+            font-weight: {Typography.WEIGHT_SEMIBOLD};
         }}
 
         QGroupBox::title {{
             subcontrol-origin: margin;
             subcontrol-position: top left;
-            left: 12px;
-            top: -1px;
-            padding: 0 6px;
-            background: {Colors.BG_PRIMARY};
-            color: {Colors.TEXT_MUTED};
+            left: 2px;
+            padding: 0 0 6px 0;
+            background: transparent;
+            color: {Colors.TEXT_PRIMARY};
         }}
 
         QProgressBar {{
-            background: {Colors.BG_TERTIARY};
-            border: 1px solid {Colors.BORDER_SUBTLE};
-            border-radius: {Radius.SM}px;
+            background: {Colors.BORDER_STRONG};
+            border: none;
+            border-radius: 1px;
             text-align: center;
-            color: {Colors.TEXT_PRIMARY};
+            color: transparent;
             font-size: {Typography.SIZE_NUMBER}px;
-            font-weight: {Typography.WEIGHT_BOLD};
-            height: 6px;
+            max-height: 3px;
         }}
 
         QProgressBar::chunk {{
-            background: qlineargradient(
-                x1:0, y1:0, x2:1, y2:0,
-                stop:0 {Colors.ACCENT_GRADIENT_START},
-                stop:1 {Colors.ACCENT_GRADIENT_END}
-            );
-            border-radius: {Radius.SM}px;
+            background: {Colors.ACCENT_PRIMARY};
+            border-radius: 1px;
         }}
 
         QSlider::groove:horizontal {{
             height: 4px;
-            background: {Colors.BG_TERTIARY};
+            background: {Colors.BORDER_STRONG};
             border-radius: 2px;
         }}
 
@@ -1382,37 +1228,36 @@ def build_app_stylesheet() -> str:
         }}
 
         QSlider::handle:horizontal {{
-            width: 14px;
-            height: 14px;
-            margin: -5px 0;
+            width: 10px;
+            height: 10px;
+            margin: -8px 0;
             background: {Colors.ACCENT_PRIMARY};
-            border-radius: 7px;
-            border: 2px solid {Colors.BG_PRIMARY};
+            border-radius: 10px;
+            border: 5px solid {Colors.SLIDER_THUMB};
         }}
 
         QSlider::handle:horizontal:hover {{
             background: {Colors.ACCENT_LIGHT};
-            border-color: {Colors.BG_SECONDARY};
         }}
 
         QSlider::groove:vertical {{
             width: 4px;
-            background: {Colors.BG_TERTIARY};
+            background: {Colors.BORDER_STRONG};
             border-radius: 2px;
         }}
 
-        QSlider::sub-page:vertical {{
+        QSlider::add-page:vertical {{
             background: {Colors.ACCENT_PRIMARY};
             border-radius: 2px;
         }}
 
         QSlider::handle:vertical {{
-            width: 14px;
-            height: 14px;
-            margin: 0 -5px;
+            width: 10px;
+            height: 10px;
+            margin: 0 -8px;
             background: {Colors.ACCENT_PRIMARY};
-            border-radius: 7px;
-            border: 2px solid {Colors.BG_PRIMARY};
+            border-radius: 10px;
+            border: 5px solid {Colors.SLIDER_THUMB};
         }}
 
         QHeaderView {{
@@ -1421,31 +1266,24 @@ def build_app_stylesheet() -> str:
         }}
 
         QHeaderView::section {{
-            background: {Colors.BG_TERTIARY};
-            color: {Colors.TEXT_MUTED};
+            background: transparent;
+            color: {Colors.TEXT_SECONDARY};
             font-size: {Typography.SIZE_META}px;
-            font-weight: {Typography.WEIGHT_BOLD};
-            letter-spacing: 0.5px;
-            text-transform: uppercase;
+            font-weight: {Typography.WEIGHT_SEMIBOLD};
             padding: 8px 12px;
             border: none;
-            border-bottom: 1px solid {Colors.BORDER_SUBTLE};
+            border-bottom: 1px solid {Colors.BORDER_DEFAULT};
         }}
 
         QHeaderView::section:hover {{
-            background: {Colors.BG_ELEVATED};
-            color: {Colors.TEXT_SECONDARY};
+            background: {hover};
+            color: {Colors.TEXT_PRIMARY};
         }}
 
         QTableView, QTableWidget {{
-            background: {Colors.BG_SECONDARY};
-            border: 1px solid {Colors.BORDER_SUBTLE};
-            border-radius: {Radius.MD}px;
             gridline-color: {Colors.BORDER_SUBTLE};
-            selection-background-color: {Colors.ACCENT_GLOW};
-            selection-color: {Colors.ACCENT_LIGHT};
-            color: {Colors.TEXT_SECONDARY};
-            font-size: {Typography.SIZE_BODY}px;
+            selection-background-color: {selected};
+            selection-color: {Colors.TEXT_PRIMARY};
         }}
 
         QTableView::item, QTableWidget::item {{
@@ -1453,66 +1291,6 @@ def build_app_stylesheet() -> str:
             border: none;
         }}
 
-        QTableView::item:selected, QTableWidget::item:selected {{
-            background: {Colors.ACCENT_GLOW};
-            color: {Colors.ACCENT_LIGHT};
-        }}
-
-        QScrollBar:vertical {{
-            background: transparent;
-            width: 10px;
-            margin: 6px 2px;
-            border-radius: 5px;
-        }}
-
-        QScrollBar::handle:vertical {{
-            background: {Colors.SCROLLBAR_HANDLE};
-            border-radius: 5px;
-            min-height: 40px;
-        }}
-
-        QScrollBar::handle:vertical:hover {{
-            background: {Colors.ACCENT_PRIMARY};
-        }}
-
-        QScrollBar::handle:vertical:pressed {{
-            background: {Colors.ACCENT_DARK};
-        }}
-
-        QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
-            height: 0;
-        }}
-
-        QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{
-            background: transparent;
-        }}
-
-        QScrollBar:horizontal {{
-            background: transparent;
-            height: 10px;
-            margin: 2px 6px;
-            border-radius: 5px;
-        }}
-
-        QScrollBar::handle:horizontal {{
-            background: {Colors.SCROLLBAR_HANDLE};
-            border-radius: 5px;
-            min-width: 56px;
-        }}
-
-        QScrollBar::handle:horizontal:hover {{
-            background: {Colors.ACCENT_PRIMARY};
-        }}
-
-        QScrollBar::handle:horizontal:pressed {{
-            background: {Colors.ACCENT_DARK};
-        }}
-
-        QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
-            width: 0;
-        }}
-
-        QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {{
-            background: transparent;
-        }}
+        {_scrollbar_v()}
+        {_scrollbar_h()}
     """

@@ -127,21 +127,20 @@ def main() -> int:
 
     data_dir().mkdir(parents=True, exist_ok=True)
 
-    from app.ui.theme import build_app_stylesheet, set_theme
+    from app.ui.theme import Colors, build_app_stylesheet, set_theme, set_window_backdrop
+    from app.ui.window_effects import apply_color_scheme, mica_supported
     from app.utils.translations import set_language
 
     settings = AppSettings.load(settings_path())
     set_theme(settings.appearance.theme)
     set_language(settings.appearance.language)
+    apply_color_scheme(app, settings.appearance.theme)
+    set_window_backdrop(settings.appearance.mica and mica_supported())
 
     app.setStyleSheet(build_app_stylesheet())
     palette = app.palette()
-    if str(settings.appearance.theme or "").lower() == "light":
-        palette.setColor(QPalette.ColorRole.ToolTipBase, QColor("#ffffff"))
-        palette.setColor(QPalette.ColorRole.ToolTipText, QColor("#111827"))
-    else:
-        palette.setColor(QPalette.ColorRole.ToolTipBase, QColor("#1d2430"))
-        palette.setColor(QPalette.ColorRole.ToolTipText, QColor("#f5f1e8"))
+    palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(Colors.BG_TOOLTIP))
+    palette.setColor(QPalette.ColorRole.ToolTipText, QColor(Colors.TEXT_PRIMARY))
     app.setPalette(palette)
     QToolTip.setPalette(palette)
     app.setWindowIcon(app_logo_icon())

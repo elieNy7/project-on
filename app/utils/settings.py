@@ -472,6 +472,7 @@ class ProjectionSettings:
 class AppearanceSettings:
     theme: str = "dark"  # "dark" or "light"
     language: str = "fr"  # "fr" or "en"
+    mica: bool = True  # Windows 11 Mica backdrop behind the main window
 
 
 def _gs(d: dict, key: str, default: str) -> str:
@@ -800,6 +801,7 @@ class AppSettings:
             appearance.language = _gs(a, "language", appearance.language)
             if appearance.language not in ("fr", "en"):
                 appearance.language = "fr"
+            appearance.mica = bool(a.get("mica", appearance.mica))
 
         hdmi = HdmiSettings()
         hm = payload.get("hdmi")
