@@ -61,7 +61,10 @@ class _Screen(QLabel):
         return QSize(480, 270)
 
     def set_pixmap(self, pixmap: QPixmap | None) -> None:
-        self._full = pixmap
+        self._full = pixmap if pixmap is not None and not pixmap.isNull() else None
+        if self._full is None:
+            self.setPixmap(QPixmap())  # drop the image; a text may follow
+            return
         self._rescale()
 
     def resizeEvent(self, event) -> None:  # noqa: N802
@@ -69,8 +72,9 @@ class _Screen(QLabel):
         self._rescale()
 
     def _rescale(self) -> None:
-        if self._full is None or self._full.isNull():
-            self.setPixmap(QPixmap())
+        # Without an image, leave the label alone: setPixmap() would erase
+        # the placeholder or fallback text on every resize.
+        if self._full is None:
             return
         self.setPixmap(
             self._full.scaled(

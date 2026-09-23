@@ -542,7 +542,7 @@ class ObsOutputSettingsDialog(QDialog):
     obsSettingsChanged = Signal(object)
 
     def __init__(
-        self, obs_settings: ObsSettings, parent: QWidget | None = None
+        self, obs_settings: ObsSettings, parent: QWidget | None = None, embedded: bool = False
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle("Paramètres de diffusion OBS")
@@ -762,6 +762,9 @@ class ObsOutputSettingsDialog(QDialog):
         """)
         ok_btn.clicked.connect(self.accept)
         btn_layout.addWidget(ok_btn)
+        if embedded:  # settings page: every change applies immediately
+            cancel_btn.hide()
+            ok_btn.hide()
 
         final_layout.addLayout(btn_layout)
         main_layout.addLayout(final_layout, 1)
@@ -2188,12 +2191,3 @@ class ObsOutputSettingsDialog(QDialog):
                 self._text_transform.setCurrentIndex(idx)
         self._initializing = False
         self._on_change()
-
-    @classmethod
-    def edit(
-        cls, obs_settings: ObsSettings, parent: QWidget | None = None
-    ) -> ObsSettings | None:
-        dialog = cls(obs_settings, parent)
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            return dialog.get_obs_settings()
-        return None

@@ -86,7 +86,7 @@ class ProjectionSettingsDialog(QDialog):
 
     settingsChanged = Signal(ProjectionSettings)
 
-    def __init__(self, settings: ProjectionSettings, parent=None) -> None:
+    def __init__(self, settings: ProjectionSettings, parent=None, embedded: bool = False) -> None:
         super().__init__(parent)
         self.setWindowTitle(tr("local_projection_title"))
         self.setMinimumSize(560, 520)
@@ -481,6 +481,9 @@ class ProjectionSettingsDialog(QDialog):
         """)
         save_btn.clicked.connect(self.accept)
         btn_layout.addWidget(save_btn)
+        if embedded:  # settings page: every change applies immediately
+            cancel_btn.hide()
+            save_btn.hide()
 
         main_layout.addWidget(btn_frame)
 
@@ -585,10 +588,3 @@ class ProjectionSettingsDialog(QDialog):
             animation_enabled=self._anim_enabled.isChecked(),
             animation_duration=self._anim_duration.value(),
         )
-
-    @staticmethod
-    def edit(settings: ProjectionSettings, parent=None) -> ProjectionSettings | None:
-        dlg = ProjectionSettingsDialog(settings=settings, parent=parent)
-        if dlg.exec() == int(QDialog.DialogCode.Accepted):
-            return dlg.read_settings()
-        return None

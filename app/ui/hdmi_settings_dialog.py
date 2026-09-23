@@ -78,6 +78,7 @@ class HdmiSettingsDialog(QDialog):
         settings: HdmiSettings,
         presentation_dir: Path | None = None,
         parent=None,
+        embedded: bool = False,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle("Sortie HDMI / mixeur")
@@ -402,6 +403,9 @@ class HdmiSettingsDialog(QDialog):
         """)
         save_btn.clicked.connect(self.accept)
         btn_layout.addWidget(save_btn)
+        if embedded:  # settings page: every change applies immediately
+            cancel_btn.hide()
+            save_btn.hide()
         main_layout.addWidget(btn_frame)
 
         # Aperçu live : re-rendu à chaque changement + suivi de la slide.

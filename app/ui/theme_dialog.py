@@ -56,7 +56,7 @@ class ThemeDialog(QDialog):
     themesLiveChanged = Signal(list, dict, str, object)
     # (themes, theme_assignments, active_theme_id, active_style)
 
-    def __init__(self, settings, parent=None) -> None:
+    def __init__(self, settings, parent=None, embedded: bool = False) -> None:
         super().__init__(parent)
         self.setWindowTitle(tr("themes_title"))
         self.setModal(True)
@@ -255,6 +255,9 @@ class ThemeDialog(QDialog):
         root.addLayout(foot)
         self._btn_cancel.clicked.connect(self.reject)
         self._btn_ok.clicked.connect(self.accept)
+        if embedded:  # settings page: every change applies immediately
+            self._btn_cancel.hide()
+            self._btn_ok.hide()
 
         self._reload_list()
         self._reload_assignments()

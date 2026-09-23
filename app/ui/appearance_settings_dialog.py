@@ -88,12 +88,19 @@ class OptionCard(QFrame):
 
 
 class AppearanceSettingsDialog(QDialog):
+    settingsChanged = Signal()  # theme or language picked
+
     """Dialogue pour les paramètres d'apparence (thème et langue)."""
 
     def __init__(
-        self, current_theme: str = "dark", current_language: str = "fr", parent=None
+        self,
+        current_theme: str = "dark",
+        current_language: str = "fr",
+        parent=None,
+        embedded: bool = False,
     ) -> None:
         super().__init__(parent)
+        self._embedded = embedded
         self._theme = current_theme if current_theme in ("dark", "light") else "dark"
         self._language = current_language
 
@@ -286,27 +293,22 @@ class AppearanceSettingsDialog(QDialog):
         btn_layout.addWidget(cancel_btn)
         btn_layout.addWidget(save_btn)
         layout.addLayout(btn_layout)
+        if self._embedded:  # settings page: every change applies immediately
+            cancel_btn.hide()
+            save_btn.hide()
 
     def _select_theme(self, theme: str) -> None:
         self._theme = theme if theme in ("dark", "light") else "dark"
         self._dark_card.set_selected(self._theme == "dark")
         self._light_card.set_selected(self._theme == "light")
+        self.settingsChanged.emit()
 
     def _select_language(self, language: str) -> None:
         self._language = language
         self._fr_card.set_selected(language == "fr")
         self._en_card.set_selected(language == "en")
+        self.settingsChanged.emit()
 
     def get_settings(self) -> tuple[str, str]:
         """Retourne (theme, language)."""
         return self._theme, self._language
-
-    @staticmethod
-    def edit(
-        current_theme: str, current_language: str, parent=None
-    ) -> tuple[str, str] | None:
-        """Ouvre le dialogue et retourne les nouveaux paramètres ou None si annulé."""
-        dialog = AppearanceSettingsDialog(current_theme, current_language, parent)
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            return dialog.get_settings()
-        return None

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import copy
 import json
 import logging
 import sys
@@ -13,7 +12,6 @@ from PySide6.QtWidgets import (
     QAbstractSpinBox,
     QApplication,
     QComboBox,
-    QDialog,
     QHBoxLayout,
     QLineEdit,
     QMainWindow,
@@ -29,6 +27,7 @@ from PySide6.QtWidgets import (
 from app.database.connection import Database
 from app.ui.command_bar import CommandBar
 from app.ui.cue_monitor import CueMonitor
+from app.ui.settings_page import embed_dialog, watch_inputs
 from app.ui.global_search_popup import GlobalSearchPopup
 from app.ui.icons import app_logo_icon
 from app.ui.library_panel import LibraryPanel
@@ -214,6 +213,7 @@ class MainWindow(QMainWindow):
         )
 
         self._setup_global_search(root)
+        self._setup_settings_page()
         self._library_controller.programCued.connect(self._on_program_cued)
         self.cue_monitor.takeRequested.connect(self._take_cue)
 
@@ -839,177 +839,182 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
 
-    def _open_projection_settings(self) -> None:
-        from app.ui.settings_dialog import ProjectionSettingsDialog
+    # ── Réglages : page unique, application immédiate ─────────────────────
+    # Each section hosts an existing settings screen in embedded mode. Every
+    # change is applied at once to the outputs and saved shortly after (the
+    # save is coalesced so a slider does not rewrite settings.json per step).
 
-        # Deep copy original for robust revert
-        original_projection = copy.deepcopy(self._settings.projection)
-        original_obs_mode = self._settings.obs.output.bg_mode
-        original_obs_bg = self._settings.obs.output.bg_image
-        original_obs_fit = self._settings.obs.output.bg_image_fit
-        dlg = ProjectionSettingsDialog(self._settings.projection, parent=self)
+    _SETTINGS_TAB = 6
 
-        def on_live_update(new_settings):
-            # Apply to temp state and write config for immediate visual effect
-            self._settings.projection = new_settings
-            self.preview_panel.set_settings(self._settings)
-            cfg = new_settings.to_presentation_config()
-            self._safe_write_json(self._presentation_dir / "config.json", cfg)
-            if self._projection_window is not None and self._projection_window.isVisible():
-                try:
-                    self._projection_window._apply_config(cfg)
-                except Exception:
-                    pass
-            # Keep the OBS output background in sync with the global setting
-            self._sync_obs_background(
-                new_settings.bg_mode,
-                new_settings.bg_image,
-                new_settings.bg_image_fit,
-            )
+    def _setup_settings_page(self) -> None:
+        page = self.library_panel.settings_page
+        page.register("projection", tr("local_projection"), "monitor.svg", self._build_projection_section)
+        page.register("themes", tr("themes_manager"), "palette.svg", self._build_themes_section)
+        page.register("hdmi", "Sortie HDMI", "cast.svg", self._build_hdmi_section)
+        page.register("obs", tr("connectivity"), "wifi.svg", self._build_obs_section)
+        page.register("obs_output", tr("lower_third_style"), "layout.svg", self._build_obs_output_section)
+        page.register("appearance", tr("appearance"), "eye.svg", self._build_appearance_section)
 
-        dlg.settingsChanged.connect(on_live_update)
+        self._settings_save_timer = QTimer(self)
+        self._settings_save_timer.setSingleShot(True)
+        self._settings_save_timer.setInterval(500)
+        self._settings_save_timer.timeout.connect(self._save_settings)
 
-        if dlg.exec() == QDialog.DialogCode.Accepted:
-            # Committed
-            self._sync_obs_background(
-                self._settings.projection.bg_mode,
-                self._settings.projection.bg_image,
-                self._settings.projection.bg_image_fit,
-            )
+    def _show_settings_section(self, key: str) -> None:
+        self.rail.setCurrentIndex(self._SETTINGS_TAB)
+        self.library_panel.settings_page.show_section(key)
+
+    def _settings_changed(self) -> None:
+        """A setting was applied: save soon, refresh the overview texts."""
+        self._settings_save_timer.start()
+        self._refresh_settings_details()
+
+    def _flush_settings_save(self) -> None:
+        timer = getattr(self, "_settings_save_timer", None)
+        if timer is not None and timer.isActive():
+            timer.stop()
             self._save_settings()
-            self.preview_panel.set_settings(self._settings)
-            self._refresh_settings_details()
-        else:
-            # Revert to deep copy
-            self._settings.projection = original_projection
-            self.preview_panel.set_settings(self._settings)
-            self._write_presentation_config()
-            self._sync_obs_background(
-                original_obs_mode, original_obs_bg, original_obs_fit
-            )
-            if self._projection_window is not None and self._projection_window.isVisible():
-                try:
-                    self._projection_window._apply_config(
-                        original_projection.to_presentation_config()
-                    )
-                except Exception:
-                    pass
+
+    # Historical entry points (settings overview cards, output chips, menus).
+    def _open_projection_settings(self) -> None:
+        self._show_settings_section("projection")
 
     def _open_theme_manager(self) -> None:
-        """Gestionnaire de thèmes : liste, édition, assignation par contenu."""
-        from app.ui.theme_dialog import ThemeDialog
-
-        # État d'avant ouverture (restauré si annulation).
-        original_themes = copy.deepcopy(self._settings.themes)
-        original_assignments = dict(self._settings.theme_assignments)
-        original_active = self._settings.active_theme_id
-        original_projection = copy.deepcopy(self._settings.projection)
-
-        def on_live(themes, assignments, active_id, active_style) -> None:
-            cfg = self._build_projection_config(
-                themes=themes,
-                theme_assignments=assignments,
-                active_theme_id=active_id,
-                active_style=active_style,
-            )
-            self._safe_write_json(self._presentation_dir / "config.json", cfg)
-            if self._projection_window is not None and self._projection_window.isVisible():
-                try:
-                    self._projection_window._apply_config(cfg)
-                except Exception:
-                    pass
-            # Aperçu immédiat : la slide courante re-rendue avec le thème
-            # en cours de test (qui diffère encore des réglages enregistrés).
-            self.preview_panel.apply_style_config(cfg)
-
-        dlg = ThemeDialog(self._settings, parent=self)
-        dlg.themesLiveChanged.connect(on_live)
-
-        if dlg.exec() == QDialog.DialogCode.Accepted:
-            themes, assignments, active_id, active_style = dlg.result_state()
-            self._settings.themes = themes
-            self._settings.theme_assignments = assignments
-            self._settings.active_theme_id = active_id
-            self._settings.projection = active_style
-            self._save_settings()
-            self._write_presentation_config()
-            self.preview_panel.set_settings(self._settings)
-            self._refresh_settings_details()
-        else:
-            self._settings.themes = original_themes
-            self._settings.theme_assignments = original_assignments
-            self._settings.active_theme_id = original_active
-            self._settings.projection = original_projection
-            self._write_presentation_config()
-            self.preview_panel.set_settings(self._settings)
+        self._show_settings_section("themes")
 
     def _open_obs_settings(self) -> None:
+        self._show_settings_section("obs")
+
+    def _open_obs_output_settings(self) -> None:
+        self._show_settings_section("obs_output")
+
+    def _open_appearance_settings(self) -> None:
+        self._show_settings_section("appearance")
+
+    def _open_hdmi_settings(self) -> None:
+        self._show_settings_section("hdmi")
+
+    # ── Sections ──
+
+    def _apply_projection_config(self) -> None:
+        """Write config.json and restyle every output from current settings."""
+        cfg = self._build_projection_config()
+        self._safe_write_json(self._presentation_dir / "config.json", cfg)
+        if self._projection_window is not None and self._projection_window.isVisible():
+            try:
+                self._projection_window._apply_config(cfg)
+            except Exception:
+                log.exception("Style de projection non appliqué à la fenêtre")
+        self.preview_panel.set_settings(self._settings)
+
+    def _build_projection_section(self) -> QWidget:
+        from app.ui.settings_dialog import ProjectionSettingsDialog
+
+        dlg = embed_dialog(ProjectionSettingsDialog, self._settings.projection)
+        dlg.settingsChanged.connect(self._apply_projection_settings)
+        return dlg
+
+    def _apply_projection_settings(self, projection) -> None:
+        self._settings.projection = projection
+        self._apply_projection_config()
+        self._sync_obs_background(projection.bg_mode, projection.bg_image, projection.bg_image_fit)
+        # Media framing is shared with the OBS page / NDI output.
+        self._write_obs_config()
+        self._settings_changed()
+
+    def _build_themes_section(self) -> QWidget:
+        from app.ui.theme_dialog import ThemeDialog
+
+        dlg = embed_dialog(ThemeDialog, self._settings)
+        dlg.themesLiveChanged.connect(self._apply_theme_state)
+        return dlg
+
+    def _apply_theme_state(self, themes, assignments, active_id, active_style) -> None:
+        self._settings.themes = list(themes)
+        self._settings.theme_assignments = dict(assignments)
+        self._settings.active_theme_id = active_id
+        self._settings.projection = active_style
+        self._apply_projection_config()
+        self._settings_changed()
+
+    def _build_hdmi_section(self) -> QWidget:
+        from app.ui.hdmi_settings_dialog import HdmiSettingsDialog
+
+        dlg = embed_dialog(
+            HdmiSettingsDialog, self._settings.hdmi, presentation_dir=self._presentation_dir
+        )
+
+        def on_change(new_settings) -> None:
+            self._apply_hdmi_settings(new_settings)
+            dlg.set_live_status(self._hdmi_live_status())
+            self._settings_changed()
+
+        dlg.hdmiChanged.connect(on_change)
+        dlg.mireToggled.connect(self._toggle_hdmi_mire)
+        return dlg
+
+    def _build_obs_section(self) -> QWidget:
         from app.ui.obs_settings_dialog import ObsSettingsDialog
 
-        updated = ObsSettingsDialog.edit(
+        dlg = embed_dialog(
+            ObsSettingsDialog,
             self._settings.obs,
             obs_controller=self._obs,
             remote_client=self._obs_remote,
-            parent=self,
         )
-        if updated is None:
-            return
-        self._settings.obs = updated
-        self._save_settings()
-        self._obs.update_settings(updated)
-        self._obs_remote.apply_settings(updated.remote)
-        self._refresh_settings_details()
 
-    def _open_obs_output_settings(self) -> None:
+        def commit() -> None:
+            updated = dlg.get_settings()
+            if updated == self._settings.obs:
+                return
+            # Keep the lower-third style edited elsewhere in the meantime.
+            updated.output = self._settings.obs.output
+            updated.scenes = self._settings.obs.scenes
+            self._settings.obs = updated
+            self._obs.update_settings(updated)
+            self._obs_remote.apply_settings(updated.remote)
+            self._settings_changed()
+
+        # Ports and addresses are applied once typing pauses: a web server
+        # restart per keystroke would drop OBS mid-service.
+        dlg._change_watch = watch_inputs(dlg, commit)
+        dlg.settingsChanged.connect(dlg._change_watch.start)
+        return dlg
+
+    def _build_obs_output_section(self) -> QWidget:
         from app.ui.obs_output_settings_dialog import ObsOutputSettingsDialog
 
-        original_obs = copy.deepcopy(self._settings.obs)
-        # The dialog edits a deep copy (base style + per-scene styles) and
-        # broadcasts it live; cancel restores the pre-dialog state.
-        dlg = ObsOutputSettingsDialog(self._settings.obs, parent=self)
+        dlg = embed_dialog(ObsOutputSettingsDialog, self._settings.obs)
 
-        def on_live_update(new_obs_settings):
+        def on_change(new_obs_settings) -> None:
             self._settings.obs = new_obs_settings
             self._obs.update_settings(new_obs_settings)
-
-        dlg.obsSettingsChanged.connect(on_live_update)
-
-        if dlg.exec() == QDialog.DialogCode.Accepted:
-            self._settings.obs = dlg.get_obs_settings()
-            self._save_settings()
             self._write_obs_config()
-            self._obs.update_settings(self._settings.obs)
-            self._refresh_settings_details()
-        else:
-            # Revert to the pre-dialog state if cancelled
-            self._settings.obs = original_obs
-            self._obs.update_settings(original_obs)
-            self._write_obs_config()
+            self._settings_changed()
 
-    def _open_appearance_settings(self) -> None:
+        dlg.obsSettingsChanged.connect(on_change)
+        return dlg
+
+    def _build_appearance_section(self) -> QWidget:
         from app.ui.appearance_settings_dialog import AppearanceSettingsDialog
-        from app.utils.translations import tr
 
-        result = AppearanceSettingsDialog.edit(
+        dlg = embed_dialog(
+            AppearanceSettingsDialog,
             self._settings.appearance.theme,
             self._settings.appearance.language,
-            parent=self,
         )
-        if result is None:
-            return
-        theme, language = result
-        self._settings.appearance.theme = theme
-        self._settings.appearance.language = language
-        self._save_settings()
 
-        self._refresh_settings_details()
+        def on_change() -> None:
+            theme, language = dlg.get_settings()
+            if (theme, language) == (self._settings.appearance.theme, self._settings.appearance.language):
+                return
+            self._settings.appearance.theme = theme
+            self._settings.appearance.language = language
+            self._settings_changed()
+            self.library_panel.settings_page.info_bar.show_message(tr("settings_saved_msg"))
 
-        # Notify user that restart is needed for theme/language changes.
-        QMessageBox.information(
-            self,
-            tr("settings_saved"),
-            tr("settings_saved_msg"),
-        )
+        dlg.settingsChanged.connect(on_change)
+        return dlg
 
     def _show_about(self) -> None:
         from app.ui.about_dialog import AboutDialog
@@ -1314,31 +1319,6 @@ class MainWindow(QMainWindow):
 
     # ── Sortie HDMI / mixeur vidéo ─────────────────────────────────────
 
-    def _open_hdmi_settings(self) -> None:
-        from app.ui.hdmi_settings_dialog import HdmiSettingsDialog
-
-        original = copy.deepcopy(self._settings.hdmi)
-        dlg = HdmiSettingsDialog(
-            self._settings.hdmi,
-            presentation_dir=self._presentation_dir,
-            parent=self,
-        )
-
-        def on_live(new_settings):
-            self._apply_hdmi_settings(new_settings)
-            dlg.set_live_status(self._hdmi_live_status())
-
-        dlg.hdmiChanged.connect(on_live)
-        dlg.mireToggled.connect(self._toggle_hdmi_mire)
-
-        if dlg.exec() == QDialog.DialogCode.Accepted:
-            self._apply_hdmi_settings(dlg.read_settings())
-            self._save_settings()
-        else:
-            # Annulé : retour à l'état d'origine (fenêtre, écran, letterbox).
-            self._apply_hdmi_settings(original)
-        self._refresh_settings_details()
-
     def _apply_hdmi_settings(self, hdmi) -> None:
         self._settings.hdmi = hdmi.sanitized()
         if self._settings.hdmi.enabled:
@@ -1429,6 +1409,7 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event) -> None:
         """Handle application shutdown gracefully."""
+        self._flush_settings_save()
         app = QApplication.instance()
         if app is not None and hasattr(self, "_global_arrow_nav_filter"):
             try:

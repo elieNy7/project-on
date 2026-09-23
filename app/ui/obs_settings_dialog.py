@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Signal, Qt, QTimer
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -198,12 +198,15 @@ class SettingRow(QFrame):
 
 
 class ObsSettingsDialog(QDialog):
+    settingsChanged = Signal()  # output mode picked (fields are watched by the page)
+
     def __init__(
         self,
         settings: ObsSettings,
         obs_controller: ObsController | None = None,
         remote_client=None,
         parent: QWidget | None = None,
+        embedded: bool = False,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle(tr("obs"))
@@ -593,6 +596,9 @@ class ObsSettingsDialog(QDialog):
         """)
         ok_btn.clicked.connect(self.accept)
         btn_layout.addWidget(ok_btn)
+        if embedded:  # settings page: every change applies immediately
+            cancel_btn.hide()
+            ok_btn.hide()
 
         layout.addLayout(btn_layout)
 
@@ -677,6 +683,7 @@ class ObsSettingsDialog(QDialog):
         self._current_mode = mode
         self._web_card.setSelected(mode == "web")
         self._ndi_card.setSelected(mode == "ndi")
+        self.settingsChanged.emit()
 
         # Show/hide relevant settings
         self._web_settings_frame.setVisible(mode == "web")
@@ -1086,16 +1093,3 @@ class ObsSettingsDialog(QDialog):
             scenes=self._settings.scenes,
             remote=remote,
         )
-
-    @classmethod
-    def edit(
-        cls,
-        settings: ObsSettings,
-        obs_controller: ObsController | None = None,
-        remote_client=None,
-        parent: QWidget | None = None,
-    ) -> ObsSettings | None:
-        dialog = cls(settings, obs_controller, remote_client, parent)
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            return dialog.get_settings()
-        return None

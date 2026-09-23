@@ -10,6 +10,7 @@ from app.ui.media_tab import MediaTab
 from app.ui.navigation_rail import NavigationRail
 from app.ui.playlist_tab import PlaylistTab
 from app.ui.sermons_tab import SermonsTab
+from app.ui.settings_page import SettingsPage
 from app.ui.settings_tab import SettingsTab
 from app.ui.theme import Colors, Radius, Spacing
 from app.utils.translations import tr
@@ -55,7 +56,9 @@ class LibraryPanel(QFrame):
         self.expose_tab = ExposeTab(self)
         self.media_tab = MediaTab(self)
         self.playlist_tab = PlaylistTab(self)
+        # Settings: overview (former settings tab) + one section per screen.
         self.settings_tab = SettingsTab(self)
+        self.settings_page = SettingsPage(self.settings_tab, self)
 
         self.stack.addWidget(self.bible_tab)
         self.stack.addWidget(self.hymns_tab)
@@ -63,7 +66,7 @@ class LibraryPanel(QFrame):
         self.stack.addWidget(self.expose_tab)
         self.stack.addWidget(self.media_tab)
         self.stack.addWidget(self.playlist_tab)
-        self.stack.addWidget(self.settings_tab)
+        self.stack.addWidget(self.settings_page)
 
         # Alias historique utilisé par les contrôleurs existants.
         self.tabs = self.stack
