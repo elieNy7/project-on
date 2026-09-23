@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 from PyQt6.QtCore import QSize, Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QFont
+from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
     QFrame,
-    QGraphicsDropShadowEffect,
     QHBoxLayout,
     QLabel,
     QPushButton,
@@ -18,7 +17,7 @@ from app.version import __version__
 
 
 class SidebarButton(QPushButton):
-    """Premium sidebar button with refined active state and subtle glow."""
+    """Navigation button with clear, stable hover and selected states."""
 
     def __init__(self, text: str, icon_name: str, parent=None) -> None:
         super().__init__(parent)
@@ -31,14 +30,6 @@ class SidebarButton(QPushButton):
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setMinimumHeight(44)
 
-        # Subtle shadow effect for depth
-        self._shadow = QGraphicsDropShadowEffect(self)
-        self._shadow.setBlurRadius(12)
-        self._shadow.setXOffset(0)
-        self._shadow.setYOffset(2)
-        self._shadow.setColor(QColor(0, 0, 0, 40))
-        self.setGraphicsEffect(self._shadow)
-
         self._update_style(False)
 
     def _update_style(self, checked: bool) -> None:
@@ -49,28 +40,24 @@ class SidebarButton(QPushButton):
             self.setStyleSheet(f"""
                 QPushButton {{
                     text-align: left;
-                    padding: 10px 14px 10px 14px;
-                    border: none;
+                    padding: 10px 14px;
+                    border: 1px solid {Colors.BORDER_ACCENT};
                     border-radius: {Radius.MD}px;
-                    background: qlineargradient(
-                        x1:0, y1:0, x2:1, y2:0,
-                        stop:0 {Colors.ACCENT_GLOW_STRONG},
-                        stop:1 {Colors.ACCENT_GLOW}
-                    );
-                    color: {Colors.ACCENT_LIGHT};
+                    background: {Colors.ACCENT_GLOW};
+                    color: {Colors.TEXT_PRIMARY};
                     font-family: {Typography.PRIMARY_FAMILY};
                     font-size: {Typography.SIZE_MD}px;
                     font-weight: {Typography.WEIGHT_SEMIBOLD};
                     margin: 0 0 3px 0;
-                    letter-spacing: 0;
-                    border: 1px solid {Colors.ACCENT_GLOW_STRONG};
                 }}
                 QPushButton:hover {{
                     background: {Colors.ACCENT_GLOW_STRONG};
-                    border-color: {Colors.ACCENT_PRIMARY};
+                    border-color: {Colors.BORDER_ACCENT};
+                }}
+                QPushButton:focus {{
+                    border: 2px solid {Colors.BORDER_FOCUS};
                 }}
             """)
-            self._shadow.setColor(QColor(232, 176, 86, 30))
         else:
             self.setStyleSheet(f"""
                 QPushButton {{
@@ -91,8 +78,10 @@ class SidebarButton(QPushButton):
                     color: {Colors.TEXT_SECONDARY};
                     border-color: {Colors.BORDER_SUBTLE};
                 }}
+                QPushButton:focus {{
+                    border: 2px solid {Colors.BORDER_FOCUS};
+                }}
             """)
-            self._shadow.setColor(QColor(0, 0, 0, 40))
 
     def setChecked(self, checked: bool) -> None:
         super().setChecked(checked)
@@ -100,7 +89,7 @@ class SidebarButton(QPushButton):
 
 
 class Sidebar(QFrame):
-    """Premium vertical navigation sidebar with glassmorphism header."""
+    """Vertical library navigation with a calm, theme-aware surface."""
 
     currentChanged = pyqtSignal(int)
 
@@ -112,11 +101,7 @@ class Sidebar(QFrame):
         self.setStyleSheet(
             f"""
             QFrame#Sidebar {{
-                background: qlineargradient(
-                    x1:0, y1:0, x2:0, y2:1,
-                    stop:0 {Colors.SIDEBAR_GRADIENT_START},
-                    stop:1 {Colors.SIDEBAR_GRADIENT_END}
-                );
+                background: {Colors.BG_SECONDARY};
                 border: 1px solid {Colors.BORDER_SUBTLE};
                 border-right: 1px solid {Colors.BORDER_DEFAULT};
                 border-radius: {Radius.LG}px;
@@ -222,24 +207,12 @@ class Sidebar(QFrame):
         header.setStyleSheet(
             f"""
             QFrame#SidebarHeader {{
-                background: qlineargradient(
-                    x1:0, y1:0, x2:1, y2:1,
-                    stop:0 {Colors.BG_ELEVATED},
-                    stop:1 {Colors.BG_TERTIARY}
-                );
+                background: {Colors.BG_TERTIARY};
                 border: 1px solid {Colors.BORDER_DEFAULT};
                 border-radius: {Radius.MD}px;
             }}
             """
         )
-
-        # Add subtle shadow to header
-        header_shadow = QGraphicsDropShadowEffect(header)
-        header_shadow.setBlurRadius(16)
-        header_shadow.setXOffset(0)
-        header_shadow.setYOffset(3)
-        header_shadow.setColor(QColor(0, 0, 0, 50))
-        header.setGraphicsEffect(header_shadow)
 
         header_layout = QVBoxLayout(header)
         header_layout.setContentsMargins(16, 16, 16, 16)

@@ -140,17 +140,18 @@ class MainWindow(QMainWindow):
         self.preview_panel.set_presentation_dir(presentation_dir)
         self.preview_panel.set_media_hub(self._media_hub)
 
-        # Apply refined shadows to panels for depth
+        # Keep panel separation subtle so the library and preview remain the
+        # visual focus in both themes.
         is_light_theme = get_theme() == "light"
         for panel in (self.library_panel, self.preview_panel):
             shadow = QGraphicsDropShadowEffect(self)
-            shadow.setBlurRadius(28 if is_light_theme else 40)
+            shadow.setBlurRadius(18 if is_light_theme else 22)
             shadow.setXOffset(0)
-            shadow.setYOffset(5 if is_light_theme else 8)
+            shadow.setYOffset(2 if is_light_theme else 3)
             shadow.setColor(
-                QColor(15, 23, 42, 45)
+                QColor(15, 23, 42, 25)
                 if is_light_theme
-                else QColor(2, 6, 14, 160)
+                else QColor(2, 6, 14, 85)
             )
             panel.setGraphicsEffect(shadow)
 

@@ -65,6 +65,7 @@ build_installer.bat
 
 - Code : voir [LICENSE.txt](LICENSE.txt).
 - Silhouettes aigle / lion / agneau dérivées de [game-icons.net](https://game-icons.net/) (Lorc, Delapouite) — **CC BY 3.0**.
+- Icônes d’interface SVG issues de [Lucide](https://lucide.dev/) — licence **ISC**, texte fourni dans `licenses/LUCIDE-ISC.txt`.
 
 <div align="center">
 

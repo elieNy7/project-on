@@ -123,6 +123,7 @@ added_files = [
     data_file("data/project_on.db", "data"),
     data_file("assets/logo.ico", "assets"),
     data_file("assets/logo/app icon.png", "assets/logo"),
+    data_file("licenses/LUCIDE-ISC.txt", "licenses"),
     data_file(f"ndi/bin/Processing.NDI.Lib.{ndi_arch}.dll", "ndi/bin"),
 ]
 

@@ -21,17 +21,17 @@ class _StatusPill(QFrame):
             }}
         """)
         lay = QHBoxLayout(self)
-        lay.setContentsMargins(6, 2, 8, 2)
-        lay.setSpacing(4)
+        lay.setContentsMargins(8, 3, 9, 3)
+        lay.setSpacing(5)
 
         self._icon = QLabel(self)
-        self._icon.setPixmap(app_icon(icon_name).pixmap(QSize(11, 11)))
+        self._icon.setPixmap(app_icon(icon_name).pixmap(QSize(14, 14)))
         self._icon.setStyleSheet("background: transparent;")
         lay.addWidget(self._icon)
 
         self._label = QLabel(text, self)
         self._label.setStyleSheet(f"""
-            font-size: {Typography.SIZE_XS}px;
+            font-size: {Typography.SIZE_META}px;
             color: {Colors.TEXT_MUTED};
             background: transparent;
             font-weight: 600;
@@ -42,11 +42,11 @@ class _StatusPill(QFrame):
         self._label.setText(text)
 
     def set_icon(self, icon_name: str) -> None:
-        self._icon.setPixmap(app_icon(icon_name).pixmap(QSize(11, 11)))
+        self._icon.setPixmap(app_icon(icon_name).pixmap(QSize(14, 14)))
 
     def set_accent(self, color: str) -> None:
         self._label.setStyleSheet(f"""
-            font-size: {Typography.SIZE_XS}px;
+            font-size: {Typography.SIZE_META}px;
             color: {color};
             background: transparent;
             font-weight: 600;
@@ -61,7 +61,7 @@ class StatusBar(QFrame):
         self._project_active = False
         self._hidden = False
         self.setObjectName("StatusBar")
-        self.setFixedHeight(30)
+        self.setFixedHeight(34)
         self.setStyleSheet(f"""
             QFrame#StatusBar {{
                 background: {Colors.BG_SECONDARY};

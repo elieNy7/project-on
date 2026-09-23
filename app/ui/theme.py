@@ -185,73 +185,70 @@ _DARK_PALETTE = {
 }
 
 _LIGHT_PALETTE = {
-    # ── Sanctuary Light — warm parchment & morning gold ────────────────
-    # A complete redesign: warm ivory backgrounds instead of cold slate,
-    # deep espresso ink, and a rich bronze-gold accent that keeps the
-    # app's identity readable on bright surfaces.
-    "BG_PRIMARY": "#f6f1e7",
-    "BG_SECONDARY": "#fdfaf3",
-    "BG_TERTIARY": "#eee7d8",
-    "BG_ELEVATED": "#fffdf8",
-    "BG_SURFACE": "#e6dcc8",
-    "BG_CARD": "#fbf7ec",
-    "BG_INPUT": "#f2ecdd",
-    "BG_INPUT_HOVER": "#eae2cf",
-    "BG_INPUT_FOCUS": "#fffdf6",
-    "BG_TOOLTIP": "#2e2620",
-    "GLASS_LIGHT": "rgba(93, 76, 54, 0.03)",
-    "GLASS_MEDIUM": "rgba(93, 76, 54, 0.06)",
-    "GLASS_HEAVY": "rgba(93, 76, 54, 0.11)",
-    "GLASS_ACCENT": "rgba(166, 113, 18, 0.09)",
-    "GLASS_ACCENT_STRONG": "rgba(166, 113, 18, 0.17)",
-    "SURFACE": "#eee7d8",
-    "SURFACE_HOVER": "#e6dcc6",
-    "SURFACE_ACTIVE": "#dccfb2",
-    "SURFACE_RAISED": "#d3c4a2",
-    "TEXT_PRIMARY": "#2a231a",
-    "TEXT_SECONDARY": "#544a3a",
-    "TEXT_MUTED": "#7f7462",
-    "TEXT_DISABLED": "#b0a58f",
-    "TEXT_PLACEHOLDER": "#a3967f",
-    "ACCENT_PRIMARY": "#a67112",
-    "ACCENT_LIGHT": "#c28d20",
-    "ACCENT_DARK": "#7c540a",
-    "ACCENT_GLOW": "rgba(166, 113, 18, 0.10)",
-    "ACCENT_GLOW_STRONG": "rgba(166, 113, 18, 0.20)",
-    "ACCENT_GRADIENT_START": "#8f5f0c",
-    "ACCENT_GRADIENT_END": "#c28d20",
-    "ACCENT_SECONDARY": "#2e6cad",
-    "ACCENT_SECONDARY_GLOW": "rgba(46, 108, 173, 0.10)",
-    "ACCENT_SUCCESS": "#1c7f45",
-    "ACCENT_SUCCESS_GLOW": "rgba(28, 127, 69, 0.10)",
-    "ACCENT_WARNING": "#b2690e",
-    "ACCENT_WARNING_GLOW": "rgba(178, 105, 14, 0.10)",
-    "ACCENT_DANGER": "#c23a2e",
-    "ACCENT_DANGER_GLOW": "rgba(194, 58, 46, 0.10)",
-    "SRC_BIBLE": "#1c7f45",
-    "SRC_SERMON": "#b2690e",
-    "SRC_HYMN": "#7a4fc0",
-    "SRC_CUSTOM": "#2e6cad",
-    "SRC_IMAGE": "#7f7462",
-    "BORDER_SUBTLE": "rgba(93, 76, 54, 0.08)",
-    "BORDER_DEFAULT": "rgba(93, 76, 54, 0.13)",
-    "BORDER_HOVER": "rgba(93, 76, 54, 0.24)",
-    "BORDER_FOCUS": "#2e6cad",
-    "BORDER_ACCENT": "rgba(166, 113, 18, 0.32)",
-    "SHADOW_SM": "0 2px 8px rgba(74, 58, 34, 0.10)",
-    "SHADOW_MD": "0 8px 32px rgba(74, 58, 34, 0.14)",
-    "SHADOW_LG": "0 24px 64px rgba(74, 58, 34, 0.18)",
-    "SHADOW_ACCENT": "0 4px 20px rgba(166, 113, 18, 0.16)",
-    "MAIN_GRADIENT_START": "#f0e9d8",
-    "MAIN_GRADIENT_MID": "#f6f1e7",
-    "MAIN_GRADIENT_END": "#fbf7ec",
-    "PANEL_GRADIENT_END": "#fdfaf3",
-    "SIDEBAR_GRADIENT_START": "#fbf7ec",
-    "SIDEBAR_GRADIENT_END": "#f3eddd",
-    "CARD_GRADIENT_START": "#fffdf8",
-    "CARD_GRADIENT_END": "#f7f2e4",
-    "SCROLLBAR_HANDLE": "rgba(93, 76, 54, 0.26)",
-    "PROJECT_BUTTON_TEXT": "#fffdf6",
+    # ── Ivory + navy: bright, calm work surfaces with a restrained gold accent.
+    "BG_PRIMARY": "#f5f5f1",
+    "BG_SECONDARY": "#fbfbf8",
+    "BG_TERTIARY": "#eef0f3",
+    "BG_ELEVATED": "#ffffff",
+    "BG_SURFACE": "#e9edf1",
+    "BG_CARD": "#ffffff",
+    "BG_INPUT": "#ffffff",
+    "BG_INPUT_HOVER": "#f4f6f8",
+    "BG_INPUT_FOCUS": "#ffffff",
+    "BG_TOOLTIP": "#172033",
+    "GLASS_LIGHT": "rgba(30, 41, 59, 0.025)",
+    "GLASS_MEDIUM": "rgba(30, 41, 59, 0.055)",
+    "GLASS_HEAVY": "rgba(30, 41, 59, 0.10)",
+    "GLASS_ACCENT": "rgba(139, 100, 22, 0.08)",
+    "GLASS_ACCENT_STRONG": "rgba(139, 100, 22, 0.15)",
+    "SURFACE": "#eef0f3",
+    "SURFACE_HOVER": "#e6eaf0",
+    "SURFACE_ACTIVE": "#dfe5ed",
+    "SURFACE_RAISED": "#d6dee8",
+    "TEXT_PRIMARY": "#1e293b",
+    "TEXT_SECONDARY": "#38465a",
+    "TEXT_MUTED": "#59677a",
+    "TEXT_DISABLED": "#667085",
+    "TEXT_PLACEHOLDER": "#5c6879",
+    "ACCENT_PRIMARY": "#8b6416",
+    "ACCENT_LIGHT": "#805a12",
+    "ACCENT_DARK": "#6e4c10",
+    "ACCENT_GLOW": "rgba(139, 100, 22, 0.09)",
+    "ACCENT_GLOW_STRONG": "rgba(139, 100, 22, 0.17)",
+    "ACCENT_GRADIENT_START": "#79550e",
+    "ACCENT_GRADIENT_END": "#96701f",
+    "ACCENT_SECONDARY": "#285f99",
+    "ACCENT_SECONDARY_GLOW": "rgba(40, 95, 153, 0.10)",
+    "ACCENT_SUCCESS": "#1d7047",
+    "ACCENT_SUCCESS_GLOW": "rgba(29, 112, 71, 0.10)",
+    "ACCENT_WARNING": "#8c510c",
+    "ACCENT_WARNING_GLOW": "rgba(140, 81, 12, 0.10)",
+    "ACCENT_DANGER": "#b42318",
+    "ACCENT_DANGER_GLOW": "rgba(180, 35, 24, 0.10)",
+    "SRC_BIBLE": "#1d7047",
+    "SRC_SERMON": "#8c510c",
+    "SRC_HYMN": "#6d4bac",
+    "SRC_CUSTOM": "#285f99",
+    "SRC_IMAGE": "#59677a",
+    "BORDER_SUBTLE": "rgba(30, 41, 59, 0.09)",
+    "BORDER_DEFAULT": "rgba(30, 41, 59, 0.16)",
+    "BORDER_HOVER": "rgba(30, 41, 59, 0.27)",
+    "BORDER_FOCUS": "#285f99",
+    "BORDER_ACCENT": "rgba(139, 100, 22, 0.40)",
+    "SHADOW_SM": "0 2px 8px rgba(30, 41, 59, 0.08)",
+    "SHADOW_MD": "0 8px 24px rgba(30, 41, 59, 0.10)",
+    "SHADOW_LG": "0 20px 48px rgba(30, 41, 59, 0.13)",
+    "SHADOW_ACCENT": "0 4px 18px rgba(139, 100, 22, 0.12)",
+    "MAIN_GRADIENT_START": "#f0f1ed",
+    "MAIN_GRADIENT_MID": "#f5f5f1",
+    "MAIN_GRADIENT_END": "#fafaf7",
+    "PANEL_GRADIENT_END": "#fbfbf8",
+    "SIDEBAR_GRADIENT_START": "#ffffff",
+    "SIDEBAR_GRADIENT_END": "#f2f3ef",
+    "CARD_GRADIENT_START": "#ffffff",
+    "CARD_GRADIENT_END": "#fbfbf8",
+    "SCROLLBAR_HANDLE": "rgba(30, 41, 59, 0.25)",
+    "PROJECT_BUTTON_TEXT": "#ffffff",
     "APP_STYLESHEET_NAME": "light",
 }
 
@@ -1103,7 +1100,11 @@ def build_app_stylesheet() -> str:
         QSpinBox:focus,
         QComboBox:focus {{
             background-color: {Colors.BG_INPUT_FOCUS};
-            border: 1px solid {Colors.BORDER_FOCUS};
+            border: 2px solid {Colors.BORDER_FOCUS};
+        }}
+
+        QLineEdit::placeholder {{
+            color: {Colors.TEXT_PLACEHOLDER};
         }}
 
         QComboBox::drop-down {{
@@ -1165,7 +1166,7 @@ def build_app_stylesheet() -> str:
         }}
 
         QPushButton:focus {{
-            border: 1px solid {Colors.BORDER_ACCENT};
+            border: 2px solid {Colors.BORDER_FOCUS};
         }}
 
         QPushButton:disabled {{
@@ -1250,6 +1251,14 @@ def build_app_stylesheet() -> str:
             color: {Colors.ACCENT_LIGHT};
             border: 1px solid {Colors.ACCENT_GLOW_STRONG};
             font-weight: {Typography.WEIGHT_SEMIBOLD};
+        }}
+
+        QListView::item:focus,
+        QListWidget::item:focus,
+        QTableView::item:focus,
+        QTableWidget::item:focus {{
+            border: 2px solid {Colors.BORDER_FOCUS};
+            border-radius: {Radius.SM}px;
         }}
 
         QTabWidget::pane {{
