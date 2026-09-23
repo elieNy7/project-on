@@ -54,6 +54,7 @@ class SettingRow(QFrame):
             " border: none; background: transparent;"
         )
         label_col.addWidget(lbl)
+        self.title_label = lbl
 
         if description:
             desc = QLabel(description)

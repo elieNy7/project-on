@@ -849,7 +849,7 @@ class MainWindow(QMainWindow):
     def _setup_settings_page(self) -> None:
         page = self.library_panel.settings_page
         page.register("projection", tr("local_projection"), "monitor.svg", self._build_projection_section)
-        page.register("themes", tr("themes_manager"), "palette.svg", self._build_themes_section)
+        page.register("themes", "Thèmes", "palette.svg", self._build_themes_section)
         page.register("hdmi", "Sortie HDMI", "cast.svg", self._build_hdmi_section)
         page.register("obs", tr("connectivity"), "wifi.svg", self._build_obs_section)
         page.register("obs_output", tr("lower_third_style"), "layout.svg", self._build_obs_output_section)

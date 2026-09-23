@@ -30,7 +30,9 @@ from PySide6.QtWidgets import (
 from app.ui.icons import app_icon
 from app.ui.obs_output_settings_dialog import DIALOG_STYLE
 from app.ui.settings_dialog import ProjectionSettingsDialog
-from app.ui.theme import Colors, Radius, Typography
+from app.ui.setting_cards import PageHeader, SettingRow, SettingSection, fit_combos
+from app.ui.theme import Colors, Radius, Typography, get_list_style
+from app.utils.flow_layout import FlowLayout
 from app.utils.settings import ProjectionSettings
 from app.utils.themes import (
     ASSIGNABLE_SOURCES,
@@ -75,161 +77,85 @@ class ThemeDialog(QDialog):
         self._active_style: ProjectionSettings = copy.deepcopy(settings.projection)
 
         root = QVBoxLayout(self)
-        root.setContentsMargins(20, 18, 20, 14)
-        root.setSpacing(12)
+        root.setContentsMargins(16, 16, 16, 16)
+        root.setSpacing(16)
+        root.addWidget(PageHeader(tr("themes_title"), tr("themes_intro")))
 
-        intro = QLabel(tr("themes_intro"), self)
-        intro.setWordWrap(True)
-        intro.setStyleSheet(
-            f"color: {Colors.TEXT_SECONDARY}; font-size: {Typography.SIZE_CONTROL}px;"
-            "background: transparent; border: none;"
-        )
-        root.addWidget(intro)
-
-        body = QHBoxLayout()
-        body.setSpacing(14)
-        root.addLayout(body, 1)
-
-        # ── Colonne gauche : liste des thèmes ────────────────────────
-        left = QVBoxLayout()
-        left.setSpacing(8)
-        body.addLayout(left, 1)
-
+        # ── Thèmes ──
+        themes_section = SettingSection("Thèmes", "palette.svg")
         self._theme_list = QListWidget(self)
-        self._theme_list.setStyleSheet(
-            f"QListWidget {{ background: {Colors.BG_SECONDARY};"
-            f" border: 1px solid {Colors.BORDER_DEFAULT};"
-            f" border-radius: {Radius.MD}px; padding: 6px;"
-            f" color: {Colors.TEXT_PRIMARY}; font-size: {Typography.SIZE_MD}px; }}"
-            f"QListWidget::item {{ padding: 8px 10px; border-radius: 8px; }}"
-            f"QListWidget::item:selected {{ background: {Colors.ACCENT_GLOW_STRONG};"
-            f" color: {Colors.ACCENT_LIGHT}; }}"
-        )
+        self._theme_list.setStyleSheet(get_list_style())
+        self._theme_list.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self._theme_list.currentRowChanged.connect(self._on_row_changed)
-        left.addWidget(self._theme_list, 1)
+        themes_section.addWidget(self._theme_list)
 
-        buttons_row = QHBoxLayout()
-        buttons_row.setSpacing(6)
-
-        def _btn(text: str, tip: str, cb) -> QPushButton:
+        def _btn(text: str, tip: str, cb, icon: str = "") -> QPushButton:
             b = QPushButton(text, self)
             b.setToolTip(tip)
-            b.setCursor(Qt.CursorShape.PointingHandCursor)
+            if icon:
+                b.setIcon(app_icon(icon, Colors.TEXT_PRIMARY))
             b.clicked.connect(cb)
-            b.setStyleSheet(
-                f"QPushButton {{ background: {Colors.BG_TERTIARY};"
-                f" border: 1px solid {Colors.BORDER_DEFAULT}; border-radius: 8px;"
-                f" padding: 7px 10px; color: {Colors.TEXT_PRIMARY};"
-                f" font-size: {Typography.SIZE_CONTROL}px; }}"
-                f"QPushButton:hover {{ border-color: {Colors.BORDER_HOVER};"
-                f" background: {Colors.SURFACE_HOVER}; }}"
-            )
             return b
 
-        self._btn_activate = _btn(
-            tr("themes_activate"), tr("themes_activate_tip"), self._on_activate
-        )
-        self._btn_new = _btn(tr("themes_new"), tr("themes_new_tip"), self._on_new)
-        self._btn_duplicate = _btn(
-            tr("themes_duplicate"), tr("themes_duplicate_tip"), self._on_duplicate
-        )
-        self._btn_rename = _btn(
-            tr("themes_rename"), tr("themes_rename_tip"), self._on_rename
-        )
-        self._btn_delete = _btn(
-            tr("themes_delete"), tr("themes_delete_tip"), self._on_delete
-        )
+        self._btn_activate = _btn(tr("themes_activate"), tr("themes_activate_tip"), self._on_activate, "check-circle.svg")
+        self._btn_new = _btn(tr("themes_new"), tr("themes_new_tip"), self._on_new, "plus.svg")
+        self._btn_duplicate = _btn(tr("themes_duplicate"), tr("themes_duplicate_tip"), self._on_duplicate, "copy.svg")
+        self._btn_rename = _btn(tr("themes_rename"), tr("themes_rename_tip"), self._on_rename)
+        self._btn_delete = _btn(tr("themes_delete"), tr("themes_delete_tip"), self._on_delete)
+        self._btn_delete.setStyleSheet(f"QPushButton {{ color: {Colors.ACCENT_DANGER}; }}")
+        self._btn_preset = _btn(tr("themes_presets"), tr("themes_presets_tip"), self._on_add_preset, "sparkles.svg")
+        actions = QWidget(self)
+        actions.setStyleSheet("background: transparent;")
+        flow = FlowLayout(actions, margin=0, hSpacing=6, vSpacing=6)
         for b in (
             self._btn_activate,
             self._btn_new,
             self._btn_duplicate,
             self._btn_rename,
             self._btn_delete,
+            self._btn_preset,
         ):
-            buttons_row.addWidget(b)
-        left.addLayout(buttons_row)
+            flow.addWidget(b)
+        themes_section.addWidget(actions)
+        root.addWidget(themes_section)
 
-        presets_row = QHBoxLayout()
-        self._btn_preset = QPushButton("✦ " + tr("themes_presets"), self)
-        self._btn_preset.setToolTip(tr("themes_presets_tip"))
-        self._btn_preset.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._btn_preset.setStyleSheet(
-            f"QPushButton {{ background: {Colors.ACCENT_GLOW};"
-            f" border: 1px solid {Colors.ACCENT_GLOW_STRONG}; border-radius: 8px;"
-            f" padding: 7px 10px; color: {Colors.ACCENT_LIGHT};"
-            f" font-size: {Typography.SIZE_CONTROL}px; font-weight: 600; }}"
-            f"QPushButton:hover {{ background: {Colors.ACCENT_GLOW_STRONG}; }}"
-        )
-        self._btn_preset.clicked.connect(self._on_add_preset)
-        presets_row.addWidget(self._btn_preset)
-        presets_row.addStretch()
-        left.addLayout(presets_row)
-
-        # ── Colonne droite : style + assignations ────────────────────
-        right = QVBoxLayout()
-        right.setSpacing(10)
-        body.addLayout(right, 1)
-
-        self._detail_label = QLabel("", self)
-        self._detail_label.setWordWrap(True)
-        self._detail_label.setStyleSheet(
-            f"color: {Colors.TEXT_PRIMARY}; font-size: {Typography.SIZE_SECTION}px;"
-            f" font-weight: 700; background: transparent; border: none;"
-        )
-        right.addWidget(self._detail_label)
-
+        # ── Thème sélectionné ──
+        selected_section = SettingSection("Thème sélectionné", "sparkles.svg")
+        self._btn_edit_style = QPushButton(tr("themes_edit_style"), self)
+        self._btn_edit_style.setIcon(app_icon("palette.svg", Colors.TEXT_PRIMARY))
+        self._btn_edit_style.clicked.connect(self._on_edit_style)
         self._active_badge = QLabel(tr("themes_active_badge"), self)
         self._active_badge.setStyleSheet(
             f"color: {Colors.ACCENT_SUCCESS}; background: {Colors.ACCENT_SUCCESS_GLOW};"
-            f" border-radius: 8px; padding: 3px 8px;"
-            f" font-size: {Typography.SIZE_META}px; font-weight: 800;"
-            "background-clip: padding; max-width: 90px;"
+            f" border-radius: {Radius.SM}px; padding: 3px 8px;"
+            f" font-size: {Typography.SIZE_META}px; font-weight: {Typography.WEIGHT_SEMIBOLD};"
         )
-        right.addWidget(self._active_badge)
+        controls = QWidget(self)
+        controls.setStyleSheet("background: transparent;")
+        controls_layout = QHBoxLayout(controls)
+        controls_layout.setContentsMargins(0, 0, 0, 0)
+        controls_layout.setSpacing(8)
+        controls_layout.addWidget(self._active_badge)
+        controls_layout.addWidget(self._btn_edit_style)
+        selected_row = SettingRow("", controls)
+        # The card title is the selected theme's name (see _refresh_detail).
+        self._detail_label = selected_row.title_label
+        selected_section.addWidget(selected_row)
+        root.addWidget(selected_section)
 
-        self._btn_edit_style = QPushButton("🎨 " + tr("themes_edit_style"), self)
-        self._btn_edit_style.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._btn_edit_style.setStyleSheet(
-            f"QPushButton {{ background: {Colors.BG_TERTIARY};"
-            f" border: 1px solid {Colors.BORDER_DEFAULT}; border-radius: 8px;"
-            f" padding: 9px 12px; color: {Colors.TEXT_PRIMARY};"
-            f" font-size: {Typography.SIZE_CONTROL}px; font-weight: 600; }}"
-            f"QPushButton:hover {{ border-color: {Colors.BORDER_HOVER};"
-            f" background: {Colors.SURFACE_HOVER}; }}"
-        )
-        self._btn_edit_style.clicked.connect(self._on_edit_style)
-        right.addWidget(self._btn_edit_style)
-
-        assign_title = QLabel(tr("themes_assign_title"), self)
-        assign_title.setStyleSheet(
-            f"color: {Colors.TEXT_SECONDARY}; font-size: {Typography.SIZE_CONTROL}px;"
-            f" font-weight: 700; background: transparent; border: none; margin-top: 6px;"
-        )
-        right.addWidget(assign_title)
-
+        # ── Attribution par type de contenu ──
+        assign_section = SettingSection(tr("themes_assign_title"), "layout.svg")
         self._assign_combos: dict[str, QComboBox] = {}
         for source in ASSIGNABLE_SOURCES:
-            row = QHBoxLayout()
-            row.setSpacing(8)
-            lbl = QLabel(_SOURCE_LABELS.get(source, source), self)
-            lbl.setStyleSheet(
-                f"color: {Colors.TEXT_SECONDARY};"
-                f" font-size: {Typography.SIZE_CONTROL}px;"
-                "background: transparent; border: none;"
-            )
-            lbl.setMinimumWidth(96)
-            row.addWidget(lbl)
             combo = QComboBox(self)
-            combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
             _style_combo_popup(combo)
-            row.addWidget(combo, 1)
-            right.addLayout(row)
+            assign_section.addRow(_SOURCE_LABELS.get(source, source), combo)
             self._assign_combos[source] = combo
             combo.currentIndexChanged.connect(
                 lambda _ix, s=source: self._on_assignment_changed(s)
             )
-
-        right.addStretch(1)
+        root.addWidget(assign_section)
+        root.addStretch(1)
 
         # ── Pied : annuler / enregistrer ─────────────────────────────
         foot = QHBoxLayout()
@@ -261,6 +187,7 @@ class ThemeDialog(QDialog):
 
         self._reload_list()
         self._reload_assignments()
+        fit_combos(self)
 
     # ── État interne ──────────────────────────────────────────────────
 
@@ -293,6 +220,13 @@ class ThemeDialog(QDialog):
         self._theme_list.blockSignals(False)
         self._refresh_detail()
         self._reload_assignments()
+        self._fit_list_height()
+
+    def _fit_list_height(self) -> None:
+        rows = max(1, min(self._theme_list.count(), 6))
+        row_h = self._theme_list.sizeHintForRow(0) if self._theme_list.count() else 40
+        frame = 2 * self._theme_list.frameWidth() + 12
+        self._theme_list.setFixedHeight(rows * max(row_h, 36) + frame)
 
     def _refresh_detail(self) -> None:
         theme = self._current_theme()

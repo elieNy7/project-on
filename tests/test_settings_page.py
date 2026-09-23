@@ -175,3 +175,32 @@ def test_projection_screen_modes() -> None:
     assert {"Annuler", "Enregistrer"} <= visible
     for w in (page, dialog):
         w.deleteLater()
+
+
+# ── Themes screen ─────────────────────────────────────────────────────────
+
+
+def test_themes_screen_is_one_visible_column() -> None:
+    QApplication.instance() or QApplication([])
+    from app.ui.theme_dialog import ThemeDialog
+    from app.utils.settings import AppSettings
+
+    screen = ThemeDialog(AppSettings(), embedded=True)
+    screen.resize(460, 900)
+    screen.show()
+    try:
+        # Selected-theme card and assignments are in the single column.
+        assert screen._btn_edit_style.isVisible()
+        assert all(c.isVisible() for c in screen._assign_combos.values())
+        assert screen._active_badge.isVisible()  # the default theme is active
+        # The list is sized to its themes, not stretched over the page.
+        assert screen._theme_list.height() < 200
+
+        emitted = []
+        screen.themesLiveChanged.connect(lambda *args: emitted.append(args))
+        combo = next(iter(screen._assign_combos.values()))
+        combo.setCurrentIndex(combo.count() - 1)
+        assert emitted  # every change is broadcast for immediate apply
+    finally:
+        screen.close()
+        screen.deleteLater()
