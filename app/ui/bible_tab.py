@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 from app.ui.bible_book_delegate import BibleBookDelegate
 from app.ui.bible_verse_delegate import BibleVerseDelegate
 from app.ui.icons import app_icon
+from app.ui.list_selection import select_first
 from app.ui.library_list_presentation import (
     COMPACT_PREVIEW_BOX_HEIGHT,
     normalize_preview_text,
@@ -363,6 +364,13 @@ class BibleTab(QFrame):
 
         if verses:
             self.verses_list.setCurrentRow(0)
+
+    def select_book(self, book_id: int) -> bool:
+        """Select a book (emits bookSelected when it changes)."""
+        return select_first(self.books_list, lambda it: int(it.data(256)) == int(book_id))
+
+    def select_verse(self, verse: int) -> bool:
+        return select_first(self.verses_list, lambda it: it.data(258) == int(verse))
 
     def current_book_name(self) -> str:
         return self._current_book_name

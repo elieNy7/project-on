@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
 from app.ui.expose_delegate import ExposeParagraphDelegate
 from app.ui.expose_list_delegate import ExposeListDelegate
 from app.ui.icons import app_icon
+from app.ui.list_selection import select_first
 from app.ui.library_list_presentation import (
     COMPACT_PREVIEW_BOX_HEIGHT,
     truncate_preview,
@@ -301,6 +302,16 @@ class ExposeTab(QFrame):
             self.chapters_list.addItem(item)
         if chapters:
             self.chapters_list.setCurrentRow(0)
+
+    def show_search(self, query: str) -> None:
+        """Fill the search field without triggering its own timer."""
+        self.search_input.blockSignals(True)
+        self.search_input.setText(query)
+        self.search_input.blockSignals(False)
+        self._search_timer.stop()
+
+    def select_search_result(self, reference: str) -> bool:
+        return select_first(self.paragraphs_list, lambda it: str(it.data(256)) == str(reference))
 
     def set_search_results(self, paragraphs: list[dict[str, Any]]) -> None:
         """Display search results in the paragraphs list."""

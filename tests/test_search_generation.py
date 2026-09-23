@@ -1,11 +1,11 @@
 from types import SimpleNamespace
 
-from PySide6.QtCore import QCoreApplication
+from PySide6.QtWidgets import QApplication
 from app.utils.library_controller import LibraryController
 
 
 def controller():
-    app = QCoreApplication.instance() or QCoreApplication([])
+    app = QApplication.instance() or QApplication([])
     obj = LibraryController.__new__(LibraryController)
     obj._generations = {}
     jobs = []

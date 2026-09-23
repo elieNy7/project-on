@@ -16,6 +16,15 @@ from app.database.connection import Database
 log = logging.getLogger(__name__)
 
 
+# Signal carriers of workers whose result has not reached the main thread
+# yet. The pool deletes a finished runnable in its worker thread; if the
+# carrier QObject died with it while its queued signal was still pending,
+# the main thread would dispatch from a destroyed object (access violation
+# when several workers finish together). The carrier is released only after
+# delivery, on the main thread.
+_in_flight: set[QObject] = set()
+
+
 class _DbWorker(QRunnable):
     """Run a DB function in the thread pool, then call back on the main thread."""
 
@@ -27,8 +36,18 @@ class _DbWorker(QRunnable):
         self.setAutoDelete(True)
         self._fn = fn
         self._preserve_error = preserve_error
-        self._signals = self._Signals()
-        self._signals.finished.connect(callback)
+        signals = self._Signals()
+        _in_flight.add(signals)
+
+        def deliver(result: Any) -> None:
+            try:
+                callback(result)
+            finally:
+                _in_flight.discard(signals)
+                signals.deleteLater()
+
+        signals.finished.connect(deliver)
+        self._signals = signals
 
     @Slot()
     def run(self) -> None:
@@ -48,6 +67,7 @@ from app.database.dao_sermons import SermonsDao
 from app.ui.pdf_import_dialog import PdfImportDialog
 from app.utils.pdf_parser import HAS_FITZ, parse_hymns_from_pdf
 from app.utils.pptx_parser import parse_pptx_as_hymn, parse_pptx_folder
+from app.utils.global_search import SearchContext, SearchDeps, search_source, warm_up
 from app.utils.project_on_controller import ProjectOnController
 
 
@@ -108,6 +128,10 @@ class LibraryController(QObject):
         # paragraphe projeté dans l'onglet Exposé (None sinon).
         self._live_expose_chapter_id: int | None = None
         self._current_playlist_folder_id: int | None = None
+        # Global search reveals that complete when an async search returns.
+        self._pending_sermon_hit: tuple[str, str] | None = None
+        self._pending_sermon_id: Any = None
+        self._pending_expose_ref: str | None = None
 
         self._generations: dict[str, int] = {}
         self._imports = set()
@@ -256,6 +280,104 @@ class LibraryController(QObject):
         self.refresh_expose()
         self.refresh_playlists()
         self.refresh_media()
+
+    # ── Recherche globale ────────────────────────────────────────────────
+    _TAB_OF_KIND = {"bible": 0, "sermon": 2, "expose": 3, "media": 4, "playlist": 5}
+
+    def _search_deps(self) -> SearchDeps:
+        return SearchDeps(
+            db=self._db,
+            bible_dao=self._bible_dao,
+            sermons_dao=self._sermons_dao,
+            media_dao=self._media_dao,
+            playlist_dao=self._playlist_dao,
+        )
+
+    def _search_context(self) -> SearchContext:
+        ctx = SearchContext(
+            bible_translation_id=self._current_translation_id,
+            sermon_language=self._current_sermon_language or "fr",
+        )
+        if hasattr(self._sermons_tab, "current_translator"):
+            ctx.sermon_translator = self._sermons_tab.current_translator()
+        if self._expose_tab is not None and hasattr(self._expose_tab, "current_translator"):
+            ctx.expose_translator = self._expose_tab.current_translator() or "VGR"
+        return ctx
+
+    def warm_up_search(self) -> None:
+        """Prepare slow indexes before the first keystroke (background)."""
+        deps, ctx = self._search_deps(), self._search_context()
+        self._pool.start(_DbWorker(lambda: warm_up(deps, ctx), lambda _r: None))
+
+    # Sources run one stage after another, fastest first: they are Python /
+    # GIL bound (unaccent UDF), so running them in parallel only slowed every
+    # source down. A stage starts only if the query is still current.
+    _SEARCH_STAGES = (("bible", "media", "playlist"), ("sermon",), ("expose",))
+
+    def global_search(self, query: str, on_group: Callable[[str, list], None]) -> None:
+        """Search every library; ``on_group(kind, hits)`` is called on the UI
+        thread as each stage answers. Answers to an older query are dropped."""
+        self._invalidate("global_search")
+        generation = self._generations["global_search"]
+        deps, ctx = self._search_deps(), self._search_context()
+
+        def run_stage(index: int) -> None:
+            if index >= len(self._SEARCH_STAGES):
+                return
+            kinds = self._SEARCH_STAGES[index]
+
+            def fetch():
+                return [(kind, search_source(kind, deps, query, ctx)) for kind in kinds]
+
+            def done(groups):
+                if self._generations.get("global_search") != generation:
+                    return
+                for kind, hits in groups or [(kind, []) for kind in kinds]:
+                    on_group(kind, hits or [])
+                run_stage(index + 1)
+
+            self._pool.start(_DbWorker(fetch, done))
+
+        run_stage(0)
+
+    def cancel_global_search(self) -> None:
+        self._invalidate("global_search")
+
+    def reveal_search_hit(self, hit: dict[str, Any]) -> int:
+        """Show a search hit selected in its library tab (never projects).
+
+        Returns the tab index the caller should bring to front.
+        """
+        kind = hit.get("kind")
+        if kind == "bible":
+            book_id = int(hit["book_id"])
+            self._bible_tab.select_book(book_id)
+            if self._current_book_id != book_id:
+                self.on_bible_book_selected(book_id)
+            self.on_bible_chapter_selected(int(hit["chapter"]))
+            if hit.get("verse") is not None:
+                self._bible_tab.select_verse(int(hit["verse"]))
+        elif kind == "sermon":
+            if hit.get("query"):
+                self._sermons_tab.show_paragraph_search(hit["query"])
+                self._pending_sermon_hit = (str(hit.get("sermon_id")), str(hit.get("marker") or ""))
+                self.on_paragraph_search(hit["query"])
+            else:
+                self._sermons_tab.leave_paragraph_search()
+                if not self._sermons_tab.select_sermon(hit.get("sermon_id")):
+                    # Hidden by the tab's title filter: clear it and reload.
+                    self._sermons_tab.clear_title_filter()
+                    self._pending_sermon_id = hit.get("sermon_id")
+                    self.refresh_sermons()
+        elif kind == "expose" and self._expose_tab is not None:
+            self._expose_tab.show_search(hit["query"])
+            self._pending_expose_ref = str(hit.get("reference") or "")
+            self.on_expose_search(hit["query"])
+        elif kind == "media" and self._media_tab is not None:
+            self._media_tab.select_media(int(hit["media_id"]))
+        elif kind == "playlist" and self._playlist_tab is not None:
+            self._playlist_tab.select_folder(int(hit["folder_id"]))
+        return self._TAB_OF_KIND.get(str(kind), 0)
 
     def refresh_bible_books(self) -> None:
         translations = []
@@ -418,6 +540,9 @@ class LibraryController(QObject):
             if hasattr(self._sermons_tab, "set_years"):
                 self._sermons_tab.set_years(result["years"])
             self._sermons_tab.set_sermons(result["sermons"])
+            pending, self._pending_sermon_id = getattr(self, "_pending_sermon_id", None), None
+            if pending is not None:
+                self._sermons_tab.select_sermon(pending)
 
         self._submit_latest("sermons", _fetch, _on_done)
 
@@ -568,6 +693,9 @@ class LibraryController(QObject):
                 results = []
             if hasattr(self._sermons_tab, "set_search_results"):
                 self._sermons_tab.set_search_results(results)
+            pending, self._pending_sermon_hit = getattr(self, "_pending_sermon_hit", None), None
+            if pending is not None:
+                self._sermons_tab.select_search_result(*pending)
 
         self._submit_latest("sermon_detail", _fetch, _on_done)
 
@@ -665,6 +793,9 @@ class LibraryController(QObject):
                 results = []
             if hasattr(self._expose_tab, "set_search_results"):
                 self._expose_tab.set_search_results(results)
+            pending, self._pending_expose_ref = getattr(self, "_pending_expose_ref", None), None
+            if pending is not None:
+                self._expose_tab.select_search_result(pending)
 
         self._submit_latest("expose_detail", _fetch, _on_done)
 

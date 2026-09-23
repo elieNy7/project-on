@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.ui.icons import app_icon
+from app.ui.list_selection import select_first
 from app.ui.theme import (
     Colors,
     Spacing,
@@ -239,6 +240,9 @@ class MediaTab(QWidget):
 
         count = len(items)
         self.info_label.setText(f"{count} média{'s' if count != 1 else ''}")
+
+    def select_media(self, media_id: int) -> bool:
+        return select_first(self.gallery, lambda it: int(it.data(256)) == int(media_id))
 
     def selected_media(self) -> dict[str, Any] | None:
         item = self.gallery.currentItem()

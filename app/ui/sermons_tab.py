@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.ui.icons import app_icon
+from app.ui.list_selection import select_first
 from app.ui.library_list_presentation import (
     COMPACT_PREVIEW_BOX_HEIGHT,
     normalize_preview_text,
@@ -694,6 +695,37 @@ class SermonsTab(QFrame):
         elif query == "":
             self.paragraphs_list.clear()
             self.paragraphs_count_label.setText("Min. 3 caractères...")
+
+    def show_paragraph_search(self, query: str) -> None:
+        """Switch to paragraph-search mode showing ``query`` (no timer: the
+        caller runs the search itself)."""
+        if not self._para_search_btn.isChecked():
+            self._para_search_btn.setChecked(True)
+        self._para_search_mode = True
+        self._para_search.setVisible(True)
+        self._para_search.blockSignals(True)
+        self._para_search.setText(query)
+        self._para_search.blockSignals(False)
+        self._para_search_timer.stop()
+
+    def leave_paragraph_search(self) -> None:
+        if self._para_search_btn.isChecked():
+            self._para_search_btn.setChecked(False)
+            self._toggle_para_search()
+
+    def select_search_result(self, sermon_id, marker: str) -> bool:
+        return select_first(
+            self.paragraphs_list,
+            lambda it: str(it.data(259)) == str(sermon_id) and str(it.data(258)) == str(marker),
+        )
+
+    def select_sermon(self, sermon_id) -> bool:
+        return select_first(self.sermons_list, lambda it: str(it.data(256)) == str(sermon_id))
+
+    def clear_title_filter(self) -> None:
+        self.search.blockSignals(True)
+        self.search.clear()
+        self.search.blockSignals(False)
 
     def set_search_results(self, results: list[dict]) -> None:
         """Display global paragraph search results."""

@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.ui.icons import app_icon
+from app.ui.list_selection import select_first
 from app.utils.translations import tr
 from app.ui.theme import (
     Colors,
@@ -457,6 +458,10 @@ class PlaylistTab(QFrame):
         self.play_btn.clicked.connect(self._on_play_clicked)
 
     # ── Public API ────────────────────────────────────────────────────────
+
+    def select_folder(self, folder_id: int) -> bool:
+        """Select a playlist (emits folderSelected when it changes)."""
+        return select_first(self.folders_list, lambda it: int(it.data(256)) == int(folder_id))
 
     def current_folder_id(self) -> int | None:
         item = self.folders_list.currentItem()

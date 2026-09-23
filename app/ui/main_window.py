@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 
 from app.database.connection import Database
 from app.ui.command_bar import CommandBar
+from app.ui.global_search_popup import GlobalSearchPopup
 from app.ui.icons import app_logo_icon
 from app.ui.library_panel import LibraryPanel
 from app.ui.preview_panel import PreviewPanel
@@ -188,6 +189,8 @@ class MainWindow(QMainWindow):
             media_tab=self.library_panel.media_tab,
         )
 
+        self._setup_global_search(root)
+
         # Diaporama lancé depuis la galerie des médias (sélection ou
         # bibliothèque entière) ou depuis une playlist de médias.
         media_tab = self.library_panel.media_tab
@@ -328,6 +331,11 @@ class MainWindow(QMainWindow):
         sc_search.setContext(Qt.ShortcutContext.ApplicationShortcut)
         sc_search.activated.connect(self._focus_active_search)
 
+        # Ctrl+K → recherche globale (toutes les bibliothèques)
+        sc_global = QShortcut(QKeySequence("Ctrl+K"), self)
+        sc_global.setContext(Qt.ShortcutContext.ApplicationShortcut)
+        sc_global.activated.connect(self._focus_global_search)
+
         # Ctrl+G → Focus recherche paragraphe global
         sc_para = QShortcut(QKeySequence("Ctrl+G"), self)
         sc_para.setContext(Qt.ShortcutContext.ApplicationShortcut)
@@ -388,6 +396,14 @@ class MainWindow(QMainWindow):
         if not getattr(self, "_startup_feedback_scheduled", False):
             self._startup_feedback_scheduled = True
             QTimer.singleShot(0, self._show_startup_warning)
+        if not getattr(self, "_search_warmed", True):
+            # Build search indexes once startup loading has settled.
+            QTimer.singleShot(5000, self._warm_up_search)
+
+    def _warm_up_search(self) -> None:
+        if not self._search_warmed:
+            self._search_warmed = True
+            self._library_controller.warm_up_search()
 
     def _show_startup_warning(self) -> None:
         warning = self._settings.load_warning
@@ -416,6 +432,70 @@ class MainWindow(QMainWindow):
             )
             return False
         return True
+
+    # ── Recherche globale ─────────────────────────────────────────────────
+
+    def _setup_global_search(self, root: QWidget) -> None:
+        field = self.command_bar.search_edit
+        self._search_popup = GlobalSearchPopup(root)
+        self._search_popup.attach(field)
+        self._search_popup.hitActivated.connect(self._open_search_hit)
+
+        self._global_search_timer = QTimer(self)
+        self._global_search_timer.setSingleShot(True)
+        self._global_search_timer.setInterval(220)
+        self._global_search_timer.timeout.connect(self._run_global_search)
+        field.textEdited.connect(self._on_global_search_edited)
+        field.returnPressed.connect(self._run_global_search_now)
+        self._search_warmed = False
+        field.installEventFilter(self)
+
+    def _focus_global_search(self) -> None:
+        field = self.command_bar.search_edit
+        field.setFocus(Qt.FocusReason.ShortcutFocusReason)
+        field.selectAll()
+
+    def _on_global_search_edited(self, text: str) -> None:
+        if len(text.strip()) < 2:
+            self._global_search_timer.stop()
+            self._library_controller.cancel_global_search()
+            self._search_popup.dismiss()
+            return
+        self._global_search_timer.start()
+
+    def _run_global_search_now(self) -> None:
+        # Enter with no visible results yet: search immediately.
+        if not self._search_popup.isVisible():
+            self._global_search_timer.stop()
+            self._run_global_search()
+
+    def _run_global_search(self) -> None:
+        query = self.command_bar.search_edit.text().strip()
+        if len(query) < 2:
+            return
+        self._search_popup.begin()
+        self._library_controller.global_search(query, self._search_popup.add_group)
+
+    def _open_search_hit(self, hit: dict) -> None:
+        self._global_search_timer.stop()
+        self._library_controller.cancel_global_search()
+        index = self._library_controller.reveal_search_hit(hit)
+        self.rail.setCurrentIndex(index)
+        self.command_bar.search_edit.clearFocus()
+
+    def eventFilter(self, obj: QObject, event: QEvent) -> bool:  # noqa: N802
+        if (
+            obj is self.command_bar.search_edit
+            and event.type() == QEvent.Type.FocusIn
+        ):
+            self._warm_up_search()
+        return super().eventFilter(obj, event)
+
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        super().resizeEvent(event)
+        popup = getattr(self, "_search_popup", None)
+        if popup is not None and popup.isVisible():
+            popup.reposition()
 
     def _on_rail_compact_changed(self, compact: bool) -> None:
         self._settings.appearance.rail_compact = compact
