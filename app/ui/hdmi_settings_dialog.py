@@ -22,7 +22,8 @@ from PySide6.QtWidgets import (
 )
 
 from app.ui.icons import app_icon
-from app.ui.obs_output_settings_dialog import DIALOG_STYLE, SettingSection
+from app.ui.obs_output_settings_dialog import DIALOG_STYLE
+from app.ui.setting_cards import SettingSection
 from app.ui.settings_dialog import _style_combo
 from app.ui.theme import Colors, Typography
 from app.utils.obs_overlay_render import chroma_key_rgb, render_obs_overlay_on_color

@@ -130,14 +130,20 @@ def test_projection_window_applies_per_source_theme(qapp, tmp_path):
     }
     (tmp_path / "config.json").write_text(json.dumps(config), encoding="utf-8")
     window = ProjectionWindow(tmp_path)
-    window._apply_slide({"text": "a", "reference": "r", "source": "bible"})
-    assert window._theme_active is None
-    window._apply_slide({"text": "b", "reference": "r", "source": "hymn"})
-    assert window._theme_active == "cantique"
-    assert window._config["text_size"] == 70
-    window._apply_slide({"text": "c", "reference": "r", "source": "sermon"})
-    assert window._theme_active is None
-    assert window._config["text_size"] == 56
+    try:
+        window._apply_slide({"text": "a", "reference": "r", "source": "bible"})
+        assert window._theme_active is None
+        window._apply_slide({"text": "b", "reference": "r", "source": "hymn"})
+        assert window._theme_active == "cantique"
+        assert window._config["text_size"] == 70
+        window._apply_slide({"text": "c", "reference": "r", "source": "sermon"})
+        assert window._theme_active is None
+        assert window._config["text_size"] == 56
+    finally:
+        # Closing releases the sleep inhibitor the window takes when shown;
+        # left open, it leaked into later power-guard tests.
+        window.close()
+        window.deleteLater()
 
 
 def test_preview_renders_theme_pixmap(qapp):

@@ -20,12 +20,9 @@ from PySide6.QtWidgets import (
 )
 
 from app.ui.icons import app_icon
-from app.ui.obs_output_settings_dialog import (
-    DIALOG_STYLE,
-    ColorPickerButton,
-    SettingSection,
-)
-from app.ui.theme import Colors, Radius, Typography, get_scroll_area_style
+from app.ui.obs_output_settings_dialog import DIALOG_STYLE, ColorPickerButton
+from app.ui.setting_cards import PageHeader, SettingSection, fit_combos
+from app.ui.theme import Colors, get_scroll_area_style
 from app.utils.fonts import get_available_fonts
 from app.utils.settings import ProjectionSettings
 from app.utils.translations import tr
@@ -54,27 +51,6 @@ def _style_combo(combo: QComboBox) -> None:
         )
 
 
-def _picker_button_style() -> str:
-    return f"""
-        QPushButton {{
-            background: {Colors.SURFACE_HOVER};
-            border: 1px solid {Colors.BORDER_DEFAULT};
-            border-radius: {Radius.MD}px;
-            padding: 8px 14px;
-            color: {Colors.TEXT_PRIMARY};
-            font-size: {Typography.SIZE_BODY}px;
-        }}
-        QPushButton:hover {{
-            background: {Colors.SURFACE_ACTIVE};
-            border-color: {Colors.BORDER_FOCUS};
-        }}
-        QPushButton:disabled {{
-            color: {Colors.TEXT_DISABLED};
-            border-color: {Colors.BORDER_SUBTLE};
-        }}
-    """
-
-
 class ProjectionSettingsDialog(QDialog):
     """Réglages essentiels de la projection locale.
 
@@ -100,50 +76,32 @@ class ProjectionSettingsDialog(QDialog):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        # ── Header ──
-        header = QFrame(self)
-        header.setStyleSheet(f"""
-            QFrame {{
-                background: {Colors.BG_SECONDARY};
-                border-bottom: 1px solid {Colors.BORDER_DEFAULT};
-            }}
-        """)
-        h_layout = QHBoxLayout(header)
-        h_layout.setContentsMargins(24, 16, 24, 14)
-        h_layout.setSpacing(14)
-
-        icon_lbl = QLabel()
-        icon_lbl.setPixmap(app_icon("monitor.svg").pixmap(28, 28))
-        icon_lbl.setStyleSheet("background: transparent; border: none;")
-        h_layout.addWidget(icon_lbl)
-
-        title_col = QVBoxLayout()
-        title_col.setSpacing(2)
-        title = QLabel("Projection locale")
-        title.setStyleSheet(
-            f"font-size: {Typography.SIZE_TITLE}px; font-weight: 700; color: {Colors.TEXT_PRIMARY}; background: transparent; border: none;"
+        header = PageHeader(
+            "Projection locale",
+            "Écran, texte, fond, médias et transitions de la projection plein écran.",
+            on_reset=self._reset_defaults,
         )
-        title_col.addWidget(title)
-        subtitle = QLabel("L'essentiel pour projeter lisiblement")
-        subtitle.setStyleSheet(
-            f"font-size: {Typography.SIZE_CONTROL}px; color: {Colors.TEXT_SECONDARY}; background: transparent; border: none;"
-        )
-        title_col.addWidget(subtitle)
-        h_layout.addLayout(title_col, 1)
-        main_layout.addWidget(header)
-
-        # ── Scrollable content ──
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.Shape.NoFrame)
-        scroll.setStyleSheet(get_scroll_area_style())
 
         content = QWidget()
         content.setStyleSheet("background: transparent;")
         layout = QVBoxLayout(content)
-        layout.setContentsMargins(24, 20, 24, 16)
         layout.setSpacing(16)
-        layout.setSizeConstraint(QVBoxLayout.SizeConstraint.SetMinimumSize)
+        if embedded:
+            # Inside the settings page, which scrolls as a whole.
+            layout.setContentsMargins(16, 16, 16, 16)
+            layout.addWidget(header)
+            main_layout.addWidget(content)
+        else:
+            # Standalone (theme style editor): own scroll area and footer.
+            layout.setContentsMargins(24, 20, 24, 16)
+            layout.setSizeConstraint(QVBoxLayout.SizeConstraint.SetMinimumSize)
+            layout.addWidget(header)
+            scroll = QScrollArea()
+            scroll.setWidgetResizable(True)
+            scroll.setFrameShape(QFrame.Shape.NoFrame)
+            scroll.setStyleSheet(get_scroll_area_style())
+            scroll.setWidget(content)
+            main_layout.addWidget(scroll, 1)
 
         # ═══════ Section: Sortie ═══════
         output_section = SettingSection("Sortie", "monitor.svg")
@@ -275,13 +233,10 @@ class ProjectionSettingsDialog(QDialog):
         self._bg_image_label.setStyleSheet(
             f"color: {Colors.TEXT_SECONDARY}; background: transparent; border: none;"
         )
-        picker_style = _picker_button_style()
+        self._bg_image_label.setWordWrap(True)
         self._bg_browse_btn = QPushButton("Parcourir")
-        self._bg_browse_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._bg_browse_btn.setStyleSheet(picker_style)
+        self._bg_browse_btn.setIcon(app_icon("folder-open.svg", Colors.TEXT_PRIMARY))
         self._bg_clear_btn = QPushButton("Aucune")
-        self._bg_clear_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._bg_clear_btn.setStyleSheet(picker_style)
         bg_image_layout.addWidget(self._bg_image_label, 1)
         bg_image_layout.addWidget(self._bg_browse_btn)
         bg_image_layout.addWidget(self._bg_clear_btn)
@@ -420,10 +375,9 @@ class ProjectionSettingsDialog(QDialog):
         self._anim_duration.valueChanged.connect(self._on_change)
 
         layout.addStretch()
-        scroll.setWidget(content)
-        main_layout.addWidget(scroll, 1)
+        fit_combos(content)
 
-        # ── Footer buttons ──
+        # ── Footer (standalone dialog only) ──
         btn_frame = QFrame(self)
         btn_frame.setStyleSheet(
             f"background: {Colors.BG_SECONDARY}; border-top: 1px solid {Colors.BORDER_DEFAULT};"
@@ -431,60 +385,15 @@ class ProjectionSettingsDialog(QDialog):
         btn_layout = QHBoxLayout(btn_frame)
         btn_layout.setContentsMargins(20, 12, 20, 12)
         btn_layout.setSpacing(10)
-
-        reset_btn = QPushButton("Réinitialiser")
-        reset_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        reset_btn.setStyleSheet(f"""
-            QPushButton {{
-                background: {Colors.SURFACE_HOVER};
-                border: 1px solid {Colors.BORDER_DEFAULT};
-                border-radius: {Radius.MD}px;
-                padding: 8px 18px;
-                color: {Colors.TEXT_SECONDARY};
-                font-size: {Typography.SIZE_CONTROL}px;
-            }}
-            QPushButton:hover {{ background: {Colors.SURFACE_ACTIVE}; border-color: {Colors.BORDER_FOCUS}; }}
-        """)
-        reset_btn.clicked.connect(self._reset_defaults)
-        btn_layout.addWidget(reset_btn)
         btn_layout.addStretch(1)
-
         cancel_btn = QPushButton(tr("cancel"))
-        cancel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        cancel_btn.setStyleSheet(f"""
-            QPushButton {{
-                background: {Colors.SURFACE_HOVER};
-                border: 1px solid {Colors.BORDER_DEFAULT};
-                border-radius: {Radius.MD}px;
-                padding: 8px 22px;
-                color: {Colors.TEXT_PRIMARY};
-                font-size: {Typography.SIZE_CONTROL}px;
-            }}
-            QPushButton:hover {{ background: {Colors.SURFACE_ACTIVE}; border-color: {Colors.BORDER_FOCUS}; }}
-        """)
         cancel_btn.clicked.connect(self.reject)
         btn_layout.addWidget(cancel_btn)
-
         save_btn = QPushButton("Enregistrer")
-        save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        save_btn.setStyleSheet(f"""
-            QPushButton {{
-                background: {Colors.ACCENT_PRIMARY};
-                border: none;
-                border-radius: {Radius.MD}px;
-                padding: 8px 22px;
-                color: {Colors.PROJECT_BUTTON_TEXT};
-                font-size: {Typography.SIZE_CONTROL}px;
-                font-weight: 600;
-            }}
-            QPushButton:hover {{ background: {Colors.ACCENT_LIGHT}; }}
-        """)
+        save_btn.setObjectName("AccentButton")
         save_btn.clicked.connect(self.accept)
         btn_layout.addWidget(save_btn)
-        if embedded:  # settings page: every change applies immediately
-            cancel_btn.hide()
-            save_btn.hide()
-
+        btn_frame.setVisible(not embedded)  # the settings page applies at once
         main_layout.addWidget(btn_frame)
 
     def _on_change(self, *_args) -> None:

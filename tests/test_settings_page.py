@@ -148,3 +148,30 @@ def test_obs_preset_still_applies(obs_screen) -> None:
     obs_screen._apply_preset({"layout_mode": "fullscreen", "text_size": 61})
     obs_screen._change_timer.timeout.emit()
     assert emitted and emitted[-1].output.layout_mode == "fullscreen"
+
+
+# ── Projection screen ─────────────────────────────────────────────────────
+
+
+def test_projection_screen_modes() -> None:
+    QApplication.instance() or QApplication([])
+    from PySide6.QtWidgets import QComboBox, QScrollArea
+
+    from app.ui.settings_dialog import ProjectionSettingsDialog
+    from app.utils.settings import ProjectionSettings
+
+    page = ProjectionSettingsDialog(ProjectionSettings(), embedded=True)
+    # In the settings page: no nested scroll area, no Cancel / Save footer.
+    assert not page.findChildren(QScrollArea)
+    visible = {b.text() for b in page.findChildren(QPushButton) if b.isVisibleTo(page)}
+    assert "Réinitialiser" in visible and not visible & {"Annuler", "Enregistrer"}
+    combo = page._display_screen
+    assert combo.toolTip() == combo.currentText()  # clipped choice stays readable
+
+    # Standalone (theme style editor): scrolls and keeps Cancel / Save.
+    dialog = ProjectionSettingsDialog(ProjectionSettings())
+    assert dialog.findChildren(QScrollArea)
+    visible = {b.text() for b in dialog.findChildren(QPushButton) if b.isVisibleTo(dialog)}
+    assert {"Annuler", "Enregistrer"} <= visible
+    for w in (page, dialog):
+        w.deleteLater()

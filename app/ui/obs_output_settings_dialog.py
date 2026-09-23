@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.ui.icons import app_icon
+from app.ui.setting_cards import PageHeader, SettingRow, SettingSection, fit_combos
 from app.ui.theme import Colors, Radius, Typography, get_tab_button_style
 from app.utils.flow_layout import FlowLayout
 from app.utils.fonts import get_available_fonts
@@ -399,104 +400,6 @@ class ColorPickerButton(QPushButton):
         self._update_style()
 
 
-class SettingRow(QFrame):
-    """Windows 11 setting card: label and description on the left (they wrap
-    on narrow widths), the control on the right."""
-
-    def __init__(self, label: str, widget: QWidget, description: str = "", parent=None):
-        super().__init__(parent)
-        self.setObjectName("SettingRow")
-        self.setStyleSheet(f"""
-            QFrame#SettingRow {{
-                background: {Colors.BG_CARD};
-                border: 1px solid {Colors.BORDER_SUBTLE};
-                border-radius: {Radius.SM}px;
-            }}
-        """)
-
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(16, 10, 16, 10)
-        layout.setSpacing(16)
-
-        label_col = QVBoxLayout()
-        label_col.setSpacing(2)
-
-        lbl = QLabel(label)
-        lbl.setWordWrap(True)
-        lbl.setStyleSheet(
-            f"font-size: {Typography.SIZE_BODY}px; color: {Colors.TEXT_PRIMARY};"
-            " border: none; background: transparent;"
-        )
-        label_col.addWidget(lbl)
-
-        if description:
-            desc = QLabel(description)
-            desc.setWordWrap(True)
-            desc.setStyleSheet(
-                f"font-size: {Typography.SIZE_META}px; color: {Colors.TEXT_SECONDARY};"
-                " border: none; background: transparent;"
-            )
-            label_col.addWidget(desc)
-
-        layout.addLayout(label_col, 1)
-        layout.addWidget(widget, 0, Qt.AlignmentFlag.AlignVCenter)
-        self._toggle = widget if isinstance(widget, QCheckBox) else None
-        if self._toggle is not None:
-            self.setCursor(Qt.CursorShape.PointingHandCursor)
-
-    def mouseReleaseEvent(self, event) -> None:  # noqa: N802
-        # A switch card toggles when clicked anywhere, like Windows Settings.
-        if (
-            self._toggle is not None
-            and self._toggle.isEnabled()
-            and event.button() == Qt.MouseButton.LeftButton
-        ):
-            self._toggle.toggle()
-        super().mouseReleaseEvent(event)
-
-
-class SettingSection(QFrame):
-    """A group of setting cards under a plain section title (Windows 11)."""
-
-    def __init__(self, title: str, icon_name: str = "", parent=None):
-        super().__init__(parent)
-        self.setStyleSheet("SettingSection { background: transparent; border: none; }")
-
-        self._layout = QVBoxLayout(self)
-        self._layout.setContentsMargins(0, 0, 0, 0)
-        self._layout.setSpacing(2)
-
-        header = QHBoxLayout()
-        header.setContentsMargins(2, 0, 0, 6)
-        header.setSpacing(8)
-        if icon_name:
-            icon_label = QLabel()
-            icon_label.setPixmap(app_icon(icon_name, Colors.TEXT_SECONDARY).pixmap(16, 16))
-            icon_label.setStyleSheet("background: transparent; border: none;")
-            header.addWidget(icon_label)
-        title_label = QLabel(title)
-        title_label.setStyleSheet(
-            f"font-size: {Typography.SIZE_BODY}px; font-weight: {Typography.WEIGHT_SEMIBOLD};"
-            f" color: {Colors.TEXT_PRIMARY}; background: transparent; border: none;"
-        )
-        header.addWidget(title_label, 1)
-        self._layout.addLayout(header)
-
-    def addRow(self, label: str, widget: QWidget, description: str = "") -> None:
-        self._layout.addWidget(SettingRow(label, widget, description))
-
-    def addWidget(self, widget: QWidget) -> None:
-        if isinstance(widget, QCheckBox) and widget.text():
-            # A checkbox label cannot wrap: it becomes a setting card whose
-            # (wrapping) title is the label, with the box on the right.
-            text = widget.text()
-            widget.setText("")
-            widget.setAccessibleName(text)
-            self._layout.addWidget(SettingRow(text, widget, widget.toolTip()))
-            return
-        self._layout.addWidget(widget)
-
-
 class _CurrentPageStack(QStackedWidget):
     """Stack sized to the visible page, not to the tallest one (no blank
     space under a short page once the settings page scrolls as a whole)."""
@@ -562,30 +465,13 @@ class ObsOutputSettingsDialog(QDialog):
         root.setSpacing(16)
 
         # ── Header ──
-        header = QHBoxLayout()
-        header.setSpacing(12)
-        title_col = QVBoxLayout()
-        title_col.setSpacing(2)
-        title = QLabel("Bandeau OBS")
-        title.setStyleSheet(
-            f"font-size: {Typography.SIZE_DIALOG_TITLE}px; font-weight: {Typography.WEIGHT_SEMIBOLD};"
-            f" color: {Colors.TEXT_PRIMARY}; background: transparent;"
+        root.addWidget(
+            PageHeader(
+                "Bandeau OBS",
+                "Style du texte diffusé dans OBS et en NDI : composition, texte, couleurs, effets.",
+                on_reset=self._reset_defaults,
+            )
         )
-        title_col.addWidget(title)
-        subtitle = QLabel(
-            "Style du texte diffusé dans OBS et en NDI : composition, texte, couleurs, effets."
-        )
-        subtitle.setWordWrap(True)
-        subtitle.setStyleSheet(
-            f"font-size: {Typography.SIZE_FILTER}px; color: {Colors.TEXT_SECONDARY}; background: transparent;"
-        )
-        title_col.addWidget(subtitle)
-        header.addLayout(title_col, 1)
-        reset_btn = QPushButton("Réinitialiser")
-        reset_btn.setToolTip("Revenir au style par défaut pour le style édité")
-        reset_btn.clicked.connect(self._reset_defaults)
-        header.addWidget(reset_btn, 0, Qt.AlignmentFlag.AlignTop)
-        root.addLayout(header)
 
         # ── Edited style (base or per-OBS-scene) ──
         self._create_scene_bar(root)
@@ -670,14 +556,7 @@ class ObsOutputSettingsDialog(QDialog):
         self._nav_buttons[0].setChecked(True)
         self._fit_stack_to_page(0)
 
-        # Drop-downs keep a reasonable width instead of their longest entry,
-        # so the screen fits next to the live monitors; the open list still
-        # shows every choice in full.
-        for combo in self.findChildren(QComboBox):
-            if combo is self._scene_combo:
-                continue
-            combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
-            combo.setMinimumContentsLength(12)
+        fit_combos(self, skip=(self._scene_combo,))
 
         # Connect signals for live updates
         self._connect_signals()
