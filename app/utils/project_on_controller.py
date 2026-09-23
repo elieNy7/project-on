@@ -4,7 +4,7 @@ from pathlib import Path
 from dataclasses import dataclass
 from typing import Callable
 
-from PyQt6.QtCore import QObject, pyqtSignal
+from PySide6.QtCore import QObject, Signal
 
 from app.database.connection import Database
 from app.utils.constants import MAX_CHARS_PER_SLIDE, MIN_CHARS_PER_SLIDE
@@ -35,9 +35,9 @@ class ProjectOnController(QObject):
     projection locale, le serveur OBS et l'envoi NDI.
     """
 
-    currentSlideChanged = pyqtSignal(object)
-    currentRowChanged = pyqtSignal(int)
-    programChanged = pyqtSignal(str)
+    currentSlideChanged = Signal(object)
+    currentRowChanged = Signal(int)
+    programChanged = Signal(str)
 
     _MAX_CHARS_PER_SLIDE = MAX_CHARS_PER_SLIDE
     _MIN_CHARS = MIN_CHARS_PER_SLIDE

@@ -7,9 +7,9 @@ import sys
 import time
 from pathlib import Path
 
-from PyQt6.QtCore import QEvent, QObject, Qt, QTimer
-from PyQt6.QtGui import QColor, QKeySequence, QShortcut
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import QEvent, QObject, Qt, QTimer
+from PySide6.QtGui import QColor, QKeySequence, QShortcut
+from PySide6.QtWidgets import (
     QApplication,
     QDialog,
     QGraphicsDropShadowEffect,
@@ -544,7 +544,7 @@ class MainWindow(QMainWindow):
     @staticmethod
     def _is_text_or_list_focus() -> bool:
         """Home/End restent natifs dans les champs et les listes."""
-        from PyQt6.QtWidgets import QAbstractItemView, QComboBox
+        from PySide6.QtWidgets import QAbstractItemView, QComboBox
 
         fw = QApplication.focusWidget()
         return isinstance(

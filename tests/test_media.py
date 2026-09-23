@@ -8,7 +8,7 @@ from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PyQt6.QtCore import QObject, pyqtSignal  # noqa: E402
+from PySide6.QtCore import QObject, Signal  # noqa: E402
 
 from app.database.connection import Database, DatabaseConfig  # noqa: E402
 from app.database.dao_media import MediaDao  # noqa: E402
@@ -93,7 +93,7 @@ def test_slide_writer_video_payload(tmp_path: Path) -> None:
 
 
 def test_playlist_with_media_item_projects_video(tmp_path: Path) -> None:
-    from PyQt6.QtWidgets import QApplication
+    from PySide6.QtWidgets import QApplication
 
     from app.ui.playlist_tab import PlaylistTab
     from app.utils.library_controller import LibraryController
@@ -140,7 +140,7 @@ def test_playlist_with_media_item_projects_video(tmp_path: Path) -> None:
 
 
 def test_media_tab_gallery_population(tmp_path: Path) -> None:
-    from PyQt6.QtWidgets import QApplication
+    from PySide6.QtWidgets import QApplication
 
     app = QApplication.instance() or QApplication([])
     tab = MediaTab()

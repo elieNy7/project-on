@@ -8,7 +8,7 @@ from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PyQt6.QtCore import QObject, pyqtSignal  # noqa: E402
+from PySide6.QtCore import QObject, Signal  # noqa: E402
 
 from app.database.dao_playlist import PlaylistDao  # noqa: E402
 
@@ -16,7 +16,7 @@ from app.database.dao_playlist import PlaylistDao  # noqa: E402
 # ── UI : PlaylistTab ─────────────────────────────────────────────────────────
 
 def _make_tab():
-    from PyQt6.QtWidgets import QApplication
+    from PySide6.QtWidgets import QApplication
 
     from app.ui.playlist_tab import PlaylistTab
 
@@ -81,8 +81,8 @@ def test_play_signals_payload():
 # ── Intégration : LibraryController + DAO + projection ──────────────────────
 
 def _make_controller(tmp_path: Path):
-    from PyQt6.QtCore import QObject, pyqtSignal
-    from PyQt6.QtWidgets import QApplication
+    from PySide6.QtCore import QObject, Signal
+    from PySide6.QtWidgets import QApplication
 
     from app.database.connection import Database, DatabaseConfig
     from app.ui.playlist_tab import PlaylistTab
@@ -92,27 +92,27 @@ def _make_controller(tmp_path: Path):
     class _StubTab(QObject):
         """Onglet minimal : les signaux câblés par _wire + no-op pour le reste."""
 
-        translationSelected = pyqtSignal(int)
-        bookSelected = pyqtSignal(int)
-        chapterSelected = pyqtSignal(int)
-        verseActivated = pyqtSignal(str, str)
-        versesActivated = pyqtSignal(list)
-        hymnSelected = pyqtSignal(int)
-        stanzaActivated = pyqtSignal(str, str)
-        stanzasActivated = pyqtSignal(list)
-        hymnActivated = pyqtSignal(int)
-        importScanRequested = pyqtSignal()
-        importPdfFileRequested = pyqtSignal()
-        importPptxFileRequested = pyqtSignal()
-        importPptxFolderRequested = pyqtSignal()
-        deleteRequested = pyqtSignal(int)
-        deleteAllRequested = pyqtSignal()
-        clearAllHymnsRequested = pyqtSignal()
-        sermonSelected = pyqtSignal(int)
-        paragraphActivated = pyqtSignal(dict)
-        filtersChanged = pyqtSignal()
-        paragraphSearchRequested = pyqtSignal(str)
-        addToPlaylistRequested = pyqtSignal(list)
+        translationSelected = Signal(int)
+        bookSelected = Signal(int)
+        chapterSelected = Signal(int)
+        verseActivated = Signal(str, str)
+        versesActivated = Signal(list)
+        hymnSelected = Signal(int)
+        stanzaActivated = Signal(str, str)
+        stanzasActivated = Signal(list)
+        hymnActivated = Signal(int)
+        importScanRequested = Signal()
+        importPdfFileRequested = Signal()
+        importPptxFileRequested = Signal()
+        importPptxFolderRequested = Signal()
+        deleteRequested = Signal(int)
+        deleteAllRequested = Signal()
+        clearAllHymnsRequested = Signal()
+        sermonSelected = Signal(int)
+        paragraphActivated = Signal(dict)
+        filtersChanged = Signal()
+        paragraphSearchRequested = Signal(str)
+        addToPlaylistRequested = Signal(list)
 
         def __getattr__(self, name):
             if name.startswith("__") or name in type(self).__dict__:
@@ -197,26 +197,26 @@ def test_playlist_end_to_end(tmp_path: Path) -> None:
 class _QuietStubTab(QObject):
     """Onglet minimal : les signaux câblés par _wire + affichages no-op."""
 
-    translationSelected = pyqtSignal(int)
-    bookSelected = pyqtSignal(int)
-    chapterSelected = pyqtSignal(int)
-    verseActivated = pyqtSignal(str, str)
-    versesActivated = pyqtSignal(list)
-    hymnSelected = pyqtSignal(int)
-    stanzaActivated = pyqtSignal(str, str)
-    stanzasActivated = pyqtSignal(list)
-    hymnActivated = pyqtSignal(int)
-    importScanRequested = pyqtSignal()
-    importPdfFileRequested = pyqtSignal()
-    importPptxFileRequested = pyqtSignal()
-    importPptxFolderRequested = pyqtSignal()
-    deleteRequested = pyqtSignal(int)
-    deleteAllRequested = pyqtSignal()
-    clearAllHymnsRequested = pyqtSignal()
-    sermonSelected = pyqtSignal(int)
-    paragraphActivated = pyqtSignal(dict)
-    filtersChanged = pyqtSignal()
-    paragraphSearchRequested = pyqtSignal(str)
+    translationSelected = Signal(int)
+    bookSelected = Signal(int)
+    chapterSelected = Signal(int)
+    verseActivated = Signal(str, str)
+    versesActivated = Signal(list)
+    hymnSelected = Signal(int)
+    stanzaActivated = Signal(str, str)
+    stanzasActivated = Signal(list)
+    hymnActivated = Signal(int)
+    importScanRequested = Signal()
+    importPdfFileRequested = Signal()
+    importPptxFileRequested = Signal()
+    importPptxFolderRequested = Signal()
+    deleteRequested = Signal(int)
+    deleteAllRequested = Signal()
+    clearAllHymnsRequested = Signal()
+    sermonSelected = Signal(int)
+    paragraphActivated = Signal(dict)
+    filtersChanged = Signal()
+    paragraphSearchRequested = Signal(str)
 
     def set_books(self, *_a) -> None:
         pass

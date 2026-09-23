@@ -8,7 +8,7 @@ from pathlib import Path
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PIL import Image  # noqa: E402
-from PyQt6.QtWidgets import QApplication  # noqa: E402
+from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from app.ui.projection_window import ProjectionWindow  # noqa: E402
 
@@ -121,7 +121,7 @@ def test_video_end_is_signalled_when_not_looping(tmp_path: Path) -> None:
 
     window._media_player = _Player()
 
-    from PyQt6.QtMultimedia import QMediaPlayer
+    from PySide6.QtMultimedia import QMediaPlayer
 
     window._video_loop = True
     window._on_media_status(QMediaPlayer.MediaStatus.EndOfMedia)

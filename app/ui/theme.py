@@ -6,7 +6,7 @@ application. Deep obsidian tones with warm gold accents — reverent, cinematic 
 
 from __future__ import annotations
 
-from PyQt6.QtGui import QColor
+from PySide6.QtGui import QColor
 
 
 _current_theme = "dark"

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import (
     QDialog,
     QFrame,
     QHBoxLayout,
@@ -19,7 +19,7 @@ from app.utils.translations import tr
 class OptionCard(QFrame):
     """Carte d'option sélectionnable."""
 
-    clicked = pyqtSignal()
+    clicked = Signal()
 
     def __init__(
         self, title: str, description: str, is_selected: bool = False, parent=None

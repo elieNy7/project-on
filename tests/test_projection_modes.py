@@ -7,9 +7,9 @@ from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QImage, QPainter
-from PyQt6.QtWidgets import QApplication, QLabel
+from PySide6.QtCore import QPoint, Qt
+from PySide6.QtGui import QImage, QPainter
+from PySide6.QtWidgets import QApplication, QLabel
 
 from app.ui.obs_output_settings_dialog import (
     ObsOutputSettingsDialog,
@@ -207,13 +207,13 @@ def test_obs_preview_main_text_size_has_visible_effect() -> None:
 
     image = QImage(preview.size(), QImage.Format.Format_ARGB32)
     painter = QPainter(image)
-    preview.render(painter)
+    preview.render(painter, QPoint())
     painter.end()
     small = preview._last_effective_text_size
 
     preview.update_settings(ObsOutputSettings(text_size=96, auto_fit=False))
     painter = QPainter(image)
-    preview.render(painter)
+    preview.render(painter, QPoint())
     painter.end()
     large = preview._last_effective_text_size
 

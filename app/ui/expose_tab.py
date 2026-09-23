@@ -3,8 +3,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from PyQt6.QtCore import QEvent, QSignalBlocker, QSize, Qt, QTimer, pyqtSignal
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import QEvent, QSignalBlocker, QSize, Qt, QTimer, Signal
+from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
     QFrame,
@@ -53,13 +53,13 @@ from app.utils.flow_layout import FlowLayout
 class ExposeTab(QFrame):
     """Tab for the 'Exposé des Sept Âges de l'Église' book."""
 
-    chapterSelected = pyqtSignal(object)
-    pageSelected = pyqtSignal(int)
-    paragraphActivated = pyqtSignal(str, str, str)
-    paragraphSoloRequested = pyqtSignal(str, str, str)
-    addToPlaylistRequested = pyqtSignal(list)  # list of (ref, text) tuples
-    searchRequested = pyqtSignal(str)
-    translatorChanged = pyqtSignal(str)
+    chapterSelected = Signal(object)
+    pageSelected = Signal(int)
+    paragraphActivated = Signal(str, str, str)
+    paragraphSoloRequested = Signal(str, str, str)
+    addToPlaylistRequested = Signal(list)  # list of (ref, text) tuples
+    searchRequested = Signal(str)
+    translatorChanged = Signal(str)
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -554,7 +554,7 @@ class ExposeTab(QFrame):
 
     def _paragraphs_range_payload(self) -> list[tuple[str, str]]:
         """Ajout en série « paragraphes 1 à N » (positions dans la liste)."""
-        from PyQt6.QtWidgets import QDialog
+        from PySide6.QtWidgets import QDialog
 
         from app.ui.range_dialog import RangeDialog
 

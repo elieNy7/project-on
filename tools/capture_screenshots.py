@@ -17,7 +17,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from PyQt6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication
 
 OUT = ROOT / "screenshots"
 OUT.mkdir(exist_ok=True)
@@ -43,7 +43,7 @@ def _grab(widget, name, size=None):
 
 def main() -> int:
     QApplication.setHighDpiScaleFactorRoundingPolicy(
-        __import__("PyQt6.QtCore", fromlist=["Qt"]).Qt
+        __import__("PySide6.QtCore", fromlist=["Qt"]).Qt
         .HighDpiScaleFactorRoundingPolicy.PassThrough
     )
     app = QApplication([])
@@ -100,7 +100,7 @@ def main() -> int:
     _grab(dlg, "02-projection-settings.png")
     # scroll to the Transitions section for a second shot
     try:
-        from PyQt6.QtWidgets import QScrollArea
+        from PySide6.QtWidgets import QScrollArea
 
         area = dlg.findChild(QScrollArea)
         if area is not None:

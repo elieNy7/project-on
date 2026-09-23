@@ -7,16 +7,16 @@ from typing import Any
 
 log = logging.getLogger(__name__)
 
-from PyQt6.QtCore import (
+from PySide6.QtCore import (
     QEasingCurve,
     QPoint,
     QRectF,
     Qt,
     QTimer,
     QVariantAnimation,
-    pyqtSignal,
+    Signal,
 )
-from PyQt6.QtGui import (
+from PySide6.QtGui import (
     QImage,
     QKeySequence,
     QGuiApplication,
@@ -25,7 +25,7 @@ from PyQt6.QtGui import (
     QRegion,
     QShortcut,
 )
-from PyQt6.QtWidgets import QGraphicsOpacityEffect, QWidget
+from PySide6.QtWidgets import QGraphicsOpacityEffect, QWidget
 
 from app.ui.slide_canvas import SlideCanvas, ShadowTextLabel, _blur_pixmap
 from app.utils import power_guard
@@ -45,7 +45,7 @@ class ProjectionWindow(SlideCanvas):
 
     # Fin de lecture d'une vidéo (hors boucle) : la régie peut enchaîner
     # (diaporama) sans scruter le lecteur.
-    videoFinished = pyqtSignal()
+    videoFinished = Signal()
 
     def __init__(self, presentation_dir: Path, parent: QWidget | None = None) -> None:
         super().__init__(presentation_dir=presentation_dir, parent=parent)
@@ -143,8 +143,8 @@ class ProjectionWindow(SlideCanvas):
         if self._media_player is not None:
             return self._multimedia_available
         try:
-            from PyQt6.QtMultimedia import QAudioOutput, QMediaPlayer
-            from PyQt6.QtMultimediaWidgets import QVideoWidget
+            from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
+            from PySide6.QtMultimediaWidgets import QVideoWidget
         except Exception as exc:  # pragma: no cover - dépend de l'install
             log.warning("QtMultimedia indisponible : %s", exc)
             self._multimedia_available = False
@@ -164,7 +164,7 @@ class ProjectionWindow(SlideCanvas):
         """Passe en mode vidéo plein écran : scène masquée, source chargée EN PAUSE."""
         if not self._ensure_video_stack():
             return
-        from PyQt6.QtCore import QUrl
+        from PySide6.QtCore import QUrl
 
         self._stage_widget.setVisible(False)
         if path != self._active_video_path:
@@ -186,7 +186,7 @@ class ProjectionWindow(SlideCanvas):
         """Applique la commande play/pause de l'opérateur (via slide.json)."""
         if self._media_player is None or not self._active_video_path:
             return
-        from PyQt6.QtMultimedia import QMediaPlayer
+        from PySide6.QtMultimedia import QMediaPlayer
 
         state = self._media_player.playbackState()
         if playing and state != QMediaPlayer.PlaybackState.PlayingState:
@@ -198,7 +198,7 @@ class ProjectionWindow(SlideCanvas):
 
     def _on_media_status(self, status) -> None:
         """Fin de lecture : en boucle on relance, sinon rembobine en pause."""
-        from PyQt6.QtMultimedia import QMediaPlayer
+        from PySide6.QtMultimedia import QMediaPlayer
 
         if status == QMediaPlayer.MediaStatus.EndOfMedia:
             if getattr(self, "_video_loop", False):

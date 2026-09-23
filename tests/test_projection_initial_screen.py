@@ -6,9 +6,9 @@ import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import pytest
-from PyQt6.QtCore import QRect
-from PyQt6.QtGui import QGuiApplication
-from PyQt6.QtWidgets import QApplication
+from PySide6.QtCore import QRect
+from PySide6.QtGui import QGuiApplication
+from PySide6.QtWidgets import QApplication
 
 from app.ui.projection_window import ProjectionWindow
 

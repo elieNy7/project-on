@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from PyQt6.QtCore import QSize, Qt, pyqtSignal
-from PyQt6.QtGui import QIcon, QPixmap
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import QSize, Qt, Signal
+from PySide6.QtGui import QIcon, QPixmap
+from PySide6.QtWidgets import (
     QHBoxLayout,
     QInputDialog,
     QLabel,
@@ -42,16 +42,16 @@ def _duration_label(seconds: int) -> str:
 class MediaTab(QWidget):
     """Galerie de médias (images + vidéos) : projeter, ajouter à la playlist."""
 
-    importRequested = pyqtSignal(str)  # "image" | "video" | "pptx"
-    itemActivated = pyqtSignal(int)  # projeter le média
-    itemDeleteRequested = pyqtSignal(int)
-    itemRenameRequested = pyqtSignal(int, str)
-    itemLoopRequested = pyqtSignal(int, bool)  # media_id, boucle on/off
-    itemDurationRequested = pyqtSignal(int, int)  # media_id, durée en secondes
-    refreshRequested = pyqtSignal()
-    mediaAddToPlaylistRequested = pyqtSignal(dict)  # {name, path, kind}
+    importRequested = Signal(str)  # "image" | "video" | "pptx"
+    itemActivated = Signal(int)  # projeter le média
+    itemDeleteRequested = Signal(int)
+    itemRenameRequested = Signal(int, str)
+    itemLoopRequested = Signal(int, bool)  # media_id, boucle on/off
+    itemDurationRequested = Signal(int, int)  # media_id, durée en secondes
+    refreshRequested = Signal()
+    mediaAddToPlaylistRequested = Signal(dict)  # {name, path, kind}
     # Diaporama : liste ordonnée de médias ({id, name, path, kind, duration}).
-    slideshowRequested = pyqtSignal(list)
+    slideshowRequested = Signal(list)
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)

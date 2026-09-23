@@ -8,8 +8,8 @@ from typing import Any
 
 log = logging.getLogger(__name__)
 
-from PyQt6.QtCore import QPoint, QPointF, QRectF, Qt
-from PyQt6.QtGui import (
+from PySide6.QtCore import QPoint, QPointF, QRectF, Qt
+from PySide6.QtGui import (
     QBrush,
     QColor,
     QFont,
@@ -22,7 +22,7 @@ from PyQt6.QtGui import (
     QRadialGradient,
     QRegion,
 )
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QGraphicsBlurEffect,
     QGraphicsOpacityEffect,
     QGraphicsPixmapItem,

@@ -5,9 +5,9 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor
+from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QFrame,
@@ -373,7 +373,7 @@ class PdfImportDialog(QDialog):
         """Marque le bilan (doublons, titres) comme périmé après modification."""
         self._validation_revision += 1
         # Recalcul différé : coalescer les rafales de textChanged.
-        from PyQt6.QtCore import QTimer
+        from PySide6.QtCore import QTimer
 
         QTimer.singleShot(0, self._refresh_validation)
 

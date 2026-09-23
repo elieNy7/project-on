@@ -16,9 +16,9 @@ from pathlib import Path
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PIL import Image  # noqa: E402
-from PyQt6.QtCore import Qt  # noqa: E402
-from PyQt6.QtGui import QShortcut  # noqa: E402
-from PyQt6.QtWidgets import QApplication, QPushButton  # noqa: E402
+from PySide6.QtCore import Qt  # noqa: E402
+from PySide6.QtGui import QShortcut  # noqa: E402
+from PySide6.QtWidgets import QApplication, QPushButton  # noqa: E402
 
 from app.database.connection import Database, DatabaseConfig  # noqa: E402
 from app.ui.main_window import MainWindow  # noqa: E402

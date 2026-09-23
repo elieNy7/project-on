@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from PyQt6.QtCore import QModelIndex, QRect, QSize, Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QFont, QFontMetrics, QPainter
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import QModelIndex, QRect, QSize, Qt, Signal
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter
+from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -252,20 +252,20 @@ class _SlideDialog(QDialog):
 class PlaylistTab(QFrame):
     """Onglet Playlists : dossiers de slides préparés à l'avance, projetables."""
 
-    folderSelected = pyqtSignal(object)  # folder_id ou None
-    itemActivated = pyqtSignal(int)  # projeter à partir de ce slide
-    playRequested = pyqtSignal(object)  # item_id de départ ou None (début)
-    folderCreateRequested = pyqtSignal(str)
-    folderRenameRequested = pyqtSignal(int, str)
-    folderDeleteRequested = pyqtSignal(int)
-    folderExportRequested = pyqtSignal(int)
+    folderSelected = Signal(object)  # folder_id ou None
+    itemActivated = Signal(int)  # projeter à partir de ce slide
+    playRequested = Signal(object)  # item_id de départ ou None (début)
+    folderCreateRequested = Signal(str)
+    folderRenameRequested = Signal(int, str)
+    folderDeleteRequested = Signal(int)
+    folderExportRequested = Signal(int)
     # Diaporama : médias du dossier choisi, dans l'ordre de la playlist.
-    slideshowRequested = pyqtSignal(list)
-    importRequested = pyqtSignal()
-    itemCreateRequested = pyqtSignal(int, str, str)  # folder_id, référence, texte
-    itemUpdateRequested = pyqtSignal(int, str, str)  # item_id, référence, texte
-    itemDeleteRequested = pyqtSignal(int)
-    itemMoveRequested = pyqtSignal(int, int)  # item_id, delta (+1 / -1)
+    slideshowRequested = Signal(list)
+    importRequested = Signal()
+    itemCreateRequested = Signal(int, str, str)  # folder_id, référence, texte
+    itemUpdateRequested = Signal(int, str, str)  # item_id, référence, texte
+    itemDeleteRequested = Signal(int)
+    itemMoveRequested = Signal(int, int)  # item_id, delta (+1 / -1)
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -595,7 +595,7 @@ class PlaylistTab(QFrame):
             self.folderDeleteRequested.emit(folder_id)
 
     def _confirm_delete(self, message: str) -> bool:
-        from PyQt6.QtWidgets import QMessageBox
+        from PySide6.QtWidgets import QMessageBox
 
         reply = QMessageBox.question(
             self,

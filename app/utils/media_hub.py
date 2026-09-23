@@ -17,7 +17,7 @@ import threading
 from pathlib import Path
 from typing import Any
 
-from PyQt6.QtCore import QObject, pyqtSignal
+from PySide6.QtCore import QObject, Signal
 
 log = logging.getLogger(__name__)
 
@@ -46,8 +46,8 @@ def _reset_shared_hub() -> None:
 class MediaPlaybackHub(QObject):
     """Un ``QMediaPlayer`` sans son, dont les images servent toutes les sorties."""
 
-    frameReady = pyqtSignal()
-    endOfMedia = pyqtSignal()
+    frameReady = Signal()
+    endOfMedia = Signal()
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -90,7 +90,7 @@ class MediaPlaybackHub(QObject):
             return
         if not self.available():
             return
-        from PyQt6.QtCore import QUrl
+        from PySide6.QtCore import QUrl
 
         if normalized == self._active_path:
             return
@@ -105,7 +105,7 @@ class MediaPlaybackHub(QObject):
     def play(self) -> None:
         if not self.available() or not self._active_path:
             return
-        from PyQt6.QtMultimedia import QMediaPlayer
+        from PySide6.QtMultimedia import QMediaPlayer
 
         self._playing = True
         if self._player.playbackState() != QMediaPlayer.PlaybackState.PlayingState:
@@ -114,7 +114,7 @@ class MediaPlaybackHub(QObject):
     def pause(self) -> None:
         if not self.available() or not self._active_path:
             return
-        from PyQt6.QtMultimedia import QMediaPlayer
+        from PySide6.QtMultimedia import QMediaPlayer
 
         self._playing = False
         if self._player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
@@ -148,7 +148,7 @@ class MediaPlaybackHub(QObject):
         try:
             if enabled:
                 if self._audio_output is None:
-                    from PyQt6.QtMultimedia import QAudioOutput
+                    from PySide6.QtMultimedia import QAudioOutput
 
                     self._audio_output = QAudioOutput(self)
                     self._audio_output.setVolume(1.0)
@@ -163,7 +163,7 @@ class MediaPlaybackHub(QObject):
         self._active_path = ""
         self._playing = False
         if self._player is not None:
-            from PyQt6.QtCore import QUrl
+            from PySide6.QtCore import QUrl
 
             self._player.stop()
             self._player.setSource(QUrl())
@@ -197,7 +197,7 @@ class MediaPlaybackHub(QObject):
         if self._player is not None:
             return True
         try:
-            from PyQt6.QtMultimedia import QMediaPlayer, QVideoSink
+            from PySide6.QtMultimedia import QMediaPlayer, QVideoSink
         except Exception as exc:  # pragma: no cover - dépend de l'installation
             log.warning("QtMultimedia indisponible pour le partage vidéo : %s", exc)
             return False
@@ -208,7 +208,7 @@ class MediaPlaybackHub(QObject):
             # projection : sinon deux lecteurs joueraient la même bande son.
             self._player.setVideoSink(self._sink)
             if self._audio_enabled:
-                from PyQt6.QtMultimedia import QAudioOutput
+                from PySide6.QtMultimedia import QAudioOutput
 
                 self._audio_output = QAudioOutput(self)
                 self._audio_output.setVolume(1.0)
@@ -244,8 +244,8 @@ class MediaPlaybackHub(QObject):
     @staticmethod
     def _normalize(image):
         """Ramène l'image au format de référence, bandes noires comprises."""
-        from PyQt6.QtCore import Qt
-        from PyQt6.QtGui import QImage
+        from PySide6.QtCore import Qt
+        from PySide6.QtGui import QImage
 
         if image.width() == FRAME_WIDTH and image.height() == FRAME_HEIGHT:
             return image
@@ -257,7 +257,7 @@ class MediaPlaybackHub(QObject):
             Qt.AspectRatioMode.KeepAspectRatio,
             Qt.TransformationMode.SmoothTransformation,
         )
-        from PyQt6.QtGui import QPainter
+        from PySide6.QtGui import QPainter
 
         painter = QPainter(canvas)
         painter.drawImage(
@@ -273,7 +273,7 @@ class MediaPlaybackHub(QObject):
         """Copie numpy BGRA (format demandé par la sortie NDI)."""
         try:
             import numpy as np
-            from PyQt6.QtGui import QImage
+            from PySide6.QtGui import QImage
         except Exception:  # pragma: no cover - numpy manquant
             return None
         converted = image.convertToFormat(QImage.Format.Format_ARGB32)
@@ -281,11 +281,11 @@ class MediaPlaybackHub(QObject):
         pointer = converted.constBits()
         if pointer is None:
             return None
-        # asstring() COPIE les pixels : le tableau numpy ne dépend plus du
+        # bytes() COPIE les pixels : le tableau numpy ne dépend plus du
         # QImage, libéré dès la fin de cette fonction (un simple frombuffer
         # laisserait un pointeur vers une mémoire libérée).
         raw = np.frombuffer(
-            pointer.asstring(converted.sizeInBytes()), dtype=np.uint8
+            bytes(pointer[: converted.sizeInBytes()]), dtype=np.uint8
         )
         stride = converted.bytesPerLine()
         rows = raw.reshape(height, stride // 4, 4)
@@ -293,7 +293,7 @@ class MediaPlaybackHub(QObject):
         return rows[:, :width, :].copy()
 
     def _on_status(self, status) -> None:
-        from PyQt6.QtMultimedia import QMediaPlayer
+        from PySide6.QtMultimedia import QMediaPlayer
 
         if status != QMediaPlayer.MediaStatus.EndOfMedia:
             return

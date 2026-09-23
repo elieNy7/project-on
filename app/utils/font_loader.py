@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from PyQt6.QtGui import QFontDatabase
+from PySide6.QtGui import QFontDatabase
 
 from app.utils.app_paths import assets_dir
 

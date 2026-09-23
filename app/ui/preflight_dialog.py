@@ -3,8 +3,8 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
-from PyQt6.QtCore import QObject, QRunnable, QSize, QThreadPool, Qt, pyqtSignal, pyqtSlot
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import QObject, QRunnable, QSize, QThreadPool, Qt, Signal, Slot
+from PySide6.QtWidgets import (
     QApplication,
     QDialog,
     QFileDialog,
@@ -26,8 +26,8 @@ from app.utils.system_health import HealthCheck, HealthReport, run_system_health
 
 
 class _HealthSignals(QObject):
-    completed = pyqtSignal(object)
-    failed = pyqtSignal(str)
+    completed = Signal(object)
+    failed = Signal(str)
 
 
 class _HealthWorker(QRunnable):
@@ -37,7 +37,7 @@ class _HealthWorker(QRunnable):
         self._signals = signals
         self._kwargs = kwargs
 
-    @pyqtSlot()
+    @Slot()
     def run(self) -> None:
         try:
             self._signals.completed.emit(run_system_health(**self._kwargs))

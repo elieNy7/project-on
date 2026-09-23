@@ -7,7 +7,7 @@ masquage, lecture et boucle vidéo — ainsi que le crochet de chargement manuel
 import json
 
 import pytest
-from PyQt6.QtCore import QCoreApplication
+from PySide6.QtCore import QCoreApplication
 
 from app.utils.project_on_controller import ProjectOnController
 from app.utils.slideshow_controller import SlideshowController

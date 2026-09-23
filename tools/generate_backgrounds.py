@@ -39,9 +39,9 @@ from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageStat, ImageOps
 
 # Qt renders the figurative silhouettes (SVG paths) crisply; run head-less.
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-from PyQt6.QtCore import QBuffer, QByteArray, QIODevice, QRectF  # noqa: E402
-from PyQt6.QtGui import QGuiApplication, QImage, QPainter  # noqa: E402
-from PyQt6.QtSvg import QSvgRenderer  # noqa: E402
+from PySide6.QtCore import QBuffer, QByteArray, QIODevice, QRectF  # noqa: E402
+from PySide6.QtGui import QGuiApplication, QImage, QPainter  # noqa: E402
+from PySide6.QtSvg import QSvgRenderer  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 

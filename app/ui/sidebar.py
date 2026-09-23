@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from PyQt6.QtCore import QSize, Qt, pyqtSignal
-from PyQt6.QtGui import QFont
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import QSize, Qt, Signal
+from PySide6.QtGui import QFont
+from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -91,7 +91,7 @@ class SidebarButton(QPushButton):
 class Sidebar(QFrame):
     """Vertical library navigation with a calm, theme-aware surface."""
 
-    currentChanged = pyqtSignal(int)
+    currentChanged = Signal(int)
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -194,8 +194,8 @@ class Sidebar(QFrame):
 
     def _open_donate_page(self) -> None:
         """Ouvre la page de don dans le navigateur par défaut."""
-        from PyQt6.QtCore import QUrl
-        from PyQt6.QtGui import QDesktopServices
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
 
         from app.utils.constants import DONATE_URL
 
@@ -253,7 +253,7 @@ class Sidebar(QFrame):
 
         title = QLabel("Bibliothèque", header)
         title_font = QFont(Typography.FAMILY, Typography.SIZE_LG_PT)
-        title_font.setWeight(Typography.WEIGHT_BOLD)
+        title_font.setWeight(QFont.Weight(Typography.WEIGHT_BOLD))
         title.setFont(title_font)
         title.setStyleSheet(
             f"""

@@ -8,8 +8,8 @@ import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import numpy  # noqa: E402
-from PyQt6.QtGui import QImage  # noqa: E402
-from PyQt6.QtWidgets import QApplication  # noqa: E402
+from PySide6.QtGui import QImage  # noqa: E402
+from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from app.utils.media_hub import FRAME_HEIGHT, FRAME_WIDTH, MediaPlaybackHub  # noqa: E402
 

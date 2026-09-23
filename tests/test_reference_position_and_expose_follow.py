@@ -48,7 +48,7 @@ def test_entry_index_none_for_empty_program(tmp_path: Path) -> None:
 # ── PreviewPanel : position de la référence ──────────────────────────────────
 
 def _make_preview_panel():
-    from PyQt6.QtWidgets import QApplication
+    from PySide6.QtWidgets import QApplication
 
     from app.ui.preview_panel import PreviewPanel
 
@@ -93,7 +93,7 @@ def test_preview_ref_toggle_emits_signal() -> None:
 # ── ExposeTab : suivi du paragraphe projeté ──────────────────────────────────
 
 def _make_expose_tab():
-    from PyQt6.QtWidgets import QApplication
+    from PySide6.QtWidgets import QApplication
 
     from app.ui.expose_tab import ExposeTab
 

@@ -4,9 +4,9 @@ import json
 from pathlib import Path
 from typing import Any
 
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QGuiApplication, QImage, QPixmap
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtGui import QGuiApplication, QImage, QPixmap
+from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
@@ -70,8 +70,8 @@ class HdmiSettingsDialog(QDialog):
     bandeau d'annonces — avec aperçu fidèle temps réel.
     """
 
-    hdmiChanged = pyqtSignal(HdmiSettings)
-    mireToggled = pyqtSignal()
+    hdmiChanged = Signal(HdmiSettings)
+    mireToggled = Signal()
 
     def __init__(
         self,

@@ -13,13 +13,13 @@ from typing import Any
 
 log = logging.getLogger(__name__)
 
-from PyQt6.QtCore import QObject, QTimer, pyqtSignal
+from PySide6.QtCore import QObject, QTimer, Signal
 
 
 class SlideshowController(QObject):
     """Enchaînement automatique de médias, avec durée propre à chacun."""
 
-    activeChanged = pyqtSignal(bool)
+    activeChanged = Signal(bool)
 
     def __init__(self, project_controller, parent=None) -> None:
         super().__init__(parent)

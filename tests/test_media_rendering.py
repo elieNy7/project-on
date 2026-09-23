@@ -8,7 +8,7 @@ from pathlib import Path
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PIL import Image  # noqa: E402
-from PyQt6.QtWidgets import QApplication  # noqa: E402
+from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from app.ui.slide_canvas import SlideCanvas  # noqa: E402
 
@@ -163,7 +163,7 @@ def test_hidden_slide_never_renders_media(tmp_path: Path) -> None:
 def test_media_frame_composition_is_opaque_for_transitions(tmp_path: Path) -> None:
     """Le média participe aux transitions : trame opaque plein cadre."""
     app = _app()  # noqa: F841
-    from PyQt6.QtCore import QSize
+    from PySide6.QtCore import QSize
 
     photo = _photo(tmp_path, "photo", (1600, 1200))
     canvas = _canvas(tmp_path, (1920, 1080))

@@ -3,9 +3,9 @@ from __future__ import annotations
 import copy
 from dataclasses import replace
 
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QGuiApplication
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QGuiApplication
+from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
@@ -84,7 +84,7 @@ class ProjectionSettingsDialog(QDialog):
     ``read_settings()`` ne les écrase jamais.
     """
 
-    settingsChanged = pyqtSignal(ProjectionSettings)
+    settingsChanged = Signal(ProjectionSettings)
 
     def __init__(self, settings: ProjectionSettings, parent=None) -> None:
         super().__init__(parent)
@@ -498,7 +498,7 @@ class ProjectionSettingsDialog(QDialog):
         import shutil
         from pathlib import Path
 
-        from PyQt6.QtWidgets import QFileDialog
+        from PySide6.QtWidgets import QFileDialog
 
         from app.utils.app_paths import backgrounds_dir
         from app.utils.media_utils import BACKGROUND_FILE_FILTER

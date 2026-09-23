@@ -3,9 +3,9 @@ from __future__ import annotations
 import ctypes
 import sys
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor, QPalette
-from PyQt6.QtWidgets import QApplication, QLabel, QMainWindow, QToolTip
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor, QPalette
+from PySide6.QtWidgets import QApplication, QLabel, QMainWindow, QToolTip
 
 from app.database.connection import Database
 from app.ui.icons import app_logo_icon
@@ -45,7 +45,7 @@ def _exception_handler(exctype, value, traceback_obj):
         )
 
         if QApplication.instance():
-            from PyQt6.QtWidgets import QMessageBox
+            from PySide6.QtWidgets import QMessageBox
 
             QMessageBox.critical(
                 None,
@@ -78,7 +78,7 @@ def _create_fallback_window() -> QMainWindow:
 
 
 def _qt_message_handler(mode, context, message):
-    """Filter out harmless but noisy internal PyQt6 warnings."""
+    """Filter out harmless but noisy internal PySide6 warnings."""
     if "QFont::setPointSize" in message or "font-variant-numeric" in message:
         return
     # Pass through other messages
@@ -105,7 +105,7 @@ def main() -> int:
         global _app_mutex
         _app_mutex = mutex
 
-    from PyQt6.QtCore import qInstallMessageHandler
+    from PySide6.QtCore import qInstallMessageHandler
 
     qInstallMessageHandler(_qt_message_handler)
     sys.excepthook = _exception_handler
@@ -210,11 +210,19 @@ def main() -> int:
     splash.finish(window)
 
     # Compléter la bibliothèque de polices une fois l'interface affichée.
-    from PyQt6.QtCore import QTimer
+    from PySide6.QtCore import QTimer
 
     QTimer.singleShot(0, load_fonts)
 
-    return app.exec()
+    exit_code = app.exec()
+
+    # Laisser finir les tâches d'arrière-plan (recherche, contrôle avant
+    # service, sauvegarde) avant l'arrêt de l'interpréteur : PySide6 signale
+    # sinon une erreur dans QRunnable::run() pendant la finalisation.
+    from PySide6.QtCore import QThreadPool
+
+    QThreadPool.globalInstance().waitForDone(5000)
+    return exit_code
 
 
 if __name__ == "__main__":

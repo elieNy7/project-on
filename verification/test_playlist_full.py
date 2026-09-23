@@ -8,7 +8,7 @@ from pathlib import Path
 sys.path.append("d:/Project/Project-On")
 sys.path.append("f:/Project/Project-On")
 
-from PyQt6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication
 
 from app.database.connection import Database, DatabaseConfig
 from app.utils.playlist_model import PlaylistRoles

@@ -94,7 +94,7 @@ def test_media_import_copies_renders_dest_and_inserts_in_worker(tmp_path, monkey
     from types import SimpleNamespace
     from app.utils.library_controller import LibraryController
     from app.utils import app_paths, office_renderer
-    from PyQt6.QtWidgets import QFileDialog
+    from PySide6.QtWidgets import QFileDialog
     source = tmp_path / 'source.pptx'
     dest = tmp_path / 'stored.pptx'
     source.write_bytes(b'fixture')

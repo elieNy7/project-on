@@ -2,7 +2,7 @@
 from dataclasses import dataclass, field
 from threading import Event
 
-from PyQt6.QtCore import QObject, QRunnable, pyqtSignal, pyqtSlot
+from PySide6.QtCore import QObject, QRunnable, Signal, Slot
 
 
 @dataclass
@@ -22,8 +22,8 @@ class ImportReport:
 
 class ImportWorker(QRunnable):
     class Signals(QObject):
-        progress = pyqtSignal(int, int)
-        finished = pyqtSignal(object)
+        progress = Signal(int, int)
+        finished = Signal(object)
 
     def __init__(self, items, process):
         super().__init__()
@@ -35,7 +35,7 @@ class ImportWorker(QRunnable):
     def cancel(self):
         self.cancelled.set()
 
-    @pyqtSlot()
+    @Slot()
     def run(self):
         report = ImportReport(remaining=len(self.items))
         for index, item in enumerate(self.items):

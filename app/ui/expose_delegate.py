@@ -1,8 +1,8 @@
 import re
 
-from PyQt6.QtCore import QModelIndex, QRect, QSize, Qt
-from PyQt6.QtGui import QColor, QFont, QFontMetrics, QPainter
-from PyQt6.QtWidgets import QStyle, QStyledItemDelegate, QStyleOptionViewItem
+from PySide6.QtCore import QModelIndex, QRect, QSize, Qt
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter
+from PySide6.QtWidgets import QStyle, QStyledItemDelegate, QStyleOptionViewItem
 
 from app.ui.library_list_presentation import normalize_preview_text
 from app.ui.theme import (
@@ -116,7 +116,7 @@ class ExposeParagraphDelegate(QStyledItemDelegate):
             content_rect.height() - 4,
         )
 
-        # In PyQt6, elidedText just returns a string, drawText needs string
+        # In PySide6, elidedText just returns a string, drawText needs string
         elided_text = fm_text.elidedText(
             text, Qt.TextElideMode.ElideRight, available_width * 2
         )

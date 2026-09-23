@@ -10,7 +10,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import numpy  # noqa: E402
 from PIL import Image  # noqa: E402
-from PyQt6.QtWidgets import QApplication  # noqa: E402
+from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from app.ui.mixer_output_window import MixerOutputWindow  # noqa: E402
 from app.utils.ndi_lower_third import NdiLowerThirdSender  # noqa: E402

@@ -3,10 +3,11 @@ from __future__ import annotations
 import copy
 import math
 import re
+import warnings
 
-from PyQt6.QtCore import QRect, QSize, Qt, pyqtSignal, QTimer
-from PyQt6.QtGui import QBrush, QColor, QFont, QLinearGradient, QPainter, QPen
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import QRect, QSize, Qt, Signal, QTimer
+from PySide6.QtGui import QBrush, QColor, QFont, QLinearGradient, QPainter, QPen
+from PySide6.QtWidgets import (
     QCheckBox,
     QColorDialog,
     QComboBox,
@@ -31,6 +32,21 @@ from app.ui.theme import Colors, Radius, Typography, get_scroll_area_style
 from app.utils.fonts import get_available_fonts
 from app.utils.settings import ObsScene, ObsOutputSettings, ObsSettings, scene_slug
 from app.utils.translations import tr
+
+
+def _reconnect(signal, slot) -> None:
+    """Connect ``slot`` exactly once, dropping any previous identical link.
+
+    PySide6 warns (instead of raising) when disconnecting a slot that was
+    never connected; that is the expected case on first call, so silence it.
+    """
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)
+        try:
+            signal.disconnect(slot)
+        except (TypeError, RuntimeError):
+            pass
+    signal.connect(slot)
 
 
 class ObsPreviewWidget(QFrame):
@@ -324,7 +340,7 @@ DIALOG_STYLE = f"""
 class ColorPickerButton(QPushButton):
     """Modern color picker button."""
 
-    colorChanged = pyqtSignal(str)
+    colorChanged = Signal(str)
 
     def __init__(self, color: str, parent=None):
         super().__init__(parent)
@@ -521,9 +537,9 @@ class NavButton(QPushButton):
 
 
 class ObsOutputSettingsDialog(QDialog):
-    settingsChanged = pyqtSignal(ObsOutputSettings)
+    settingsChanged = Signal(ObsOutputSettings)
     # Full OBS settings (base style + named scenes) — used for live updates.
-    obsSettingsChanged = pyqtSignal(object)
+    obsSettingsChanged = Signal(object)
 
     def __init__(
         self, obs_settings: ObsSettings, parent: QWidget | None = None
@@ -1024,7 +1040,7 @@ class ObsOutputSettingsDialog(QDialog):
             f"http://127.0.0.1:{self._obs_settings.web_port}"
             f"/obs?scene={scene.id}"
         )
-        from PyQt6.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication
 
         QApplication.clipboard().setText(url)
 
@@ -1068,58 +1084,16 @@ class ObsOutputSettingsDialog(QDialog):
             pass
 
     def _connect_signals(self) -> None:
-        """Connect all input widgets to the change handler."""
-        # Robust discovery of all input widgets in the dialog
-        from PyQt6.QtWidgets import (
-            QCheckBox,
-            QComboBox,
-            QDoubleSpinBox,
-            QSlider,
-            QSpinBox,
-        )
-
+        """Connect all input widgets to the change handler (idempotent)."""
         for w in self.findChildren(QComboBox):
-            try:
-                w.currentIndexChanged.disconnect(self._on_change)
-            except (TypeError, RuntimeError):
-                pass
-            w.currentIndexChanged.connect(self._on_change)
-
-        for w in self.findChildren(QSpinBox):
-            try:
-                w.valueChanged.disconnect(self._on_change)
-            except (TypeError, RuntimeError):
-                pass
-            w.valueChanged.connect(self._on_change)
-
-        for w in self.findChildren(QDoubleSpinBox):
-            try:
-                w.valueChanged.disconnect(self._on_change)
-            except (TypeError, RuntimeError):
-                pass
-            w.valueChanged.connect(self._on_change)
-
-        for w in self.findChildren(QSlider):
-            try:
-                w.valueChanged.disconnect(self._on_change)
-            except (TypeError, RuntimeError):
-                pass
-            w.valueChanged.connect(self._on_change)
-
+            _reconnect(w.currentIndexChanged, self._on_change)
+        for cls in (QSpinBox, QDoubleSpinBox, QSlider):
+            for w in self.findChildren(cls):
+                _reconnect(w.valueChanged, self._on_change)
         for w in self.findChildren(QCheckBox):
-            try:
-                w.toggled.disconnect(self._on_change)
-            except (TypeError, RuntimeError):
-                pass
-            w.toggled.connect(self._on_change)
-
-        # Connect custom buttons
+            _reconnect(w.toggled, self._on_change)
         for w in self.findChildren(ColorPickerButton):
-            try:
-                w.colorChanged.disconnect(self._on_change)
-            except Exception:
-                pass
-            w.colorChanged.connect(self._on_change)
+            _reconnect(w.colorChanged, self._on_change)
 
     def _on_nav_clicked(self, index: int) -> None:
         for i, btn in enumerate(self._nav_buttons):

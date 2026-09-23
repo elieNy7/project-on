@@ -8,23 +8,23 @@ from pathlib import Path
 
 log = logging.getLogger(__name__)
 
-from PyQt6.QtCore import (
+from PySide6.QtCore import (
     QObject,
     QRunnable,
     Qt,
     QThreadPool,
     QUrl,
-    pyqtSignal,
-    pyqtSlot,
+    Signal,
+    Slot,
 )
-from PyQt6.QtGui import (
+from PySide6.QtGui import (
     QColor,
     QDesktopServices,
     QGuiApplication,
     QLinearGradient,
     QPainter,
 )
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -47,9 +47,9 @@ from app.version import __version__
 
 class _WorkerSignals(QObject):
     """Signaux pour les workers de fond (thread-safe via Qt signal/slot)."""
-    optimize_done  = pyqtSignal(bool, int, int)  # (success, saved_bytes, new_size)
-    backup_done = pyqtSignal(bool, str, int, str)
-    bundle_done = pyqtSignal(bool, str, int, str)
+    optimize_done  = Signal(bool, int, int)  # (success, saved_bytes, new_size)
+    backup_done = Signal(bool, str, int, str)
+    bundle_done = Signal(bool, str, int, str)
 
 
 class _OptimizeWorker(QRunnable):
@@ -61,7 +61,7 @@ class _OptimizeWorker(QRunnable):
         self._db_path = db_path
         self._signals = signals
 
-    @pyqtSlot()
+    @Slot()
     def run(self) -> None:
         conn = None
         try:
@@ -97,7 +97,7 @@ class _BackupWorker(QRunnable):
         self._destination = destination
         self._signals = signals
 
-    @pyqtSlot()
+    @Slot()
     def run(self) -> None:
         try:
             result = create_database_backup(self._source, self._destination)
@@ -121,7 +121,7 @@ class _BundleWorker(QRunnable):
         self._destination = destination
         self._signals = signals
 
-    @pyqtSlot()
+    @Slot()
     def run(self) -> None:
         from app.utils.app_paths import backgrounds_dir, media_dir
         from app.utils.backup_manager import create_backup_bundle
@@ -182,7 +182,7 @@ class SettingsCard(QFrame):
 class SettingsItem(QWidget):
     """Item cliquable avec icône, titre, description et détail."""
 
-    clicked = pyqtSignal()
+    clicked = Signal()
 
     def __init__(
         self,
@@ -359,15 +359,15 @@ class SettingsHeader(QFrame):
 # ─── Onglet principal ─────────────────────────────────────────────────────────
 
 class SettingsTab(QWidget):
-    projectionSettingsRequested  = pyqtSignal()
-    themesRequested              = pyqtSignal()
-    hdmiSettingsRequested        = pyqtSignal()
-    obsSettingsRequested         = pyqtSignal()
-    obsOutputSettingsRequested   = pyqtSignal()
-    appearanceSettingsRequested  = pyqtSignal()
-    shortcutsRequested           = pyqtSignal()
-    aboutRequested               = pyqtSignal()
-    preflightRequested           = pyqtSignal()
+    projectionSettingsRequested  = Signal()
+    themesRequested              = Signal()
+    hdmiSettingsRequested        = Signal()
+    obsSettingsRequested         = Signal()
+    obsOutputSettingsRequested   = Signal()
+    appearanceSettingsRequested  = Signal()
+    shortcutsRequested           = Signal()
+    aboutRequested               = Signal()
+    preflightRequested           = Signal()
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -602,7 +602,7 @@ class SettingsTab(QWidget):
             QMessageBox.warning(self, "Sauvegarde impossible", "La base de données est introuvable.")
             return
 
-        from PyQt6.QtWidgets import QFileDialog
+        from PySide6.QtWidgets import QFileDialog
 
         default = data_dir() / f"project-on-db-{self._timestamp()}.db"
         file_path, _ = QFileDialog.getSaveFileName(
@@ -645,7 +645,7 @@ class SettingsTab(QWidget):
             QMessageBox.warning(self, "Sauvegarde impossible", "La base de données est introuvable.")
             return
 
-        from PyQt6.QtWidgets import QFileDialog
+        from PySide6.QtWidgets import QFileDialog
 
         default = data_dir() / f"project-on-complet-{self._timestamp()}.zip"
         file_path, _ = QFileDialog.getSaveFileName(
@@ -685,7 +685,7 @@ class SettingsTab(QWidget):
             )
 
     def _on_restore_bundle(self) -> None:
-        from PyQt6.QtWidgets import QFileDialog
+        from PySide6.QtWidgets import QFileDialog
 
         archive, _ = QFileDialog.getOpenFileName(
             self,

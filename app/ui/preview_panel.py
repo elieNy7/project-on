@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PyQt6.QtCore import QSignalBlocker, QSize, Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QFont, QFontMetrics, QKeySequence, QPixmap, QShortcut
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import QSignalBlocker, QSize, Qt, Signal
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QKeySequence, QPixmap, QShortcut
+from PySide6.QtWidgets import (
     QDialog,
     QFrame,
     QGraphicsDropShadowEffect,
@@ -125,20 +125,20 @@ class PreviewControlButton(QPushButton):
 #  Preview Panel
 # ═══════════════════════════════════════════════════════════════════
 class PreviewPanel(QFrame):
-    hideToggled = pyqtSignal(bool)
-    prevRequested = pyqtSignal()
-    nextRequested = pyqtSignal()
-    projectToggled = pyqtSignal(bool)
+    hideToggled = Signal(bool)
+    prevRequested = Signal()
+    nextRequested = Signal()
+    projectToggled = Signal(bool)
     # Édition rapide de la slide en direct
-    quickEditRequested = pyqtSignal()
+    quickEditRequested = Signal()
     # Texte rapide : (titre, textes, découpage)
-    quickTextRequested = pyqtSignal(str, list, bool)
+    quickTextRequested = Signal(str, list, bool)
     # Position de la référence sur la projection : True = en haut
-    referencePositionToggled = pyqtSignal(bool)
+    referencePositionToggled = Signal(bool)
     # Contrôle vidéo opérateur : "play" | "pause" | "stop"
-    videoControlRequested = pyqtSignal(str)
+    videoControlRequested = Signal(str)
     # Boucle vidéo : True = activer la relance automatique
-    videoLoopToggled = pyqtSignal(bool)
+    videoLoopToggled = Signal(bool)
 
     def __init__(self, parent=None, settings=None) -> None:
         super().__init__(parent)
@@ -1123,7 +1123,7 @@ class PreviewPanel(QFrame):
 
     def _on_space_shortcut(self) -> None:
         """Laisse l'Espace activer le contrôle focalisé (bouton, champ, liste)."""
-        from PyQt6.QtWidgets import (
+        from PySide6.QtWidgets import (
             QApplication,
             QAbstractButton,
             QComboBox,

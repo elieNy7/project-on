@@ -51,7 +51,7 @@ def test_load_media_rejects_urls(tmp_path: Path) -> None:
 
 def test_playlist_powerpoint_expands_rendered_slides(tmp_path: Path) -> None:
     """Un item PowerPoint développe ses slides rendues (cache pré-rempli)."""
-    from PyQt6.QtWidgets import QApplication
+    from PySide6.QtWidgets import QApplication
 
     from app.ui.playlist_tab import PlaylistTab
     from app.utils.library_controller import LibraryController

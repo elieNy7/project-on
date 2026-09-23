@@ -42,7 +42,7 @@ def setup_logging(log_dir: Path, level: int = logging.INFO) -> None:
         root.addHandler(file_handler)
         root.addHandler(console_handler)
 
-    logging.getLogger("PyQt6").setLevel(logging.WARNING)
+    logging.getLogger("PySide6").setLevel(logging.WARNING)
 
 
 def cleanup_old_crash_logs(

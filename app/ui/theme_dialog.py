@@ -13,8 +13,8 @@ import logging
 
 log = logging.getLogger(__name__)
 
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
     QHBoxLayout,
@@ -53,7 +53,7 @@ _SOURCE_LABELS = {
 
 
 class ThemeDialog(QDialog):
-    themesLiveChanged = pyqtSignal(list, dict, str, object)
+    themesLiveChanged = Signal(list, dict, str, object)
     # (themes, theme_assignments, active_theme_id, active_style)
 
     def __init__(self, settings, parent=None) -> None:
@@ -382,7 +382,7 @@ class ThemeDialog(QDialog):
         theme = self._current_theme()
         if theme is None:
             return
-        from PyQt6.QtWidgets import QInputDialog
+        from PySide6.QtWidgets import QInputDialog
 
         name, ok = QInputDialog.getText(
             self, tr("themes_rename"), tr("themes_name_label"), text=theme.name
@@ -418,7 +418,7 @@ class ThemeDialog(QDialog):
 
     def _on_add_preset(self) -> None:
         existing_ids = [t.id for t in self._themes]
-        from PyQt6.QtWidgets import QMenu
+        from PySide6.QtWidgets import QMenu
 
         menu = QMenu(self)
         for preset in builtin_theme_presets():

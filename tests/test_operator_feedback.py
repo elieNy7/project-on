@@ -4,7 +4,7 @@ from datetime import datetime
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PyQt6.QtWidgets import QApplication, QDialog
+from PySide6.QtWidgets import QApplication, QDialog
 
 from app.ui.preflight_dialog import PreflightDialog
 from app.utils.settings import AppSettings
@@ -12,7 +12,7 @@ from app.utils.system_health import HealthCheck, HealthReport
 
 
 def test_startup_warning_is_deferred_and_only_shown_once(monkeypatch):
-    from PyQt6.QtWidgets import QMainWindow
+    from PySide6.QtWidgets import QMainWindow
     from app.ui.main_window import MainWindow
 
     app = QApplication.instance() or QApplication([])

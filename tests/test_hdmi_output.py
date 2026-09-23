@@ -299,7 +299,7 @@ def test_accents_remapped_when_close_to_key() -> None:
 
 
 def _make_qapp():
-    from PyQt6.QtWidgets import QApplication
+    from PySide6.QtWidgets import QApplication
 
     return QApplication.instance() or QApplication([])
 
@@ -316,7 +316,7 @@ def _write_presentation(directory: Path, slide: dict, cfg: dict) -> None:
 
 def test_mixer_window_composes_frame_and_hides_cursor(tmp_path: Path) -> None:
     qapp = _make_qapp()
-    from PyQt6.QtCore import Qt
+    from PySide6.QtCore import Qt
 
     from app.ui.mixer_output_window import MixerOutputWindow
 

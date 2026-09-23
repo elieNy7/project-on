@@ -3,8 +3,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from PyQt6.QtCore import QPoint, QSize, Qt, QTimer, pyqtSignal
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import QPoint, QSize, Qt, QTimer, Signal
+from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
     QFrame,
@@ -45,12 +45,12 @@ from app.ui.theme import (
 
 
 class SermonsTab(QFrame):
-    sermonSelected = pyqtSignal(object)
+    sermonSelected = Signal(object)
     # Payload : {reference, text, sermon_id, sermon_title, sermon_date}
-    paragraphActivated = pyqtSignal(object)
-    filtersChanged = pyqtSignal()
-    paragraphSearchRequested = pyqtSignal(str)  # query text
-    addToPlaylistRequested = pyqtSignal(list)  # list of (ref, text) tuples
+    paragraphActivated = Signal(object)
+    filtersChanged = Signal()
+    paragraphSearchRequested = Signal(str)  # query text
+    addToPlaylistRequested = Signal(list)  # list of (ref, text) tuples
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -648,7 +648,7 @@ class SermonsTab(QFrame):
 
     def _paragraphs_range_payload(self) -> list[tuple[str, str]]:
         """Ajout en série « paragraphes 1 à N » (positions dans la liste)."""
-        from PyQt6.QtWidgets import QDialog
+        from PySide6.QtWidgets import QDialog
 
         from app.ui.range_dialog import RangeDialog
 

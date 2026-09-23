@@ -66,6 +66,7 @@ build_installer.bat
 - Code : voir [LICENSE.txt](LICENSE.txt).
 - Silhouettes aigle / lion / agneau dérivées de [game-icons.net](https://game-icons.net/) (Lorc, Delapouite) — **CC BY 3.0**.
 - Icônes d’interface SVG issues de [Lucide](https://lucide.dev/) — licence **ISC**, texte fourni dans `licenses/LUCIDE-ISC.txt`.
+- Interface construite avec [Qt for Python (PySide6)](https://doc.qt.io/qtforpython-6/) — licence **LGPL v3** ; les bibliothèques Qt sont livrées sous forme de DLL séparées et remplaçables.
 
 <div align="center">
 

@@ -4,7 +4,7 @@ Implements the small subset of the protocol Project-On needs:
 identify (with challenge/response auth), list scenes, switch program
 scene, and create/update the Project-On browser source.
 
-Uses PyQt6's QWebSocket so everything runs on the Qt event loop — no
+Uses PySide6's QWebSocket so everything runs on the Qt event loop — no
 extra dependency and thread-safe interaction with the UI.
 """
 
@@ -15,8 +15,8 @@ import hashlib
 import logging
 from typing import Any, Callable
 
-from PyQt6.QtCore import QObject, QUrl, QTimer, pyqtSignal
-from PyQt6.QtWebSockets import QWebSocket
+from PySide6.QtCore import QObject, QUrl, QTimer, Signal
+from PySide6.QtWebSockets import QWebSocket
 
 from app.utils.settings import ObsRemoteSettings
 
@@ -66,11 +66,11 @@ def build_browser_source_settings(url: str) -> dict[str, Any]:
 class ObsRemoteClient(QObject):
     """Qt client for obs-websocket 5.x with auto-reconnect."""
 
-    connected = pyqtSignal()
-    disconnected = pyqtSignal()
-    errorOccurred = pyqtSignal(str)
-    scenesLoaded = pyqtSignal(list)
-    browserSourceCreated = pyqtSignal(str)  # scene name
+    connected = Signal()
+    disconnected = Signal()
+    errorOccurred = Signal(str)
+    scenesLoaded = Signal(list)
+    browserSourceCreated = Signal(str)  # scene name
 
     RECONNECT_MS = 10_000
 

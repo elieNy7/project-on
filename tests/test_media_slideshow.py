@@ -8,7 +8,7 @@ from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PyQt6.QtWidgets import QApplication  # noqa: E402
+from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from app.database.connection import Database, DatabaseConfig  # noqa: E402
 from app.database.dao_media import MediaDao  # noqa: E402
@@ -21,7 +21,7 @@ from app.utils.slideshow_controller import SlideshowController  # noqa: E402
 def _app() -> QApplication:
     """QApplication du test — gardée dans une variable locale par l'appelant.
 
-    PyQt détruit l'instance dès qu'aucune référence Python ne la retient ;
+    PySide6 détruit l'instance dès qu'aucune référence Python ne la retient ;
     un widget créé ensuite ferait tomber le processus (convention des tests
     existants : ``app = QApplication.instance() or QApplication([])``).
     """
@@ -188,7 +188,7 @@ def test_slideshow_maps_every_row_to_its_media_duration(tmp_path: Path) -> None:
 
 
 def test_media_tab_exposes_duration_and_slideshow(tmp_path: Path) -> None:
-    from PyQt6.QtWidgets import QMenu
+    from PySide6.QtWidgets import QMenu
 
     app = _app()  # noqa: F841 - garde la QApplication vivante
     tab = MediaTab()

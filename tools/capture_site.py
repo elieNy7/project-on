@@ -24,8 +24,8 @@ sys.path.insert(0, str(ROOT))
 
 LIGHT = "--light" in sys.argv
 
-from PyQt6.QtGui import QPixmap  # noqa: E402
-from PyQt6.QtWidgets import QApplication  # noqa: E402
+from PySide6.QtGui import QPixmap  # noqa: E402
+from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from app.database.connection import Database  # noqa: E402
 from app.utils.app_paths import settings_path  # noqa: E402
@@ -144,7 +144,7 @@ def main() -> None:
             demo_media_files: list[Path] = []
             demo_media_ids: list[int] = []
             if not media_dao.list_media():
-                from PyQt6.QtGui import QColor, QFont, QPainter
+                from PySide6.QtGui import QColor, QFont, QPainter
 
                 demo_specs = [
                     ("Annonce repas", "#1d4ed8", "#93c5fd"),
@@ -190,7 +190,7 @@ def main() -> None:
         if LIGHT:
             win.close()
             app.processEvents()
-            from PyQt6.QtCore import QThreadPool
+            from PySide6.QtCore import QThreadPool
 
             QThreadPool.globalInstance().waitForDone(5000)
             return
@@ -252,7 +252,7 @@ def main() -> None:
         win.close()
         app.processEvents()
 
-        from PyQt6.QtCore import QThreadPool
+        from PySide6.QtCore import QThreadPool
 
         QThreadPool.globalInstance().waitForDone(5000)
     finally:

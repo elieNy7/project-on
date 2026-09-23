@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from PyQt6.QtCore import QEasingCurve, QPropertyAnimation, Qt, QTimer, pyqtSignal
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import QEasingCurve, QPropertyAnimation, Qt, QTimer, Signal
+from PySide6.QtWidgets import (
     QApplication,
     QFrame,
     QGraphicsOpacityEffect,
@@ -28,7 +28,7 @@ class SplashColors:
 class SplashScreen(QWidget):
     """Premium splash screen with cinematic fade and minimal design."""
 
-    loadingFinished = pyqtSignal()
+    loadingFinished = Signal()
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)

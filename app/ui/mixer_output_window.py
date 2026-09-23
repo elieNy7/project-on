@@ -22,8 +22,8 @@ from typing import Any
 
 log = logging.getLogger(__name__)
 
-from PyQt6.QtCore import QRect, Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import (
+from PySide6.QtCore import QRect, Qt, QTimer, Signal
+from PySide6.QtGui import (
     QColor,
     QFont,
     QGuiApplication,
@@ -33,7 +33,7 @@ from PyQt6.QtGui import (
     QPixmap,
     QShortcut,
 )
-from PyQt6.QtWidgets import QWidget
+from PySide6.QtWidgets import QWidget
 
 from app.utils import power_guard
 from app.utils.media_render import compose_media_frame
@@ -113,7 +113,7 @@ class MixerOutputWindow(QWidget):
     RENDER_HEIGHT = 1080
 
     # Échap / F11 : quitter la sortie (désactive le réglage côté régie).
-    escapeRequested = pyqtSignal()
+    escapeRequested = Signal()
 
     def __init__(
         self,

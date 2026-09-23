@@ -8,8 +8,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from PyQt6.QtCore import QObject, QRunnable, QThreadPool, pyqtSignal, pyqtSlot
-from PyQt6.QtWidgets import QFileDialog, QMessageBox
+from PySide6.QtCore import QObject, QRunnable, QThreadPool, Signal, Slot
+from PySide6.QtWidgets import QFileDialog, QMessageBox
 
 from app.database.connection import Database
 
@@ -20,7 +20,7 @@ class _DbWorker(QRunnable):
     """Run a DB function in the thread pool, then call back on the main thread."""
 
     class _Signals(QObject):
-        finished = pyqtSignal(object)
+        finished = Signal(object)
 
     def __init__(self, fn: Callable[[], Any], callback: Callable[[Any], None], preserve_error=False) -> None:
         super().__init__()
@@ -30,7 +30,7 @@ class _DbWorker(QRunnable):
         self._signals = self._Signals()
         self._signals.finished.connect(callback)
 
-    @pyqtSlot()
+    @Slot()
     def run(self) -> None:
         try:
             result = self._fn()
@@ -1240,7 +1240,7 @@ class LibraryController(QObject):
         if not cleaned:
             return
 
-        from PyQt6.QtWidgets import QDialog
+        from PySide6.QtWidgets import QDialog
 
         dialog = self._show_add_to_playlist_dialog(
             self._playlist_dao.list_folders(), len(cleaned)
@@ -1288,7 +1288,7 @@ class LibraryController(QObject):
         return name, [(it["reference"], it["text"]) for it in items]
 
     def _start_import(self, title, items, process, refresh=None):
-        from PyQt6.QtWidgets import QProgressDialog
+        from PySide6.QtWidgets import QProgressDialog
         from app.utils.import_worker import ImportWorker
         worker = ImportWorker(items, process)
         dialog = QProgressDialog(title, "Annuler", 0, len(worker.items))
@@ -1448,7 +1448,7 @@ class LibraryController(QObject):
 
     def on_media_import(self, kind: str = "image") -> None:
         """Importe des fichiers média (copie dans la bibliothèque utilisateur)."""
-        from PyQt6.QtWidgets import QFileDialog
+        from PySide6.QtWidgets import QFileDialog
 
         from app.utils.app_paths import import_media_file
         from app.utils.media_utils import (
@@ -1521,7 +1521,7 @@ class LibraryController(QObject):
                 return False, None, str(exc)
 
         def _on_done(result):
-            from PyQt6.QtWidgets import QMessageBox
+            from PySide6.QtWidgets import QMessageBox
 
             ok, images, detail = result or (False, None, "")
             self.refresh_media()
@@ -1570,7 +1570,7 @@ class LibraryController(QObject):
                     return False, None, str(exc)
 
             def _on_done(result):
-                from PyQt6.QtWidgets import QMessageBox
+                from PySide6.QtWidgets import QMessageBox
 
                 ok, images, detail = result or (False, None, "")
                 if not ok:
@@ -1685,7 +1685,7 @@ class LibraryController(QObject):
         dialog = self._show_add_to_playlist_dialog(
             self._playlist_dao.list_folders(), len(cleaned)
         )
-        from PyQt6.QtWidgets import QDialog
+        from PySide6.QtWidgets import QDialog
 
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return

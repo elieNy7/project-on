@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from PyQt6.QtCore import pyqtSignal
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Signal
+from PySide6.QtWidgets import (
     QHBoxLayout,
     QStackedWidget,
     QVBoxLayout,
@@ -22,7 +22,7 @@ from app.utils.translations import tr
 
 
 class LibraryPanel(QFrame):
-    slideRequested = pyqtSignal(str, str, str)
+    slideRequested = Signal(str, str, str)
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from PyQt6.QtCore import QSize, Qt, QTimer, pyqtSignal
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import QSize, Qt, QTimer, Signal
+from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -42,17 +42,17 @@ from app.utils.translations import tr
 
 
 class HymnsTab(QFrame):
-    hymnSelected = pyqtSignal(int)
-    hymnActivated = pyqtSignal(int)  # Add entire hymn
-    stanzaActivated = pyqtSignal(str, str)  # Ref, Text
-    stanzasActivated = pyqtSignal(list)  # List of (Ref, Text)
-    addToPlaylistRequested = pyqtSignal(list)  # List of (Ref, Text)
-    importPptxFileRequested = pyqtSignal()
-    importPptxFolderRequested = pyqtSignal()
-    importPdfFileRequested = pyqtSignal()
-    importScanRequested = pyqtSignal()
-    deleteRequested = pyqtSignal(int)
-    deleteAllRequested = pyqtSignal()
+    hymnSelected = Signal(int)
+    hymnActivated = Signal(int)  # Add entire hymn
+    stanzaActivated = Signal(str, str)  # Ref, Text
+    stanzasActivated = Signal(list)  # List of (Ref, Text)
+    addToPlaylistRequested = Signal(list)  # List of (Ref, Text)
+    importPptxFileRequested = Signal()
+    importPptxFolderRequested = Signal()
+    importPdfFileRequested = Signal()
+    importScanRequested = Signal()
+    deleteRequested = Signal(int)
+    deleteAllRequested = Signal()
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)

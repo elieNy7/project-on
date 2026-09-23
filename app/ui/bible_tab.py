@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from PyQt6.QtCore import QEvent, QSize, Qt, QTimer, pyqtSignal
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import QEvent, QSize, Qt, QTimer, Signal
+from PySide6.QtWidgets import (
     QComboBox,
     QFrame,
     QHBoxLayout,
@@ -47,13 +47,13 @@ from app.utils.translations import tr
 
 
 class BibleTab(QFrame):
-    translationSelected = pyqtSignal(int)
-    bookSelected = pyqtSignal(int)
-    chapterSelected = pyqtSignal(int)
-    verseActivated = pyqtSignal(str, str)
-    versesActivated = pyqtSignal(list)  # list of (ref, text) tuples
-    searchRequested = pyqtSignal(str)
-    addToPlaylistRequested = pyqtSignal(list)  # list of (ref, text) tuples
+    translationSelected = Signal(int)
+    bookSelected = Signal(int)
+    chapterSelected = Signal(int)
+    verseActivated = Signal(str, str)
+    versesActivated = Signal(list)  # list of (ref, text) tuples
+    searchRequested = Signal(str)
+    addToPlaylistRequested = Signal(list)  # list of (ref, text) tuples
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -430,7 +430,7 @@ class BibleTab(QFrame):
 
     def _verses_range_payload(self) -> list[tuple[str, str]]:
         """Construit l'ajout en série « versets 1 à N » via un dialogue."""
-        from PyQt6.QtWidgets import QDialog
+        from PySide6.QtWidgets import QDialog
 
         from app.ui.range_dialog import RangeDialog
 
