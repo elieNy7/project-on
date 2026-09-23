@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
 
 from app.database.connection import Database
 from app.ui.command_bar import CommandBar
+from app.ui.cue_monitor import CueMonitor
 from app.ui.global_search_popup import GlobalSearchPopup
 from app.ui.icons import app_logo_icon
 from app.ui.library_panel import LibraryPanel
@@ -173,8 +174,22 @@ class MainWindow(QMainWindow):
         self.command_bar.outputClicked.connect(self._on_output_chip_clicked)
         column.addWidget(self.command_bar)
 
+        # Right column: the preview ("Aperçu", prepared, not live) above the
+        # live monitor ("Direct", what the audience sees).
+        self.cue_monitor = CueMonitor()
+        self.cue_monitor.set_renderer(self.preview_panel.render_slide_pixmap)
+        self.preview_panel.renderStyleChanged.connect(self.cue_monitor.refresh)
+        monitors = QSplitter(Qt.Orientation.Vertical)
+        monitors.setChildrenCollapsible(False)
+        monitors.setHandleWidth(Spacing.SM)
+        monitors.setStyleSheet(get_splitter_style())
+        monitors.addWidget(self.cue_monitor)
+        monitors.addWidget(self.preview_panel)
+        monitors.setStretchFactor(0, 40)
+        monitors.setStretchFactor(1, 60)
+
         splitter.addWidget(self.library_panel)
-        splitter.addWidget(self.preview_panel)
+        splitter.addWidget(monitors)
 
         # Balance: Library (55%), Preview (45%)
         splitter.setStretchFactor(0, 55)
@@ -199,6 +214,8 @@ class MainWindow(QMainWindow):
         )
 
         self._setup_global_search(root)
+        self._library_controller.programCued.connect(self._on_program_cued)
+        self.cue_monitor.takeRequested.connect(self._take_cue)
 
         # Diaporama lancé depuis la galerie des médias (sélection ou
         # bibliothèque entière) ou depuis une playlist de médias.
@@ -349,6 +366,11 @@ class MainWindow(QMainWindow):
         sc_search.setContext(Qt.ShortcutContext.ApplicationShortcut)
         sc_search.activated.connect(self._focus_active_search)
 
+        # F2 → envoyer l'aperçu au direct
+        sc_take = QShortcut(QKeySequence(Qt.Key.Key_F2), self)
+        sc_take.setContext(Qt.ShortcutContext.ApplicationShortcut)
+        sc_take.activated.connect(self._take_cue)
+
         # Ctrl+K → recherche globale (toutes les bibliothèques)
         sc_global = QShortcut(QKeySequence("Ctrl+K"), self)
         sc_global.setContext(Qt.ShortcutContext.ApplicationShortcut)
@@ -450,6 +472,17 @@ class MainWindow(QMainWindow):
             )
             return False
         return True
+
+    # ── Aperçu → Direct ───────────────────────────────────────────────────
+
+    def _on_program_cued(self, cue) -> None:
+        self.cue_monitor.set_cue(cue, self._project_controller.cue_slide(cue))
+
+    def _take_cue(self) -> None:
+        """Send the prepared preview live (button or F2)."""
+        cue = self.cue_monitor.cue()
+        if cue is not None:
+            self._library_controller.take(cue)
 
     # ── Recherche globale ─────────────────────────────────────────────────
 

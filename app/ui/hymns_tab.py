@@ -45,6 +45,7 @@ class HymnsTab(QFrame):
     hymnSelected = Signal(int)
     hymnActivated = Signal(int)  # Add entire hymn
     stanzaActivated = Signal(str, str)  # Ref, Text
+    stanzaCued = Signal(str, str)  # single click: prepare in the preview
     stanzasActivated = Signal(list)  # List of (Ref, Text)
     addToPlaylistRequested = Signal(list)  # List of (Ref, Text)
     importPptxFileRequested = Signal()
@@ -212,6 +213,7 @@ class HymnsTab(QFrame):
         self.hymns_list.currentItemChanged.connect(self._on_hymn_changed)
         self.stanzas_list.itemDoubleClicked.connect(self._on_stanza_double_clicked)
         self.stanzas_list.itemActivated.connect(self._on_stanza_double_clicked)
+        self.stanzas_list.itemClicked.connect(self._on_stanza_clicked)
         self.stanzas_list.currentItemChanged.connect(self._on_stanza_selection_changed)
         self.add_btn.clicked.connect(self._on_add_clicked)
         # NB : delete_btn porte un QMenu (single/tout supprimer) ; ses actions
@@ -286,6 +288,11 @@ class HymnsTab(QFrame):
             self._current_hymn_id = None
             self._current_hymn_title = ""
             self.stanzas_list.clear()
+
+    def _on_stanza_clicked(self, item: QListWidgetItem) -> None:
+        data = item.data(Qt.ItemDataRole.UserRole)
+        if isinstance(data, tuple) and len(data) == 2:
+            self.stanzaCued.emit(*data)
 
     def _on_stanza_double_clicked(self, item: QListWidgetItem) -> None:
         data = item.data(Qt.ItemDataRole.UserRole)

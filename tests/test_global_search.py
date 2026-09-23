@@ -183,6 +183,8 @@ def test_bible_hit_is_revealed_without_projecting(tmp_path: Path, monkeypatch) -
         assert bible.books_list.currentItem().data(256) == 43
         assert bible.verses_list.currentItem().data(258) == 12
         assert projected == []  # revealing never goes live
+        cue = window.cue_monitor.cue()  # ...but it is ready in the preview
+        assert cue is not None and cue.entries[cue.focus_entry][0].endswith("8:12")
     finally:
         window.close()
         window.deleteLater()

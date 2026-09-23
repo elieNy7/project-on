@@ -24,6 +24,26 @@ class LiveState:
     writer: LiveSnapshot
 
 
+@dataclass(frozen=True)
+class ProgramCue:
+    """A programme prepared for the live output, not yet projected.
+
+    Everything ``load_program`` needs is captured when the operator selects
+    an item, so sending the preview live later projects exactly what was
+    prepared, whatever the library shows by then.
+    """
+
+    source: SourceType
+    title: str
+    entries: tuple[tuple[str, str], ...]
+    focus_entry: int = 0
+    split: bool = True
+    entry_visuals: tuple[str, ...] | None = None
+    video_loop: bool = False
+    # Exposé chapter to follow in its tab once live (None otherwise).
+    expose_chapter_id: int | None = None
+
+
 class ProjectOnController(QObject):
     """Pilote la projection depuis un « programme live » en mémoire.
 
@@ -120,6 +140,32 @@ class ProjectOnController(QObject):
                 self._before_manual_load()
             except Exception:
                 pass
+        slides, entry_start_rows = self.build_slides(source, entries, split, entry_visuals)
+        if not slides:
+            return -1
+
+        self._program_slides = slides
+        self._program_title = self._clean_text(title)
+        self._entry_start_rows = entry_start_rows
+
+        focus = entry_start_rows[focus_entry] if 0 <= focus_entry < len(entry_start_rows) else None
+        if focus is None:
+            focus = next((row for row in entry_start_rows if row is not None), 0)
+
+        self._current_row = -1
+        self.programChanged.emit(self._program_title)
+        self.set_current_row(focus)
+        return focus
+
+    def build_slides(
+        self,
+        source: SourceType,
+        entries: list[tuple[str, str]] | tuple[tuple[str, str], ...],
+        split: bool = True,
+        entry_visuals: list[str] | tuple[str, ...] | None = None,
+    ) -> tuple[list[Slide], list[int | None]]:
+        """Slides of a programme and the first row of each entry (None when
+        an entry produced no slide). Pure: nothing is projected."""
         slides: list[Slide] = []
         entry_start_rows: list[int | None] = []
         for index, (reference, text) in enumerate(entries):
@@ -168,21 +214,31 @@ class ProjectOnController(QObject):
                     )
             entry_start_rows.append(start)
 
+        return slides, entry_start_rows
+
+    def cue_slide(self, cue: ProgramCue) -> Slide | None:
+        """First slide the cue would project, as the outputs would show it."""
+        slides, starts = self.build_slides(cue.source, cue.entries, cue.split, cue.entry_visuals)
         if not slides:
-            return -1
+            return None
+        row = starts[cue.focus_entry] if 0 <= cue.focus_entry < len(starts) else None
+        if row is None:
+            row = next((r for r in starts if r is not None), 0)
+        return self.presentation_slide(slides[row])
 
-        self._program_slides = slides
-        self._program_title = self._clean_text(title)
-        self._entry_start_rows = entry_start_rows
-
-        focus = entry_start_rows[focus_entry] if 0 <= focus_entry < len(entry_start_rows) else None
-        if focus is None:
-            focus = next((row for row in entry_start_rows if row is not None), 0)
-
-        self._current_row = -1
-        self.programChanged.emit(self._program_title)
-        self.set_current_row(focus)
-        return focus
+    def take(self, cue: ProgramCue) -> int:
+        """Project a prepared programme (preview -> live)."""
+        row = self.load_program(
+            cue.source,
+            cue.title,
+            list(cue.entries),
+            focus_entry=cue.focus_entry,
+            split=cue.split,
+            entry_visuals=list(cue.entry_visuals) if cue.entry_visuals is not None else None,
+        )
+        if row >= 0 and cue.video_loop:
+            self.set_video_loop(True)
+        return row
 
     def add_custom_slides(self, title: str, texts: list[str], split: bool = True) -> int:
         """Projette immédiatement un texte rapide (annonce, texte libre).
@@ -272,29 +328,28 @@ class ProjectOnController(QObject):
         slide = self._program_slides[row]
         self._current_row = row
 
-        presentation_slide = slide
-        if slide.source == "hymn" and " - " in slide.reference:
-            presentation_slide = Slide(
-                source=slide.source,
-                reference=slide.reference.replace(" - ", "\n", 1),
-                text=strip_hymn_projection_label(slide.text),
-                background=slide.background,
-                image_path=slide.image_path,
-                video_path=slide.video_path,
-            )
-        elif slide.source == "hymn":
-            presentation_slide = Slide(
-                source=slide.source,
-                reference=slide.reference,
-                text=strip_hymn_projection_label(slide.text),
-                background=slide.background,
-                image_path=slide.image_path,
-                video_path=slide.video_path,
-            )
-
+        presentation_slide = self.presentation_slide(slide)
         self._slide_writer.write(presentation_slide)
         self.currentRowChanged.emit(row)
         self.currentSlideChanged.emit(presentation_slide)
+
+    @staticmethod
+    def presentation_slide(slide: Slide) -> Slide:
+        """Slide as the outputs show it (hymn title on its own line, no
+        stanza label in the text)."""
+        if slide.source != "hymn":
+            return slide
+        reference = slide.reference
+        if " - " in reference:
+            reference = reference.replace(" - ", "\n", 1)
+        return Slide(
+            source=slide.source,
+            reference=reference,
+            text=strip_hymn_projection_label(slide.text),
+            background=slide.background,
+            image_path=slide.image_path,
+            video_path=slide.video_path,
+        )
 
     def current_row(self) -> int:
         return self._current_row

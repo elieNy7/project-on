@@ -139,6 +139,9 @@ class PreviewPanel(QFrame):
     videoControlRequested = Signal(str)
     # Boucle vidéo : True = activer la relance automatique
     videoLoopToggled = Signal(bool)
+    # Style of the rendered slides changed (settings, live theme preview):
+    # other monitors sharing this renderer must re-render.
+    renderStyleChanged = Signal()
 
     def __init__(self, parent=None, settings=None) -> None:
         super().__init__(parent)
@@ -218,10 +221,10 @@ class PreviewPanel(QFrame):
         title_wrap.setContentsMargins(0, 0, 0, 0)
         title_wrap.setSpacing(1)
 
-        title = QLabel(tr("preview"), self.header)
+        title = QLabel(tr("live_monitor"), self.header)
         title.setStyleSheet(
-            f"font-size: {Typography.SIZE_SECTION}px; font-weight: 800; color: {Colors.TEXT_PRIMARY};"
-            f"text-transform: uppercase; letter-spacing: 0;"
+            f"font-size: {Typography.SIZE_SECTION}px; font-weight: {Typography.WEIGHT_SEMIBOLD};"
+            f" color: {Colors.TEXT_PRIMARY};"
         )
         title_wrap.addWidget(title)
 
@@ -230,6 +233,7 @@ class PreviewPanel(QFrame):
             f"font-size: {Typography.SIZE_META}px; color: {Colors.TEXT_MUTED};"
             "letter-spacing: 0;"
         )
+        self._program_title_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         title_wrap.addWidget(self._program_title_label)
         header_lay.addLayout(title_wrap, 1)
         header_lay.addStretch()
@@ -474,6 +478,9 @@ class PreviewPanel(QFrame):
             font-size: {Typography.SIZE_META}px;
             """
         )
+        # Long texts must never widen the column (it pushed the library
+        # aside each time a slide went live): the label just clips.
+        self._next_text_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         next_lay.addWidget(self._next_text_label, 1)
 
         self._next_frame.hide()
@@ -920,6 +927,7 @@ class PreviewPanel(QFrame):
         """
         self._canvas_cfg_override = dict(cfg or {})
         self.refresh_render()
+        self.renderStyleChanged.emit()
 
     def set_presentation_dir(self, path) -> None:
         """Dossier de travail projection (chemins de visuels relatifs)."""
@@ -945,6 +953,13 @@ class PreviewPanel(QFrame):
             return self._settings.projection.to_presentation_config()
         except Exception:
             return {}
+
+    def render_slide_pixmap(
+        self, reference: str, text: str, source: str = "", image_path: str = ""
+    ):
+        """1080p render of any slide with the live style (for the preview
+        monitor): same canvas, theme and typography as the outputs."""
+        return self._render_canvas_pixmap(reference, text, source=source, image_path=image_path)
 
     def _render_canvas_pixmap(
         self,
@@ -1027,42 +1042,32 @@ class PreviewPanel(QFrame):
         self.hideToggled.emit(self._is_hidden)
 
     def _update_mode_badge(self) -> None:
-        if self._project_active:
-            self._mode_badge.setText("LIVE")
-            self._mode_badge.setStyleSheet(
-                f"""
-                QLabel {{
-                    background: {Colors.ACCENT_SUCCESS_GLOW};
-                    border: none;
-                    border-radius: 10px;
-                    padding: 4px 10px;
-                    min-width: 56px;
-                    color: {Colors.ACCENT_SUCCESS};
-                    font-size: {Typography.SIZE_NUMBER}px;
-                    font-weight: 800;
-                    letter-spacing: 0;
-                }}
-                """
-            )
+        """On-air tally of the live monitor. The outputs (OBS, HDMI, NDI)
+        show the live slide even when the projection window is closed, so
+        the tally follows the content, not the window."""
+        if self._is_hidden:
+            text, fg, bg = tr("tally_hidden"), Colors.ACCENT_WARNING, Colors.ACCENT_WARNING_GLOW
+        elif self._has_content:
+            text, fg, bg = tr("tally_live"), Colors.ACCENT_DANGER, Colors.ACCENT_DANGER_GLOW
         else:
-            self._mode_badge.setText("PREVIEW")
-            self._mode_badge.setStyleSheet(
-                f"""
-                QLabel {{
-                    background: {Colors.ACCENT_SECONDARY_GLOW};
-                    border: none;
-                    border-radius: 10px;
-                    padding: 4px 10px;
-                    min-width: 56px;
-                    color: {Colors.TEXT_SECONDARY};
-                    font-size: {Typography.SIZE_NUMBER}px;
-                    font-weight: 800;
-                    letter-spacing: 0;
-                }}
-                """
-            )
+            text, fg, bg = tr("tally_empty"), Colors.TEXT_SECONDARY, Colors.GLASS_MEDIUM
+        self._mode_badge.setText(text)
+        self._mode_badge.setStyleSheet(
+            f"""
+            QLabel {{
+                background: {bg};
+                border: none;
+                border-radius: {Radius.SM}px;
+                padding: 4px 10px;
+                color: {fg};
+                font-size: {Typography.SIZE_META}px;
+                font-weight: {Typography.WEIGHT_SEMIBOLD};
+            }}
+            """
+        )
 
     def _update_stage_meta(self) -> None:
+        self._update_mode_badge()
         if self._is_hidden:
             self._status_chip.setText(tr("output_hidden"))
             self._status_chip.setStyleSheet(self._status_chip_style_hidden)
@@ -1109,6 +1114,7 @@ class PreviewPanel(QFrame):
         self._canvas_cfg = None
         self._canvas_cfg_override = None
         self.refresh_render()
+        self.renderStyleChanged.emit()
         reference_position = ""
         if settings is not None and hasattr(settings, "projection"):
             reference_position = str(

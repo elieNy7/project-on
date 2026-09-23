@@ -68,10 +68,13 @@ from app.ui.pdf_import_dialog import PdfImportDialog
 from app.utils.pdf_parser import HAS_FITZ, parse_hymns_from_pdf
 from app.utils.pptx_parser import parse_pptx_as_hymn, parse_pptx_folder
 from app.utils.global_search import SearchContext, SearchDeps, search_source, warm_up
-from app.utils.project_on_controller import ProjectOnController
+from app.utils.project_on_controller import ProgramCue, ProjectOnController
 
 
 class LibraryController(QObject):
+    # A programme prepared from a single click, for the preview monitor.
+    programCued = Signal(object)  # ProgramCue
+
     def __init__(
         self,
         db: Database,
@@ -273,6 +276,26 @@ class LibraryController(QObject):
         if hasattr(self._hymns_tab, "importPdfFileRequested"):
             self._hymns_tab.importPdfFileRequested.connect(self.on_import_pdf_file)
 
+        # Single click: prepare the item in the preview monitor (never live).
+        cue_wiring = (
+            (self._bible_tab, "verseCued",
+             lambda ref, text: self.on_bible_verse_activated(ref, text, target="cue")),
+            (self._hymns_tab, "stanzaCued",
+             lambda ref, text: self.on_hymn_stanza_activated(ref, text, target="cue")),
+            (self._sermons_tab, "paragraphCued",
+             lambda payload: self.on_sermon_paragraph_activated(payload, target="cue")),
+            (self._expose_tab, "paragraphCued",
+             lambda ref, text, title: self.on_expose_paragraph_activated(ref, text, title, target="cue")),
+            (self._media_tab, "itemCued",
+             lambda media_id: self.on_media_item_activated(media_id, target="cue")),
+            (self._playlist_tab, "itemCued",
+             lambda item_id: self.on_playlist_play(item_id, target="cue")),
+        )
+        for tab, signal_name, handler in cue_wiring:
+            signal = getattr(tab, signal_name, None) if tab is not None else None
+            if hasattr(signal, "connect"):
+                signal.connect(handler)
+
     def refresh_all(self) -> None:
         self.refresh_bible_books()
         self.refresh_hymns()
@@ -280,6 +303,33 @@ class LibraryController(QObject):
         self.refresh_expose()
         self.refresh_playlists()
         self.refresh_media()
+
+    # ── Aperçu / Direct ──────────────────────────────────────────────────
+    # Every projection path builds a ProgramCue, then either projects it
+    # (double-click, Enter: target "live") or hands it to the preview
+    # monitor (single click: target "cue"). Sending the preview live later
+    # replays that exact cue, so both paths share one code path.
+
+    @staticmethod
+    def _channel(target: str) -> str:
+        """Async loads for the preview never cancel a pending live load."""
+        return "live" if target == "live" else "cue"
+
+    def _deliver(self, target: str, cue: ProgramCue) -> None:
+        if not cue.entries:
+            return
+        if target == "live":
+            self.take(cue)
+        else:
+            self.programCued.emit(cue)
+
+    def take(self, cue: ProgramCue) -> int:
+        """Project a prepared programme and follow it in the Exposé tab."""
+        self._live_expose_chapter_id = cue.expose_chapter_id
+        return self._project.take(cue)
+
+    def _entries(self, pairs) -> tuple[tuple[str, str], ...]:
+        return tuple((str(r), str(t)) for r, t in pairs)
 
     # ── Recherche globale ────────────────────────────────────────────────
     _TAB_OF_KIND = {"bible": 0, "sermon": 2, "expose": 3, "media": 4, "playlist": 5}
@@ -355,8 +405,12 @@ class LibraryController(QObject):
             if self._current_book_id != book_id:
                 self.on_bible_book_selected(book_id)
             self.on_bible_chapter_selected(int(hit["chapter"]))
-            if hit.get("verse") is not None:
-                self._bible_tab.select_verse(int(hit["verse"]))
+            if hit.get("verse") is not None and self._bible_tab.select_verse(int(hit["verse"])):
+                # Found verse is ready in the preview: F2 sends it live.
+                item = self._bible_tab.verses_list.currentItem()
+                self.on_bible_verse_activated(
+                    str(item.data(256) or ""), str(item.data(257) or ""), target="cue"
+                )
         elif kind == "sermon":
             if hit.get("query"):
                 self._sermons_tab.show_paragraph_search(hit["query"])
@@ -456,9 +510,8 @@ class LibraryController(QObject):
         self._current_verses_title = f"{book_name} {self._current_chapter}".strip()
         self._bible_tab.set_verses(prepared)
 
-    def on_bible_verse_activated(self, reference: str, text: str) -> None:
+    def on_bible_verse_activated(self, reference: str, text: str, target: str = "live") -> None:
         """Projette le chapitre courant depuis le verset cliqué."""
-        self._live_expose_chapter_id = None
         ref = self._clean_text(reference)
         entries = [(p["reference"], p["text"]) for p in self._current_verses]
         focus = next(
@@ -466,20 +519,19 @@ class LibraryController(QObject):
         )
         if not entries:
             entries = [(ref, self._clean_text(text))]
-        self._project.load_program(
-            "bible", self._current_verses_title or ref, entries, focus_entry=focus
+        self._deliver(
+            target,
+            ProgramCue("bible", self._current_verses_title or ref, self._entries(entries), focus),
         )
 
     def on_bible_verses_activated(self, verses: list) -> None:
         """Projette la sélection multiple de versets."""
-        self._live_expose_chapter_id = None
         entries = [
             (self._clean_text(ref), self._clean_text(text)) for ref, text in verses
         ]
-        if entries:
-            self._project.load_program(
-                "bible", self._current_verses_title or "Bible", entries
-            )
+        self._deliver(
+            "live", ProgramCue("bible", self._current_verses_title or "Bible", self._entries(entries))
+        )
 
     def refresh_sermons(self) -> None:
         self._invalidate("sermon_detail", "live")
@@ -610,13 +662,12 @@ class LibraryController(QObject):
                 return i
         return 0
 
-    def on_sermon_paragraph_activated(self, payload: dict) -> None:
+    def on_sermon_paragraph_activated(self, payload: dict, target: str = "live") -> None:
         """Projette tout le sermon courant depuis le paragraphe cliqué.
 
         Fonctionne aussi depuis un résultat de recherche globale : le sermon
         d'origine est alors rechargé en arrière-plan avant projection.
         """
-        self._live_expose_chapter_id = None
         ref = self._clean_text(payload.get("reference", ""))
         text = self._clean_text(payload.get("text", ""))
         sermon_id = payload.get("sermon_id")
@@ -631,17 +682,20 @@ class LibraryController(QObject):
                 (p["reference"], p["text"]) for p in self._current_sermon_paragraphs
             ]
             focus = self._find_entry_index(entries, ref)
-            self._project.load_program(
-                "sermon",
-                self._current_sermon_program_title or ref,
-                entries,
-                focus_entry=focus,
+            self._deliver(
+                target,
+                ProgramCue(
+                    "sermon",
+                    self._current_sermon_program_title or ref,
+                    self._entries(entries),
+                    focus,
+                ),
             )
             return
 
         if sermon_id is None:
             if text:
-                self._project.load_program("sermon", ref, [(ref, text)])
+                self._deliver(target, ProgramCue("sermon", ref, ((ref, text),)))
             return
 
         # Résultat de recherche : recharger le sermon complet en arrière-plan
@@ -663,14 +717,17 @@ class LibraryController(QObject):
             if not entries and text:
                 entries = [(ref, text)]
             focus = self._find_entry_index(entries, ref)
-            self._project.load_program(
-                "sermon",
-                self._current_sermon_program_title or sermon_title or ref,
-                entries,
-                focus_entry=focus,
+            self._deliver(
+                target,
+                ProgramCue(
+                    "sermon",
+                    self._current_sermon_program_title or sermon_title or ref,
+                    self._entries(entries),
+                    focus,
+                ),
             )
 
-        self._submit_latest("live", _fetch, _on_done)
+        self._submit_latest(self._channel(target), _fetch, _on_done)
 
     def on_paragraph_search(self, query: str) -> None:
         """Search across all paragraphs in background thread."""
@@ -823,7 +880,7 @@ class LibraryController(QObject):
         return f"{prefix} — {chapter}" if chapter else prefix
 
     def on_expose_paragraph_activated(
-        self, reference: str, text: str, title: str = ""
+        self, reference: str, text: str, title: str = "", target: str = "live"
     ) -> None:
         """Projette tout le chapitre exposé courant depuis le paragraphe cliqué.
 
@@ -849,7 +906,6 @@ class LibraryController(QObject):
             return all_rows
 
         def _on_done(rows):
-            self._live_expose_chapter_id = ch_id
             entries: list[tuple[str, str]] = []
             raw_refs: list[str] = []
             for p in rows or []:
@@ -874,11 +930,14 @@ class LibraryController(QObject):
                     focus = i
                     break
 
-            self._project.load_program(
-                "sermon", chapter_title, entries, focus_entry=focus
+            self._deliver(
+                target,
+                ProgramCue(
+                    "sermon", chapter_title, self._entries(entries), focus, expose_chapter_id=ch_id
+                ),
             )
 
-        self._submit_latest("live", _fetch, _on_done)
+        self._submit_latest(self._channel(target), _fetch, _on_done)
 
     def on_expose_paragraph_solo(
         self, reference: str, text: str, title: str = ""
@@ -895,9 +954,14 @@ class LibraryController(QObject):
         m = re.search(r"(\d+)-(\d+)", self._clean_text(reference))
         if m:
             full_reference += f" · Page {m.group(1)} §{m.group(2)}"
-        self._live_expose_chapter_id = self._current_expose_chapter_id
-        self._project.load_program(
-            "sermon", chapter_title or full_reference, [(full_reference, body)]
+        self._deliver(
+            "live",
+            ProgramCue(
+                "sermon",
+                chapter_title or full_reference,
+                ((full_reference, body),),
+                expose_chapter_id=self._current_expose_chapter_id,
+            ),
         )
 
     def live_expose_chapter_id(self) -> int | None:
@@ -967,32 +1031,30 @@ class LibraryController(QObject):
             )
         return prepared
 
-    def on_hymn_stanza_activated(self, reference: str, text: str) -> None:
+    def on_hymn_stanza_activated(self, reference: str, text: str, target: str = "live") -> None:
         """Projette tout le cantique courant depuis la strophe cliquée."""
-        self._live_expose_chapter_id = None
         ref = self._clean_text(reference)
         entries = [(p["reference"], p["text"]) for p in self._current_stanzas]
         focus = self._find_entry_index(entries, ref)
         if not entries:
             entries = [(ref, self._clean_text(text))]
-        self._project.load_program(
-            "hymn", self._current_hymn_program_title or ref, entries, focus_entry=focus
+        self._deliver(
+            target,
+            ProgramCue("hymn", self._current_hymn_program_title or ref, self._entries(entries), focus),
         )
 
     def on_hymn_stanzas_activated(self, stanzas: list[tuple[str, str]]) -> None:
         """Projette la sélection multiple de strophes."""
-        self._live_expose_chapter_id = None
         entries = [
             (self._clean_text(ref), self._clean_text(text)) for ref, text in stanzas
         ]
-        if entries:
-            self._project.load_program(
-                "hymn", self._current_hymn_program_title or "Cantique", entries
-            )
+        self._deliver(
+            "live",
+            ProgramCue("hymn", self._current_hymn_program_title or "Cantique", self._entries(entries)),
+        )
 
     def on_hymn_activated(self, hymn_id: int) -> None:
         """Projette tout le cantique sélectionné."""
-        self._live_expose_chapter_id = None
         stanzas = self._hymns_dao.list_stanzas(hymn_id)
         hymn = self._hymns_dao.get_hymn(hymn_id)
         hymn_title = hymn["title"] if hymn else ""
@@ -1007,8 +1069,7 @@ class LibraryController(QObject):
             (p["reference"], self._clean_text(p["text"]))
             for p in self._current_stanzas
         ]
-        if entries:
-            self._project.load_program("hymn", program_title or "Cantique", entries)
+        self._deliver("live", ProgramCue("hymn", program_title or "Cantique", self._entries(entries)))
 
     def on_import_pptx_file(self) -> None:
         file_path, _ = QFileDialog.getOpenFileName(
@@ -1471,7 +1532,7 @@ class LibraryController(QObject):
                 lambda report: self.refresh_playlists(
                     select_id=report.succeeded[-1] if report.succeeded else None))
 
-    def on_playlist_play(self, item_id: Any) -> None:
+    def on_playlist_play(self, item_id: Any, target: str = "live") -> None:
         """Projette la playlist du dossier courant, depuis le slide demandé.
 
         ``item_id=None`` (ou id introuvable) démarre au premier slide. Chaque
@@ -1509,7 +1570,6 @@ class LibraryController(QObject):
             return all_rows
 
         def _on_done(items):
-            self._live_expose_chapter_id = None
             entries: list[tuple[str, str]] = []
             visuals: list[str] = []
             for it in items or []:
@@ -1553,11 +1613,14 @@ class LibraryController(QObject):
                         focus = position
                         break
                     position += 1
-            self._project.load_program(
-                "custom", title, entries, focus_entry=focus, entry_visuals=visuals
+            self._deliver(
+                target,
+                ProgramCue(
+                    "custom", title, self._entries(entries), focus, entry_visuals=tuple(visuals)
+                ),
             )
 
-        self._submit_latest("live", _fetch, _on_done)
+        self._submit_latest(self._channel(target), _fetch, _on_done)
 
     # ── Médias (images + vidéos) ──────────────────────────────────────────
 
@@ -1673,7 +1736,7 @@ class LibraryController(QObject):
 
         self._pool.start(_DbWorker(_fetch, _on_done))
 
-    def on_media_item_activated(self, media_id: int) -> None:
+    def on_media_item_activated(self, media_id: int, target: str = "live") -> None:
         """Projette immédiatement le média double-cliqué."""
         from app.utils.media_utils import is_powerpoint_file
 
@@ -1683,7 +1746,6 @@ class LibraryController(QObject):
         path = str(media["path"] or "")
         name = str(media["name"] or "")
         kind = str(media.get("kind") or "")
-        self._live_expose_chapter_id = None
 
         if kind == "powerpoint" or is_powerpoint_file(path):
             # Rendu en arrière-plan (cache) puis programme des slides.
@@ -1716,17 +1778,30 @@ class LibraryController(QObject):
                     (f"{name or 'Présentation'} ({i}/{len(visuals)})", "")
                     for i in range(1, len(visuals) + 1)
                 ]
-                self._project.load_program(
-                    "image", name or "Présentation", entries, entry_visuals=visuals
+                self._deliver(
+                    target,
+                    ProgramCue(
+                        "image", name or "Présentation", self._entries(entries),
+                        entry_visuals=tuple(visuals),
+                    ),
                 )
 
-            self._submit_latest("live", _fetch, _on_done)
+            self._submit_latest(self._channel(target), _fetch, _on_done)
             return
 
-        self._project.load_media(path, name)
-        # Vidéo : appliquer la boucle définie sur le média en bibliothèque.
-        if bool(media.get("loop")):
-            self._project.set_video_loop(True)
+        from app.utils.media_utils import is_media_file
+
+        if not is_media_file(path):
+            return
+        label = name or Path(path).stem
+        # Vidéo : la boucle définie sur le média en bibliothèque suit la cue.
+        self._deliver(
+            target,
+            ProgramCue(
+                "image", label, ((label, ""),), entry_visuals=(path,),
+                video_loop=bool(media.get("loop")),
+            ),
+        )
 
     def on_media_delete(self, media_id: int) -> None:
         """Retire le média de la bibliothèque (le fichier reste sur disque)."""

@@ -45,6 +45,7 @@ class MediaTab(QWidget):
 
     importRequested = Signal(str)  # "image" | "video" | "pptx"
     itemActivated = Signal(int)  # projeter le média
+    itemCued = Signal(int)  # clic simple : préparer dans l'aperçu
     itemDeleteRequested = Signal(int)
     itemRenameRequested = Signal(int, str)
     itemLoopRequested = Signal(int, bool)  # media_id, boucle on/off
@@ -167,6 +168,7 @@ class MediaTab(QWidget):
         self.gallery.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.gallery.customContextMenuRequested.connect(self._on_context_menu)
         self.gallery.itemDoubleClicked.connect(self._on_double_clicked)
+        self.gallery.itemClicked.connect(self._on_clicked)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -299,6 +301,11 @@ class MediaTab(QWidget):
     def _emit_slideshow(self, medias: list[dict[str, Any]]) -> None:
         if medias:
             self.slideshowRequested.emit(medias)
+
+    def _on_clicked(self, item: QListWidgetItem) -> None:
+        data = item.data(256)
+        if data is not None:
+            self.itemCued.emit(int(data))
 
     def _on_double_clicked(self, item: QListWidgetItem) -> None:
         data = item.data(256)

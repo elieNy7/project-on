@@ -49,6 +49,7 @@ class SermonsTab(QFrame):
     sermonSelected = Signal(object)
     # Payload : {reference, text, sermon_id, sermon_title, sermon_date}
     paragraphActivated = Signal(object)
+    paragraphCued = Signal(object)  # single click: prepare in the preview
     filtersChanged = Signal()
     paragraphSearchRequested = Signal(str)  # query text
     addToPlaylistRequested = Signal(list)  # list of (ref, text) tuples
@@ -270,6 +271,7 @@ class SermonsTab(QFrame):
         self.sermons_list.currentItemChanged.connect(self._on_sermon_changed)
         self.paragraphs_list.itemDoubleClicked.connect(self._on_paragraph_activated)
         self.paragraphs_list.itemActivated.connect(self._on_paragraph_activated)
+        self.paragraphs_list.itemClicked.connect(self._on_paragraph_clicked)
         self.paragraphs_list.currentItemChanged.connect(
             self._on_paragraph_selection_changed
         )
@@ -497,20 +499,29 @@ class SermonsTab(QFrame):
         )
         self.sermonSelected.emit(sermon_id)
 
-    def _on_paragraph_activated(self, item: QListWidgetItem) -> None:
+    @staticmethod
+    def _paragraph_payload(item: QListWidgetItem) -> dict | None:
         ref = str(item.data(256) or "")
         text = str(item.data(257) or "")
         if not ref and not text:
-            return
-        self.paragraphActivated.emit(
-            {
-                "reference": ref,
-                "text": text,
-                "sermon_id": item.data(259),
-                "sermon_title": str(item.data(260) or ""),
-                "sermon_date": str(item.data(261) or ""),
-            }
-        )
+            return None
+        return {
+            "reference": ref,
+            "text": text,
+            "sermon_id": item.data(259),
+            "sermon_title": str(item.data(260) or ""),
+            "sermon_date": str(item.data(261) or ""),
+        }
+
+    def _on_paragraph_activated(self, item: QListWidgetItem) -> None:
+        payload = self._paragraph_payload(item)
+        if payload is not None:
+            self.paragraphActivated.emit(payload)
+
+    def _on_paragraph_clicked(self, item: QListWidgetItem) -> None:
+        payload = self._paragraph_payload(item)
+        if payload is not None:
+            self.paragraphCued.emit(payload)
 
     def _on_add_paragraph_clicked(self) -> None:
         item = self.paragraphs_list.currentItem()

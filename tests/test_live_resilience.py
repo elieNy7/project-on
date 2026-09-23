@@ -7,7 +7,7 @@ masquage, lecture et boucle vidéo — ainsi que le crochet de chargement manuel
 import json
 
 import pytest
-from PySide6.QtCore import QCoreApplication
+from PySide6.QtWidgets import QApplication
 
 from app.utils.project_on_controller import ProjectOnController
 from app.utils.slideshow_controller import SlideshowController
@@ -15,7 +15,7 @@ from app.utils.slideshow_controller import SlideshowController
 
 @pytest.fixture
 def live(tmp_path):
-    app = QCoreApplication.instance() or QCoreApplication([])
+    app = QApplication.instance() or QApplication([])
     controller = ProjectOnController(None, tmp_path / "presentation")
     return controller, app
 

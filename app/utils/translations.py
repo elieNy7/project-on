@@ -397,6 +397,10 @@ _translations: dict[str, dict[str, str]] = {
     # ===== PREVIEW PANEL =====
     "projection": {"fr": "Projection", "en": "Projection"},
     "waiting": {"fr": "En attente", "en": "Waiting"},
+    "live_monitor": {"fr": "Direct", "en": "Live"},
+    "tally_live": {"fr": "● EN DIRECT", "en": "● ON AIR"},
+    "tally_hidden": {"fr": "MASQUÉ", "en": "HIDDEN"},
+    "tally_empty": {"fr": "VIDE", "en": "EMPTY"},
     "ready_to_project": {"fr": "Prêt à diffuser", "en": "Ready to project"},
     "projection_active": {"fr": "Projection active", "en": "Projection active"},
     "output_hidden": {"fr": "Sortie masquée", "en": "Output hidden"},

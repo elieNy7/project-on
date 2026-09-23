@@ -52,6 +52,7 @@ class BibleTab(QFrame):
     bookSelected = Signal(int)
     chapterSelected = Signal(int)
     verseActivated = Signal(str, str)
+    verseCued = Signal(str, str)  # single click: prepare in the preview
     versesActivated = Signal(list)  # list of (ref, text) tuples
     searchRequested = Signal(str)
     addToPlaylistRequested = Signal(list)  # list of (ref, text) tuples
@@ -203,6 +204,7 @@ class BibleTab(QFrame):
         self.books_list.currentItemChanged.connect(self._on_book_changed)
         self.verses_list.itemDoubleClicked.connect(self._on_verse_activated)
         self.verses_list.itemActivated.connect(self._on_verse_activated)
+        self.verses_list.itemClicked.connect(self._on_verse_clicked)
         self.verses_list.currentItemChanged.connect(self._on_verse_selection_changed)
         self.add_verse_btn.clicked.connect(self._on_add_verse_clicked)
 
@@ -390,6 +392,12 @@ class BibleTab(QFrame):
         if tid is None:
             return
         self.translationSelected.emit(int(tid))
+
+    def _on_verse_clicked(self, item: QListWidgetItem) -> None:
+        ref = str(item.data(256) or "")
+        text = str(item.data(257) or "")
+        if ref or text:
+            self.verseCued.emit(ref, text)
 
     def _on_verse_activated(self, item: QListWidgetItem) -> None:
         ref = str(item.data(256) or "")

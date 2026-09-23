@@ -57,6 +57,7 @@ class ExposeTab(QFrame):
     chapterSelected = Signal(object)
     pageSelected = Signal(int)
     paragraphActivated = Signal(str, str, str)
+    paragraphCued = Signal(str, str, str)  # single click: prepare in the preview
     paragraphSoloRequested = Signal(str, str, str)
     addToPlaylistRequested = Signal(list)  # list of (ref, text) tuples
     searchRequested = Signal(str)
@@ -256,6 +257,7 @@ class ExposeTab(QFrame):
         self.chapters_list.currentItemChanged.connect(self._on_chapter_changed)
         self.paragraphs_list.itemDoubleClicked.connect(self._on_paragraph_activated)
         self.paragraphs_list.itemActivated.connect(self._on_paragraph_activated)
+        self.paragraphs_list.itemClicked.connect(self._on_paragraph_clicked)
         self.paragraphs_list.currentItemChanged.connect(
             self._on_paragraph_selection_changed
         )
@@ -512,13 +514,21 @@ class ExposeTab(QFrame):
         self._update_chapter_header()
         self.chapterSelected.emit(chapter_id)
 
-    def _on_paragraph_activated(self, item: QListWidgetItem) -> None:
+    def _paragraph_args(self, item: QListWidgetItem) -> tuple[str, str, str] | None:
         ref = str(item.data(256) or "")
         text = str(item.data(257) or "")
         title = str(item.data(258) or self._current_chapter_title or "")
-        if not ref and not text:
-            return
-        self.paragraphActivated.emit(ref, text, title)
+        return (ref, text, title) if (ref or text) else None
+
+    def _on_paragraph_activated(self, item: QListWidgetItem) -> None:
+        args = self._paragraph_args(item)
+        if args is not None:
+            self.paragraphActivated.emit(*args)
+
+    def _on_paragraph_clicked(self, item: QListWidgetItem) -> None:
+        args = self._paragraph_args(item)
+        if args is not None:
+            self.paragraphCued.emit(*args)
 
     def _on_paragraph_context_menu(self, pos) -> None:
         """Menu contextuel : projeter le chapitre ou le paragraphe seul."""

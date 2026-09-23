@@ -255,6 +255,7 @@ class PlaylistTab(QFrame):
 
     folderSelected = Signal(object)  # folder_id ou None
     itemActivated = Signal(int)  # projeter à partir de ce slide
+    itemCued = Signal(int)  # clic simple : préparer dans l'aperçu
     playRequested = Signal(object)  # item_id de départ ou None (début)
     folderCreateRequested = Signal(str)
     folderRenameRequested = Signal(int, str)
@@ -454,6 +455,7 @@ class PlaylistTab(QFrame):
             lambda _item: self._on_rename_folder_clicked()
         )
         self.items_list.itemDoubleClicked.connect(self._on_item_double_clicked)
+        self.items_list.itemClicked.connect(self._on_item_clicked)
         self.items_list.currentItemChanged.connect(self._on_item_selection_changed)
         self.play_btn.clicked.connect(self._on_play_clicked)
 
@@ -560,6 +562,11 @@ class PlaylistTab(QFrame):
         ref = str(current.data(257) or "")
         text = str(current.data(258) or "")
         self.preview.setPlainText(f"{ref}\n\n{text}" if ref else text)
+
+    def _on_item_clicked(self, item: QListWidgetItem) -> None:
+        data = item.data(256)
+        if data is not None:
+            self.itemCued.emit(int(data))
 
     def _on_item_double_clicked(self, item: QListWidgetItem) -> None:
         data = item.data(256)
