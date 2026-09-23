@@ -6,6 +6,8 @@ radii, Segoe UI Variable, and Project-On's warm gold as the accent colour.
 
 from __future__ import annotations
 
+import re
+
 from PySide6.QtGui import QColor
 
 
@@ -380,6 +382,19 @@ def _tooltip_bg() -> str:
 
 def _tooltip_text() -> str:
     return Colors.TEXT_PRIMARY
+
+
+def to_qcolor(value: str) -> QColor:
+    """QColor from a theme token, including CSS ``rgba(r, g, b, a)`` strings
+    (which QColor itself does not parse and would turn into black)."""
+    match = re.fullmatch(
+        r"\s*rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+)\s*)?\)\s*",
+        str(value),
+    )
+    if match:
+        r, g, b, a = match.groups()
+        return QColor(int(r), int(g), int(b), round(float(a if a is not None else 1) * 255))
+    return QColor(value)
 
 
 def color_with_alpha(color: str, alpha: int) -> QColor:

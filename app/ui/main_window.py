@@ -12,6 +12,7 @@ from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
     QDialog,
+    QHBoxLayout,
     QLineEdit,
     QMainWindow,
     QMessageBox,
@@ -24,14 +25,12 @@ from PySide6.QtWidgets import (
 )
 
 from app.database.connection import Database
+from app.ui.command_bar import CommandBar
 from app.ui.icons import app_logo_icon
 from app.ui.library_panel import LibraryPanel
 from app.ui.preview_panel import PreviewPanel
 from app.ui.projection_window import ProjectionWindow
-from app.ui.status_bar import StatusBar
 from app.ui.theme import (
-    Colors,
-    Radius,
     Spacing,
     build_app_stylesheet,
     get_main_window_style,
@@ -127,22 +126,42 @@ class MainWindow(QMainWindow):
             self._on_slide_changed_for_obs
         )
 
+        # Fluent shell: navigation rail on the window edge, command bar on
+        # top, then the library and preview layers. Rail and bar sit on the
+        # window backdrop (Mica); the layers are opaque cards.
         root = QWidget(self)
+        root.setObjectName("ShellRoot")
+        root.setStyleSheet("QWidget#ShellRoot { background: transparent; }")
         self.setCentralWidget(root)
 
-        root_layout = QVBoxLayout(root)
-        root_layout.setContentsMargins(Spacing.LG, Spacing.LG, Spacing.LG, Spacing.MD)
-        root_layout.setSpacing(Spacing.MD)
+        shell = QHBoxLayout(root)
+        shell.setContentsMargins(0, 0, 0, 0)
+        shell.setSpacing(0)
 
         splitter = QSplitter(root)
         splitter.setChildrenCollapsible(False)
-        splitter.setHandleWidth(Spacing.XS)
+        splitter.setHandleWidth(Spacing.SM)
         splitter.setStyleSheet(get_splitter_style())
 
         self.library_panel = LibraryPanel(splitter)
         self.preview_panel = PreviewPanel(splitter, self._settings)
         self.preview_panel.set_presentation_dir(presentation_dir)
         self.preview_panel.set_media_hub(self._media_hub)
+
+        self.rail = self.library_panel.rail
+        self.rail.setParent(root)
+        self.rail.set_compact(self._settings.appearance.rail_compact, animate=False)
+        self.rail.compactChanged.connect(self._on_rail_compact_changed)
+        shell.addWidget(self.rail)
+
+        column = QVBoxLayout()
+        column.setContentsMargins(0, 0, Spacing.MD, Spacing.MD)
+        column.setSpacing(Spacing.XS)
+        shell.addLayout(column, 1)
+
+        self.command_bar = CommandBar(root)
+        self.command_bar.outputClicked.connect(self._on_output_chip_clicked)
+        column.addWidget(self.command_bar)
 
         splitter.addWidget(self.library_panel)
         splitter.addWidget(self.preview_panel)
@@ -156,22 +175,7 @@ class MainWindow(QMainWindow):
         width = screen.availableGeometry().width() if screen else 1400
         splitter.setSizes([int(width * 0.55), int(width * 0.45)])
 
-        root_layout.addWidget(splitter, 1)
-
-        self.status_bar = StatusBar(root)
-        self.status_bar.setContentsMargins(Spacing.SM, 0, Spacing.SM, 0)
-        self.status_bar.setStyleSheet(
-            f"""
-            QFrame#StatusBar {{
-                background: {Colors.BG_TERTIARY};
-                border: 1px solid {Colors.BORDER_SUBTLE};
-                border-radius: {Radius.LG}px;
-                color: {Colors.TEXT_SECONDARY};
-                min-height: 28px;
-            }}
-            """
-        )
-        root_layout.addWidget(self.status_bar)
+        column.addWidget(splitter, 1)
 
         self._library_controller = LibraryController(
             db=db,
@@ -413,6 +417,19 @@ class MainWindow(QMainWindow):
             return False
         return True
 
+    def _on_rail_compact_changed(self, compact: bool) -> None:
+        self._settings.appearance.rail_compact = compact
+        self._save_settings()
+
+    def _on_output_chip_clicked(self, key: str) -> None:
+        """Output chips open the matching settings; they never go live."""
+        if key == "projection":
+            self._open_projection_settings()
+        elif key == "hdmi":
+            self._open_hdmi_settings()
+        else:  # obs, ndi
+            self._open_obs_settings()
+
     def _poll_obs_status(self) -> None:
         """Vérifie le statut OBS et met à jour la barre de statut.
 
@@ -421,10 +438,12 @@ class MainWindow(QMainWindow):
         """
         try:
             self._obs.ensure_ndi_running()
-            connected = self._obs.is_web_server_running() or self._obs.is_ndi_running()
+            web = self._obs.is_web_server_running()
+            ndi = self._obs.is_ndi_running()
         except Exception:
-            connected = False
-        self.status_bar.set_obs_connected(connected)
+            web = ndi = False
+        self.command_bar.set_obs_connected(web)
+        self.command_bar.set_ndi_active(ndi)
 
     def _start_obs_output(self) -> None:
         """Start OBS output automatically with the application."""
@@ -895,7 +914,7 @@ class MainWindow(QMainWindow):
         if slide is None:
             self.preview_panel.set_slide("", "")
             self.preview_panel.set_slide_counter(-1, 0)
-            self.status_bar.clear_slide()
+            self.command_bar.clear_slide()
             return
         image_path = slide.image_path or slide.background or ""
         self.preview_panel.set_slide(
@@ -918,7 +937,7 @@ class MainWindow(QMainWindow):
         row = self._project_controller.current_row()
         total = self._project_controller.program_count
         self.preview_panel.set_slide_counter(row, total)
-        self.status_bar.update_slide(slide.source, slide.reference, row, total)
+        self.command_bar.update_slide(slide.source, slide.reference, row, total)
         self._sync_expose_highlight(row)
 
     def _sync_expose_highlight(self, row: int) -> None:
@@ -990,7 +1009,7 @@ class MainWindow(QMainWindow):
     def _on_hide_toggled(self, hidden: bool) -> None:
         """Toggle visibility of text on projection and OBS."""
         self._project_controller.slide_writer.set_hidden(hidden)
-        self.status_bar.set_hidden(hidden)
+        self.command_bar.set_hidden(hidden)
         # Masquer les écritures coupe aussi la vidéo des sorties secondaires.
         self._sync_media_hub(self._project_controller.current_slide())
         # Also update OBS
@@ -1014,7 +1033,7 @@ class MainWindow(QMainWindow):
         """Toggle hide state via keyboard shortcut."""
         hidden = self._project_controller.slide_writer.toggle_hidden()
         self.preview_panel.set_hidden(hidden)
-        self.status_bar.set_hidden(hidden)
+        self.command_bar.set_hidden(hidden)
         # Masquer les écritures coupe aussi la vidéo des sorties secondaires.
         self._sync_media_hub(self._project_controller.current_slide())
         # Also update OBS
@@ -1100,7 +1119,7 @@ class MainWindow(QMainWindow):
         # lecteur partagé : les sorties HDMI/NDI ne restent jamais muettes.
         self._set_hub_audio(enabled=True)
         self.preview_panel.set_project_active(False)
-        self.status_bar.set_project_active(False)
+        self.command_bar.set_project_active(False)
 
     def _set_hub_audio(self, enabled: bool) -> None:
         hub = getattr(self, "_media_hub", None)
@@ -1150,7 +1169,7 @@ class MainWindow(QMainWindow):
                 lambda: self.preview_panel.set_project_active(False)
             )
             self._projection_window.destroyed.connect(
-                lambda: self.status_bar.set_project_active(False)
+                lambda: self.command_bar.set_project_active(False)
             )
 
         self._projection_window.show()
@@ -1160,7 +1179,7 @@ class MainWindow(QMainWindow):
         # NDI) redevient muet pour éviter deux bandes son en décalé.
         self._set_hub_audio(enabled=False)
         self.preview_panel.set_project_active(True)
-        self.status_bar.set_project_active(True)
+        self.command_bar.set_project_active(True)
 
     # ── Sortie HDMI / mixeur vidéo ─────────────────────────────────────
 
@@ -1221,7 +1240,7 @@ class MainWindow(QMainWindow):
                 lambda: setattr(self, "_mixer_window", None)
             )
             self._mixer_window.destroyed.connect(
-                lambda: self.status_bar.set_hdmi_active(False)
+                lambda: self.command_bar.set_hdmi_active(False)
             )
             # Vidéo réellement lue sur la sortie mixeur, via le lecteur partagé.
             self._mixer_window.set_media_hub(self._media_hub)
@@ -1247,7 +1266,7 @@ class MainWindow(QMainWindow):
         if self._settings.hdmi.enabled:
             self._settings.hdmi.enabled = False
             self._save_settings()
-        self.status_bar.set_hdmi_active(False)
+        self.command_bar.set_hdmi_active(False)
         self._refresh_settings_details()
 
     def _close_mixer(self) -> None:
@@ -1255,7 +1274,7 @@ class MainWindow(QMainWindow):
         if window is not None:
             window.close()
             self._mixer_window = None
-        self.status_bar.set_hdmi_active(False)
+        self.command_bar.set_hdmi_active(False)
 
     def _hdmi_live_status(self) -> str:
         window = self._mixer_window
@@ -1268,7 +1287,7 @@ class MainWindow(QMainWindow):
     def _update_hdmi_status(self) -> None:
         window = self._mixer_window
         active = window is not None and window.isVisible()
-        self.status_bar.set_hdmi_active(
+        self.command_bar.set_hdmi_active(
             active, window.active_screen if active else ""
         )
 

@@ -1,22 +1,16 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Signal
-from PySide6.QtWidgets import (
-    QHBoxLayout,
-    QStackedWidget,
-    QVBoxLayout,
-    QFrame,
-    QWidget,
-)
+from PySide6.QtWidgets import QFrame, QStackedWidget, QVBoxLayout
 
 from app.ui.bible_tab import BibleTab
 from app.ui.expose_tab import ExposeTab
 from app.ui.hymns_tab import HymnsTab
 from app.ui.media_tab import MediaTab
+from app.ui.navigation_rail import NavigationRail
 from app.ui.playlist_tab import PlaylistTab
 from app.ui.sermons_tab import SermonsTab
 from app.ui.settings_tab import SettingsTab
-from app.ui.sidebar import Sidebar
 from app.ui.theme import Colors, Radius, Spacing
 from app.utils.translations import tr
 
@@ -37,16 +31,20 @@ class LibraryPanel(QFrame):
             """
         )
 
-        self.sidebar = Sidebar(self)
-        self.sidebar.addTab(tr("bible"), "book.svg")
-        self.sidebar.addTab(tr("hymns"), "music.svg")
-        self.sidebar.addTab(tr("sermons"), "mic.svg")
-        self.sidebar.addTab(tr("expose"), "file-text.svg")
-        self.sidebar.addTab(tr("media"), "image.svg")
-        self.sidebar.addTab(tr("playlist"), "play.svg")
-        self.sidebar.addTab(tr("settings"), "settings.svg")
+        # The rail is owned here (tab order = stack order) but laid out by the
+        # main window along the window edge, over the backdrop.
+        self.rail = NavigationRail()
+        self.rail.addTab(tr("bible"), "book.svg")
+        self.rail.addTab(tr("hymns"), "music.svg")
+        self.rail.addTab(tr("sermons"), "mic.svg")
+        self.rail.addTab(tr("expose"), "file-text.svg")
+        self.rail.addTab(tr("media"), "image.svg")
+        self.rail.addTab(tr("playlist"), "play.svg")
+        self.rail.addFooterTab(tr("settings"), "settings.svg")
 
-        self.tab_bar = self.sidebar
+        # Historical aliases used by controllers and shortcuts.
+        self.sidebar = self.rail
+        self.tab_bar = self.rail
 
         self.stack = QStackedWidget(self)
         self.stack.setStyleSheet("background: transparent;")
@@ -70,23 +68,12 @@ class LibraryPanel(QFrame):
         # Alias historique utilisé par les contrôleurs existants.
         self.tabs = self.stack
 
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-        layout.addWidget(self.sidebar)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(Spacing.SM, Spacing.SM, Spacing.SM, Spacing.SM)
+        layout.setSpacing(Spacing.SM)
+        layout.addWidget(self.stack)
 
-        content_container = QWidget(self)
-        content_container.setStyleSheet("background: transparent;")
-        content_layout = QVBoxLayout(content_container)
-        content_layout.setContentsMargins(
-            Spacing.SM, Spacing.SM, Spacing.SM, Spacing.SM
-        )
-        content_layout.setSpacing(Spacing.SM)
-        content_layout.addWidget(self.stack)
-
-        layout.addWidget(content_container, 1)
-
-        self.sidebar.currentChanged.connect(self._on_tab_changed)
+        self.rail.currentChanged.connect(self._on_tab_changed)
 
     def _on_tab_changed(self, index: int) -> None:
         self.stack.setCurrentIndex(index)

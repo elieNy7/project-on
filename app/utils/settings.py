@@ -473,6 +473,7 @@ class AppearanceSettings:
     theme: str = "dark"  # "dark" or "light"
     language: str = "fr"  # "fr" or "en"
     mica: bool = True  # Windows 11 Mica backdrop behind the main window
+    rail_compact: bool = False  # navigation rail collapsed to icons
 
 
 def _gs(d: dict, key: str, default: str) -> str:
@@ -802,6 +803,7 @@ class AppSettings:
             if appearance.language not in ("fr", "en"):
                 appearance.language = "fr"
             appearance.mica = bool(a.get("mica", appearance.mica))
+            appearance.rail_compact = bool(a.get("rail_compact", appearance.rail_compact))
 
         hdmi = HdmiSettings()
         hm = payload.get("hdmi")

@@ -21,6 +21,10 @@ _translations: dict[str, dict[str, str]] = {
     "edit": {"fr": "Modifier", "en": "Edit"},
     "close": {"fr": "Fermer", "en": "Close"},
     "search": {"fr": "Rechercher...", "en": "Search..."},
+    "global_search_placeholder": {
+        "fr": "Rechercher dans la Bible, les cantiques, les prédications…  (Ctrl+K)",
+        "en": "Search the Bible, hymns, sermons…  (Ctrl+K)",
+    },
     "loading": {"fr": "Chargement...", "en": "Loading..."},
     # ===== PLAYLIST =====
     "playlist_empty": {"fr": "Playlist vide", "en": "Empty playlist"},

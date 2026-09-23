@@ -10,6 +10,7 @@ from app.ui.theme import (
     item_hover_color,
     item_selection_color,
     item_separator_color,
+    to_qcolor,
 )
 
 
@@ -35,7 +36,7 @@ class SermonParagraphDelegate(QStyledItemDelegate):
         # Colors from theme
         self.color_bg_sel = item_selection_color()
         self.color_bg_hover = item_hover_color()
-        self.color_border = QColor(Colors.BORDER_SUBTLE)
+        self.color_border = to_qcolor(Colors.BORDER_SUBTLE)
         self.color_separator = item_separator_color()
         self.color_text = QColor(Colors.TEXT_PRIMARY)
         self.color_text_dim = QColor(Colors.TEXT_MUTED)
