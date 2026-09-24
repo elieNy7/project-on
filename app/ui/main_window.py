@@ -946,18 +946,25 @@ class MainWindow(QMainWindow):
     def _build_appearance_section(self) -> QWidget:
         from app.ui.appearance_settings_dialog import AppearanceSettingsDialog
 
+        from app.ui.window_effects import mica_supported
+
+        appearance = self._settings.appearance
         dlg = embed_dialog(
             AppearanceSettingsDialog,
-            self._settings.appearance.theme,
-            self._settings.appearance.language,
+            appearance.theme,
+            appearance.language,
+            mica=appearance.mica if mica_supported() else None,
         )
 
         def on_change() -> None:
             theme, language = dlg.get_settings()
-            if (theme, language) == (self._settings.appearance.theme, self._settings.appearance.language):
+            mica = dlg.mica_enabled()
+            state = (theme, language, appearance.mica if mica is None else mica)
+            if state == (appearance.theme, appearance.language, appearance.mica):
                 return
-            self._settings.appearance.theme = theme
-            self._settings.appearance.language = language
+            appearance.theme, appearance.language = theme, language
+            if mica is not None:
+                appearance.mica = mica
             self._settings_changed()
             self.library_panel.settings_page.info_bar.show_message(tr("settings_saved_msg"))
 

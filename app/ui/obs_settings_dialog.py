@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.ui.icons import app_icon
+from app.ui.setting_cards import PageHeader, SettingRow, SettingSection, fit_combos
 from app.ui.theme import Colors, Radius, Typography
 from app.utils.obs_controller import ObsController
 from app.utils.settings import ObsSettings
@@ -166,35 +167,24 @@ class ModeCard(QFrame):
         super().mousePressEvent(event)
 
 
-class SettingRow(QFrame):
-    """A setting row with label and control."""
+def _status_dot() -> QFrame:
+    dot = QFrame()
+    dot.setFixedSize(10, 10)
+    dot.setStyleSheet(f"background: {Colors.TEXT_DISABLED}; border-radius: 5px;")
+    return dot
 
-    def __init__(self, label: str, widget: QWidget, description: str = "", parent=None):
-        super().__init__(parent)
-        self.setStyleSheet("background: transparent; border: none;")
 
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 10, 0, 10)
-        layout.setSpacing(16)
-
-        label_col = QVBoxLayout()
-        label_col.setSpacing(2)
-
-        lbl = QLabel(label)
-        lbl.setStyleSheet(
-            f"font-size: {Typography.SIZE_LABEL}px; font-weight: 500; color: {Colors.TEXT_PRIMARY}; border: none;"
-        )
-        label_col.addWidget(lbl)
-
-        if description:
-            desc = QLabel(description)
-            desc.setStyleSheet(
-                f"font-size: {Typography.SIZE_META}px; color: {Colors.TEXT_MUTED}; border: none;"
-            )
-            label_col.addWidget(desc)
-
-        layout.addLayout(label_col, 1)
-        layout.addWidget(widget)
+def _row_of(*widgets: QWidget) -> QWidget:
+    """Several controls side by side on the right of a setting card."""
+    box = QWidget()
+    box.setStyleSheet("QWidget#ControlGroup { background: transparent; }")
+    box.setObjectName("ControlGroup")
+    row = QHBoxLayout(box)
+    row.setContentsMargins(0, 0, 0, 0)
+    row.setSpacing(8)
+    for w in widgets:
+        row.addWidget(w, 0, Qt.AlignmentFlag.AlignVCenter)
+    return box
 
 
 class ObsSettingsDialog(QDialog):
@@ -219,208 +209,72 @@ class ObsSettingsDialog(QDialog):
         self._remote_client = remote_client
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 24, 24, 24)
-        layout.setSpacing(16)
-
-        # Header
-        header = QFrame()
-        header.setStyleSheet("background: transparent;")
-        header_layout = QHBoxLayout(header)
-        header_layout.setContentsMargins(0, 0, 0, 0)
-        header_layout.setSpacing(14)
-
-        icon_frame = QFrame()
-        icon_frame.setFixedSize(48, 48)
-        icon_frame.setStyleSheet(f"""
-            QFrame {{
-                background: {Colors.BG_PRIMARY};
-                border: 1px solid {Colors.BORDER_DEFAULT};
-                border-radius: 12px;
-            }}
-        """)
-        icon_layout = QVBoxLayout(icon_frame)
-        icon_layout.setContentsMargins(0, 0, 0, 0)
-        icon_label = QLabel()
-        icon_label.setPixmap(app_icon("cast.svg").pixmap(24, 24))
-        icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        icon_label.setStyleSheet("background: transparent;")
-        icon_layout.addWidget(icon_label)
-        header_layout.addWidget(icon_frame)
-
-        title_col = QVBoxLayout()
-        title_col.setSpacing(4)
-        title = QLabel(tr("obs"))
-        title.setStyleSheet(
-            f"font-size: {Typography.SIZE_DIALOG_TITLE}px; font-weight: 700; color: {Colors.TEXT_PRIMARY};"
-        )
-        title_col.addWidget(title)
-        subtitle = QLabel(tr("connectivity_desc"))
-        subtitle.setStyleSheet(f"font-size: {Typography.SIZE_CONTROL}px; color: {Colors.TEXT_MUTED};")
-        title_col.addWidget(subtitle)
-        header_layout.addLayout(title_col, 1)
-
-        layout.addWidget(header)
-
-        # ── Scrollable content ──
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.Shape.NoFrame)
-        scroll.setStyleSheet("background: transparent; border: none;")
-        # Stylize scrollbar
-        scroll.verticalScrollBar().setStyleSheet(f"""
-            QScrollBar:vertical {{
-                background: transparent;
-                width: 8px;
-                margin: 0;
-            }}
-            QScrollBar::handle:vertical {{
-                background: {Colors.BORDER_DEFAULT};
-                border-radius: 4px;
-                min-height: 20px;
-            }}
-            QScrollBar::handle:vertical:hover {{
-                background: {Colors.ACCENT_PRIMARY};
-            }}
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
-                height: 0px;
-            }}
-        """)
+        layout.setSpacing(0)
 
         content_widget = QWidget()
         content_widget.setStyleSheet("background: transparent;")
         content_layout = QVBoxLayout(content_widget)
-        content_layout.setContentsMargins(0, 10, 0, 10)
         content_layout.setSpacing(16)
-
-        scroll.setWidget(content_widget)
-        layout.addWidget(scroll, 1)
-
-        # Mode selection
-        mode_label = QLabel(tr("connectivity"))
-        mode_label.setStyleSheet(
-            f"font-size: {Typography.SIZE_CONTROL}px; font-weight: 600; color: {Colors.TEXT_MUTED}; text-transform: uppercase; letter-spacing: 1px;"
+        content_layout.addWidget(
+            PageHeader(
+                "Connectivité OBS & NDI",
+                "Comment le texte arrive dans OBS : page Web locale ou flux NDI, "
+                "et pilotage d'OBS depuis Project-On.",
+            )
         )
-        content_layout.addWidget(mode_label)
+        if embedded:
+            # Inside the settings page, which scrolls as a whole.
+            layout.setContentsMargins(16, 16, 16, 16)
+            layout.addWidget(content_widget)
+        else:
+            layout.setContentsMargins(24, 20, 24, 16)
+            scroll = QScrollArea()
+            scroll.setWidgetResizable(True)
+            scroll.setFrameShape(QFrame.Shape.NoFrame)
+            scroll.setStyleSheet("background: transparent; border: none;")
+            scroll.setWidget(content_widget)
+            layout.addWidget(scroll, 1)
 
+        # ── Mode de sortie ──
+        mode_section = SettingSection("Mode de sortie", "cast.svg")
         self._web_card = ModeCard(
-            tr("web_server"),
-            tr("web_server_desc"),
-            "globe.svg",
-            is_recommended=True,
+            tr("web_server"), tr("web_server_desc"), "globe.svg", is_recommended=True
         )
-        self._ndi_card = ModeCard(
-            "NDI",
-            tr("ndi_desc"),
-            "wifi.svg",
-        )
-
+        self._ndi_card = ModeCard("NDI", tr("ndi_desc"), "wifi.svg")
         self._web_card.mousePressEvent = lambda e: self._select_mode("web")
         self._ndi_card.mousePressEvent = lambda e: self._select_mode("ndi")
+        mode_section.addWidget(self._web_card)
+        mode_section.addWidget(self._ndi_card)
+        content_layout.addWidget(mode_section)
 
-        content_layout.addWidget(self._web_card)
-        content_layout.addWidget(self._ndi_card)
-
-        # Web Server Settings
-        self._web_settings_frame = QFrame()
-        self._web_settings_frame.setStyleSheet(f"""
-            QFrame {{
-                background: {Colors.BG_PRIMARY};
-                border: 1px solid {Colors.BORDER_DEFAULT};
-                border-radius: 12px;
-            }}
-        """)
-        web_settings_layout = QVBoxLayout(self._web_settings_frame)
-        web_settings_layout.setContentsMargins(0, 8, 0, 8)
-        web_settings_layout.setSpacing(12)
-
-        # Port setting
+        # ── Serveur Web ──
+        self._web_settings_frame = SettingSection("Serveur Web", "globe.svg")
         self._port_spin = QSpinBox()
         self._port_spin.setRange(1024, 65535)
         self._port_spin.setValue(settings.web_port)
-        self._port_spin.setFixedWidth(100)
-        web_settings_layout.addWidget(
-            SettingRow(tr("port_label"), self._port_spin, tr("port_desc"))
-        )
+        self._port_spin.setFixedWidth(110)
+        self._web_settings_frame.addRow(tr("port_label"), self._port_spin, tr("port_desc"))
 
-        # Server status and controls
-        status_frame = QFrame()
-        status_frame.setStyleSheet("background: transparent;")
-        status_layout = QHBoxLayout(status_frame)
-        status_layout.setContentsMargins(0, 8, 0, 0)
-        status_layout.setSpacing(12)
-
-        self._status_indicator = QFrame()
-        self._status_indicator.setFixedSize(10, 10)
-        self._status_indicator.setStyleSheet(
-            f"background: {Colors.ACCENT_DANGER}; border-radius: 5px;"
-        )
-        status_layout.addWidget(self._status_indicator)
-
-        self._status_label = QLabel(tr("server_not_started"))
-        self._status_label.setStyleSheet(
-            f"font-size: {Typography.SIZE_BODY}px; color: {Colors.TEXT_SECONDARY};"
-        )
-        status_layout.addWidget(self._status_label, 1)
-
-        web_settings_layout.addWidget(status_frame)
-
-        # URL display
-        url_frame = QFrame()
-        url_frame.setStyleSheet(
-            f"background: {Colors.BG_ELEVATED}; border-radius: 8px;"
-        )
-        url_layout = QHBoxLayout(url_frame)
-        url_layout.setContentsMargins(12, 10, 12, 10)
-        url_layout.setSpacing(12)
-
-        url_icon = QLabel()
-        url_icon.setPixmap(app_icon("link.svg").pixmap(16, 16))
-        url_icon.setStyleSheet("background: transparent;")
-        url_layout.addWidget(url_icon)
-
-        self._web_url_label = QLabel()
-        self._web_url_label.setStyleSheet(
-            f"font-size: {Typography.SIZE_CONTROL}px; font-weight: 500; color: {Colors.ACCENT_PRIMARY}; background: transparent;"
-        )
-        url_layout.addWidget(self._web_url_label, 1)
+        self._status_indicator = _status_dot()
+        server_row = SettingRow("État du serveur", self._status_indicator, tr("server_not_started"))
+        self._status_label = server_row.description_label
+        self._web_settings_frame.addWidget(server_row)
 
         test_btn = QPushButton()
-        test_btn.setIcon(app_icon("external-link.svg"))
-        test_btn.setFixedSize(32, 32)
+        test_btn.setIcon(app_icon("external-link.svg", Colors.TEXT_PRIMARY))
         test_btn.setToolTip(tr("open_browser"))
-        test_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        test_btn.setStyleSheet(f"""
-            QPushButton {{
-                background: {Colors.SURFACE_HOVER};
-                border: 1px solid {Colors.BORDER_DEFAULT};
-                border-radius: 6px;
-            }}
-            QPushButton:hover {{ background: {Colors.SURFACE_ACTIVE}; }}
-        """)
         test_btn.clicked.connect(self._open_in_browser)
-        url_layout.addWidget(test_btn)
-
         copy_btn = QPushButton(tr("copy_url"))
-        copy_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        copy_btn.setStyleSheet(f"""
-            QPushButton {{
-                background: transparent;
-                border: 1px solid {Colors.ACCENT_PRIMARY};
-                border-radius: 6px;
-                padding: 6px 12px;
-                color: {Colors.ACCENT_PRIMARY};
-                font-size: {Typography.SIZE_CONTROL}px;
-                font-weight: 600;
-            }}
-            QPushButton:hover {{
-                background: {Colors.ACCENT_PRIMARY};
-                color: #000;
-            }}
-        """)
+        copy_btn.setIcon(app_icon("copy.svg", Colors.TEXT_PRIMARY))
         copy_btn.clicked.connect(self._copy_url)
-        url_layout.addWidget(copy_btn)
-
-        web_settings_layout.addWidget(url_frame)
+        url_row = SettingRow("Adresse à coller dans OBS", _row_of(test_btn, copy_btn), "…")
+        self._web_url_label = url_row.description_label
+        self._web_url_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self._web_url_label.setStyleSheet(
+            f"font-size: {Typography.SIZE_FILTER}px; color: {Colors.ACCENT_PRIMARY};"
+            " border: none; background: transparent;"
+        )
+        self._web_settings_frame.addWidget(url_row)
 
         self._url_mode_combo = QComboBox()
         for label, data in (
@@ -434,17 +288,12 @@ class ObsSettingsDialog(QDialog):
             self._url_mode_combo.addItem(label, data)
         for scene in getattr(settings, "scenes", []) or []:
             if scene.id:
-                self._url_mode_combo.addItem(
-                    f"Scène : {scene.name}", f"scene:{scene.id}"
-                )
-        web_settings_layout.addWidget(
-            SettingRow(
-                "URL par scène OBS",
-                self._url_mode_combo,
-                "Créez plusieurs sources Navigateur avec des compositions ou styles différents.",
-            )
+                self._url_mode_combo.addItem(f"Scène : {scene.name}", f"scene:{scene.id}")
+        self._web_settings_frame.addRow(
+            "URL par scène OBS",
+            self._url_mode_combo,
+            "Plusieurs sources Navigateur, chacune avec sa composition ou son style.",
         )
-
         obs_pro_tip = QLabel(
             "Réglage OBS recommandé : source Navigateur 1920 × 1080, 60 FPS, "
             "fond transparent. Dupliquez la source et affectez un mode à chaque scène."
@@ -452,154 +301,63 @@ class ObsSettingsDialog(QDialog):
         obs_pro_tip.setWordWrap(True)
         obs_pro_tip.setStyleSheet(f"""
             QLabel {{
-                color: {Colors.TEXT_SECONDARY};
-                background: {Colors.BG_ELEVATED};
+                color: {Colors.TEXT_PRIMARY};
+                background: {Colors.ACCENT_SECONDARY_GLOW};
                 border: 1px solid {Colors.BORDER_DEFAULT};
-                border-left: 3px solid {Colors.ACCENT_PRIMARY};
-                border-radius: 8px;
+                border-radius: {Radius.SM}px;
                 padding: 10px 12px;
-                font-size: {Typography.SIZE_CONTROL}px;
+                font-size: {Typography.SIZE_FILTER}px;
             }}
         """)
-        web_settings_layout.addWidget(obs_pro_tip)
-
-        self._web_settings_frame.setLayout(web_settings_layout)  # Ensure layout is set
+        self._web_settings_frame.addWidget(obs_pro_tip)
         content_layout.addWidget(self._web_settings_frame)
 
-        # NDI Settings
-        self._ndi_settings_frame = QFrame()
-        self._ndi_settings_frame.setStyleSheet(
-            self._web_settings_frame.styleSheet()
-        )  # Same style
-        ndi_settings_layout = QVBoxLayout(self._ndi_settings_frame)
-        ndi_settings_layout.setContentsMargins(16, 16, 16, 16)
-        ndi_settings_layout.setSpacing(12)
-
+        # ── NDI ──
+        self._ndi_settings_frame = SettingSection("NDI", "wifi.svg")
         self._ndi_name_edit = QLineEdit()
         self._ndi_name_edit.setText(settings.ndi_source_name)
         self._ndi_name_edit.setPlaceholderText(tr("app_name"))
-        self._ndi_name_edit.setFixedWidth(200)
-        ndi_settings_layout.addWidget(
-            SettingRow(
-                tr("ndi_source_name"), self._ndi_name_edit, tr("ndi_source_desc")
-            )
+        self._ndi_name_edit.setFixedWidth(180)
+        self._ndi_settings_frame.addRow(
+            tr("ndi_source_name"), self._ndi_name_edit, tr("ndi_source_desc")
         )
-
-        self._ndi_status_frame = QFrame()
-        self._ndi_status_frame.setStyleSheet(f"""
-            QFrame {{
-                background: {Colors.BG_ELEVATED};
-                border: 1px solid {Colors.BORDER_DEFAULT};
-                border-radius: 8px;
-            }}
-        """)
-        ndi_status_layout = QHBoxLayout(self._ndi_status_frame)
-        ndi_status_layout.setContentsMargins(12, 10, 12, 10)
-        ndi_status_layout.setSpacing(10)
-
-        self._ndi_status_indicator = QFrame()
-        self._ndi_status_indicator.setFixedSize(10, 10)
-        ndi_status_layout.addWidget(self._ndi_status_indicator)
-
-        self._ndi_status_label = QLabel()
-        self._ndi_status_label.setWordWrap(True)
-        self._ndi_status_label.setStyleSheet(
-            f"font-size: {Typography.SIZE_CONTROL}px; color: {Colors.TEXT_SECONDARY}; background: transparent; border: none;"
-        )
-        ndi_status_layout.addWidget(self._ndi_status_label, 1)
-
+        self._ndi_status_indicator = _status_dot()
         self._ndi_test_btn = QPushButton("Tester")
         self._ndi_test_btn.setToolTip(
-            "Démarre l'envoi NDI avec les réglages enregistrés ; "
-            "recliquez pour arrêter. Le nouveau nom est appliqué à l'enregistrement."
+            "Démarre l'envoi NDI avec les réglages enregistrés ; recliquez pour arrêter."
         )
-        self._ndi_test_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._ndi_test_btn.setStyleSheet(f"""
-            QPushButton {{
-                background: transparent;
-                border: 1px solid {Colors.ACCENT_PRIMARY};
-                border-radius: 6px;
-                padding: 6px 14px;
-                color: {Colors.ACCENT_PRIMARY};
-                font-size: {Typography.SIZE_CONTROL}px;
-                font-weight: 600;
-            }}
-            QPushButton:hover {{
-                background: {Colors.ACCENT_PRIMARY};
-                color: #000;
-            }}
-        """)
         self._ndi_test_btn.clicked.connect(self._toggle_ndi_test)
-        ndi_status_layout.addWidget(self._ndi_test_btn)
-
         refresh_ndi_btn = QPushButton()
-        refresh_ndi_btn.setIcon(app_icon("refresh-cw.svg"))
-        refresh_ndi_btn.setFixedSize(32, 32)
+        refresh_ndi_btn.setIcon(app_icon("refresh-cw.svg", Colors.TEXT_PRIMARY))
         refresh_ndi_btn.setToolTip("Revérifier NDI")
-        refresh_ndi_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        refresh_ndi_btn.setStyleSheet(f"""
-            QPushButton {{
-                background: {Colors.SURFACE_HOVER};
-                border: 1px solid {Colors.BORDER_DEFAULT};
-                border-radius: 6px;
-            }}
-            QPushButton:hover {{ background: {Colors.SURFACE_ACTIVE}; }}
-        """)
         refresh_ndi_btn.clicked.connect(self._refresh_ndi_status)
-        ndi_status_layout.addWidget(refresh_ndi_btn)
-
-        ndi_settings_layout.addWidget(self._ndi_status_frame)
+        ndi_row = SettingRow(
+            "État NDI",
+            _row_of(self._ndi_status_indicator, self._ndi_test_btn, refresh_ndi_btn),
+            "…",
+        )
+        self._ndi_status_label = ndi_row.description_label
+        self._ndi_settings_frame.addWidget(ndi_row)
         content_layout.addWidget(self._ndi_settings_frame)
 
-        # Remote control of OBS via obs-websocket
+        # ── Contrôle OBS (WebSocket) ──
         self._create_remote_section(content_layout)
-
         content_layout.addStretch()
+        fit_combos(content_widget)
 
-        # Buttons
+        # Standalone dialog only: the settings page applies at once.
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
-
         cancel_btn = QPushButton(tr("cancel"))
-        cancel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        cancel_btn.setStyleSheet(f"""
-            QPushButton {{
-                background: {Colors.SURFACE_HOVER};
-                border: 1px solid {Colors.BORDER_DEFAULT};
-                border-radius: 8px;
-                padding: 10px 24px;
-                color: {Colors.TEXT_SECONDARY};
-                font-size: {Typography.SIZE_CONTROL}px;
-            }}
-            QPushButton:hover {{
-                background: {Colors.SURFACE_ACTIVE};
-            }}
-        """)
         cancel_btn.clicked.connect(self.reject)
         btn_layout.addWidget(cancel_btn)
-
         ok_btn = QPushButton(tr("save"))
-        ok_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        ok_btn.setStyleSheet(f"""
-            QPushButton {{
-                background: {Colors.ACCENT_PRIMARY};
-                border: 1px solid {Colors.ACCENT_PRIMARY};
-                border-radius: 8px;
-                padding: 10px 24px;
-                color: white;
-                font-size: {Typography.SIZE_CONTROL}px;
-                font-weight: 500;
-            }}
-            QPushButton:hover {{
-                background: {Colors.ACCENT_SECONDARY};
-            }}
-        """)
+        ok_btn.setObjectName("AccentButton")
         ok_btn.clicked.connect(self.accept)
         btn_layout.addWidget(ok_btn)
-        if embedded:  # settings page: every change applies immediately
+        if embedded:
             cancel_btn.hide()
             ok_btn.hide()
-
         layout.addLayout(btn_layout)
 
         # Set initial state
@@ -770,166 +528,84 @@ class ObsSettingsDialog(QDialog):
 
     def _create_remote_section(self, content_layout: QVBoxLayout) -> None:
         remote = getattr(self._settings, "remote", None)
-
-        frame = QFrame()
-        frame.setStyleSheet(f"""
-            QFrame {{
-                background: {Colors.BG_PRIMARY};
-                border: 1px solid {Colors.BORDER_DEFAULT};
-                border-radius: 10px;
-            }}
-        """)
-        lay = QVBoxLayout(frame)
-        lay.setContentsMargins(16, 16, 16, 16)
-        lay.setSpacing(12)
-
-        title = QLabel("Contrôle OBS (WebSocket)")
-        title.setStyleSheet(
-            f"font-size: {Typography.SIZE_SECTION}px; font-weight: 600;"
-            f" color: {Colors.TEXT_PRIMARY}; background: transparent; border: none;"
-        )
-        lay.addWidget(title)
+        section = SettingSection("Contrôle OBS (WebSocket)", "zap.svg")
 
         self._remote_enabled = QCheckBox("Piloter OBS depuis Project-On")
-        self._remote_enabled.setChecked(bool(remote and remote.enabled))
-        self._remote_enabled.setStyleSheet(
-            f"font-size: {Typography.SIZE_CONTROL}px; color: {Colors.TEXT_SECONDARY};"
-            " background: transparent; border: none;"
+        self._remote_enabled.setToolTip(
+            "Change de scène OBS quand on projette ou masque (obs-websocket 5)."
         )
-        lay.addWidget(self._remote_enabled)
+        self._remote_enabled.setChecked(bool(remote and remote.enabled))
+        section.addWidget(self._remote_enabled)
 
-        endpoint_row = QHBoxLayout()
-        endpoint_row.setSpacing(10)
-        host_label = QLabel("Hôte")
-        host_label.setStyleSheet("background: transparent; border: none;")
-        endpoint_row.addWidget(host_label)
         self._remote_host = QLineEdit(getattr(remote, "host", "127.0.0.1"))
-        self._remote_host.setFixedWidth(120)
-        endpoint_row.addWidget(self._remote_host)
-        port_label = QLabel("Port")
-        port_label.setStyleSheet("background: transparent; border: none;")
-        endpoint_row.addWidget(port_label)
+        self._remote_host.setFixedWidth(180)
+        section.addRow("Hôte", self._remote_host, "Adresse de l'ordinateur qui fait tourner OBS")
         self._remote_port = QSpinBox()
         self._remote_port.setRange(1024, 65535)
         self._remote_port.setValue(getattr(remote, "port", 4455))
-        endpoint_row.addWidget(self._remote_port)
-        pwd_label = QLabel("Mot de passe")
-        pwd_label.setStyleSheet("background: transparent; border: none;")
-        endpoint_row.addWidget(pwd_label)
+        self._remote_port.setFixedWidth(110)
+        section.addRow("Port", self._remote_port, "4455 par défaut dans OBS")
         self._remote_password = QLineEdit(getattr(remote, "password", ""))
         self._remote_password.setEchoMode(QLineEdit.EchoMode.Password)
         self._remote_password.setPlaceholderText("si défini dans OBS")
-        endpoint_row.addWidget(self._remote_password, 1)
-        lay.addLayout(endpoint_row)
+        self._remote_password.setFixedWidth(180)
+        section.addRow("Mot de passe", self._remote_password)
 
-        status_row = QHBoxLayout()
-        status_row.setSpacing(10)
-        self._remote_status_dot = QFrame()
-        self._remote_status_dot.setFixedSize(10, 10)
-        self._remote_status_dot.setStyleSheet(
-            f"background: {Colors.ACCENT_DANGER}; border-radius: 5px;"
-        )
-        status_row.addWidget(self._remote_status_dot)
-        self._remote_status_label = QLabel("Déconnecté")
-        self._remote_status_label.setStyleSheet(
-            f"font-size: {Typography.SIZE_CONTROL}px; color: {Colors.TEXT_SECONDARY};"
-            " background: transparent; border: none;"
-        )
-        status_row.addWidget(self._remote_status_label, 1)
-
+        self._remote_status_dot = _status_dot()
         self._remote_connect_btn = QPushButton("Connecter")
-        self._remote_connect_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._remote_connect_btn.setStyleSheet(f"""
-            QPushButton {{
-                background: {Colors.ACCENT_PRIMARY};
-                border: 1px solid {Colors.ACCENT_PRIMARY};
-                border-radius: 6px;
-                padding: 6px 14px;
-                color: {Colors.PROJECT_BUTTON_TEXT};
-                font-size: {Typography.SIZE_CONTROL}px;
-                font-weight: 600;
-            }}
-            QPushButton:hover {{ background: {Colors.ACCENT_SECONDARY}; }}
-        """)
+        self._remote_connect_btn.setObjectName("AccentButton")
         self._remote_connect_btn.clicked.connect(self._connect_remote)
-        status_row.addWidget(self._remote_connect_btn)
-
-        load_scenes_btn = QPushButton("Charger les scènes OBS")
-        load_scenes_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        load_scenes_btn.setStyleSheet(f"""
-            QPushButton {{
-                background: transparent;
-                border: 1px solid {Colors.BORDER_DEFAULT};
-                border-radius: 6px;
-                padding: 6px 14px;
-                color: {Colors.TEXT_SECONDARY};
-                font-size: {Typography.SIZE_CONTROL}px;
-            }}
-            QPushButton:hover {{
-                border-color: {Colors.ACCENT_PRIMARY};
-                color: {Colors.TEXT_PRIMARY};
-            }}
-        """)
+        load_scenes_btn = QPushButton("Charger les scènes")
         load_scenes_btn.clicked.connect(self._load_obs_scenes)
-        status_row.addWidget(load_scenes_btn)
-        lay.addLayout(status_row)
+        status_row = SettingRow(
+            "Connexion",
+            _row_of(self._remote_status_dot, self._remote_connect_btn),
+            "Déconnecté",
+        )
+        self._remote_status_label = status_row.description_label
+        section.addWidget(status_row)
+        section.addRow(
+            "Scènes OBS",
+            load_scenes_btn,
+            "Remplit les listes ci-dessous avec les scènes d'OBS.",
+        )
 
         self._remote_live_combo = QComboBox()
         self._remote_live_combo.setEditable(True)
-        self._remote_live_combo.setCurrentText(
-            getattr(remote, "scene_on_live", "") or ""
+        self._remote_live_combo.setCurrentText(getattr(remote, "scene_on_live", "") or "")
+        section.addRow(
+            "Scène quand on projette",
+            self._remote_live_combo,
+            "OBS bascule sur cette scène dès qu'une slide passe en direct.",
         )
-        lay.addWidget(
-            SettingRow(
-                "Scène OBS quand on projette",
-                self._remote_live_combo,
-                "Bascule OBS sur cette scène dès qu'une slide passe en direct.",
-            )
-        )
-
         self._remote_hide_combo = QComboBox()
         self._remote_hide_combo.setEditable(True)
-        self._remote_hide_combo.setCurrentText(
-            getattr(remote, "scene_on_hide", "") or ""
-        )
-        lay.addWidget(
-            SettingRow(
-                "Scène OBS quand on masque",
-                self._remote_hide_combo,
-                "Ex. une scène caméra seul ou un écran d'accueil.",
-            )
+        self._remote_hide_combo.setCurrentText(getattr(remote, "scene_on_hide", "") or "")
+        section.addRow(
+            "Scène quand on masque",
+            self._remote_hide_combo,
+            "Par exemple une scène caméra seule ou un écran d'accueil.",
         )
 
-        source_row = QHBoxLayout()
-        source_row.setSpacing(10)
         self._remote_target_scene = QComboBox()
         self._remote_target_scene.setEditable(True)
-        source_row.addWidget(self._remote_target_scene, 1)
-        create_source_btn = QPushButton("Créer la source Project-On")
+        create_source_btn = QPushButton("Créer la source")
         create_source_btn.setToolTip(
             "Ajoute une source Navigateur pointant vers la diffusion Project-On"
             " dans la scène choisie (1920 × 1080)."
         )
-        create_source_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        create_source_btn.setStyleSheet(f"""
-            QPushButton {{
-                background: transparent;
-                border: 1px solid {Colors.BORDER_DEFAULT};
-                border-radius: 6px;
-                padding: 6px 14px;
-                color: {Colors.TEXT_SECONDARY};
-                font-size: {Typography.SIZE_CONTROL}px;
-            }}
-            QPushButton:hover {{
-                border-color: {Colors.ACCENT_PRIMARY};
-                color: {Colors.TEXT_PRIMARY};
-            }}
-        """)
         create_source_btn.clicked.connect(self._create_remote_source)
-        source_row.addWidget(create_source_btn)
-        lay.addLayout(source_row)
-
-        content_layout.addWidget(frame)
+        section.addRow(
+            "Scène de la source Project-On",
+            self._remote_target_scene,
+            "Scène OBS qui recevra la source Navigateur.",
+        )
+        section.addRow(
+            "Source Navigateur",
+            create_source_btn,
+            "Crée en un clic la source Project-On (1920 × 1080) dans la scène choisie.",
+        )
+        content_layout.addWidget(section)
 
         self._remote_enabled.toggled.connect(self._update_remote_controls)
         self._update_remote_controls()

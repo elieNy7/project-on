@@ -2,16 +2,17 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
+    QCheckBox,
     QDialog,
     QFrame,
     QHBoxLayout,
     QLabel,
     QPushButton,
-    QScrollArea,
     QVBoxLayout,
     QWidget,
 )
 
+from app.ui.setting_cards import PageHeader, SettingSection
 from app.ui.theme import Colors, Radius, Spacing, Typography
 from app.utils.translations import tr
 
@@ -98,9 +99,12 @@ class AppearanceSettingsDialog(QDialog):
         current_language: str = "fr",
         parent=None,
         embedded: bool = False,
+        mica: bool | None = None,
     ) -> None:
         super().__init__(parent)
         self._embedded = embedded
+        # None: the Mica option is not offered (unsupported Windows).
+        self._mica = mica
         self._theme = current_theme if current_theme in ("dark", "light") else "dark"
         self._language = current_language
 
@@ -116,180 +120,72 @@ class AppearanceSettingsDialog(QDialog):
 
     def _setup_ui(self) -> None:
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(Spacing.XL, Spacing.XL, Spacing.XL, Spacing.XL)
-        layout.setSpacing(Spacing.LG)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(16)
+        layout.addWidget(PageHeader(tr("appearance_title"), tr("appearance_subtitle")))
 
-        # Header
-        header = QLabel(tr("appearance_title"), self)
-        header.setStyleSheet(f"""
-            font-size: {Typography.SIZE_2XL}px;
-            font-weight: {Typography.WEIGHT_BOLD};
-            color: {Colors.TEXT_PRIMARY};
-        """)
-        layout.addWidget(header)
+        def _pair(first: QWidget, second: QWidget) -> QWidget:
+            box = QWidget(self)
+            box.setStyleSheet("background: transparent;")
+            row = QHBoxLayout(box)
+            row.setContentsMargins(0, 0, 0, 0)
+            row.setSpacing(Spacing.SM)
+            row.addWidget(first)
+            row.addWidget(second)
+            return box
 
-        subtitle = QLabel(tr("appearance_subtitle"), self)
-        subtitle.setStyleSheet(f"""
-            font-size: {Typography.SIZE_SM}px;
-            color: {Colors.TEXT_MUTED};
-            margin-bottom: {Spacing.MD}px;
-        """)
-        layout.addWidget(subtitle)
-
-        # ── Scrollable content ──
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-        scroll.setStyleSheet("background: transparent; border: none;")
-        # Stylize scrollbar
-        scroll.verticalScrollBar().setStyleSheet(f"""
-            QScrollBar:vertical {{
-                background: transparent;
-                width: 8px;
-                margin: 0;
-            }}
-            QScrollBar::handle:vertical {{
-                background: {Colors.BORDER_DEFAULT};
-                border-radius: 4px;
-                min-height: 20px;
-            }}
-            QScrollBar::handle:vertical:hover {{
-                background: {Colors.ACCENT_PRIMARY};
-            }}
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
-                height: 0px;
-            }}
-        """)
-
-        container = QWidget()
-        container.setStyleSheet("background: transparent;")
-        content_layout = QVBoxLayout(container)
-        content_layout.setContentsMargins(0, 0, 0, 0)
-        content_layout.setSpacing(Spacing.LG)
-
-        # === THEME SECTION ===
-        theme_label = QLabel(tr("theme"), self)
-        theme_label.setStyleSheet(f"""
-            font-size: {Typography.SIZE_SM}px;
-            font-weight: {Typography.WEIGHT_SEMIBOLD};
-            color: {Colors.TEXT_SECONDARY};
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        """)
-        content_layout.addWidget(theme_label)
-
-        theme_container = QHBoxLayout()
-        theme_container.setSpacing(Spacing.SM)
-
+        theme_section = SettingSection("Thème de l'interface", "sun.svg")
         self._dark_card = OptionCard(
-            tr("dark_theme"),
-            tr("dark_theme_desc"),
-            is_selected=(self._theme == "dark"),
-            parent=self,
+            tr("dark_theme"), tr("dark_theme_desc"), is_selected=(self._theme == "dark"), parent=self
         )
         self._light_card = OptionCard(
-            tr("light_theme"),
-            tr("light_theme_desc"),
-            is_selected=(self._theme == "light"),
-            parent=self,
+            tr("light_theme"), tr("light_theme_desc"), is_selected=(self._theme == "light"), parent=self
         )
-
         self._dark_card.clicked.connect(lambda: self._select_theme("dark"))
         self._light_card.clicked.connect(lambda: self._select_theme("light"))
+        theme_section.addWidget(_pair(self._dark_card, self._light_card))
+        layout.addWidget(theme_section)
 
-        theme_container.addWidget(self._dark_card)
-        theme_container.addWidget(self._light_card)
-        content_layout.addLayout(theme_container)
-
-        # === LANGUAGE SECTION ===
-        lang_label = QLabel(tr("language"), self)
-        lang_label.setStyleSheet(f"""
-            font-size: {Typography.SIZE_SM}px;
-            font-weight: {Typography.WEIGHT_SEMIBOLD};
-            color: {Colors.TEXT_SECONDARY};
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        """)
-        content_layout.addWidget(lang_label)
-
-        lang_container = QHBoxLayout()
-        lang_container.setSpacing(Spacing.SM)
-
+        lang_section = SettingSection(tr("language"), "globe.svg")
         self._fr_card = OptionCard(
-            tr("french"),
-            tr("french_desc"),
-            is_selected=(self._language == "fr"),
-            parent=self,
+            tr("french"), tr("french_desc"), is_selected=(self._language == "fr"), parent=self
         )
         self._en_card = OptionCard(
-            tr("english"),
-            tr("english_desc"),
-            is_selected=(self._language == "en"),
-            parent=self,
+            tr("english"), tr("english_desc"), is_selected=(self._language == "en"), parent=self
         )
-
         self._fr_card.clicked.connect(lambda: self._select_language("fr"))
         self._en_card.clicked.connect(lambda: self._select_language("en"))
+        lang_section.addWidget(_pair(self._fr_card, self._en_card))
+        layout.addWidget(lang_section)
 
-        lang_container.addWidget(self._fr_card)
-        lang_container.addWidget(self._en_card)
-        content_layout.addLayout(lang_container)
+        self._mica_box: QCheckBox | None = None
+        if self._mica is not None:
+            window_section = SettingSection("Fenêtre", "monitor.svg")
+            self._mica_box = QCheckBox("Effet Mica (Windows 11)")
+            self._mica_box.setToolTip(
+                "Laisse transparaître le fond d'écran, teinté, derrière le menu et la barre du haut."
+            )
+            self._mica_box.setChecked(bool(self._mica))
+            self._mica_box.toggled.connect(lambda _on: self.settingsChanged.emit())
+            window_section.addWidget(self._mica_box)
+            layout.addWidget(window_section)
 
-        content_layout.addStretch(1)
-        scroll.setWidget(container)
-        layout.addWidget(scroll, 1)
-
-        # Note
         note = QLabel(tr("restart_required"), self)
-        note.setStyleSheet(f"""
-            font-size: {Typography.SIZE_XS}px;
-            color: {Colors.TEXT_DISABLED};
-            font-style: italic;
-        """)
         note.setWordWrap(True)
+        note.setStyleSheet(
+            f"font-size: {Typography.SIZE_META}px; color: {Colors.TEXT_SECONDARY}; background: transparent;"
+        )
         layout.addWidget(note)
+        layout.addStretch(1)
 
-        # Buttons
+        # Standalone dialog only: the settings page applies at once.
         btn_layout = QHBoxLayout()
-        btn_layout.setSpacing(Spacing.SM)
-
-        cancel_btn = QPushButton(tr("cancel"), self)
-        cancel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        cancel_btn.setStyleSheet(f"""
-            QPushButton {{
-                background: {Colors.SURFACE_HOVER};
-                border: 1px solid {Colors.BORDER_DEFAULT};
-                border-radius: {Radius.SM}px;
-                padding: 10px 24px;
-                color: {Colors.TEXT_PRIMARY};
-                font-size: {Typography.SIZE_SM}px;
-                font-weight: {Typography.WEIGHT_MEDIUM};
-            }}
-            QPushButton:hover {{
-                background: {Colors.SURFACE_ACTIVE};
-            }}
-        """)
-        cancel_btn.clicked.connect(self.reject)
-
-        save_btn = QPushButton(tr("save"), self)
-        save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        save_btn.setStyleSheet(f"""
-            QPushButton {{
-                background: {Colors.ACCENT_PRIMARY};
-                border: none;
-                border-radius: {Radius.SM}px;
-                padding: 10px 24px;
-                color: #000;
-                font-size: {Typography.SIZE_SM}px;
-                font-weight: {Typography.WEIGHT_MEDIUM};
-            }}
-            QPushButton:hover {{
-                background: {Colors.ACCENT_LIGHT};
-            }}
-        """)
-        save_btn.clicked.connect(self.accept)
-
         btn_layout.addStretch(1)
+        cancel_btn = QPushButton(tr("cancel"), self)
+        cancel_btn.clicked.connect(self.reject)
+        save_btn = QPushButton(tr("save"), self)
+        save_btn.setObjectName("AccentButton")
+        save_btn.clicked.connect(self.accept)
         btn_layout.addWidget(cancel_btn)
         btn_layout.addWidget(save_btn)
         layout.addLayout(btn_layout)
@@ -312,3 +208,7 @@ class AppearanceSettingsDialog(QDialog):
     def get_settings(self) -> tuple[str, str]:
         """Retourne (theme, language)."""
         return self._theme, self._language
+
+    def mica_enabled(self) -> bool | None:
+        """Mica switch state, or None when the option is not offered."""
+        return self._mica_box.isChecked() if self._mica_box is not None else None

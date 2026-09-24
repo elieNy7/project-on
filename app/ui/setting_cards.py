@@ -57,14 +57,16 @@ class SettingRow(QFrame):
         label_col.addWidget(lbl)
         self.title_label = lbl
 
-        if description:
-            desc = QLabel(description)
-            desc.setWordWrap(True)
-            desc.setStyleSheet(
-                f"font-size: {Typography.SIZE_META}px; color: {Colors.TEXT_SECONDARY};"
-                " border: none; background: transparent;"
-            )
-            label_col.addWidget(desc)
+        # Always created so live statuses can use it; hidden while empty.
+        desc = QLabel(description)
+        desc.setWordWrap(True)
+        desc.setStyleSheet(
+            f"font-size: {Typography.SIZE_META}px; color: {Colors.TEXT_SECONDARY};"
+            " border: none; background: transparent;"
+        )
+        desc.setVisible(bool(description))
+        label_col.addWidget(desc)
+        self.description_label = desc
 
         # A control that wants to stretch (slider, expanding list) is capped;
         # otherwise it would squeeze the label to one word per line.
@@ -79,6 +81,10 @@ class SettingRow(QFrame):
         self._toggle = widget if isinstance(widget, QCheckBox) else None
         if self._toggle is not None:
             self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+    def set_description(self, text: str) -> None:
+        self.description_label.setText(text)
+        self.description_label.setVisible(bool(text))
 
     def mouseReleaseEvent(self, event) -> None:  # noqa: N802
         # A switch card toggles when clicked anywhere, like Windows Settings.

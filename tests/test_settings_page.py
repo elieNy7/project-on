@@ -202,3 +202,41 @@ def test_hdmi_screen_fits_the_page() -> None:
         assert screen._status.text() == "Active"
     finally:
         screen.deleteLater()
+
+
+# ── Connectivity & appearance screens ─────────────────────────────────────
+
+
+def test_connectivity_screen_uses_setting_cards() -> None:
+    QApplication.instance() or QApplication([])
+    from PySide6.QtWidgets import QScrollArea
+
+    from app.ui.obs_settings_dialog import ObsSettingsDialog
+    from app.ui.setting_cards import SettingRow
+    from app.utils.settings import ObsSettings
+
+    screen = ObsSettingsDialog(ObsSettings(), embedded=True)
+    try:
+        assert not screen.findChildren(QScrollArea)  # the page scrolls
+        # Host, port and password each get their own card (no overflowing row).
+        for field in (screen._remote_host, screen._remote_port, screen._remote_password):
+            assert isinstance(field.parentWidget(), SettingRow)
+        # Live statuses are the cards' descriptions, and stay visible.
+        screen._status_label.setText("Serveur actif")
+        assert screen._status_label.isVisibleTo(screen)
+        assert screen.get_settings().web_port == ObsSettings().web_port
+    finally:
+        screen.deleteLater()
+
+
+def test_mica_switch_is_saved(window, monkeypatch) -> None:
+    from app.ui import window_effects
+
+    monkeypatch.setattr(window_effects, "mica_supported", lambda: True)
+    window._show_settings_section("appearance")
+    dlg = _page(window).current_widget()
+    before = window._settings.appearance.mica
+
+    dlg._mica_box.setChecked(not before)
+
+    assert window._settings.appearance.mica is (not before)
