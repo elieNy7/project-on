@@ -354,8 +354,20 @@ _translations: dict[str, dict[str, str]] = {
         "en": "Search in the active tab",
     },
     "shortcut_search_global": {
-        "fr": "Recherche globale de paragraphes",
-        "en": "Global paragraph search",
+        "fr": "Rechercher dans les paragraphes des prédications",
+        "en": "Search sermon paragraphs",
+    },
+    "shortcut_search_everywhere": {
+        "fr": "Recherche globale (Bible, prédications, exposés, médias…)",
+        "en": "Global search (Bible, sermons, Exposé, media…)",
+    },
+    "shortcut_prepare": {
+        "fr": "Préparer l'élément dans l'Aperçu (sans projeter)",
+        "en": "Prepare the item in the preview (not live)",
+    },
+    "shortcut_take": {
+        "fr": "Envoyer l'Aperçu au Direct",
+        "en": "Send the preview live",
     },
     "shortcut_project_activated": {
         "fr": "Projeter l'élément sélectionné",
@@ -377,7 +389,10 @@ _translations: dict[str, dict[str, str]] = {
         "fr": "Contrôle avant service",
         "en": "Pre-service system check",
     },
-    "shortcut_escape": {"fr": "Fermer la projection", "en": "Close projection"},
+    "shortcut_escape": {
+        "fr": "Fermer la projection (hors champ de saisie)",
+        "en": "Close projection (outside text fields)",
+    },
     # ===== UNDO =====
     "undo": {"fr": "Annuler", "en": "Undo"},
     "nothing_to_undo": {"fr": "Rien à annuler", "en": "Nothing to undo"},

@@ -31,22 +31,20 @@ class _NavArrowButton(QPushButton):
         self.setIcon(app_icon(icon_name, Colors.TEXT_PRIMARY))
         self.setIconSize(QSize(14, 14))
         self.setToolTip(tooltip)
-        self.setFixedSize(30, 30)
+        self.setFixedSize(32, 32)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setStyleSheet(f"""
             QPushButton {{
-                background: {Colors.BG_TERTIARY};
-                border: 1px solid {Colors.BORDER_SUBTLE};
-                border-radius: 15px;
+                background: {Colors.BG_SURFACE};
+                border: 1px solid {Colors.BORDER_DEFAULT};
+                border-radius: {Radius.SM}px;
                 color: {Colors.TEXT_PRIMARY};
             }}
             QPushButton:hover {{
-                background: {Colors.ACCENT_GLOW};
-                color: {Colors.ACCENT_LIGHT};
-                border-color: {Colors.ACCENT_GLOW_STRONG};
+                background: {Colors.SURFACE_HOVER};
             }}
             QPushButton:pressed {{
-                background: {Colors.ACCENT_GLOW_STRONG};
+                background: {Colors.BG_SECONDARY};
             }}
         """)
 
@@ -65,21 +63,18 @@ class PreviewControlButton(QPushButton):
         self.setIcon(app_icon(icon_name, Colors.TEXT_PRIMARY))
         self.setIconSize(QSize(12, 12))
         self.setToolTip(tooltip)
+        self.setIconSize(QSize(14, 14))
         if text:
-            self.setFixedHeight(28)
-            padding = "padding: 0 6px;"
-            # La feuille de style passe le libellé en MAJUSCULES à 10px bold ;
-            # mesurer avec CETTE police exacte (fontMetrics() par défaut = 13px
-            # et gonflerait chaque bouton de ~15px).
-            self.ensurePolished()
+            self.setFixedHeight(32)
+            padding = "padding: 0 12px;"
+            # Measure with the exact label font of the style sheet below.
             measure_font = QFont()
-            measure_font.setPixelSize(Typography.SIZE_2XS)
-            measure_font.setWeight(QFont.Weight.Bold)
+            measure_font.setPixelSize(Typography.SIZE_FILTER)
+            measure_font.setWeight(QFont.Weight.DemiBold)
             metrics = QFontMetrics(measure_font)
-            upper_width = metrics.horizontalAdvance(text.upper())
-            self.setMinimumWidth(max(40, upper_width + 6 * 2 + 12))
+            self.setMinimumWidth(max(40, metrics.horizontalAdvance(text) + 12 * 2 + 20))
         else:
-            self.setFixedSize(28, 28)
+            self.setFixedSize(32, 32)
             padding = ""
 
         self.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -95,20 +90,17 @@ class PreviewControlButton(QPushButton):
     ) -> str:
         return f"""
             QPushButton {{
-                background: {Colors.BG_TERTIARY};
-                border: 1px solid {Colors.BORDER_SUBTLE};
-                border-radius: 14px;
+                background: {Colors.BG_SURFACE};
+                border: 1px solid {Colors.BORDER_DEFAULT};
+                border-radius: {Radius.SM}px;
                 color: {Colors.TEXT_PRIMARY};
-                font-size: {Typography.SIZE_2XS}px;
-                font-weight: 700;
-                letter-spacing: 0;
-                text-transform: uppercase;
+                font-size: {Typography.SIZE_FILTER}px;
+                font-weight: {Typography.WEIGHT_SEMIBOLD};
                 {self._padding}
             }}
             QPushButton:hover {{
                 background: {Colors.SURFACE_HOVER};
                 color: {Colors.TEXT_PRIMARY};
-                border-color: {Colors.BORDER_HOVER};
             }}
             QPushButton:pressed {{
                 background: {Colors.SURFACE_ACTIVE};
@@ -189,7 +181,7 @@ class PreviewPanel(QFrame):
         self.header.setFixedHeight(56)
         self.header.setStyleSheet(f"""
             QFrame#TopBar {{
-                background: {Colors.BG_TERTIARY};
+                background: {Colors.BG_SECONDARY};
                 border: 1px solid {Colors.BORDER_SUBTLE};
                 border-radius: {Radius.LG}px;
             }}
@@ -203,16 +195,16 @@ class PreviewPanel(QFrame):
         icon_chip = QFrame(self.header)
         icon_chip.setFixedSize(30, 30)
         icon_chip.setStyleSheet(f"""
-            background: {Colors.ACCENT_GLOW};
-            border: 1px solid {Colors.ACCENT_GLOW_STRONG};
-            border-radius: 11px;
+            background: {Colors.GLASS_MEDIUM};
+            border: none;
+            border-radius: {Radius.SM}px;
         """)
         icon_chip_layout = QHBoxLayout(icon_chip)
         icon_chip_layout.setContentsMargins(7, 7, 7, 7)
         icon_chip_layout.setSpacing(0)
 
         icon_label = QLabel(icon_chip)
-        icon_label.setPixmap(app_icon("monitor.svg", Colors.ACCENT_LIGHT).pixmap(15, 15))
+        icon_label.setPixmap(app_icon("monitor.svg", Colors.TEXT_SECONDARY).pixmap(15, 15))
         icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         icon_chip_layout.addWidget(icon_label)
         header_lay.addWidget(icon_chip, 0, Qt.AlignmentFlag.AlignVCenter)
@@ -317,6 +309,9 @@ class PreviewPanel(QFrame):
         stage_top_layout.addWidget(self._status_chip, 0, Qt.AlignmentFlag.AlignLeft)
         stage_top_layout.addStretch()
         frame_layout.addWidget(self._stage_top, 0)
+        # State chips duplicated the header tally: kept (they are still
+        # updated) but never shown.
+        self._stage_top.hide()
 
         # Main text
         self.slide_view = QLabel("", self._slide_frame)
@@ -395,6 +390,7 @@ class PreviewPanel(QFrame):
             """
         )
         stage_footer_layout.addWidget(self._scene_label)
+        self._scene_label.hide()  # "SCENE 16" repeated the "16 / 36" counter
         stage_footer_layout.addStretch()
 
         self._counter_label = QLabel("", self._stage_footer)
@@ -508,9 +504,9 @@ class PreviewPanel(QFrame):
         # Console capsule
         self.console_frame = QFrame(self.controls)
         self.console_frame.setStyleSheet(f"""
-            background: {Colors.BG_SECONDARY};
-            border: 1px solid {Colors.BORDER_DEFAULT};
-            border-radius: 19px;
+            background: {Colors.BG_CARD};
+            border: 1px solid {Colors.BORDER_SUBTLE};
+            border-radius: {Radius.LG}px;
         """)
         console_layout = QHBoxLayout(self.console_frame)
         console_layout.setContentsMargins(5, 5, 5, 5)

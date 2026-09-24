@@ -17,13 +17,7 @@ from PySide6.QtCore import (
     Signal,
     Slot,
 )
-from PySide6.QtGui import (
-    QColor,
-    QDesktopServices,
-    QGuiApplication,
-    QLinearGradient,
-    QPainter,
-)
+from PySide6.QtGui import QDesktopServices, QGuiApplication
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -148,27 +142,18 @@ class SettingsCard(QFrame):
 
     def __init__(self, title: str, parent=None) -> None:
         super().__init__(parent)
-        self.setStyleSheet(f"""
-            SettingsCard {{
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                    stop:0 {Colors.BG_TERTIARY},
-                    stop:1 {Colors.BG_SECONDARY});
-                border: 1px solid {Colors.BORDER_DEFAULT};
-                border-radius: {Radius.XL}px;
-            }}
-        """)
+        self.setStyleSheet("SettingsCard { background: transparent; border: none; }")
         self.main_layout = QVBoxLayout(self)
-        self.main_layout.setContentsMargins(0, 18, 0, 10)
-        self.main_layout.setSpacing(0)
+        self.main_layout.setContentsMargins(0, 0, 0, 0)
+        self.main_layout.setSpacing(2)
 
         hdr = QHBoxLayout()
-        hdr.setContentsMargins(20, 0, 20, 10)
+        hdr.setContentsMargins(2, 0, 0, 6)
         lbl = QLabel(title, self)
         lbl.setStyleSheet(f"""
-            font-size: {Typography.SIZE_CONTROL}px;
+            font-size: {Typography.SIZE_BODY}px;
             font-weight: {Typography.WEIGHT_SEMIBOLD};
-            color: {Colors.ACCENT_LIGHT};
-            letter-spacing: 1.2px;
+            color: {Colors.TEXT_PRIMARY};
             background: transparent; border: none;
         """)
         hdr.addWidget(lbl)
@@ -199,14 +184,15 @@ class SettingsItem(QWidget):
         self.setAccessibleName(title)
         self.setAccessibleDescription(description)
         self.setMinimumHeight(60)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setStyleSheet(f"""
             QWidget#SettingsItem {{
-                background: transparent;
-                border-radius: {Radius.LG}px;
-                margin: 0 8px;
+                background: {Colors.BG_CARD};
+                border: 1px solid {Colors.BORDER_SUBTLE};
+                border-radius: {Radius.SM}px;
             }}
             QWidget#SettingsItem:hover {{
-                background: {Colors.GLASS_MEDIUM};
+                background: {Colors.SURFACE_HOVER};
             }}
             QWidget#SettingsItem:focus {{
                 border: 2px solid {Colors.BORDER_FOCUS};
@@ -219,22 +205,12 @@ class SettingsItem(QWidget):
         """)
 
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(12, 10, 16, 10)
+        layout.setContentsMargins(16, 10, 16, 10)
         layout.setSpacing(14)
 
-        # Icône
-        icon_frame = QFrame()
-        icon_frame.setFixedSize(42, 42)
-        icon_frame.setStyleSheet(f"""
-            background: {Colors.BG_ELEVATED};
-            border-radius: 12px;
-            border: 1px solid {Colors.BORDER_SUBTLE};
-        """)
-        il = QVBoxLayout(icon_frame)
-        il.setContentsMargins(0, 0, 0, 0)
-        il.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        il.addWidget(self._make_icon_label(icon_name, accent_color))
-        layout.addWidget(icon_frame)
+        # Monochrome icon, as in Windows Settings (accent_color kept for API
+        # compatibility).
+        layout.addWidget(self._make_icon_label(icon_name, Colors.TEXT_PRIMARY))
 
         # Texte
         tl = QVBoxLayout()
@@ -242,8 +218,7 @@ class SettingsItem(QWidget):
         tl.setAlignment(Qt.AlignmentFlag.AlignVCenter)
         title_lbl = QLabel(title, self)
         title_lbl.setStyleSheet(f"""
-            font-size: {Typography.SIZE_MD}px;
-            font-weight: {Typography.WEIGHT_SEMIBOLD};
+            font-size: {Typography.SIZE_BODY}px;
             color: {Colors.TEXT_PRIMARY};
             background: transparent; border: none;
         """)
@@ -252,8 +227,8 @@ class SettingsItem(QWidget):
             desc_lbl = QLabel(description, self)
             desc_lbl.setWordWrap(True)
             desc_lbl.setStyleSheet(f"""
-                font-size: {Typography.SIZE_CONTROL}px;
-                color: {Colors.TEXT_MUTED};
+                font-size: {Typography.SIZE_META}px;
+                color: {Colors.TEXT_SECONDARY};
                 background: transparent; border: none;
             """)
             tl.addWidget(desc_lbl)
@@ -262,19 +237,16 @@ class SettingsItem(QWidget):
         # Pill détail
         self._detail_label = QLabel("", self)
         self._detail_label.setStyleSheet(f"""
-            font-size: {Typography.SIZE_META}px;
-            font-weight: {Typography.WEIGHT_MEDIUM};
+            font-size: {Typography.SIZE_FILTER}px;
             color: {Colors.TEXT_SECONDARY};
-            background: {Colors.GLASS_MEDIUM};
-            padding: 4px 12px;
-            border-radius: 99px; border: 1px solid {Colors.BORDER_SUBTLE};
+            background: transparent; border: none;
         """)
         self._detail_label.hide()
         layout.addWidget(self._detail_label)
 
         # Chevron
         arrow = QLabel(self)
-        arrow.setPixmap(app_icon("chevron-right.svg", Colors.TEXT_DISABLED).pixmap(16, 16))
+        arrow.setPixmap(app_icon("chevron-right.svg", Colors.TEXT_SECONDARY).pixmap(16, 16))
         arrow.setStyleSheet("background: transparent; border: none;")
         layout.addWidget(arrow)
 
@@ -316,13 +288,13 @@ class SettingsHeader(QFrame):
         self.setStyleSheet("#SettingsHeader { background: transparent; }")
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(34, 18, 34, 14)
-        layout.setSpacing(6)
+        layout.setContentsMargins(16, 16, 16, 4)
+        layout.setSpacing(2)
 
         title = QLabel(tr("settings_title"), self)
         title.setStyleSheet(f"""
-            font-size: 24px;
-            font-weight: {Typography.WEIGHT_BOLD};
+            font-size: {Typography.SIZE_DIALOG_TITLE}px;
+            font-weight: {Typography.WEIGHT_SEMIBOLD};
             color: {Colors.TEXT_PRIMARY};
             background: transparent;
         """)
@@ -333,27 +305,12 @@ class SettingsHeader(QFrame):
             self,
         )
         subtitle.setStyleSheet(f"""
-            font-size: {Typography.SIZE_MD}px;
-            color: {Colors.TEXT_MUTED};
+            font-size: {Typography.SIZE_FILTER}px;
+            color: {Colors.TEXT_SECONDARY};
             background: transparent;
         """)
         subtitle.setWordWrap(True)
         layout.addWidget(subtitle)
-
-    def paintEvent(self, event) -> None:
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        r = self.rect()
-        g = QLinearGradient(0, 0, 0, r.height())
-        g.setColorAt(0.0, QColor(Colors.BG_TERTIARY))
-        g.setColorAt(0.55, QColor(Colors.BG_SECONDARY))
-        g.setColorAt(1.0, QColor(Colors.BG_PRIMARY))
-        painter.fillRect(r, g)
-        painter.setPen(Qt.PenStyle.NoPen)
-        accent = QColor(Colors.ACCENT_PRIMARY)
-        accent.setAlpha(30)
-        painter.setBrush(accent)
-        painter.drawRect(0, r.height() - 1, r.width(), 1)
 
 
 # ─── Onglet principal ─────────────────────────────────────────────────────────
@@ -370,7 +327,7 @@ class SettingsTab(QWidget):
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
-        self.setStyleSheet(f"background: {Colors.BG_PRIMARY};")
+        self.setStyleSheet("background: transparent;")
 
         # Signaux partagés par les workers (thread-safe)
         self._worker_signals = _WorkerSignals()
@@ -396,11 +353,11 @@ class SettingsTab(QWidget):
         content = QWidget()
         content.setStyleSheet("background: transparent;")
         cl = QVBoxLayout(content)
-        cl.setContentsMargins(32, 20, 32, 40)
+        cl.setContentsMargins(16, 8, 16, 24)
         cl.setSpacing(16)
 
         # ── PROJECTION ───────────────────────────────────────────────
-        display_card = SettingsCard("PROJECTION", content)
+        display_card = SettingsCard("Projection", content)
         self._projection_item = SettingsItem(
             tr("local_projection"), tr("local_projection_desc"),
             "monitor.svg", "#a78bfa", display_card,
@@ -415,7 +372,7 @@ class SettingsTab(QWidget):
         cl.addWidget(display_card)
 
         # ── DIFFUSION ────────────────────────────────────────────────
-        streaming_card = SettingsCard("DIFFUSION & OBS", content)
+        streaming_card = SettingsCard("Diffusion & OBS", content)
         self._obs_connect_item = SettingsItem(
             tr("connectivity"), tr("connectivity_desc"),
             "wifi.svg", "#60a5fa", streaming_card,
@@ -429,7 +386,7 @@ class SettingsTab(QWidget):
         cl.addWidget(streaming_card)
 
         # ── APPLICATION ──────────────────────────────────────────────
-        app_card = SettingsCard("APPLICATION", content)
+        app_card = SettingsCard("Application", content)
         self._appearance_item = SettingsItem(
             tr("appearance"), tr("appearance_desc"),
             "eye.svg", "#34d399", app_card,
@@ -448,7 +405,7 @@ class SettingsTab(QWidget):
         cl.addWidget(app_card)
 
         # ── DONNÉES & MAINTENANCE ────────────────────────────────────
-        data_card = SettingsCard("DONNÉES & MAINTENANCE", content)
+        data_card = SettingsCard("Données & maintenance", content)
         self._backup_db_item = SettingsItem(
             "Sauvegarder la base",
             "Créer une copie de sécurité du fichier de données principal",
