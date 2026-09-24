@@ -72,12 +72,31 @@ class SermonsDao:
                 return raw_num - 1
         return raw_num
 
-    @staticmethod
-    def _fts_query(value: str) -> str:
-        key = Database._search_key(value)
-        if not key:
-            return ""
-        return " ".join(f"{token}*" for token in key.split())
+    # Guillemets typographiques acceptés pour une expression exacte.
+    _QUOTES = str.maketrans({"«": '"', "»": '"', "“": '"', "”": '"', "„": '"'})
+
+    @classmethod
+    def _fts_query(cls, value: str) -> str:
+        """Requête FTS5 : mots en préfixe, « expression exacte » entre guillemets.
+
+        ``foi "ferme assurance"`` → ``foi* "ferme assurance"``.
+        """
+        parts: list[str] = []
+        for match in re.finditer(r'"([^"]*)"|(\S+)', value.translate(cls._QUOTES)):
+            if match.group(1) is not None:
+                key = Database._search_key(match.group(1))
+                if key:
+                    parts.append(f'"{key}"')
+            else:
+                parts.extend(
+                    f"{token}*" for token in Database._search_key(match.group(2)).split()
+                )
+        return " ".join(parts)
+
+    @classmethod
+    def _plain_query(cls, value: str) -> str:
+        """Texte recherché sans guillemets (recherche par sous-chaîne)."""
+        return re.sub(r"\s+", " ", value.translate(cls._QUOTES).replace('"', " ")).strip()
 
     def list_sermon_years(
         self,
@@ -161,8 +180,10 @@ class SermonsDao:
             has_location = self._has_column(conn, "sermon", "location")
             has_canonical_title = self._has_column(conn, "sermon", "canonical_title")
             has_title_search = self._has_column(conn, "sermon", "title_search")
+            has_printed = self._has_column(conn, "sermon", "printed_date")
             title_expr = self._sermon_title_expr(has_canonical_title)
             select_loc = ", location" if has_location else ""
+            select_loc += ", printed_date" if has_printed else ""
 
             sql = f"""
                 SELECT id, date, title AS original_title, {title_expr} AS title,
@@ -177,7 +198,7 @@ class SermonsDao:
                 sql += " AND tradition = ?"
                 params.append(trad.upper())
             if title_query:
-                query = title_query.strip()
+                query = self._plain_query(title_query)
                 if has_title_search:
                     sql += " AND (title_search LIKE ? OR unaccent(title) LIKE unaccent(?))"
                     params.extend((f"%{Database._search_key(query)}%", f"%{query}%"))
@@ -228,6 +249,7 @@ class SermonsDao:
                         "translator": r["tradition"],
                         "sort_key": r["date"],
                         "location": loc,
+                        "printed_date": str(r["printed_date"] or "") if has_printed else "",
                     }
                 )
         return out
@@ -237,8 +259,10 @@ class SermonsDao:
         with self._db.connect() as conn:
             has_canonical_title = self._has_column(conn, "sermon", "canonical_title")
             has_location = self._has_column(conn, "sermon", "location")
+            has_printed = self._has_column(conn, "sermon", "printed_date")
             title_expr = self._sermon_title_expr(has_canonical_title)
             select_loc = ", location" if has_location else ""
+            select_loc += ", printed_date" if has_printed else ""
             row = conn.execute(
                 f"""
                 SELECT id, date, title AS original_title, {title_expr} AS title,
@@ -261,6 +285,7 @@ class SermonsDao:
                 "translator": row["tradition"],
                 "sort_key": row["date"],
                 "location": str(row["location"] or "") if has_location else "",
+                "printed_date": str(row["printed_date"] or "") if has_printed else "",
             }
 
     def _get_marker(self, ref: str | None, no: int) -> str:
@@ -391,7 +416,7 @@ class SermonsDao:
                     JOIN sermon s ON s.id = p.sermon_id
                     WHERE unaccent(p.text) LIKE unaccent(?)
                 """
-                params = [f"%{q}%"]
+                params = [f"%{self._plain_query(q)}%"]
                 if translator:
                     sql += " AND s.tradition = ?"
                     params.append(translator.upper())

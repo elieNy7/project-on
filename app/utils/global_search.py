@@ -161,7 +161,7 @@ def search_sermons(sermons_dao, query: str, ctx: SearchContext) -> list[dict[str
         translator=ctx.sermon_translator,
         limit=ctx.per_kind,
     ):
-        date = str(s.get("date_code") or s.get("date") or "")
+        date = str(s.get("printed_date") or s.get("date_code") or s.get("date") or "")
         hits.append(
             {
                 "kind": "sermon",

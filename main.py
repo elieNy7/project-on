@@ -129,7 +129,7 @@ def main() -> int:
 
     from app.ui.theme import Colors, build_app_stylesheet, set_theme, set_window_backdrop
     from app.ui.window_effects import apply_color_scheme, mica_supported
-    from app.utils.translations import set_language
+    from app.utils.translations import set_language, tr
 
     settings = AppSettings.load(settings_path())
     set_theme(settings.appearance.theme)
@@ -150,7 +150,7 @@ def main() -> int:
     splash.show()
     app.processEvents()
 
-    splash.set_progress(10, "Chargement des polices...")
+    splash.set_progress(10, tr("splash_fonts"))
 
     from app.utils.font_loader import load_fonts
 
@@ -160,7 +160,7 @@ def main() -> int:
     # complète immédiatement).
     load_fonts(core_only=True)
 
-    splash.set_progress(20, "Initialisation des donnees...")
+    splash.set_progress(20, tr("splash_data"))
     ensure_data_initialized()
 
     from app.utils.app_paths import seed_default_backgrounds
@@ -168,7 +168,7 @@ def main() -> int:
     seed_default_backgrounds()
 
     # Initialize database
-    splash.set_progress(35, "Connexion a la base de donnees...")
+    splash.set_progress(35, tr("splash_database"))
     db = Database.default()
     db.initialize()
 
@@ -183,7 +183,7 @@ def main() -> int:
             from app.utils.app_paths import upgrade_data_pack as _upgrade_pack
 
             if _upgrade_pack(_app_db_path(), _resource_root() / "data" / "project_on.db"):
-                splash.set_progress(40, "Mise a jour du contenu...")
+                splash.set_progress(40, tr("splash_content_update"))
                 with db.connect() as _conn:
                     db._ensure_sermon_search_metadata(_conn)
                     _conn.commit()
@@ -192,11 +192,11 @@ def main() -> int:
 
         logging.getLogger(__name__).exception("Data pack upgrade failed")
 
-    splash.set_progress(65, "Chargement des modules...")
+    splash.set_progress(65, tr("splash_modules"))
     try:
         from app.ui.main_window import MainWindow  # type: ignore
 
-        splash.set_progress(85, "Preparation de l'interface...")
+        splash.set_progress(85, tr("splash_interface"))
         window = MainWindow(db=db)
     except Exception as e:
         import traceback

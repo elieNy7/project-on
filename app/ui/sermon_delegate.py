@@ -41,6 +41,7 @@ class SermonParagraphDelegate(QStyledItemDelegate):
         self.color_text = QColor(Colors.TEXT_PRIMARY)
         self.color_text_dim = QColor(Colors.TEXT_MUTED)
         self.color_accent = QColor(Colors.ACCENT_PRIMARY)
+        self.color_marker_faded = QColor(Colors.TEXT_DISABLED)
 
     def paint(
         self, painter: QPainter, option: QStyleOptionViewItem, index: QModelIndex
@@ -85,9 +86,16 @@ class SermonParagraphDelegate(QStyledItemDelegate):
 
         content_rect = rect.adjusted(self.CARD_PADDING_H, 0, -self.CARD_PADDING_H, 0)
 
-        # Draw Para ID (Marker)
+        # Draw Para ID (Marker); an alinea continuing the same numbered
+        # paragraph shows it faded.
+        continuation = bool(index.data(262))
         painter.setFont(self.marker_font)
-        painter.setPen(self.color_accent if is_sel else self.color_text)
+        if is_sel:
+            painter.setPen(self.color_accent)
+        elif continuation:
+            painter.setPen(self.color_marker_faded)
+        else:
+            painter.setPen(self.color_text)
 
         fm_para = QFontMetrics(self.marker_font)
         y_center = int(content_rect.center().y() + (fm_para.ascent() / 2) - 2)

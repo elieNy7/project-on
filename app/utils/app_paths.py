@@ -424,19 +424,30 @@ def ensure_data_initialized() -> None:
 
 # Version du pack de données éditorial embarqué dans l'installeur.
 # 2 = Exposé des Sept Âges corrigé (lectures bibliques fusionnées en un seul
-# paragraphe, résidus de mise en page purgés). Incrémenter à chaque fois que
-# le contenu embarqué doit converger vers les bases déjà installées : les
-# chapitres « BK-AGES-% » sont alors remplacés depuis la base embarquée, une
-# seule fois, sans toucher aux cantiques, playlists et réglages de l'utilisateur.
-DATA_PACK_VERSION = 2
+# paragraphe, résidus de mise en page purgés).
+# 3 = sermons SHP réimportés depuis les PDF (un alinéa par ligne, paragraphes
+# sans en-tête récupérés, titre/lieu/date imprimés).
+# Incrémenter à chaque fois que le contenu embarqué doit converger vers les
+# bases déjà installées : les chapitres « BK-AGES-% » et les sermons SHP sont
+# alors remplacés depuis la base embarquée, une seule fois, sans toucher aux
+# cantiques, playlists et réglages de l'utilisateur.
+DATA_PACK_VERSION = 3
+
+# Contenu éditorial remplacé par le pack (alias de table ``s``).
+_PACK_SCOPE = "(s.date LIKE 'BK-AGES-%' OR s.tradition = 'SHP')"
+_PACK_SERMON_COLUMNS = (
+    "title", "date", "tradition", "language", "source_path", "sort_key",
+    "location", "canonical_title", "title_search",
+)
+_PACK_OPTIONAL_COLUMNS = ("printed_date", "printed_location")
 
 
 def upgrade_data_pack(target_path: Path, bundled_path: Path) -> bool:
-    """Remplace les chapitres de l'Exposé (dates ``BK-AGES-%``) par ceux du pack.
+    """Remplace l'Exposé (``BK-AGES-%``) et les sermons SHP par ceux du pack.
 
     Les bases utilisateur ne sont jamais écrasées, mais le contenu éditorial
     corrigé doit converger : si la base cible porte un ``data_pack_version``
-    antérieur à :data:`DATA_PACK_VERSION`, les lignes BK-AGES sont remplacées
+    antérieur à :data:`DATA_PACK_VERSION`, ces lignes sont remplacées
     depuis la base embarquée dans une transaction atomique. Retourne True si
     une migration a été appliquée.
 
@@ -470,13 +481,13 @@ def upgrade_data_pack(target_path: Path, bundled_path: Path) -> bool:
         if connection.execute("PRAGMA pack.quick_check").fetchone()[0] != "ok":
             raise ValueError("Pack illisible")
         chapters = connection.execute(
-            "SELECT date, tradition, COUNT(*) FROM pack.sermon "
-            "WHERE date LIKE 'BK-AGES-%' GROUP BY date, tradition"
+            "SELECT s.date, s.tradition, COUNT(*) FROM pack.sermon s "
+            f"WHERE {_PACK_SCOPE} GROUP BY s.date, s.tradition"
         ).fetchall()
         if not chapters or any(row[2] != 1 for row in chapters):
             raise ValueError("Pack vide ou chapitres ambigus")
         if connection.execute(
-            "SELECT 1 FROM pack.sermon s WHERE s.date LIKE 'BK-AGES-%' AND "
+            f"SELECT 1 FROM pack.sermon s WHERE {_PACK_SCOPE} AND "
             "(trim(s.title)='' OR NOT EXISTS (SELECT 1 FROM pack.sermon_paragraph p "
             "WHERE p.sermon_id=s.id AND trim(p.text) != '')) LIMIT 1"
         ).fetchone():
@@ -487,22 +498,26 @@ def upgrade_data_pack(target_path: Path, bundled_path: Path) -> bool:
         connection.row_factory = sqlite3.Row
         connection.execute("BEGIN IMMEDIATE")
         connection.execute(
-            """
+            f"""
             DELETE FROM sermon_paragraph
-            WHERE sermon_id IN (
-                SELECT id FROM sermon WHERE date LIKE 'BK-AGES-%'
-            )
+            WHERE sermon_id IN (SELECT s.id FROM sermon s WHERE {_PACK_SCOPE})
             """
         )
-        connection.execute("DELETE FROM sermon WHERE date LIKE 'BK-AGES-%'")
+        connection.execute(f"DELETE FROM sermon AS s WHERE {_PACK_SCOPE}")
+        # Colonnes récentes (date/lieu imprimés) copiées si les deux bases
+        # les ont ; les noms viennent d'une liste fixe.
+        target_cols = {r[1] for r in connection.execute("PRAGMA main.table_info(sermon)")}
+        pack_cols = {r[1] for r in connection.execute("PRAGMA pack.table_info(sermon)")}
+        columns = ", ".join(
+            _PACK_SERMON_COLUMNS
+            + tuple(c for c in _PACK_OPTIONAL_COLUMNS if c in target_cols and c in pack_cols)
+        )
         connection.execute(
-            """
-            INSERT INTO sermon (title, date, tradition, language, source_path,
-                                sort_key, location, canonical_title, title_search)
-            SELECT title, date, tradition, language, source_path,
-                   sort_key, location, canonical_title, title_search
-            FROM pack.sermon
-            WHERE date LIKE 'BK-AGES-%'
+            f"""
+            INSERT INTO sermon ({columns})
+            SELECT {columns}
+            FROM pack.sermon s
+            WHERE {_PACK_SCOPE}
             """
         )
         # Les identifiants du pack ne correspondent pas à ceux de la base
@@ -513,12 +528,12 @@ def upgrade_data_pack(target_path: Path, bundled_path: Path) -> bool:
             "(old_id INTEGER PRIMARY KEY, new_id INTEGER NOT NULL)"
         )
         connection.execute(
-            """
+            f"""
             INSERT INTO _pack_map (old_id, new_id)
-            SELECT p.id, s.id
-            FROM pack.sermon p
-            JOIN sermon s ON s.date = p.date AND s.tradition = p.tradition
-            WHERE p.date LIKE 'BK-AGES-%'
+            SELECT s.id, t.id
+            FROM pack.sermon s
+            JOIN sermon t ON t.date = s.date AND t.tradition = s.tradition
+            WHERE {_PACK_SCOPE}
             """
         )
         connection.execute(
@@ -555,7 +570,7 @@ def upgrade_data_pack(target_path: Path, bundled_path: Path) -> bool:
             connection.execute(
                 "CREATE VIRTUAL TABLE sermon_paragraph_fts USING fts5("
                 "text, ref, sermon_title, canonical_title, "
-                "content='', detail=none, "
+                "content='', detail=full, "
                 "tokenize='unicode61 remove_diacritics 2')"
             )
             connection.execute(

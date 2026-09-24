@@ -84,7 +84,9 @@ class SermonsTab(QFrame):
         # Paragraph search (right panel)
         self._para_search_mode = False
         self._para_search = QLineEdit(self)
-        self._para_search.setPlaceholderText("Rechercher dans tous les paragraphes...")
+        self._para_search.setPlaceholderText(
+            "Rechercher dans tous les paragraphes (« expression exacte »)..."
+        )
         self._para_search.setClearButtonEnabled(True)
         self._para_search.setStyleSheet(get_input_style())
         self._para_search.hide()
@@ -413,6 +415,10 @@ class SermonsTab(QFrame):
                 item.setData(Qt.ItemDataRole.UserRole + 2, date)
                 item.setData(Qt.ItemDataRole.UserRole + 3, location)
                 item.setData(Qt.ItemDataRole.UserRole + 4, badge_text)
+                # Date telle qu'imprimée dans la source (« Sam 12.04.47 »).
+                item.setData(
+                    Qt.ItemDataRole.UserRole + 5, str(s.get("printed_date", "") or "")
+                )
 
                 self.sermons_list.addItem(item)
         finally:
@@ -439,6 +445,7 @@ class SermonsTab(QFrame):
                 f"{count} paragraphe{'s' if count != 1 else ''}"
             )
 
+            previous_marker = None
             for p in paragraphs:
                 no = p.get("paragraph_no")
                 para_id = str(p.get("marker") or p.get("para_id") or "")
@@ -472,6 +479,11 @@ class SermonsTab(QFrame):
                 item.setData(259, self._current_sermon_id)
                 item.setData(260, self._current_sermon_title)
                 item.setData(261, self._current_sermon_date)
+                # Alinéa suivant d'un même paragraphe numéroté : le délégué
+                # atténue son numéro, comme dans le PDF où il n'est imprimé
+                # qu'une fois.
+                item.setData(262, bool(marker) and marker == previous_marker)
+                previous_marker = marker
                 self.paragraphs_list.addItem(item)
         finally:
             self.paragraphs_list.setUpdatesEnabled(True)

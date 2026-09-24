@@ -10,15 +10,27 @@ Leur mise en page fournit trois signaux fiables que ce script utilise ensemble:
 L'import ne segmente donc jamais sur une simple ligne vide. Les en-tetes/pieds de
 page Kosher et les informations d'export sont exclus par leur position et leur
 libelle. Le titre, le lieu et la date proviennent toujours du bandeau imprime
-(16 pt blanc), jamais de l'en-tete repete : le titre stocke est donc exactement
-celui du PDF, coquilles comprises. Par defaut le script analyse et valide
-seulement. ``--apply`` est requis pour remplacer uniquement les sermons SHP,
+(16 pt blanc) : le titre stocke est donc exactement celui du PDF, coquilles
+comprises. L'en-tete repete (titre, lieu et date separes par 4 espaces ou plus)
+sert seulement a placer la coupure titre/lieu dans le bandeau.
+
+Chaque paragraphe numerote est decoupe en alineas d'apres le retrait de la
+premiere ligne (corps a 72 pt, nouvel alinea a 79 pt, lecture biblique a
+143 pt puis 115 pt) : un alinea devient une ligne de la base, tous les alineas
+d'un paragraphe partagent son marqueur (``§12``). Quand la source omet
+l'en-tete bleu avant un paragraphe, son numero reste dans le texte du
+precedent (``... Je crois... 6. Quelqu'un m'a dit``) : il est recupere s'il
+comble exactement un trou de la numerotation.
+
+Par defaut le script analyse et valide seulement. ``--apply`` est requis pour remplacer uniquement les sermons SHP,
 tout en conservant Expose, VGR, BSS et toute autre traduction deja presente.
 ``--apply --metadata-only`` importe le catalogue seul (titre exact, date, lieu)
 sans le texte des paragraphes.
 
-Apres l'import, l'application recalcule les metadonnees de recherche : la
-traduction SHP garde toujours son titre PDF exact comme titre canonique.
+En base, ``title``, ``printed_location`` et ``printed_date`` gardent le texte
+exact du PDF; ``canonical_title`` et ``location`` en sont la forme affichee
+(majuscule a chaque mot, memes mots). Apres l'import, l'application recalcule
+les metadonnees de recherche et l'index plein texte.
 """
 
 from __future__ import annotations
@@ -53,6 +65,10 @@ DATE_AT_END_RE = re.compile(
     re.IGNORECASE,
 )
 LEADING_MARKER_RE = re.compile(r"\d+[A-Za-z]?(?:\s*\.\s*|$)")
+# Retraits des lignes de corps (points PDF, marge gauche a 72 pt) : 79 pt ouvre
+# un alinea, 143 pt une lecture biblique en retrait (suite a 115 pt).
+BODY_LEFT = 72.0
+HEADER_FIELD_SEP_RE = re.compile(r"\s{4,}")
 WEEKDAY_RE = re.compile(
     r"^(?:Lun|Mar|Mer|Jeu|Ven|Sam|Dim)$", re.IGNORECASE
 )
@@ -82,6 +98,12 @@ class ExtractedParagraph:
     text: str
     page_start: int
     page_end: int
+    # Alineas du paragraphe, dans l'ordre; vide = un seul alinea (``text``).
+    alineas: tuple[str, ...] = ()
+
+    @property
+    def parts(self) -> tuple[str, ...]:
+        return self.alineas or (self.text,)
 
 
 @dataclass
@@ -93,6 +115,9 @@ class ExtractedSermon:
     source_path: str
     source_page: int
     paragraphs: list[ExtractedParagraph] = field(default_factory=list)
+    # Date et lieu tels qu'imprimes dans le PDF (ex. "Sam 12.04.47").
+    printed_date: str = ""
+    recovered_markers: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -109,8 +134,27 @@ class _ParagraphBuilder:
     header: str
     page_start: int
     marker: str | None = None
-    text_lines: list[str] = field(default_factory=list)
+    alineas: list[list[str]] = field(default_factory=list)
     page_end: int = 0
+
+    @property
+    def has_text(self) -> bool:
+        return any(self.alineas)
+
+    def add(self, text: str, new_alinea: bool) -> None:
+        if not text:
+            return
+        if new_alinea or not self.alineas:
+            self.alineas.append([text])
+        else:
+            self.alineas[-1].append(text)
+
+
+def starts_alinea(x0: float) -> bool:
+    """Vrai si une ligne de corps commencant a ``x0`` ouvre un alinea."""
+
+    offset = x0 - BODY_LEFT
+    return 4.0 <= offset < 28.0 or offset >= 60.0
 
 
 def _clean_line(value: str) -> str:
@@ -207,13 +251,70 @@ def parse_paragraph_start(
     return marker, body
 
 
+def split_header_fields(raw_header: str) -> tuple[str, str] | None:
+    """Retourne ``(titre, lieu)`` de l'en-tete bleu brut, ou None.
+
+    L'en-tete separe titre, lieu et date par au moins 4 espaces, alors que les
+    mots d'un titre peuvent etre separes par 2 espaces (``ALLUMEZ  LA  LUMIERE``).
+    """
+
+    match = DATE_AT_END_RE.search(raw_header.rstrip())
+    if match is None:
+        return None
+    fields = [
+        field.strip()
+        for field in HEADER_FIELD_SEP_RE.split(raw_header[: match.start()].strip())
+        if field.strip()
+    ]
+    if len(fields) < 2:
+        return None
+    return _clean_line(" ".join(fields[:-1])), _clean_line(fields[-1])
+
+
+def _align_banner_on_header(
+    title: str, location: str, raw_header: str
+) -> tuple[str, str] | None:
+    """Replace la coupure titre/lieu du bandeau sur celle de l'en-tete.
+
+    Les mots restent ceux du bandeau (titre exact du PDF); seule la frontiere
+    est choisie pour ressembler au mieux aux champs de l'en-tete, coquilles
+    de l'un ou de l'autre comprises.
+    """
+
+    fields = split_header_fields(raw_header)
+    if fields is None:
+        return None
+    header_title, header_location = (_compact_key(value) for value in fields)
+    words: list[str] = []
+    for token in " ".join(part for part in (title, location) if part).split():
+        if words and not any(char.isalnum() for char in token):
+            # "CELA ?" : la ponctuation isolee reste avec le mot precedent.
+            words[-1] = f"{words[-1]} {token}"
+        else:
+            words.append(token)
+    if len(words) < 2:
+        return None
+    best: tuple[int, int] | None = None
+    for cut in range(1, len(words)):
+        cost = _edit_distance(
+            _compact_key(" ".join(words[:cut])), header_title
+        ) + _edit_distance(_compact_key(" ".join(words[cut:])), header_location)
+        if best is None or cost < best[0]:
+            best = (cost, cut)
+    assert best is not None
+    cut = best[1]
+    return " ".join(words[:cut]), " ".join(words[cut:])
+
+
 def parse_banner_metadata(
-    banner_lines: Iterable[BannerLine], header: str
+    banner_lines: Iterable[BannerLine], header: str, raw_header: str = ""
 ) -> tuple[str, str, str]:
     """Retourne ``(titre, lieu, code_date)`` a partir du bandeau blanc.
 
     Le titre peut occuper deux lignes. Lorsque titre et lieu partagent une ligne,
     le PDF les separe par une large suite d'espaces, conservee dans le span PDF.
+    ``raw_header`` (en-tete bleu non normalise) fixe la coupure titre/lieu
+    quand les espaces du bandeau sont ambigus.
     """
 
     date_code, header_date = _date_code(header)
@@ -253,6 +354,10 @@ def parse_banner_metadata(
 
     title = _clean_line(" ".join(title_parts))
     location = _clean_line(" ".join(location_parts))
+    if raw_header:
+        aligned = _align_banner_on_header(title, location, raw_header)
+        if aligned is not None:
+            title, location = aligned
     if not title:
         raise ExtractionError(f"Titre vide dans le bandeau: {header!r}")
 
@@ -287,6 +392,48 @@ def _is_page_chrome(text: str, y: float, page_height: float) -> bool:
     return any(token in clean for token in FOOTER_TOKENS)
 
 
+def _page_lines(page: Any) -> list[tuple[str, set[int], float, float, float]]:
+    """Lignes de la page ``(texte, couleurs, taille, y, x0)``.
+
+    Les morceaux de texte d'une meme ligne visuelle (meme ligne de base) sont
+    fusionnes : le PDF place parfois le numero de paragraphe et son texte, ou
+    la fin d'une phrase et un mot isole, dans des lignes distinctes.
+    """
+
+    flags = fitz.TEXTFLAGS_DICT & ~fitz.TEXT_PRESERVE_IMAGES
+    lines: list[tuple[str, set[int], float, float, float]] = []
+    previous_bottom: float | None = None
+    for block in page.get_text("dict", flags=flags, sort=True).get("blocks", []):
+        for line in block.get("lines", []):
+            text, colors, max_size = _line_style(line)
+            if not text.strip():
+                continue
+            x0, y0, _x1, y1 = (float(v) for v in line.get("bbox", (0, 0, 0, 0)))
+            is_body = not colors & {BLUE, WHITE}
+            if (
+                is_body
+                and lines
+                and previous_bottom is not None
+                and abs(previous_bottom - y1) < 3.0
+                and not lines[-1][1] & {BLUE, WHITE}
+            ):
+                last_text, last_colors, last_size, last_y, last_x = lines[-1]
+                # Un numero imprime sans point ("1" puis "Restons debout")
+                # doit rester lisible comme marqueur apres la fusion.
+                separator = ". " if re.fullmatch(r"\d+[A-Za-z]?", last_text.strip()) else " "
+                lines[-1] = (
+                    f"{last_text.strip() if separator == '. ' else last_text}{separator}{text}",
+                    last_colors | colors,
+                    max(last_size, max_size),
+                    last_y,
+                    min(last_x, x0),
+                )
+                continue
+            lines.append((text, colors, max_size, y0, x0))
+            previous_bottom = y1
+    return lines
+
+
 def extract_pdf(pdf_path: Path, root: Path = ROOT) -> FileExtraction:
     """Extrait et valide tous les sermons d'un PDF annuel SHP."""
 
@@ -299,13 +446,19 @@ def extract_pdf(pdf_path: Path, root: Path = ROOT) -> FileExtraction:
     pending_banner: list[BannerLine] = []
     banner_open = False
     pending_header_parts: list[str] = []
+    pending_header_raw: list[str] = []
     pending_header_page = 0
 
     def finish_paragraph() -> None:
         nonlocal current_para
         if current_para is None:
             return
-        text = _clean_line(" ".join(current_para.text_lines))
+        alineas = tuple(
+            text
+            for text in (_clean_line(" ".join(lines)) for lines in current_para.alineas)
+            if text
+        )
+        text = "\n".join(alineas)
         if current_para.marker is None and not text:
             current_para = None
             return
@@ -343,6 +496,7 @@ def extract_pdf(pdf_path: Path, root: Path = ROOT) -> FileExtraction:
                 text=text,
                 page_start=current_para.page_start,
                 page_end=current_para.page_end or current_para.page_start,
+                alineas=alineas,
             )
         )
         current_para = None
@@ -350,10 +504,13 @@ def extract_pdf(pdf_path: Path, root: Path = ROOT) -> FileExtraction:
     def start_pending_header() -> None:
         nonlocal current_sermon, current_para
         nonlocal pending_banner, banner_open
-        nonlocal pending_header_parts, pending_header_page
+        nonlocal pending_header_parts, pending_header_raw, pending_header_page
         if not pending_header_parts:
             return
         header = _clean_line(" ".join(pending_header_parts))
+        # Un en-tete sur deux lignes peut couper le lieu ("EDMONTON AB" /
+        # "CANADA") : les lignes sont jointes par une simple espace.
+        raw_header = " ".join(part.strip() for part in pending_header_raw)
         page_no = pending_header_page
         try:
             code, date_match = _date_code(header)
@@ -372,7 +529,7 @@ def extract_pdf(pdf_path: Path, root: Path = ROOT) -> FileExtraction:
         if current_sermon is None or current_sermon.date_code != code:
             try:
                 title, location, banner_code = parse_banner_metadata(
-                    pending_banner, header
+                    pending_banner, header, raw_header
                 )
             except ExtractionError as exc:
                 raise ExtractionError(
@@ -398,6 +555,7 @@ def extract_pdf(pdf_path: Path, root: Path = ROOT) -> FileExtraction:
                 header=header,
                 source_path=relative_source,
                 source_page=page_no,
+                printed_date=printed_banner_date(pending_banner, date_match),
             )
             sermons.append(current_sermon)
         elif _key(current_sermon.header) != _key(header):
@@ -414,102 +572,88 @@ def extract_pdf(pdf_path: Path, root: Path = ROOT) -> FileExtraction:
             page_end=page_no,
         )
         pending_header_parts = []
+        pending_header_raw = []
         pending_header_page = 0
 
     document = fitz.open(pdf_path)
     page_count = len(document)
     try:
-        flags = fitz.TEXTFLAGS_DICT & ~fitz.TEXT_PRESERVE_IMAGES
         for page_index, page in enumerate(document):
             page_no = page_index + 1
             page_height = float(page.rect.height)
-            page_dict = page.get_text("dict", flags=flags, sort=True)
-            for block in page_dict.get("blocks", []):
-                for line in block.get("lines", []):
-                    raw_text, colors, max_size = _line_style(line)
-                    if not raw_text.strip():
-                        continue
-                    y = float(line.get("bbox", (0.0, 0.0, 0.0, 0.0))[1])
+            for raw_text, colors, max_size, y, x0 in _page_lines(page):
+                # Le sous-titre eventuel du bandeau est blanc mais a 10 pt;
+                # seules les lignes principales titre/lieu/date sont a 16 pt.
+                is_banner = WHITE in colors and 14.0 <= max_size <= 20.0
+                is_header = BLUE in colors and max_size <= 11.5
+                is_chrome = _is_page_chrome(raw_text, y, page_height)
 
-                    # Le sous-titre eventuel du bandeau est blanc mais a 10 pt;
-                    # seules les lignes principales titre/lieu/date sont a 16 pt.
-                    is_banner = WHITE in colors and 14.0 <= max_size <= 20.0
-                    is_header = BLUE in colors and max_size <= 11.5
-                    is_chrome = _is_page_chrome(raw_text, y, page_height)
-
-                    if is_header:
-                        if pending_header_parts:
-                            pending_text = _clean_line(" ".join(pending_header_parts))
-                            if DATE_AT_END_RE.search(pending_text) is not None:
-                                # En-tete orphelin en bas de page, repete au
-                                # debut de la suivante avant le meme paragraphe.
-                                start_pending_header()
-                                finish_paragraph()
-                        if not pending_header_parts:
-                            finish_paragraph()
-                            pending_header_page = page_no
-                        pending_header_parts.append(_clean_line(raw_text))
-                        continue
-
-                    # Certains en-tetes longs occupent deux lignes bleues. Ils
-                    # ne sont interpretes qu'au premier element non bleu.
+                if is_header:
                     if pending_header_parts:
                         pending_text = _clean_line(" ".join(pending_header_parts))
-                        if DATE_AT_END_RE.search(pending_text) is None and is_chrome:
-                            # Une ligne d'en-tete peut commencer en bas d'une
-                            # page et sa date apparaitre en haut de la suivante.
-                            continue
-                    start_pending_header()
-
-                    if is_banner:
-                        if not banner_open:
+                        if DATE_AT_END_RE.search(pending_text) is not None:
+                            # En-tete orphelin en bas de page, repete au
+                            # debut de la suivante avant le meme paragraphe.
+                            start_pending_header()
                             finish_paragraph()
-                            pending_banner = []
-                            banner_open = True
-                        pending_banner.append(BannerLine(raw_text, page_no, y))
-                        continue
+                    if not pending_header_parts:
+                        finish_paragraph()
+                        pending_header_page = page_no
+                    pending_header_parts.append(_clean_line(raw_text))
+                    pending_header_raw.append(raw_text)
+                    continue
 
-                    if is_chrome:
+                # Certains en-tetes longs occupent deux lignes bleues. Ils
+                # ne sont interpretes qu'au premier element non bleu.
+                if pending_header_parts:
+                    pending_text = _clean_line(" ".join(pending_header_parts))
+                    if DATE_AT_END_RE.search(pending_text) is None and is_chrome:
+                        # Une ligne d'en-tete peut commencer en bas d'une
+                        # page et sa date apparaitre en haut de la suivante.
                         continue
-                    if current_para is None:
-                        continue
+                start_pending_header()
 
-                    body = _clean_line(raw_text)
-                    if not body:
+                if is_banner:
+                    if not banner_open:
+                        finish_paragraph()
+                        pending_banner = []
+                        banner_open = True
+                    pending_banner.append(BannerLine(raw_text, page_no, y))
+                    continue
+
+                if is_chrome:
+                    continue
+                if current_para is None:
+                    continue
+
+                body = _clean_line(raw_text)
+                if not body:
+                    continue
+                new_alinea = starts_alinea(x0)
+                current_para.page_end = page_no
+                expected_marker = None
+                if current_sermon is not None and current_sermon.paragraphs:
+                    expected_marker = _next_marker(current_sermon.paragraphs[-1].marker)
+                if current_para.marker is None:
+                    parsed = parse_paragraph_start(body, expected_marker)
+                    if parsed is None:
+                        current_para.add(body, new_alinea)
                         continue
-                    current_para.page_end = page_no
-                    if current_para.marker is None:
-                        expected_marker = None
-                        if current_sermon is not None and current_sermon.paragraphs:
-                            expected_marker = _next_marker(
-                                current_sermon.paragraphs[-1].marker
-                            )
-                        parsed = parse_paragraph_start(body, expected_marker)
-                        if parsed is None:
-                            current_para.text_lines.append(body)
-                            continue
-                        current_para.marker, initial_text = parsed
-                        if initial_text:
-                            current_para.text_lines.append(initial_text)
-                    else:
-                        expected_marker = None
-                        if current_sermon is not None and current_sermon.paragraphs:
-                            expected_marker = _next_marker(
-                                current_sermon.paragraphs[-1].marker
-                            )
-                        replacement = None
-                        if (
-                            expected_marker is not None
-                            and current_para.marker != expected_marker
-                            and not current_para.text_lines
-                        ):
-                            replacement = parse_paragraph_start(body, expected_marker)
-                        if replacement is not None and replacement[0] == expected_marker:
-                            current_para.marker, corrected_text = replacement
-                            if corrected_text:
-                                current_para.text_lines.append(corrected_text)
-                        else:
-                            current_para.text_lines.append(body)
+                    current_para.marker, initial_text = parsed
+                    current_para.add(initial_text, True)
+                    continue
+                replacement = None
+                if (
+                    expected_marker is not None
+                    and current_para.marker != expected_marker
+                    and not current_para.has_text
+                ):
+                    replacement = parse_paragraph_start(body, expected_marker)
+                if replacement is not None and replacement[0] == expected_marker:
+                    current_para.marker, corrected_text = replacement
+                    current_para.add(corrected_text, True)
+                else:
+                    current_para.add(body, new_alinea)
 
         start_pending_header()
         finish_paragraph()
@@ -530,6 +674,7 @@ def extract_pdf(pdf_path: Path, root: Path = ROOT) -> FileExtraction:
             raise ExtractionError(
                 f"{relative_source}: sermon sans paragraphe: {sermon.date_code}"
             )
+        sermon.recovered_markers = recover_inline_markers(sermon)
         markers = [paragraph.marker for paragraph in sermon.paragraphs]
         duplicate_markers = sorted(
             marker for marker in set(markers) if markers.count(marker) > 1
@@ -546,6 +691,86 @@ def extract_pdf(pdf_path: Path, root: Path = ROOT) -> FileExtraction:
         warnings=warnings,
         elapsed_seconds=round(time.perf_counter() - started, 3),
     )
+
+
+def printed_banner_date(banner: list[BannerLine], header_date: re.Match[str]) -> str:
+    """Date telle qu'imprimee dans le bandeau (``Sam 12.04.47``)."""
+
+    for line in reversed(banner):
+        match = DATE_AT_END_RE.search(_clean_line(line.text))
+        if match is not None:
+            return _clean_line(match.group(0))
+    return _clean_line(header_date.group(0))
+
+
+def _marker_number(marker: str) -> int | None:
+    return int(marker) if marker.isdigit() else None
+
+
+def _inline_marker_re(number: int) -> re.Pattern[str]:
+    # "... Je crois…6. Quelqu'un", "Dieu. 18.Maintenant" : numero precede d'un
+    # blanc ou d'une ponctuation, suivi d'un point et d'une majuscule.
+    return re.compile(
+        rf"(?:^|(?<=[\s.…!?»:;)\]]))(?<![\d,]){number}\s?\.\s*"
+        r"(?=[«\"“A-ZÀ-ÖØ-Þ\[(])"
+    )
+
+
+def _split_at_inline_marker(
+    paragraph: ExtractedParagraph, number: int
+) -> tuple[ExtractedParagraph, ExtractedParagraph] | None:
+    pattern = _inline_marker_re(number)
+    parts = paragraph.parts
+    for index, part in enumerate(parts):
+        for match in pattern.finditer(part):
+            before = part[: match.start()].rstrip()
+            if index == 0 and not before:
+                continue
+            after = part[match.end() :].strip()
+            if not after:
+                continue
+            head = tuple(parts[:index]) + ((before,) if before else ())
+            tail = (after,) + tuple(parts[index + 1 :])
+            return (
+                ExtractedParagraph(
+                    marker=paragraph.marker,
+                    text="\n".join(head),
+                    page_start=paragraph.page_start,
+                    page_end=paragraph.page_end,
+                    alineas=head,
+                ),
+                ExtractedParagraph(
+                    marker=str(number),
+                    text="\n".join(tail),
+                    page_start=paragraph.page_end,
+                    page_end=paragraph.page_end,
+                    alineas=tail,
+                ),
+            )
+    return None
+
+
+def recover_inline_markers(sermon: ExtractedSermon) -> list[str]:
+    """Recupere les paragraphes dont la source a omis l'en-tete bleu.
+
+    Leur numero est reste dans le texte du paragraphe precedent. Il n'est
+    retenu que s'il comble exactement un trou de la numerotation (``§5`` puis
+    ``§7`` : on cherche ``6.`` dans le ``§5``). Retourne les marqueurs recuperes.
+    """
+
+    recovered: list[str] = []
+    paragraphs = sermon.paragraphs
+    index = 0
+    while index < len(paragraphs) - 1:
+        current = _marker_number(paragraphs[index].marker)
+        following = _marker_number(paragraphs[index + 1].marker)
+        if current is not None and following is not None and following > current + 1:
+            split = _split_at_inline_marker(paragraphs[index], current + 1)
+            if split is not None:
+                paragraphs[index : index + 1] = list(split)
+                recovered.append(str(current + 1))
+        index += 1
+    return recovered
 
 
 def discover_pdfs(source: Path, years: set[str] | None = None) -> list[Path]:
@@ -590,6 +815,17 @@ def extract_corpus(pdfs: list[Path], workers: int) -> list[FileExtraction]:
     return sorted(results, key=lambda item: item.source_path)
 
 
+def marker_gaps(sermon: ExtractedSermon) -> list[str]:
+    """Trous restants dans la numerotation (``"5>7"``)."""
+
+    gaps: list[str] = []
+    numbers = [_marker_number(paragraph.marker) for paragraph in sermon.paragraphs]
+    for current, following in zip(numbers, numbers[1:]):
+        if current is not None and following is not None and following > current + 1:
+            gaps.append(f"{current}>{following}")
+    return gaps
+
+
 def validate_corpus(results: list[FileExtraction]) -> dict[str, Any]:
     sermons = [sermon for result in results for sermon in result.sermons]
     if not sermons:
@@ -617,6 +853,11 @@ def validate_corpus(results: list[FileExtraction]) -> dict[str, Any]:
         "page_count": sum(result.page_count for result in results),
         "sermon_count": len(sermons),
         "paragraph_count": sum(len(sermon.paragraphs) for sermon in sermons),
+        "alinea_count": sum(
+            len(paragraph.parts) for sermon in sermons for paragraph in sermon.paragraphs
+        ),
+        "recovered_paragraphs": sum(len(sermon.recovered_markers) for sermon in sermons),
+        "remaining_gaps": sum(len(marker_gaps(sermon)) for sermon in sermons),
         "warning_count": sum(len(result.warnings) for result in results),
         "by_year": {
             Path(result.source_path).parent.name: {
@@ -661,6 +902,9 @@ def apply_import(
 ) -> dict[str, Any]:
     if not db_path.exists():
         raise ExtractionError(f"Base de donnees introuvable: {db_path}")
+    sys.path.insert(0, str(ROOT))
+    from app.database.connection import Database, DatabaseConfig
+
     backup_path = _backup_database(db_path, backup_dir) if backup_dir else None
     sermons = [sermon for result in results for sermon in result.sermons]
     sermons.sort(key=lambda item: item.date_code)
@@ -669,6 +913,12 @@ def apply_import(
     try:
         connection.execute("PRAGMA foreign_keys = ON")
         connection.execute("PRAGMA busy_timeout = 120000")
+        columns = {row[1] for row in connection.execute("PRAGMA table_info(sermon)")}
+        for column in ("printed_date", "printed_location"):
+            if column not in columns:
+                connection.execute(
+                    f"ALTER TABLE sermon ADD COLUMN {column} TEXT DEFAULT ''"
+                )
         connection.execute("BEGIN IMMEDIATE")
         expose_before = int(
             connection.execute(
@@ -726,8 +976,9 @@ def apply_import(
         sermon_sql = """
             INSERT INTO sermon
                 (title, date, tradition, language, source_path, sort_key,
-                 location, canonical_title, title_search)
-            VALUES (?, ?, 'SHP', 'fr', ?, ?, ?, ?, ?)
+                 location, canonical_title, title_search,
+                 printed_date, printed_location)
+            VALUES (?, ?, 'SHP', 'fr', ?, ?, ?, ?, ?, ?, ?)
         """
         paragraph_sql = """
             INSERT INTO sermon_paragraph
@@ -735,7 +986,8 @@ def apply_import(
             VALUES (?, ?, ?, ?, ?)
         """
         for sermon in sermons:
-            canonical = sermon.title
+            canonical = Database.title_case_words(sermon.title)
+            location = Database.display_location(sermon.location)
             title_search = _search_key(
                 " ".join(
                     (
@@ -754,9 +1006,11 @@ def apply_import(
                     sermon.date_code,
                     sermon.source_path,
                     sermon.date_code,
-                    sermon.location,
+                    location,
                     canonical,
                     title_search,
+                    sermon.printed_date,
+                    sermon.location,
                 ),
             )
             sermon_id = int(cursor.lastrowid)
@@ -764,18 +1018,21 @@ def apply_import(
                 # Mode catalogue : seul le titre exact, la date et le lieu
                 # sont importes; le texte reste dans les PDF sources.
                 continue
+            # Une ligne par alinea; les alineas d'un paragraphe partagent
+            # son marqueur.
             rows = []
-            for ordinal, paragraph in enumerate(sermon.paragraphs, start=1):
+            for paragraph in sermon.paragraphs:
                 marker = f"§{paragraph.marker}"
-                rows.append(
-                    (
-                        sermon_id,
-                        ordinal,
-                        f"{sermon.title} {marker}",
-                        paragraph.text,
-                        marker,
+                for alinea in paragraph.parts:
+                    rows.append(
+                        (
+                            sermon_id,
+                            len(rows) + 1,
+                            f"{sermon.title} {marker}",
+                            alinea,
+                            marker,
+                        )
                     )
-                )
             connection.executemany(paragraph_sql, rows)
         connection.commit()
     except Exception:
@@ -785,9 +1042,6 @@ def apply_import(
         connection.close()
 
     # Recalcule titres canoniques, marqueurs et index FTS avec le code de l'app.
-    sys.path.insert(0, str(ROOT))
-    from app.database.connection import Database, DatabaseConfig
-
     database = Database(DatabaseConfig(db_path=db_path))
     with database.connect() as connection:
         database._ensure_sermon_search_metadata(connection)
@@ -859,7 +1113,11 @@ def apply_import(
 
     expected_sermons = len(sermons)
     expected_paragraphs = (
-        0 if metadata_only else sum(len(sermon.paragraphs) for sermon in sermons)
+        0
+        if metadata_only
+        else sum(
+            len(paragraph.parts) for sermon in sermons for paragraph in sermon.paragraphs
+        )
     )
     if actual["expose_sermons"] != expose_before:
         raise ExtractionError("Le nombre de chapitres Expose a change apres l'import")
@@ -908,6 +1166,10 @@ def write_report(
                 "date_code": sermon.date_code,
                 "title": sermon.title,
                 "location": sermon.location,
+                "printed_date": sermon.printed_date,
+                "alinea_count": sum(len(p.parts) for p in sermon.paragraphs),
+                "recovered_markers": sermon.recovered_markers,
+                "marker_gaps": marker_gaps(sermon),
                 "source_path": sermon.source_path,
                 "source_page": sermon.source_page,
                 "paragraph_count": len(sermon.paragraphs),

@@ -15,6 +15,11 @@
 - **Une seule page Réglages** ⚙️ : les six fenêtres de réglages deviennent des sections d'une même page, à côté des moniteurs. Chaque changement s'applique et s'enregistre **aussitôt**, sans bouton. Tous les écrans ont été redessinés : plus de texte tronqué ni de défilement horizontal.
 - **Échap protégé** 🛡️ : dans un champ de saisie (recherches, textes, nombres), Échap ne ferme plus la projection.
 
+- **Sermons SHP fidèles au PDF** 📖 : les 1 209 sermons ont été réimportés depuis les recueils annuels. Chaque alinéa et chaque lecture biblique forment désormais leur propre ligne (plus de pavés de texte), tous rattachés au numéro du paragraphe (§12). Les paragraphes que la source avait collés au précédent (« …Je crois… 6. Quelqu'un m'a dit ») sont retrouvés.
+- **Titre, lieu et date exacts** 🗓️ : le titre et le lieu gardent les mots du bandeau du PDF, avec une majuscule à chaque mot (« La Foi Est Une Ferme Assurance », « Oakland CA USA ») ; la date s'affiche telle qu'imprimée (« Sam 12.04.47 »). Les titres coupés par erreur (« Allumez » / « La Lumière ») sont corrigés.
+- **Recherche par expression exacte** 🔤 : entre guillemets, « ferme assurance » ne trouve que cette expression, dans l'ordre ; sans guillemets, tous les mots sont cherchés comme avant.
+- **Nouvel écran de démarrage** ✨ : carte Windows 11 assortie au thème clair ou sombre, logo, étape de chargement en cours et barre de progression fluide.
+
 ## Changements
 
 - **Thèmes de projection retirés** : un seul style de projection, celui de « Projection locale ». L'apparence actuelle est conservée ; les autres thèmes et les attributions par type de contenu disparaissent.

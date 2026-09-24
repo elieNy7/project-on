@@ -71,7 +71,7 @@ def test_migration_adds_duration_to_existing_database(tmp_path: Path) -> None:
     upgraded = Database(DatabaseConfig(db_path=path))
     upgraded.initialize()
     with upgraded.connect() as conn:
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 9
+        assert conn.execute("PRAGMA user_version").fetchone()[0] >= 9
         cols = [r[1] for r in conn.execute("PRAGMA table_info(media_item)").fetchall()]
     assert "duration_seconds" in cols
     assert MediaDao(upgraded).get_media(media_id)["name"] == "Ancienne"

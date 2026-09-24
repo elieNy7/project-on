@@ -24,7 +24,7 @@ class Database:
     # v10 : la garde « données prêtes » détecte désormais les titres canoniques
     # SHP qui diffèrent du titre source — force le recalcul sur les bases
     # existantes (les installs 1.7.2 marquées v9 sont reprises aussi).
-    _STARTUP_MAINTENANCE_VERSION = "10"
+    _STARTUP_MAINTENANCE_VERSION = "11"
     _VACUUM_KEY = "vacuum_version"
     _VACUUM_VERSION = "2"
 
@@ -85,6 +85,10 @@ class Database:
                 self._apply_migration_v9(conn)
                 self._set_user_version(conn, 9)
                 current_version = 9
+            if current_version < 10:
+                self._apply_migration_v10(conn)
+                self._set_user_version(conn, 10)
+                current_version = 10
             self._ensure_playlist_tables(conn)
             self._ensure_media_tables(conn)
             # Cheap and idempotent: drop dead weight indexes on every launch.
@@ -306,18 +310,6 @@ class Database:
                 LIMIT 1
                 """
             ).fetchone()
-            # La traduction SHP doit afficher le titre exact du PDF : un titre
-            # canonique qui diffère du titre source signifie une base antérieure
-            # à cette règle — les métadonnées doivent être recalculées.
-            shp_canonical_mismatch = conn.execute(
-                """
-                SELECT 1
-                FROM sermon
-                WHERE tradition = 'SHP'
-                  AND COALESCE(canonical_title, '') <> COALESCE(title, '')
-                LIMIT 1
-                """
-            ).fetchone()
         except sqlite3.Error:
             return False
 
@@ -331,7 +323,6 @@ class Database:
             and missing_hymn_meta is None
             and missing_markers is None
             and missing_labels is None
-            and shp_canonical_mismatch is None
         )
 
     def _apply_migration_v1(self, conn: sqlite3.Connection) -> None:
@@ -533,6 +524,79 @@ class Database:
             parts.append(word if i > 0 and word in small_words else word.capitalize())
         return " ".join(parts)
 
+    # Chiffres romains conservés en capitales (« SCEAU II »).
+    _ROMAN_RE = re.compile(r"^(?=[IVXLC]+$)C{0,3}(?:XC|XL|L?X{0,3})(?:IX|IV|V?I{0,3})$")
+    # Pronoms et particules en fin de mot composé : « Est-ce », « A-t-il ».
+    _HYPHEN_SUFFIXES = frozenset(
+        {"t", "il", "ils", "elle", "elles", "on", "je", "tu", "nous", "vous", "ce", "ci", "là"}
+    )
+
+    _ELISIONS = frozenset(
+        {"l", "d", "j", "m", "n", "s", "t", "c", "qu", "jusqu", "lorsqu", "puisqu", "quoiqu"}
+    )
+
+    @staticmethod
+    def _mostly_uppercase(value: str) -> bool:
+        """Texte imprimé en capitales (tolère une coquille : « A-T-Il »)."""
+        letters = [char for char in value if char.isalpha()]
+        if not letters:
+            return False
+        upper = sum(1 for char in letters if char.isupper())
+        return upper / len(letters) >= 0.6
+
+    @classmethod
+    def title_case_words(cls, text: Any) -> str:
+        """Majuscule à chaque mot d'un titre imprimé TOUT EN MAJUSCULES.
+
+        Les mots et la ponctuation restent ceux de la source : seule la casse
+        change (« L’ANGE DE DIEU » → « L’Ange De Dieu »). Un texte qui contient
+        majoritairement en minuscules est rendu tel quel.
+        """
+        value = cls._clean_text(text)
+        if not cls._mostly_uppercase(value):
+            return value
+
+        def capitalize(piece: str) -> str:
+            # Élision : « L’ANGE » → « L’Ange », « QU’IL » → « Qu’Il », mais
+            # « AUJOURD’HUI » → « Aujourd’hui ».
+            parts = re.split(r"([’'])", piece.lower())
+            out = []
+            for index, part in enumerate(parts):
+                previous = parts[index - 2] if index >= 2 else ""
+                elided = index == 0 or previous in cls._ELISIONS
+                out.append(part[:1].upper() + part[1:] if elided else part)
+            return "".join(out)
+
+        def word(token: str) -> str:
+            if cls._ROMAN_RE.match(token):
+                return token
+            pieces = token.split("-")
+            out = [capitalize(pieces[0])]
+            for piece in pieces[1:]:
+                lower = piece.lower()
+                out.append(lower if lower in cls._HYPHEN_SUFFIXES else capitalize(piece))
+            return "-".join(out)
+
+        return " ".join(word(token) for token in value.split(" "))
+
+    @classmethod
+    def display_location(cls, location: Any) -> str:
+        """Lieu imprimé en capitales → « Phoenix AZ USA », « Afrique Du Sud »."""
+        value = cls._clean_text(location)
+        if not cls._mostly_uppercase(value):
+            return value
+        tokens = value.split(" ")
+        out: list[str] = []
+        for index, token in enumerate(tokens):
+            following = tokens[index + 1] if index + 1 < len(tokens) else ""
+            if token == "USA" or (
+                len(token) == 2 and token.isalpha() and following in ("USA", "CANADA")
+            ):
+                out.append(token)
+            else:
+                out.append(cls.title_case_words(token))
+        return " ".join(out)
+
     @classmethod
     def _clean_sermon_title_for_canonical(cls, title: Any) -> str:
         text = cls._clean_text(title)
@@ -574,13 +638,16 @@ class Database:
 
         updates: list[tuple[str, str, int]] = []
         for items in grouped.values():
-            # La traduction SHP doit afficher le titre exact imprimé dans le
-            # bandeau du PDF : son titre canonique est toujours son propre
-            # titre, jamais celui d'une autre traduction ni une casse réécrite.
+            # La traduction SHP affiche son propre titre, celui du bandeau du
+            # PDF (``title``, stocké à l'identique), jamais celui d'une autre
+            # traduction : seule la casse est adaptée (majuscule à chaque mot).
+            # Les chapitres de l'Exposé gardent leur titre exact.
             shared_canonical = self._choose_canonical_title(items)
             for row in items:
                 if str(row["tradition"] or "").upper() == "SHP":
                     canonical = str(row["title"] or "")
+                    if not str(row["date"] or "").startswith("BK-AGES"):
+                        canonical = self.title_case_words(canonical)
                 else:
                     canonical = shared_canonical
                 search_parts = [
@@ -641,14 +708,13 @@ class Database:
                 "UPDATE sermon_paragraph SET marker = ? WHERE id = ?", updates
             )
 
-    # Contentless (content='') + detail=none keeps the FTS index tiny: it stores
-    # no copy of the text and no token positions. Search only needs MATCH + rowid
-    # and bm25() ranking, all of which work in this mode. This shrinks the sermon
-    # index from ~920 MB to ~45 MB.
+    # Contentless (content='') keeps the FTS index small: it stores no copy of
+    # the text. detail=full keeps the token positions that phrase queries
+    # ("expression exacte") need; detail=none was smaller but matched no phrase.
     _SERMON_FTS_DDL = (
         "CREATE VIRTUAL TABLE sermon_paragraph_fts USING fts5("
         "text, ref, sermon_title, canonical_title, "
-        "content='', detail=none, "
+        "content='', detail=full, "
         "tokenize='unicode61 remove_diacritics 2')"
     )
 
@@ -661,8 +727,8 @@ class Database:
                 """
             ).fetchone()
             existing_sql = str(existing[0] or "").lower() if existing else ""
-            # Rebuild whenever the on-disk schema is not the compact one.
-            if existing and "detail=none" not in existing_sql:
+            # Rebuild whenever the on-disk index cannot match phrases.
+            if existing and "detail=full" not in existing_sql:
                 conn.execute("DROP TABLE sermon_paragraph_fts")
                 existing = None
             if existing is None:
@@ -932,6 +998,23 @@ class Database:
         if "duration_seconds" not in cols:
             conn.execute(
                 "ALTER TABLE media_item ADD COLUMN duration_seconds INTEGER DEFAULT 0"
+            )
+
+    def _apply_migration_v10(self, conn: sqlite3.Connection) -> None:
+        """Date et lieu tels qu'imprimés dans la source (sermons SHP).
+
+        ``date`` reste le code commun à toutes les traductions (``47-0412``)
+        et ``location`` la forme affichée ; ``printed_date`` (« Sam 12.04.47 »)
+        et ``printed_location`` gardent le texte exact du PDF.
+        """
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(sermon)").fetchall()]
+        if not cols:
+            return
+        if "printed_date" not in cols:
+            conn.execute("ALTER TABLE sermon ADD COLUMN printed_date TEXT DEFAULT ''")
+        if "printed_location" not in cols:
+            conn.execute(
+                "ALTER TABLE sermon ADD COLUMN printed_location TEXT DEFAULT ''"
             )
 
     def _ensure_playlist_tables(self, conn: sqlite3.Connection) -> None:

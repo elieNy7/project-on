@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from PySide6.QtCore import QModelIndex, QRect, QSize, Qt
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter
 from PySide6.QtWidgets import QStyle, QStyledItemDelegate, QStyleOptionViewItem
@@ -49,7 +51,18 @@ class SermonListDelegate(QStyledItemDelegate):
 
     @staticmethod
     def _format_date(date_str: str) -> str:
-        """Formate le code date SHP en affichage lisible: 63-01-15 -> 15/01/1963"""
+        """Formate le code date en affichage lisible.
+
+        ``47-0412`` -> ``12/04/1947``, ``64-0823M`` -> ``23/08/1964 M``,
+        ``63-01-15`` -> ``15/01/1963``.
+        """
+        compact = re.fullmatch(r"(\d{2})-(\d{2})(\d{2})([A-Za-z]?)", date_str or "")
+        if compact:
+            yr, mo, dd, sfx = compact.groups()
+            year_4d = 1900 + int(yr) if int(yr) >= 47 else 2000 + int(yr)
+            if mo == "00" or dd == "00":
+                return date_str
+            return f"{dd}/{mo}/{year_4d}" + (f" {sfx}" if sfx else "")
         if not date_str or len(date_str) < 8:
             return date_str
         # Format: YY-MM-DD[Suffix]
@@ -77,17 +90,10 @@ class SermonListDelegate(QStyledItemDelegate):
 
     @staticmethod
     def _format_location(location: str) -> str:
-        """Extrait la ville propre depuis le location complet."""
-        if not location or location in ("None", "Lieu inconnu"):
+        """Lieu complet, tel que la source le donne (élidé au dessin)."""
+        if not location or location == "None":
             return ""
-        # Garder seulement les 2 premiers mots (ville + état/pays)
-        parts = location.strip().split()
-        if len(parts) >= 2:
-            # Retirer "USA" ou "CANADA" en fin si redondant
-            if parts[-1] in ("USA", "CANADA", "SUISSE", "ALLEMAGNE"):
-                parts = parts[:-1]
-            return " ".join(parts[:2])  # Ville + code état
-        return location
+        return location.strip()
 
     def paint(
         self, painter: QPainter, option: QStyleOptionViewItem, index: QModelIndex
@@ -99,6 +105,7 @@ class SermonListDelegate(QStyledItemDelegate):
         date_str = str(index.data(Qt.ItemDataRole.UserRole + 2) or "")
         location = str(index.data(Qt.ItemDataRole.UserRole + 3) or "")
         tradition = str(index.data(Qt.ItemDataRole.UserRole + 4) or "")
+        printed_date = str(index.data(Qt.ItemDataRole.UserRole + 5) or "")
 
         if not title:
             title = option.text
@@ -144,7 +151,7 @@ class SermonListDelegate(QStyledItemDelegate):
         )
 
         # 2. Details: date formatée + lieu court
-        date_display = self._format_date(date_str)
+        date_display = printed_date or self._format_date(date_str)
         loc_display = self._format_location(location)
         details_parts = [p for p in [date_display, loc_display] if p]
         details = "  •  ".join(details_parts)
