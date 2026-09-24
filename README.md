@@ -17,7 +17,7 @@ Sortie OBS (lower-third) · Projection plein écran cinématique · 100 % hors-l
 
 - **Bible** — navigation livre par livre, recherche et projection du verset avec sa référence.
 - **Cantiques** — bibliothèque organisée par strophes.
-- **Prédications & Exposés** — import et présentation structurée.
+- **Prédications & Livres** — sermons (alinéas fidèles au PDF), Exposé des Sept Âges, livres et brochures, présentés par chapitre et par page.
 - **Aperçu et Direct** — un clic prépare un verset, une strophe, un paragraphe ou un média dans l'Aperçu (rendu exact de la projection), **F2** l'envoie au Direct ; voyant « EN DIRECT / MASQUÉ / VIDE » sur le moniteur Direct.
 - **Projection directe (sans playlist)** — double-clic, Entrée ou bouton « Projeter » sur un verset, strophe ou paragraphe : tout le document (chapitre, cantique, sermon) devient le programme de lecture, textes longs découpés en parties navigables.
 - **Recherche globale (Ctrl+K)** — références bibliques (« Jean 3:16 », « 1 co 13 ») ou texte libre, dans la Bible, les prédications, les exposés, les médias et les playlists.

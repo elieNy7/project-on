@@ -37,6 +37,9 @@ class SermonsDao:
             return "COALESCE(NULLIF(canonical_title, ''), title)"
         return "title"
 
+    # Chapitres de livres (Exposés, livres, brochures) : onglet « Livres ».
+    _NOT_A_BOOK = "COALESCE(date, '') NOT LIKE 'BK-%' AND COALESCE(date, '') NOT LIKE 'TR-%'"
+
     @staticmethod
     def _format_reference(date_code: Any, title: Any, marker: Any) -> str:
         parts = [
@@ -108,7 +111,7 @@ class SermonsDao:
         years_set: set[int] = set()
         with self._db.connect() as conn:
             has_title_search = self._has_column(conn, "sermon", "title_search")
-            sql = "SELECT DISTINCT date FROM sermon WHERE 1=1"
+            sql = f"SELECT DISTINCT date FROM sermon WHERE {self._NOT_A_BOOK}"
             params: list[Any] = []
 
             trad = translator or tradition
@@ -189,7 +192,7 @@ class SermonsDao:
                 SELECT id, date, title AS original_title, {title_expr} AS title,
                        tradition, language, source_path{select_loc}
                 FROM sermon
-                WHERE 1=1
+                WHERE {self._NOT_A_BOOK}
             """
             params: list[Any] = []
 
@@ -390,6 +393,7 @@ class SermonsDao:
                             JOIN sermon_paragraph p ON p.id = sermon_paragraph_fts.rowid
                             JOIN sermon s ON s.id = p.sermon_id
                             WHERE sermon_paragraph_fts MATCH ?
+                              AND s.date NOT LIKE 'BK-%' AND s.date NOT LIKE 'TR-%'
                         """
                         params: list[Any] = [fts_q]
                         if translator:
@@ -415,6 +419,7 @@ class SermonsDao:
                     FROM sermon_paragraph p
                     JOIN sermon s ON s.id = p.sermon_id
                     WHERE unaccent(p.text) LIKE unaccent(?)
+                      AND s.date NOT LIKE 'BK-%' AND s.date NOT LIKE 'TR-%'
                 """
                 params = [f"%{self._plain_query(q)}%"]
                 if translator:
@@ -449,6 +454,136 @@ class SermonsDao:
                         "sermon_tradition": r["tradition"],
                     }
                 )
+        return out
+
+    # ── Livres ────────────────────────────────────────────────────────────
+
+    def list_books(self) -> list[dict[str, Any]]:
+        """Ouvrages de l'onglet « Livres » qui ont au moins un chapitre."""
+        with self._db.connect() as conn:
+            if not self._table_exists(conn, "library_book"):
+                return []
+            rows = conn.execute(
+                """
+                SELECT b.key, b.title, b.date_prefix, b.tradition
+                FROM library_book b
+                WHERE EXISTS (
+                    SELECT 1 FROM sermon s
+                    WHERE s.date LIKE b.date_prefix || '%' AND s.tradition = b.tradition
+                )
+                ORDER BY b.sort_order, b.title
+                """
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def _book(self, conn: sqlite3.Connection, key: str) -> sqlite3.Row | None:
+        if not self._table_exists(conn, "library_book"):
+            return None
+        return conn.execute(
+            "SELECT key, title, date_prefix, tradition FROM library_book WHERE key = ?",
+            (key,),
+        ).fetchone()
+
+    def book_of_chapter(self, chapter_id: Any) -> dict[str, Any] | None:
+        """Ouvrage auquel appartient un chapitre (pour la référence projetée)."""
+        int_id = int(str(chapter_id).replace("int_", ""))
+        with self._db.connect() as conn:
+            if not self._table_exists(conn, "library_book"):
+                return None
+            row = conn.execute(
+                """
+                SELECT b.key, b.title, b.date_prefix, b.tradition
+                FROM sermon s
+                JOIN library_book b
+                  ON s.date LIKE b.date_prefix || '%' AND s.tradition = b.tradition
+                WHERE s.id = ?
+                ORDER BY length(b.date_prefix) DESC
+                LIMIT 1
+                """,
+                (int_id,),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def list_book_chapters(self, key: str) -> list[dict[str, Any]]:
+        """Chapitres d'un ouvrage, dans l'ordre du livre.
+
+        ``chapter_num`` : 0 pour l'introduction / la préface ; pour les
+        brochures (sans chapitres), la position dans la collection.
+        """
+        if key in ("ages-vgr", "ages-shp"):
+            return self.list_expose_chapters("VGR" if key == "ages-vgr" else "SHP")
+        with self._db.connect() as conn:
+            book = self._book(conn, key)
+            if book is None:
+                return []
+            has_canonical_title = self._has_column(conn, "sermon", "canonical_title")
+            title_expr = self._sermon_title_expr(has_canonical_title)
+            rows = conn.execute(
+                f"""
+                SELECT id, date, title AS original_title, {title_expr} AS title
+                FROM sermon
+                WHERE date LIKE ? AND tradition = ?
+                ORDER BY sort_key, date
+                """,
+                (book["date_prefix"] + "%", book["tradition"]),
+            ).fetchall()
+        out = []
+        for position, r in enumerate(rows, start=1):
+            match = re.search(r"-CH(\d+)$", str(r["date"] or ""))
+            out.append(
+                {
+                    "id": f"int_{r['id']}",
+                    "title": str(r["title"] or ""),
+                    "original_title": str(r["original_title"] or ""),
+                    "chapter_num": int(match.group(1)) if match else position,
+                    "date_code": r["date"],
+                }
+            )
+        return out
+
+    def search_book(self, query: str, key: str, limit: int = 100) -> list[dict[str, Any]]:
+        """Recherche plein texte (sous-chaîne) dans un ouvrage."""
+        if key in ("ages-vgr", "ages-shp"):
+            return self.search_expose(query, "VGR" if key == "ages-vgr" else "SHP", limit)
+        out = []
+        with self._db.connect() as conn:
+            book = self._book(conn, key)
+            if book is None:
+                return []
+            has_canonical_title = self._has_column(conn, "sermon", "canonical_title")
+            title_expr = self._title_expr(has_canonical_title)
+            rows = conn.execute(
+                f"""
+                SELECT p.sermon_id, p.paragraph_no, p.ref, p.text,
+                       COALESCE(NULLIF(p.marker, ''), p.ref, '') AS marker,
+                       {title_expr} AS title, s.date
+                FROM sermon_paragraph p
+                JOIN sermon s ON s.id = p.sermon_id
+                WHERE s.date LIKE ? AND s.tradition = ?
+                  AND unaccent(p.text) LIKE unaccent(?)
+                ORDER BY s.sort_key, p.paragraph_no
+                LIMIT ?
+                """,
+                (book["date_prefix"] + "%", book["tradition"],
+                 f"%{self._plain_query(query)}%", limit),
+            ).fetchall()
+        for r in rows:
+            marker = str(r["marker"] or "")
+            ref = str(r["ref"] or marker)
+            out.append(
+                {
+                    "id": f"int_p_{r['sermon_id']}_{r['paragraph_no']}",
+                    "sermon_id": f"int_{r['sermon_id']}",
+                    "paragraph_no": r["paragraph_no"],
+                    "para_id": marker,
+                    "marker": marker,
+                    "ref": ref,
+                    "reference": ref,
+                    "raw_ref": r["ref"],
+                    "text": r["text"],
+                    "title": r["title"],
+                }
+            )
         return out
 
     def list_expose_chapters(self, translator: str = "VGR") -> list[dict[str, Any]]:

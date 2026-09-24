@@ -110,6 +110,7 @@ def _make_controller(tmp_path: Path):
         clearAllHymnsRequested = Signal()
         sermonSelected = Signal(int)
         paragraphActivated = Signal(dict)
+        paragraphSoloRequested = Signal(dict)
         filtersChanged = Signal()
         paragraphSearchRequested = Signal(str)
         addToPlaylistRequested = Signal(list)

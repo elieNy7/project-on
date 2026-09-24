@@ -427,14 +427,15 @@ def ensure_data_initialized() -> None:
 # paragraphe, résidus de mise en page purgés).
 # 3 = sermons SHP réimportés depuis les PDF (un alinéa par ligne, paragraphes
 # sans en-tête récupérés, titre/lieu/date imprimés).
+# 4 = onglet « Livres » : deux livres et dix brochures (``BK-*``, ``TR-*``).
 # Incrémenter à chaque fois que le contenu embarqué doit converger vers les
-# bases déjà installées : les chapitres « BK-AGES-% » et les sermons SHP sont
-# alors remplacés depuis la base embarquée, une seule fois, sans toucher aux
-# cantiques, playlists et réglages de l'utilisateur.
-DATA_PACK_VERSION = 3
+# bases déjà installées : les livres (« BK-% », « TR-% ») et les sermons SHP
+# sont alors remplacés depuis la base embarquée, une seule fois, sans toucher
+# aux cantiques, playlists et réglages de l'utilisateur.
+DATA_PACK_VERSION = 4
 
 # Contenu éditorial remplacé par le pack (alias de table ``s``).
-_PACK_SCOPE = "(s.date LIKE 'BK-AGES-%' OR s.tradition = 'SHP')"
+_PACK_SCOPE = "(s.date LIKE 'BK-%' OR s.date LIKE 'TR-%' OR s.tradition = 'SHP')"
 _PACK_SERMON_COLUMNS = (
     "title", "date", "tradition", "language", "source_path", "sort_key",
     "location", "canonical_title", "title_search",
@@ -551,6 +552,24 @@ def upgrade_data_pack(target_path: Path, bundled_path: Path) -> bool:
             """
         )
         connection.execute("DROP TABLE _pack_map")
+        # Catalogue des livres de l'onglet « Livres ».
+        if connection.execute(
+            "SELECT 1 FROM pack.sqlite_master WHERE type='table' AND name='library_book'"
+        ).fetchone():
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS library_book (
+                    key TEXT PRIMARY KEY, title TEXT NOT NULL, date_prefix TEXT NOT NULL,
+                    tradition TEXT NOT NULL, sort_order INTEGER DEFAULT 0, source TEXT DEFAULT ''
+                )
+                """
+            )
+            connection.execute(
+                "INSERT OR REPLACE INTO library_book "
+                "(key, title, date_prefix, tradition, sort_order, source) "
+                "SELECT key, title, date_prefix, tradition, sort_order, source "
+                "FROM pack.library_book"
+            )
         connection.execute(
             """
             INSERT INTO app_meta (key, value) VALUES ('data_pack_version', ?)

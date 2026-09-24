@@ -50,6 +50,7 @@ class SermonsTab(QFrame):
     # Payload : {reference, text, sermon_id, sermon_title, sermon_date}
     paragraphActivated = Signal(object)
     paragraphCued = Signal(object)  # single click: prepare in the preview
+    paragraphSoloRequested = Signal(object)  # context menu: this alinea only
     filtersChanged = Signal()
     paragraphSearchRequested = Signal(str)  # query text
     addToPlaylistRequested = Signal(list)  # list of (ref, text) tuples
@@ -652,7 +653,8 @@ class SermonsTab(QFrame):
         """)
 
         copy_action = menu.addAction("Copier le texte")
-        add_action = menu.addAction("Projeter")
+        add_action = menu.addAction("Projeter le paragraphe")
+        solo_action = menu.addAction("Projeter cet alinéa seulement")
         playlist_action = menu.addAction("Ajouter à la playlist")
         playlist_range_action = menu.addAction("Ajouter une plage de paragraphes…")
 
@@ -662,6 +664,10 @@ class SermonsTab(QFrame):
             self._on_copy_paragraph()
         elif action == add_action:
             self._on_paragraph_activated(item)
+        elif action == solo_action:
+            payload = self._paragraph_payload(item)
+            if payload is not None:
+                self.paragraphSoloRequested.emit(payload)
         elif action == playlist_action:
             payload = [(str(item.data(256) or ""), str(item.data(257) or ""))]
             self.addToPlaylistRequested.emit(payload)

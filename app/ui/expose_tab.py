@@ -52,7 +52,11 @@ from app.utils.flow_layout import FlowLayout
 
 
 class ExposeTab(QFrame):
-    """Tab for the 'Exposé des Sept Âges de l'Église' book."""
+    """« Livres » tab: the two Exposés, the books and the brochures.
+
+    Same layout as ever: chapters on the left, page numbers and paragraphs
+    (``page-n``) on the right; the combo box picks the book.
+    """
 
     chapterSelected = Signal(object)
     pageSelected = Signal(int)
@@ -61,7 +65,7 @@ class ExposeTab(QFrame):
     paragraphSoloRequested = Signal(str, str, str)
     addToPlaylistRequested = Signal(list)  # list of (ref, text) tuples
     searchRequested = Signal(str)
-    translatorChanged = Signal(str)
+    bookChanged = Signal(str)  # library_book key
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -140,7 +144,7 @@ class ExposeTab(QFrame):
 
         # Search Bar
         self.search_input = QLineEdit(self)
-        self.search_input.setPlaceholderText("Rechercher dans l'Exposé...")
+        self.search_input.setPlaceholderText("Rechercher dans ce livre...")
         self.search_input.setStyleSheet(get_input_style())
         self.search_input.setFixedHeight(28)
         self.search_input.addAction(
@@ -197,13 +201,13 @@ class ExposeTab(QFrame):
         self.add_btn.setFixedHeight(28)
         self.add_btn.setStyleSheet(get_compact_button_style())
 
-        # Translator selection
-        self.translator_combo = QComboBox(self)
-        self.translator_combo.addItem("VGR (Standard)", "VGR")
-        self.translator_combo.addItem("SHP (Shekinah)", "SHP")
-        self.translator_combo.setMinimumWidth(160)
-        self.translator_combo.setFixedHeight(28)
-        self.translator_combo.setStyleSheet(get_combo_style())
+        # Book selection (filled from the database by the controller)
+        self.book_combo = QComboBox(self)
+        self.book_combo.addItem("Exposé des Sept Âges de l’Église", "ages-vgr")
+        self.book_combo.setMinimumWidth(220)
+        self.book_combo.setFixedHeight(28)
+        self.book_combo.setStyleSheet(get_combo_style())
+        self.book_combo.setToolTip("Livre à consulter")
 
         right_widget = QWidget()
         right_widget.setStyleSheet("background: transparent;")
@@ -228,7 +232,7 @@ class ExposeTab(QFrame):
         filter_layout = QHBoxLayout(self.filter_container)
         filter_layout.setContentsMargins(Spacing.SM, Spacing.SM, Spacing.SM, Spacing.SM)
         filter_layout.setSpacing(Spacing.SM)
-        filter_layout.addWidget(self.translator_combo)
+        filter_layout.addWidget(self.book_combo)
         filter_layout.addWidget(self.search_input, 1)
         filter_layout.addWidget(self.btn_refresh)
 
@@ -272,15 +276,28 @@ class ExposeTab(QFrame):
         self.search_input.textChanged.connect(
             lambda _t: self._search_timer.start()
         )
-        self.translator_combo.currentIndexChanged.connect(self._on_translator_changed)
+        self.book_combo.currentIndexChanged.connect(self._on_book_changed)
         self.btn_refresh.clicked.connect(
-            lambda: self.translatorChanged.emit(self.current_translator())
+            lambda: self.bookChanged.emit(self.current_book())
         )
 
     # ── Public API ────────────────────────────────────────────────────────
 
-    def current_translator(self) -> str:
-        return self.translator_combo.currentData() or "VGR"
+    def current_book(self) -> str:
+        return self.book_combo.currentData() or "ages-vgr"
+
+    def set_books(self, books: list[dict[str, Any]]) -> None:
+        """Fill the book list, keeping the current choice when possible."""
+        current = self.current_book()
+        keys = [str(b["key"]) for b in books]
+        if keys == [self.book_combo.itemData(i) for i in range(self.book_combo.count())]:
+            return
+        with QSignalBlocker(self.book_combo):
+            self.book_combo.clear()
+            for book in books:
+                self.book_combo.addItem(str(book["title"]), str(book["key"]))
+            index = self.book_combo.findData(current)
+            self.book_combo.setCurrentIndex(index if index >= 0 else 0)
 
     def set_chapters(self, chapters: list[dict[str, Any]]) -> None:
         self._chapters = chapters
@@ -661,6 +678,5 @@ class ExposeTab(QFrame):
             return
         self.searchRequested.emit(text.strip())
 
-    def _on_translator_changed(self, index: int) -> None:
-        translator = self.translator_combo.itemData(index) or "VGR"
-        self.translatorChanged.emit(translator)
+    def _on_book_changed(self, index: int) -> None:
+        self.bookChanged.emit(self.book_combo.itemData(index) or "ages-vgr")

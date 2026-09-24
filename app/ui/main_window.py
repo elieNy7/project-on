@@ -339,7 +339,7 @@ class MainWindow(QMainWindow):
         sc_f1.activated.connect(self._show_shortcuts_dialog)
 
         # Ctrl+1..7 → Switch library tabs (Bible, Cantiques, Prédications,
-        # Exposés, Médias, Playlists, Paramètres)
+        # Livres, Médias, Playlists, Paramètres)
         for i in range(7):
             sc_tab = QShortcut(QKeySequence(f"Ctrl+{i + 1}"), self)
             sc_tab.setContext(Qt.ShortcutContext.ApplicationShortcut)

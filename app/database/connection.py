@@ -89,8 +89,13 @@ class Database:
                 self._apply_migration_v10(conn)
                 self._set_user_version(conn, 10)
                 current_version = 10
+            if current_version < 11:
+                self._ensure_library_books(conn)
+                self._set_user_version(conn, 11)
+                current_version = 11
             self._ensure_playlist_tables(conn)
             self._ensure_media_tables(conn)
+            self._ensure_library_books(conn)
             # Cheap and idempotent: drop dead weight indexes on every launch.
             indexes_dropped = self._drop_obsolete_indexes(conn)
             maintenance_ran = False
@@ -1016,6 +1021,35 @@ class Database:
             conn.execute(
                 "ALTER TABLE sermon ADD COLUMN printed_location TEXT DEFAULT ''"
             )
+
+    # Ouvrages de l'onglet « Livres » : chaque chapitre est une ligne de
+    # ``sermon`` dont la date commence par ``date_prefix`` (et de tradition
+    # ``tradition``). Les deux Exposés existent dans toutes les bases.
+    _BUILTIN_BOOKS = (
+        ("ages-vgr", "Exposé des Sept Âges de l’Église", "BK-AGES-CH", "VGR", 1,
+         "FRNBK-AGES Expose du Sept ages de l'eglise VGR.pdf"),
+        ("ages-shp", "Exposé des Sept Âges de l’Église (SHP)", "BK-AGES-SHP-", "SHP", 2,
+         "Expose SHP.pdf"),
+    )
+
+    def _ensure_library_books(self, conn: sqlite3.Connection) -> None:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS library_book (
+                key TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                date_prefix TEXT NOT NULL,
+                tradition TEXT NOT NULL,
+                sort_order INTEGER DEFAULT 0,
+                source TEXT DEFAULT ''
+            )
+            """
+        )
+        conn.executemany(
+            "INSERT OR IGNORE INTO library_book "
+            "(key, title, date_prefix, tradition, sort_order, source) VALUES (?, ?, ?, ?, ?, ?)",
+            self._BUILTIN_BOOKS,
+        )
 
     def _ensure_playlist_tables(self, conn: sqlite3.Connection) -> None:
         """S'assure que les tables playlist existent (pour les bases existantes)."""

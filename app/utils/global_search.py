@@ -23,7 +23,7 @@ KINDS = ("bible", "sermon", "expose", "media", "playlist")
 KIND_LABELS = {
     "bible": "Bible",
     "sermon": "Prédications",
-    "expose": "Exposés",
+    "expose": "Livres",
     "media": "Médias",
     "playlist": "Playlists",
 }
@@ -39,7 +39,7 @@ class SearchContext:
     bible_translation_id: int | None = None
     sermon_language: str = "fr"
     sermon_translator: str | None = None
-    expose_translator: str = "VGR"
+    book_key: str = "ages-vgr"
     per_kind: int = 5
 
 
@@ -199,12 +199,16 @@ def search_expose(sermons_dao, query: str, ctx: SearchContext) -> list[dict[str,
     if len(q) < MIN_TEXT_QUERY or looks_like_reference(q):
         return []
     hits = []
-    for p in sermons_dao.search_expose(q, translator=ctx.expose_translator, limit=ctx.per_kind):
+    for p in sermons_dao.search_book(q, ctx.book_key, limit=ctx.per_kind):
         ref = str(p.get("reference") or p.get("ref") or "")
         hits.append(
             {
                 "kind": "expose",
-                "title": ref or str(p.get("title") or "Exposé"),
+                # « Un étrange défi · 3-2 » : chapitre et position page-paragraphe.
+                "title": " · ".join(
+                    part for part in (str(p.get("title") or ""), str(p.get("marker") or ""))
+                    if part
+                ) or ref or "Livres",
                 "subtitle": _one_line(p.get("text")),
                 "reference": ref,
                 "query": q,

@@ -194,6 +194,8 @@ class LibraryController(QObject):
 
         self._sermons_tab.sermonSelected.connect(self.on_sermon_selected)
         self._sermons_tab.paragraphActivated.connect(self.on_sermon_paragraph_activated)
+        if hasattr(self._sermons_tab, "paragraphSoloRequested"):
+            self._sermons_tab.paragraphSoloRequested.connect(self.on_sermon_paragraph_solo)
         if hasattr(self._sermons_tab, "filtersChanged"):
             self._sermons_tab.filtersChanged.connect(self.refresh_sermons)
         if hasattr(self._sermons_tab, "paragraphSearchRequested"):
@@ -210,7 +212,7 @@ class LibraryController(QObject):
                     self.on_expose_paragraph_solo
                 )
             self._expose_tab.searchRequested.connect(self.on_expose_search)
-            self._expose_tab.translatorChanged.connect(self.refresh_expose)
+            self._expose_tab.bookChanged.connect(self.refresh_expose)
 
         if self._playlist_tab is not None:
             self._playlist_tab.folderSelected.connect(self.on_playlist_folder_selected)
@@ -350,8 +352,8 @@ class LibraryController(QObject):
         )
         if hasattr(self._sermons_tab, "current_translator"):
             ctx.sermon_translator = self._sermons_tab.current_translator()
-        if self._expose_tab is not None and hasattr(self._expose_tab, "current_translator"):
-            ctx.expose_translator = self._expose_tab.current_translator() or "VGR"
+        if self._expose_tab is not None and hasattr(self._expose_tab, "current_book"):
+            ctx.book_key = self._expose_tab.current_book() or "ages-vgr"
         return ctx
 
     def warm_up_search(self) -> None:
@@ -645,6 +647,21 @@ class LibraryController(QObject):
         return prepared
 
     @staticmethod
+    def _group_alineas(entries: list[tuple[str, str]]) -> list[tuple[str, str]]:
+        """Réunit les alinéas consécutifs d'un même paragraphe numéroté.
+
+        Les alinéas d'un paragraphe (SHP) partagent sa référence (« … §12 ») :
+        ils forment une seule entrée projetée, un alinéa par ligne.
+        """
+        grouped: list[tuple[str, str]] = []
+        for reference, text in entries:
+            if grouped and grouped[-1][0] == reference:
+                grouped[-1] = (reference, f"{grouped[-1][1]}\n{text}")
+            else:
+                grouped.append((reference, text))
+        return grouped
+
+    @staticmethod
     def _find_entry_index(
         entries: list[tuple[str, str]], reference: str
     ) -> int:
@@ -678,9 +695,9 @@ class LibraryController(QObject):
             and str(sermon_id) == str(self._current_sermon_id)
         )
         if same_sermon or (sermon_id is None and self._current_sermon_paragraphs):
-            entries = [
-                (p["reference"], p["text"]) for p in self._current_sermon_paragraphs
-            ]
+            entries = self._group_alineas(
+                [(p["reference"], p["text"]) for p in self._current_sermon_paragraphs]
+            )
             focus = self._find_entry_index(entries, ref)
             self._deliver(
                 target,
@@ -713,7 +730,7 @@ class LibraryController(QObject):
             self._current_sermon_program_title = self._format_sermon_reference(
                 sermon_date, sermon_title, ""
             ).strip(" -")
-            entries = [(p["reference"], p["text"]) for p in prepared]
+            entries = self._group_alineas([(p["reference"], p["text"]) for p in prepared])
             if not entries and text:
                 entries = [(ref, text)]
             focus = self._find_entry_index(entries, ref)
@@ -728,6 +745,13 @@ class LibraryController(QObject):
             )
 
         self._submit_latest(self._channel(target), _fetch, _on_done)
+
+    def on_sermon_paragraph_solo(self, payload: dict) -> None:
+        """Projette un seul alinéa, sans le reste du paragraphe ni du sermon."""
+        ref = self._clean_text(payload.get("reference", ""))
+        text = self._clean_text(payload.get("text", ""))
+        if text:
+            self._deliver("live", ProgramCue("sermon", ref, ((ref, text),)))
 
     def on_paragraph_search(self, query: str) -> None:
         """Search across all paragraphs in background thread."""
@@ -758,22 +782,25 @@ class LibraryController(QObject):
 
     # ── Exposé ────────────────────────────────────────────────────────────
 
-    def refresh_expose(self) -> None:
+    def refresh_expose(self, *_args) -> None:
+        """Recharge la liste des livres puis les chapitres du livre choisi."""
         self._invalidate("expose_chapter", "expose_detail", "live")
         if self._expose_tab is None:
             return
 
-        translator = "VGR"
-        if hasattr(self._expose_tab, "current_translator"):
-            translator = self._expose_tab.current_translator()
+        key = self._expose_tab.current_book()
 
         def _fetch():
-            return self._sermons_dao.list_expose_chapters(translator=translator)
+            books = self._sermons_dao.list_books()
+            keys = [b["key"] for b in books]
+            chosen = key if key in keys else (keys[0] if keys else key)
+            return books, self._sermons_dao.list_book_chapters(chosen)
 
-        def _on_done(chapters):
-            if chapters is None:
-                chapters = []
-            self._expose_tab.set_chapters(chapters)
+        def _on_done(result):
+            books, chapters = result or ([], [])
+            if books:
+                self._expose_tab.set_books(books)
+            self._expose_tab.set_chapters(chapters or [])
 
         self._submit_latest("expose", _fetch, _on_done)
 
@@ -837,13 +864,11 @@ class LibraryController(QObject):
         self._submit_latest("expose_detail", _fetch, _on_done)
 
     def on_expose_search(self, query: str) -> None:
-        """Search across entire Exposé book in background."""
-        translator = "VGR"
-        if hasattr(self._expose_tab, "current_translator"):
-            translator = self._expose_tab.current_translator()
+        """Recherche dans tout le livre choisi, en arrière-plan."""
+        key = self._expose_tab.current_book()
 
         def _fetch():
-            return self._sermons_dao.search_expose(query, translator=translator)
+            return self._sermons_dao.search_book(query, key)
 
         def _on_done(results):
             if results is None:
@@ -856,28 +881,30 @@ class LibraryController(QObject):
 
         self._submit_latest("expose_detail", _fetch, _on_done)
 
+    # Titre court projeté pour les deux Exposés (inchangé) ; une brochure
+    # n'affiche que son propre titre.
+    _BOOK_REFERENCE_TITLES = {"ages-vgr": "Exposé des Sept Âges", "ages-shp": "Exposé SHP",
+                              "brochures": ""}
+
     def _expose_book_prefix(self, ch_id: int | None) -> str:
-        """Titre de l'ouvrage d'Exposé selon la tradition du chapitre."""
-        tradition = "VGR"
+        """Titre de l'ouvrage du chapitre, en tête de la référence projetée."""
+        book = None
         if ch_id is not None:
             try:
-                with self._db.connect() as conn:
-                    row = conn.execute(
-                        "SELECT tradition FROM sermon WHERE id = ?", (int(ch_id),)
-                    ).fetchone()
-                if row is not None and str(row["tradition"] or "").strip():
-                    tradition = str(row["tradition"]).strip().upper()
+                book = self._sermons_dao.book_of_chapter(ch_id)
             except Exception:
-                pass
-        if tradition == "SHP":
-            return "Exposé SHP"
-        return "Exposé des Sept Âges"
+                book = None
+        if book is None:
+            return "Exposé des Sept Âges"
+        return self._BOOK_REFERENCE_TITLES.get(book["key"], str(book["title"]))
 
     def _expose_full_reference(self, ch_id: int | None, chapter_title: str) -> str:
-        """Référence projetée d'un exposé : « <ouvrage> — <chapitre> »."""
+        """Référence projetée : « <ouvrage> — <chapitre> » (brochure : titre seul)."""
         prefix = self._expose_book_prefix(ch_id)
         chapter = (chapter_title or "").strip()
-        return f"{prefix} — {chapter}" if chapter else prefix
+        if prefix and chapter:
+            return f"{prefix} — {chapter}"
+        return chapter or prefix
 
     def on_expose_paragraph_activated(
         self, reference: str, text: str, title: str = "", target: str = "live"
