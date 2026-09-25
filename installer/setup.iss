@@ -1,13 +1,13 @@
 ﻿; ═══════════════════════════════════════════════════════════════════
-;  Project-On — Modern Installer (Inno Setup 6)
+;  Project-On — Modern Installer (Inno Setup 7)
 ; ═══════════════════════════════════════════════════════════════════
 
 #define MyAppName "Project-On"
-#define MyAppVersion "2.5.0"
+#define MyAppVersion "2.6.0"
 #define MyAppPublisher "Elie Nyembo"
 #define MyAppURL "https://github.com/elieNy7/project-on"
 #define MyAppExeName "Project-On.exe"
-#define MyAppDescription "Logiciel de projection pour églises — Bible, Cantiques, Sermons, Exposés"
+#define MyAppDescription "Logiciel de projection pour églises — Bible, Cantiques, Prédications, Livres"
 
 #define MyAppId "D3B3B3B3-B3B3-B3B3-B3B3-B3B3B3B3B3B3"
 
@@ -25,6 +25,9 @@ DefaultGroupName={#MyAppName}
 ; Modern style
 WizardStyle=modern
 WizardSizePercent=120,120
+; Branded panels drawn from the logo by tools/generate_installer_images.py
+WizardImageFile=wizard\wizard-100.bmp,wizard\wizard-150.bmp,wizard\wizard-200.bmp
+WizardSmallImageFile=wizard\small-100.bmp,wizard\small-150.bmp,wizard\small-200.bmp
 DisableProgramGroupPage=yes
 DisableWelcomePage=no
 
