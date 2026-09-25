@@ -1040,6 +1040,7 @@ def app_logo_icon() -> QIcon:
 def app_logo_pixmap(size: int = 64) -> QPixmap:
     """Return the main application logo as a QPixmap."""
     if LOGO_PATH.exists():
-        pixmap = QPixmap(str(LOGO_PATH))
-        return pixmap.scaled(size, size)
+        # Rendered through QIcon: smooth downscaling at the screen's pixel
+        # ratio (the source is 1024 px, a plain scale leaves jagged edges).
+        return QIcon(str(LOGO_PATH)).pixmap(size, size)
     return QPixmap()

@@ -10,6 +10,8 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "assets" / "social"
 LOGO = ROOT / "assets" / "logo" / "app icon.png"
 CAPTURE = ROOT / "video-promo" / "public" / "captures" / "12-demo-projection.png"
+if not CAPTURE.exists():
+    CAPTURE = ROOT / "docs" / "screenshots" / "04-projection-bible.png"
 FONTS = ROOT / "assets" / "fonts" / "Poppins"
 
 
