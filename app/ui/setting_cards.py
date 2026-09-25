@@ -48,7 +48,7 @@ class SettingRow(QFrame):
         label_col = QVBoxLayout()
         label_col.setSpacing(2)
 
-        lbl = QLabel(label)
+        lbl = QLabel(label, self)
         lbl.setWordWrap(True)
         lbl.setStyleSheet(
             f"font-size: {Typography.SIZE_BODY}px; color: {Colors.TEXT_PRIMARY};"
@@ -58,7 +58,9 @@ class SettingRow(QFrame):
         self.title_label = lbl
 
         # Always created so live statuses can use it; hidden while empty.
-        desc = QLabel(description)
+        # Parented at once: a parentless label made visible is a top-level
+        # window that flashes on screen before the layout adopts it.
+        desc = QLabel(description, self)
         desc.setWordWrap(True)
         desc.setStyleSheet(
             f"font-size: {Typography.SIZE_META}px; color: {Colors.TEXT_SECONDARY};"
@@ -112,11 +114,11 @@ class SettingSection(QFrame):
         header.setContentsMargins(2, 0, 0, 6)
         header.setSpacing(8)
         if icon_name:
-            icon_label = QLabel()
+            icon_label = QLabel(self)
             icon_label.setPixmap(app_icon(icon_name, Colors.TEXT_SECONDARY).pixmap(16, 16))
             icon_label.setStyleSheet("background: transparent; border: none;")
             header.addWidget(icon_label)
-        title_label = QLabel(title)
+        title_label = QLabel(title, self)
         title_label.setStyleSheet(
             f"font-size: {Typography.SIZE_BODY}px; font-weight: {Typography.WEIGHT_SEMIBOLD};"
             f" color: {Colors.TEXT_PRIMARY}; background: transparent; border: none;"
@@ -156,14 +158,14 @@ class PageHeader(QWidget):
         layout.setSpacing(12)
         col = QVBoxLayout()
         col.setSpacing(2)
-        title_label = QLabel(title)
+        title_label = QLabel(title, self)
         title_label.setStyleSheet(
             f"font-size: {Typography.SIZE_DIALOG_TITLE}px; font-weight: {Typography.WEIGHT_SEMIBOLD};"
             f" color: {Colors.TEXT_PRIMARY}; background: transparent;"
         )
         col.addWidget(title_label)
         if subtitle:
-            sub = QLabel(subtitle)
+            sub = QLabel(subtitle, self)
             sub.setWordWrap(True)
             sub.setStyleSheet(
                 f"font-size: {Typography.SIZE_FILTER}px; color: {Colors.TEXT_SECONDARY}; background: transparent;"

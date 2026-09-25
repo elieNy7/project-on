@@ -51,6 +51,31 @@ def test_each_section_opens_inside_the_page(window, key) -> None:
     assert not labels & {"Annuler", "Enregistrer", "Appliquer"}  # immediate apply
 
 
+@pytest.mark.parametrize("key", SECTIONS)
+def test_opening_a_section_flashes_no_stray_window(window, key) -> None:
+    """A label shown before its card adopts it used to pop up as a window."""
+    from PySide6.QtCore import QEvent, QObject
+    from PySide6.QtWidgets import QWidget
+
+    shown: list[str] = []
+
+    class Spy(QObject):
+        def eventFilter(self, obj, event):  # noqa: N802
+            if event.type() == QEvent.Type.Show and isinstance(obj, QWidget) and obj.isWindow():
+                shown.append(type(obj).__name__)
+            return False
+
+    app = QApplication.instance()
+    spy = Spy()
+    app.installEventFilter(spy)
+    try:
+        window._show_settings_section(key)
+        app.processEvents()
+    finally:
+        app.removeEventFilter(spy)
+    assert shown == []
+
+
 def test_projection_change_is_applied_and_saved_without_a_button(window) -> None:
     window._show_settings_section("projection")
     dlg = _page(window).current_widget()
