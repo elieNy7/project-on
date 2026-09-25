@@ -17,6 +17,10 @@ import os
 import sys
 from pathlib import Path
 
+# Every test window stays off the operator's screen, whichever test file
+# happens to create the QApplication first.
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
 import pytest
 
 from app.database.connection import Database, DatabaseConfig
