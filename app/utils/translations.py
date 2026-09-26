@@ -30,7 +30,7 @@ _translations: dict[str, dict[str, str]] = {
     "splash_fonts": {"fr": "Chargement des polices…", "en": "Loading fonts…"},
     "splash_data": {"fr": "Préparation des données…", "en": "Preparing data…"},
     "splash_database": {"fr": "Ouverture de la bibliothèque…", "en": "Opening the library…"},
-    "splash_content_update": {"fr": "Mise à jour du contenu…", "en": "Updating content…"},
+    "splash_content_update": {"fr": "Mise à jour du contenu (environ une minute)…", "en": "Updating content (about a minute)…"},
     "splash_modules": {"fr": "Chargement des modules…", "en": "Loading modules…"},
     "splash_interface": {"fr": "Préparation de l'interface…", "en": "Preparing the interface…"},
     "splash_ready": {"fr": "Prêt", "en": "Ready"},

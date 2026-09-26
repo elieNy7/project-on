@@ -339,3 +339,47 @@ def test_bootstrap_leaves_real_corrupted_database_alone(tmp_path):
     target.write_bytes(payload)
     app_paths.ensure_data_initialized()
     assert target.read_bytes() == payload
+
+
+def test_data_pack_keeps_last_duplicate_paragraph_and_old_backups_go(tmp_path):
+    target = tmp_path / "target.db"
+    pack = tmp_path / "pack.db"
+    _prepare_target_db(target)
+    _prepare_pack_db(pack)
+    with sqlite3.connect(pack) as conn:
+        conn.execute(
+            "INSERT INTO sermon_paragraph (id, sermon_id, paragraph_no, ref, "
+            "text) VALUES (12, 7, 1, '¶1', 'Version retenue.')"
+        )
+    stale = tmp_path / "target.db.pre-datapack-ancien.db"
+    stale.write_bytes(b"x")
+    (tmp_path / "target.db.pre-datapack-ancien.db.tmp-shm").write_bytes(b"x")
+
+    assert app_paths.data_pack_pending(target, pack)
+    assert app_paths.upgrade_data_pack(target, pack)
+    assert not app_paths.data_pack_pending(target, pack)
+
+    with sqlite3.connect(target) as conn:
+        texts = [r[0] for r in conn.execute("SELECT text FROM sermon_paragraph")]
+    assert texts == ["Version retenue."]
+    backups = sorted(p.name for p in tmp_path.glob("target.db.pre-datapack-*"))
+    assert len(backups) == 1 and "ancien" not in backups[0]
+
+
+def test_startup_work_runs_off_ui_thread_and_reraises():
+    import threading
+
+    from PySide6.QtWidgets import QApplication
+
+    import main
+
+    qapp = QApplication.instance() or QApplication([])
+
+    ui_thread = threading.get_ident()
+    assert main._run_responsive(qapp, threading.get_ident) != ui_thread
+
+    def _boom():
+        raise RuntimeError("échec")
+
+    with pytest.raises(RuntimeError, match="échec"):
+        main._run_responsive(qapp, _boom)

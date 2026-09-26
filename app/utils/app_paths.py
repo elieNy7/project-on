@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import glob
 import json
 import logging
 import os
@@ -8,6 +9,7 @@ import sqlite3
 import sys
 import tempfile
 import uuid
+from contextlib import closing
 from pathlib import Path
 
 log = logging.getLogger(__name__)
@@ -443,6 +445,37 @@ _PACK_SERMON_COLUMNS = (
 _PACK_OPTIONAL_COLUMNS = ("printed_date", "printed_location")
 
 
+def data_pack_pending(target_path: Path, bundled_path: Path) -> bool:
+    """Lecture rapide : la base cible attend-elle le pack de contenu ?"""
+    if not target_path.is_file() or not bundled_path.is_file():
+        return False
+    try:
+        with closing(sqlite3.connect(target_path, timeout=30.0)) as connection:
+            row = connection.execute(
+                "SELECT value FROM app_meta WHERE key = 'data_pack_version'"
+            ).fetchone()
+    except sqlite3.Error:
+        return False
+    try:
+        return row is None or int(row[0]) < DATA_PACK_VERSION
+    except (TypeError, ValueError):
+        return True
+
+
+def _remove_stale_pack_backups(target_path: Path) -> None:
+    """Supprime les sauvegardes pré-pack laissées par des tentatives interrompues.
+
+    Chaque tentative copiait toute la base (plusieurs centaines de Mo) ; une
+    migration interrompue à répétition remplissait le disque. Seule la
+    sauvegarde de la tentative en cours est conservée.
+    """
+    for leftover in target_path.parent.glob(glob.escape(target_path.name) + ".pre-datapack-*"):
+        try:
+            leftover.unlink()
+        except OSError:
+            log.warning("Sauvegarde pré-pack non supprimée : %s", leftover.name)
+
+
 def upgrade_data_pack(target_path: Path, bundled_path: Path) -> bool:
     """Remplace l'Exposé (``BK-AGES-%``) et les sermons SHP par ceux du pack.
 
@@ -478,7 +511,12 @@ def upgrade_data_pack(target_path: Path, bundled_path: Path) -> bool:
         if target_path.resolve() == bundled_path.resolve():
             return False
         connection.execute("PRAGMA foreign_keys=ON")
-        connection.execute("ATTACH DATABASE ? AS pack", (bundled_path.resolve().as_uri() + "?mode=ro",))
+        # immutable=1 : la base embarquée (Program Files, non inscriptible)
+        # est lue sans créer de fichiers -wal/-shm à côté d'elle.
+        connection.execute(
+            "ATTACH DATABASE ? AS pack",
+            (bundled_path.resolve().as_uri() + "?mode=ro&immutable=1",),
+        )
         if connection.execute("PRAGMA pack.quick_check").fetchone()[0] != "ok":
             raise ValueError("Pack illisible")
         chapters = connection.execute(
@@ -494,6 +532,7 @@ def upgrade_data_pack(target_path: Path, bundled_path: Path) -> bool:
         ).fetchone():
             raise ValueError("Pack incomplet")
         from app.utils.backup_manager import create_database_backup
+        _remove_stale_pack_backups(target_path)
         create_database_backup(target_path, target_path.with_name(
             target_path.name + ".pre-datapack-" + uuid.uuid4().hex + ".db"))
         connection.row_factory = sqlite3.Row
@@ -543,11 +582,12 @@ def upgrade_data_pack(target_path: Path, bundled_path: Path) -> bool:
             SELECT m.new_id, p.paragraph_no, p.ref, p.text, p.marker
             FROM pack.sermon_paragraph p
             JOIN _pack_map m ON m.old_id = p.sermon_id
-            WHERE NOT EXISTS (
-                SELECT 1 FROM pack.sermon_paragraph q
-                JOIN _pack_map n ON n.old_id = q.sermon_id
-                WHERE n.new_id = m.new_id AND q.paragraph_no = p.paragraph_no
-                  AND p.rowid < q.rowid
+            WHERE p.rowid IN (
+                -- Un seul alinéa par numéro (le dernier). Agrégat linéaire :
+                -- l'ancien NOT EXISTS corrélé faisait des centaines de
+                -- millions de recherches et figeait le démarrage.
+                SELECT max(q.rowid) FROM pack.sermon_paragraph q
+                GROUP BY q.sermon_id, q.paragraph_no
             )
             """
         )

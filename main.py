@@ -86,6 +86,38 @@ def _qt_message_handler(mode, context, message):
         sys.stderr.write(f"{message}\n")
 
 
+def _run_responsive(app: QApplication, work):
+    """Exécute ``work()`` dans un fil de travail en gardant l'interface vivante.
+
+    Les tâches lourdes du démarrage (migration de la base, pack de contenu,
+    reconstruction de l'index de recherche) peuvent durer une minute sur une
+    grosse base. Exécutées dans le fil de l'interface, elles figeaient l'écran
+    de démarrage : Windows affichait « Ne répond pas » et l'utilisateur fermait
+    l'application en pleine migration, qui recommençait au lancement suivant.
+    L'exception éventuelle est relancée dans le fil appelant.
+    """
+    import threading
+    import time
+
+    outcome: dict = {}
+
+    def _target() -> None:
+        try:
+            outcome["value"] = work()
+        except BaseException as error:  # relancée plus bas
+            outcome["error"] = error
+
+    worker = threading.Thread(target=_target, name="project-on-startup", daemon=True)
+    worker.start()
+    while worker.is_alive():
+        app.processEvents()
+        worker.join(0.015)
+        time.sleep(0)
+    if "error" in outcome:
+        raise outcome["error"]
+    return outcome.get("value")
+
+
 def main() -> int:
     # Enable High DPI scaling (must be called before creating QApplication)
     QApplication.setHighDpiScaleFactorRoundingPolicy(
@@ -170,7 +202,7 @@ def main() -> int:
     # Initialize database
     splash.set_progress(35, tr("splash_database"))
     db = Database.default()
-    db.initialize()
+    _run_responsive(app, db.initialize)
 
     # Appliquer le pack de données éditorial (Exposé corrigé) aux bases
     # existantes, puis resynchroniser titres/index — une seule fois par pack.
@@ -179,14 +211,21 @@ def main() -> int:
 
         if _is_frozen():
             from app.utils.app_paths import app_db_path as _app_db_path
+            from app.utils.app_paths import data_pack_pending as _pack_pending
             from app.utils.app_paths import resource_root as _resource_root
             from app.utils.app_paths import upgrade_data_pack as _upgrade_pack
 
-            if _upgrade_pack(_app_db_path(), _resource_root() / "data" / "project_on.db"):
+            _pack = _resource_root() / "data" / "project_on.db"
+            if _pack_pending(_app_db_path(), _pack):
                 splash.set_progress(40, tr("splash_content_update"))
-                with db.connect() as _conn:
-                    db._ensure_sermon_search_metadata(_conn)
-                    _conn.commit()
+
+                def _apply_pack() -> None:
+                    if _upgrade_pack(_app_db_path(), _pack):
+                        with db.connect() as _conn:
+                            db._ensure_sermon_search_metadata(_conn)
+                            _conn.commit()
+
+                _run_responsive(app, _apply_pack)
     except Exception:
         import logging
 
