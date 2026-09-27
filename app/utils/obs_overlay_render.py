@@ -12,6 +12,7 @@ de la sortie HDMI, que le mélangeur supprime par chroma key.
 
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass
 from typing import Any
 
@@ -724,10 +725,64 @@ def _font_file_lookup(family: str, weight: str) -> str | None:
     return candidates[0] if candidates else None
 
 
+# Largeurs de glyphes par police : `textlength` coûte ~0,2 ms par appel et
+# le découpage/équilibrage des lignes mesure des milliers de caractères par
+# trame. Sans ce cache, une trame HDMI 1080p prenait plus d'une seconde et
+# figeait la régie (animation d'entrée comprise).
+_GLYPH_WIDTH_CACHE: dict[int, tuple[Any, dict[str, float]]] = {}
+_GLYPH_CACHE_MAX_FONTS = 64
+
+
+def _glyph_width(draw, ch: str, font) -> float:
+    entry = _GLYPH_WIDTH_CACHE.get(id(font))
+    # L'objet police est gardé dans l'entrée : son id() ne peut donc pas être
+    # réattribué à une autre police tant que l'entrée existe.
+    if entry is None or entry[0] is not font:
+        if len(_GLYPH_WIDTH_CACHE) >= _GLYPH_CACHE_MAX_FONTS:
+            _GLYPH_WIDTH_CACHE.clear()
+        entry = (font, {})
+        _GLYPH_WIDTH_CACHE[id(font)] = entry
+    widths = entry[1]
+    width = widths.get(ch)
+    if width is None:
+        width = float(draw.textlength(ch, font=font))
+        widths[ch] = width
+    return width
+
+
+_FONT_LOCAL = threading.local()
+
+
+def _cached_truetype(path: str, size: int):
+    """Police TrueType réutilisée d'une trame à l'autre (par thread).
+
+    Recharger le fichier à chaque trame invalidait aussi le cache des
+    largeurs de glyphes. Un cache par thread : la sortie NDI compose dans
+    son propre thread et FreeType n'est pas sûr en accès concurrent.
+    """
+    from PIL import ImageFont  # type: ignore
+
+    cache = getattr(_FONT_LOCAL, "fonts", None)
+    if cache is None:
+        cache = {}
+        _FONT_LOCAL.fonts = cache
+    key = (path, int(size))
+    if key in cache:
+        return cache[key]
+    try:
+        font = ImageFont.truetype(path, int(size))
+    except Exception:
+        font = None
+    if len(cache) >= 48:
+        cache.clear()
+    cache[key] = font
+    return font
+
+
 def _tracked_width(draw, line: str, font, spacing: float) -> float:
     if not line:
         return 0.0
-    return sum(draw.textlength(ch, font=font) for ch in line) + spacing * max(
+    return sum(_glyph_width(draw, ch, font) for ch in line) + spacing * max(
         0, len(line) - 1
     )
 
@@ -766,7 +821,7 @@ def _draw_tracked(
             stroke_fill=stroke_fill,
             anchor="la",
         )
-        cursor += draw.textlength(char, font=font)
+        cursor += _glyph_width(draw, char, font)
         if index < len(line) - 1:
             cursor += spacing
 
@@ -905,10 +960,9 @@ def render_obs_overlay(
         for candidate in (path, "arial.ttf", "DejaVuSans.ttf"):
             if not candidate:
                 continue
-            try:
-                return ImageFont.truetype(candidate, size)
-            except Exception:
-                continue
+            font = _cached_truetype(candidate, size)
+            if font is not None:
+                return font
         return ImageFont.load_default()
 
     layout_mode = str(cfg.layout_mode or "lower_third").lower()

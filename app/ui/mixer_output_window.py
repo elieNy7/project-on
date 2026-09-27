@@ -61,8 +61,15 @@ KEY_COLOR_LABELS = {"green": "VERT", "magenta": "MAGENTA", "blue": "BLEU"}
 BAND_LAYOUT_MODES = ("lower_third", "subtitle", "side_panel", "focus_card")
 
 
-def hdmi_band_config(cfg: dict[str, Any] | None) -> dict[str, Any]:
+def hdmi_band_config(
+    cfg: dict[str, Any] | None, layout: str = "obs"
+) -> dict[str, Any]:
     """Config du bandeau HDMI : TOUS les réglages OBS, sauf le plein écran.
+
+    ``layout`` impose la disposition de la sortie HDMI : ``"subtitle"``
+    (mode Sous-titre de la page OBS, réglage par défaut de la sortie),
+    ``"lower_third"``, ``"side_panel"``, ``"focus_card"`` — ou ``"obs"``
+    pour reprendre la disposition choisie dans la page OBS.
 
     La sortie mixeur incruste une zone sur la caméra : le mode plein écran
     de la page OBS n'y hérite jamais (il ne resterait aucun fond à
@@ -74,6 +81,9 @@ def hdmi_band_config(cfg: dict[str, Any] | None) -> dict[str, Any]:
     par source, opacité) et l'entrée animée.
     """
     out = dict(cfg or {})
+    forced = str(layout or "obs").strip().lower()
+    if forced in BAND_LAYOUT_MODES:
+        out["layout_mode"] = forced
     mode = str(out.get("layout_mode") or "").strip().lower()
     if mode not in BAND_LAYOUT_MODES:
         out["layout_mode"] = "lower_third"
@@ -125,6 +135,7 @@ class MixerOutputWindow(QWidget):
         key_color: str = "green",
         text_scale: int = 100,
         offset_y: int = 0,
+        layout: str = "subtitle",
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -147,6 +158,7 @@ class MixerOutputWindow(QWidget):
         self._key_rgb: tuple[int, int, int] = CHROMA_KEY_GREEN
         self._text_scale = 100
         self._offset_y = 0
+        self._layout = str(layout or "subtitle").strip().lower()
         self._active_screen = ""
         self._mire_enabled = False
         self._power_held = False
@@ -159,8 +171,10 @@ class MixerOutputWindow(QWidget):
         self._video_active = False
         self._video_pixmap: QPixmap | None = None
 
+        # 100 ms : le bandeau HDMI suit le Direct sans retard perceptible
+        # (deux lectures de date de fichier par tick, coût négligeable).
         self._timer = QTimer(self)
-        self._timer.setInterval(250)
+        self._timer.setInterval(100)
         self._timer.timeout.connect(self._tick)
         self._timer.start()
 
@@ -171,6 +185,18 @@ class MixerOutputWindow(QWidget):
         self._anim_timer = QTimer(self)
         self._anim_timer.setInterval(30)
         self._anim_timer.timeout.connect(self._on_animation_tick)
+
+        # Écran débranché puis rebranché (câble HDMI, mélangeur redémarré) :
+        # la sortie retourne d'elle-même sur l'écran voulu au lieu de rester
+        # sur l'écran de la régie où Windows l'a repliée.
+        self._screen_retarget = QTimer(self)
+        self._screen_retarget.setSingleShot(True)
+        self._screen_retarget.setInterval(800)
+        self._screen_retarget.timeout.connect(self._retarget_screen)
+        app = QGuiApplication.instance()
+        if app is not None:
+            app.screenAdded.connect(self._on_screens_changed)
+            app.screenRemoved.connect(self._on_screens_changed)
 
         self.setCursor(Qt.CursorShape.BlankCursor)
         self.set_key_color(key_color)
@@ -233,6 +259,21 @@ class MixerOutputWindow(QWidget):
             log.exception("Échec de la sélection de l'écran HDMI")
             self.showFullScreen()
 
+    def _on_screens_changed(self, *_args) -> None:
+        # Regroupe les rafales d'événements (un branchement en émet plusieurs).
+        self._screen_retarget.start()
+
+    def _retarget_screen(self) -> None:
+        if not self.isVisible():
+            return
+        self._apply_screen()
+        if self._frame_is_media and self._last_slide is not None:
+            try:
+                self._apply_slide(self._last_slide)
+            except Exception:
+                log.exception("Échec de la recomposition HDMI après changement d'écran")
+        self.update()
+
     def set_screen(self, screen: str) -> None:
         """Re-cible la sortie (préférence opérateur, live)."""
         screen = str(screen or "auto")
@@ -279,6 +320,21 @@ class MixerOutputWindow(QWidget):
             return
         self._offset_y = value
         self._rerender()
+
+    @property
+    def layout(self) -> str:
+        return self._layout
+
+    def set_layout(self, layout: str) -> None:
+        """Disposition du texte (sous-titre, bandeau, … ou « obs »), en direct."""
+        value = str(layout or "subtitle").strip().lower()
+        if value == self._layout:
+            return
+        self._layout = value
+        self._rerender()
+
+    def _band_config(self) -> dict[str, Any]:
+        return hdmi_band_config(self._last_cfg, self._layout)
 
     def _rerender(self) -> None:
         """Force la recomposition du cadre au prochain tick."""
@@ -422,13 +478,16 @@ class MixerOutputWindow(QWidget):
                     return
 
         self._frame_is_media = False
-        self._render_band_frame(slide, elapsed_ms=None)
-        self._start_band_animation(slide)
+        # Avec une entrée animée, la première trame est le début de
+        # l'animation : composer d'abord l'état final faisait « flasher » le
+        # texte complet avant qu'il ne réapparaisse mot à mot.
+        animating = self._start_band_animation(slide)
+        self._render_band_frame(slide, elapsed_ms=0.0 if animating else None)
 
     def _render_band_frame(self, slide: dict[str, Any], elapsed_ms) -> None:
         """Compose une trame du bandeau (``elapsed_ms=None`` = état final)."""
         img = render_obs_overlay_on_color(
-            hdmi_band_config(self._last_cfg),
+            self._band_config(),
             slide,
             bg_rgba=(*self._key_rgb, 255),
             width=self.RENDER_WIDTH,
@@ -440,18 +499,22 @@ class MixerOutputWindow(QWidget):
         self._frame_pixmap = self._pil_to_pixmap(img.convert("RGB"))
         self.update()
 
-    def _start_band_animation(self, slide: dict[str, Any]) -> None:
-        """Prépare l'entrée animée : la page OBS donne la durée."""
+    def _start_band_animation(self, slide: dict[str, Any]) -> bool:
+        """Prépare l'entrée animée (durée donnée par la page OBS).
+
+        Retourne ``True`` si une animation démarre.
+        """
         total = animation_total_ms(
-            hdmi_band_config(self._last_cfg), str(slide.get("text") or "")
+            self._band_config(), str(slide.get("text") or "")
         )
         if total <= 0 or bool(slide.get("hidden")):
             self._anim_started = None
             self._anim_timer.stop()
-            return
+            return False
         self._anim_ms = total
         self._anim_started = time.monotonic()
         self._anim_timer.start()
+        return True
 
     def _on_animation_tick(self) -> None:
         """Trame d'animation courante (puis état final, une seule fois)."""
@@ -708,6 +771,14 @@ class MixerOutputWindow(QWidget):
 
     def closeEvent(self, event) -> None:
         self._anim_timer.stop()
+        self._screen_retarget.stop()
+        app = QGuiApplication.instance()
+        if app is not None:
+            for signal in (app.screenAdded, app.screenRemoved):
+                try:
+                    signal.disconnect(self._on_screens_changed)
+                except (RuntimeError, TypeError):
+                    pass
         if self._power_held:
             self._power_held = False
             power_guard.release()

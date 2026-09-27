@@ -11,12 +11,17 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "expose"))
 
-from import_expose import (  # noqa: E402
-    _is_section_heading_fragment,
-    _merge_opening_reading,
-    _reading_verse_cap,
-    _strip_trailing_section_heading,
+import pytest  # noqa: E402
+
+# Le dossier `expose/` (sources d'import lourdes) n'est pas versionné : sans
+# lui, ces tests ne peuvent pas s'exécuter (clone neuf, CI).
+_expose = pytest.importorskip(
+    "import_expose", reason="dossier expose/ absent (non versionné)"
 )
+_is_section_heading_fragment = _expose._is_section_heading_fragment
+_merge_opening_reading = _expose._merge_opening_reading
+_reading_verse_cap = _expose._reading_verse_cap
+_strip_trailing_section_heading = _expose._strip_trailing_section_heading
 
 
 def _paras(*texts: str):

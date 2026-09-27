@@ -3,7 +3,7 @@
 ; ═══════════════════════════════════════════════════════════════════
 
 #define MyAppName "Project-On"
-#define MyAppVersion "2.6.1"
+#define MyAppVersion "2.6.2"
 #define MyAppPublisher "Elie Nyembo"
 #define MyAppURL "https://github.com/elieNy7/project-on"
 #define MyAppExeName "Project-On.exe"
@@ -30,6 +30,14 @@ WizardImageFile=wizard\wizard-100.bmp,wizard\wizard-150.bmp,wizard\wizard-200.bm
 WizardSmallImageFile=wizard\small-100.bmp,wizard\small-150.bmp,wizard\small-200.bmp
 DisableProgramGroupPage=yes
 DisableWelcomePage=no
+
+; Windows 10 / 11 64 bits uniquement : l'application (Python, Qt, NDI) est
+; en 64 bits. Sans le mode 64 bits, {autopf} désignait « Program Files (x86) »
+; pour une installation « pour tous les utilisateurs ». Une mise à niveau
+; garde le dossier de l'installation précédente (UsePreviousAppDir).
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
+MinVersion=10.0
 
 ; Permissions
 PrivilegesRequiredOverridesAllowed=dialog

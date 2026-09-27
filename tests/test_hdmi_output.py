@@ -6,6 +6,8 @@ import json
 import os
 from pathlib import Path
 
+import pytest
+
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from app.utils.obs_overlay_render import (  # noqa: E402
@@ -655,3 +657,113 @@ def test_renderer_fullscreen_mode_unchanged_for_other_outputs() -> None:
     )
     top, _bottom = _non_key_bounds(img)
     assert top < 300, f"plein écran attendu près du haut, contenu à y={top}"
+
+
+# ── Disposition « Sous-titre OBS » ───────────────────────────────────────
+
+
+def test_hdmi_layout_defaults_to_obs_subtitle(tmp_path: Path) -> None:
+    assert HdmiSettings().layout == "subtitle"
+    assert HdmiSettings(layout="n'importe").sanitized().layout == "subtitle"
+    assert HdmiSettings(layout="OBS").sanitized().layout == "obs"
+
+    path = tmp_path / "settings.json"
+    settings = AppSettings()
+    settings.hdmi = HdmiSettings(layout="side_panel")
+    settings.save(path)
+    assert AppSettings.load(path).hdmi.layout == "side_panel"
+
+
+def test_hdmi_band_config_forces_the_hdmi_layout() -> None:
+    from app.ui.mixer_output_window import hdmi_band_config
+
+    cfg = {"layout_mode": "lower_third", "font_family": "Arial"}
+    assert hdmi_band_config(cfg, "subtitle")["layout_mode"] == "subtitle"
+    assert hdmi_band_config(cfg, "subtitle")["font_family"] == "Arial"
+    # « obs » : la disposition de la page OBS est reprise (plein écran exclu).
+    assert hdmi_band_config(cfg, "obs")["layout_mode"] == "lower_third"
+    assert hdmi_band_config({"layout_mode": "fullscreen"}, "obs")["layout_mode"] == "lower_third"
+    # Le plein écran OBS n'empêche pas le sous-titre HDMI.
+    assert hdmi_band_config({"layout_mode": "fullscreen"}, "subtitle")["layout_mode"] == "subtitle"
+
+
+def test_mixer_window_uses_subtitle_layout_by_default(tmp_path: Path) -> None:
+    _make_qapp()
+    from app.ui.mixer_output_window import MixerOutputWindow
+
+    _write_presentation(
+        tmp_path,
+        {"text": "Car Dieu a tant aimé le monde", "reference": "Jean 3:16", "source": "bible"},
+        {"font_family": "Arial", "layout_mode": "lower_third"},
+    )
+    window = MixerOutputWindow(tmp_path, screen="auto")
+    try:
+        assert window.layout == "subtitle"
+        assert window._band_config()["layout_mode"] == "subtitle"
+        window.set_layout("obs")
+        assert window._band_config()["layout_mode"] == "lower_third"
+        assert window._frame_pixmap is not None
+    finally:
+        window.close()
+
+
+def test_mixer_animation_starts_from_the_entry_frame(tmp_path: Path) -> None:
+    """Pas de « flash » du texte complet avant l'entrée animée."""
+    _make_qapp()
+    from app.ui.mixer_output_window import MixerOutputWindow
+
+    _write_presentation(tmp_path, {"hidden": True}, {"font_family": "Arial"})
+    window = MixerOutputWindow(tmp_path, screen="auto")
+    try:
+        calls: list = []
+        window._render_band_frame = lambda slide, elapsed_ms: calls.append(elapsed_ms)
+        window._start_band_animation = lambda slide: True
+        window._apply_slide({"text": "Bonjour", "source": "bible"})
+        assert calls == [0.0]
+
+        calls.clear()
+        window._start_band_animation = lambda slide: False
+        window._apply_slide({"text": "Bonjour", "source": "bible"})
+        assert calls == [None]
+    finally:
+        window.close()
+
+
+def test_band_render_is_fast_enough_for_live_output() -> None:
+    """Une trame 1080p doit se composer bien en dessous d'une seconde.
+
+    La mesure du texte caractère par caractère sans cache prenait plus d'une
+    seconde par trame et figeait la régie à chaque changement de verset.
+    """
+    import time
+
+    from app.ui.mixer_output_window import hdmi_band_config
+
+    slide = {
+        "text": "Car Dieu a tant aimé le monde qu'il a donné son Fils unique, "
+        "afin que quiconque croit en lui ne périsse point, mais qu'il ait la vie éternelle.",
+        "reference": "Jean 3:16",
+        "source": "bible",
+    }
+    cfg = hdmi_band_config({"font_family": "Arial"}, "subtitle")
+    render_obs_overlay_on_color(cfg, slide)  # chauffe (polices, glyphes)
+    started = time.perf_counter()
+    for elapsed in (0.0, 120.0, 400.0, None):
+        render_obs_overlay_on_color(cfg, slide, elapsed_ms=elapsed)
+    per_frame = (time.perf_counter() - started) / 4
+    assert per_frame < 0.4, f"{per_frame * 1000:.0f} ms par trame"
+
+
+def test_glyph_cache_matches_direct_measure() -> None:
+    from PIL import Image, ImageDraw
+
+    from app.utils.obs_overlay_render import _cached_truetype, _tracked_width
+
+    font = _cached_truetype("DejaVuSans.ttf", 40) or _cached_truetype("arial.ttf", 40)
+    if font is None:
+        pytest.skip("aucune police TrueType système")
+    draw = ImageDraw.Draw(Image.new("RGBA", (8, 8)))
+    text = "Éternel, écoute"
+    expected = sum(draw.textlength(ch, font=font) for ch in text) + 2 * (len(text) - 1)
+    assert abs(_tracked_width(draw, text, font, 2) - expected) < 0.01
+    assert abs(_tracked_width(draw, text, font, 2) - expected) < 0.01

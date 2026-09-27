@@ -1,15 +1,40 @@
-# Project-On 2.6.1
+# Project-On 2.6.2
+
+**Sortie HDMI en sous-titre OBS** 📺 — la sortie HDMI vers le mélangeur (ATEM, Roland…) affiche désormais le texte en **sous-titre**, exactement comme le mode « Sous-titre » de la page OBS : centré en bas de l'image, sur la couleur de clé que le mélangeur supprime.
+
+## Nouveautés
+
+- **Disposition HDMI « Sous-titre OBS »** par défaut. Réglages → Sortie HDMI → **Disposition** permet aussi de suivre la disposition choisie pour OBS, ou d'imposer bandeau bas, panneau latéral ou carte focus. Police, couleurs, contour et animation restent ceux de la page OBS.
+- **Aperçu HDMI fidèle** : l'aperçu des réglages utilise exactement la configuration de la sortie (il pouvait afficher le plein écran OBS alors que l'écran HDMI montrait un bandeau).
+
+## Corrections
+
+- **Sortie HDMI beaucoup plus rapide** : chaque changement de verset ou de strophe demandait plus d'une seconde de calcul du texte, pendant laquelle la régie ne répondait plus (et l'animation d'entrée saccadait). La composition prend maintenant quelques dizaines de millisecondes ; la sortie NDI en profite aussi.
+- **Plus de « flash » du texte** : avec l'animation mot à mot, le texte complet apparaissait une fraction de seconde avant de s'animer.
+- **Câble HDMI débranché puis rebranché** : la sortie retourne d'elle-même sur l'écran du mélangeur au lieu de rester sur l'écran de la régie.
+- La sortie HDMI suit le Direct plus vite (vérification toutes les 100 ms au lieu de 250 ms).
+- **Installeur** : installation en mode 64 bits (« Program Files » et non « Program Files (x86) » pour une installation pour tous les utilisateurs) et Windows 10 minimum vérifié dès le lancement. Une mise à niveau garde le dossier existant, la base, les playlists et les réglages.
+
+## Installation
+
+Téléchargez **`ProjectOn_2.6.2_Setup.exe`** et installez-le par-dessus la version existante : cantiques, playlists, réglages et base sont conservés.
+
+Windows 10 / 11 (64 bits) · fonctionne hors-ligne.
+
+---
+
+## Rappel : Project-On 2.6.1
 
 **Correctif du démarrage** 🚀 — après l'installation de la 2.6.0 par-dessus une version existante, Project-On pouvait rester figé sur l'écran de démarrage (« Ne répond pas »), puis se fermer, et recommencer au lancement suivant.
 
-## Corrections
+### Corrections
 
 - **Démarrage débloqué** : la mise à jour du contenu (sermons SHP, livres) appliquée à la base existante utilisait un contrôle de doublons extrêmement lent — plus de dix minutes sur une base complète, si bien qu'elle n'aboutissait jamais. Elle prend désormais **moins d'une minute**, une seule fois, et n'est plus refaite ensuite.
 - **Plus de « Ne répond pas »** : cette mise à jour et les vérifications de la base tournent en arrière-plan ; l'écran de démarrage reste animé et indique « Mise à jour du contenu (environ une minute)… ».
 - **Disque préservé** : chaque tentative interrompue laissait une copie complète de la base (≈ 400 Mo) dans le dossier de données. Ces copies sont supprimées ; seule la sauvegarde de la dernière mise à jour est gardée.
 - La base de contenu fournie avec l'application est lue sans écrire de fichiers dans le dossier d'installation.
 
-## Installation
+### Installation
 
 Téléchargez **`ProjectOn_2.6.1_Setup.exe`** ci-dessous et installez-le par-dessus la version existante : cantiques, playlists, réglages et base sont conservés. Si Project-On est resté ouvert et figé, fermez-le d'abord (Gestionnaire des tâches → Project-On → Fin de tâche).
 

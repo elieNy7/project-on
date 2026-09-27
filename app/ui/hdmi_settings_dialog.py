@@ -26,6 +26,7 @@ from app.ui.obs_output_settings_dialog import DIALOG_STYLE
 from app.ui.setting_cards import PageHeader, SettingSection, fit_combos
 from app.ui.settings_dialog import _style_combo
 from app.ui.theme import Colors, Radius, Typography
+from app.ui.mixer_output_window import hdmi_band_config
 from app.utils.obs_overlay_render import chroma_key_rgb, render_obs_overlay_on_color
 from app.utils.settings import HdmiSettings
 
@@ -165,6 +166,22 @@ class HdmiSettingsDialog(QDialog):
             f"font-size: {Typography.SIZE_CONTROL}px;"
         )
         overlay_section.addWidget(self._preview_hint)
+
+        self._layout = QComboBox()
+        self._layout.addItem("Sous-titre OBS", "subtitle")
+        self._layout.addItem("Comme la page OBS", "obs")
+        self._layout.addItem("Bandeau bas", "lower_third")
+        self._layout.addItem("Panneau latéral", "side_panel")
+        self._layout.addItem("Carte focus", "focus_card")
+        idx = self._layout.findData(settings.layout or "subtitle")
+        self._layout.setCurrentIndex(max(idx, 0))
+        self._layout.currentIndexChanged.connect(self._on_change)
+        overlay_section.addRow(
+            "Disposition",
+            self._layout,
+            "Sous-titre OBS : texte centré en bas de l'image, idéal sur la caméra",
+        )
+        _style_combo(self._layout)
 
         self._key_color = QComboBox()
         self._key_color.addItem("Vert — standard", "green")
@@ -308,8 +325,9 @@ class HdmiSettingsDialog(QDialog):
         layout.addWidget(check_section)
 
         note = QLabel(
-            "Le style du bandeau (police, couleurs, disposition) suit la sortie "
-            "OBS : Paramètres → Modes & style OBS. Masquer (B) vide "
+            "Le style du texte (police, couleurs, contour, animation) suit la "
+            "sortie OBS : Paramètres → Modes & style OBS ; la disposition se "
+            "choisit ci-dessus (Sous-titre par défaut). Masquer (B) vide "
             "l'incrustation ; la mire (F8) sert au calibrage du mélangeur."
         )
         note.setWordWrap(True)
@@ -415,8 +433,10 @@ class HdmiSettingsDialog(QDialog):
         # Rendu à la résolution de sortie réelle puis réduction : les
         # réglages en pixels (marges, offsets, tailles) doivent apparaître
         # à l'échelle de l'écran, comme sur la sortie HDMI.
+        # Même configuration que la sortie réelle (disposition HDMI, plein
+        # écran OBS exclu) : l'aperçu ne peut pas différer de l'écran.
         img = render_obs_overlay_on_color(
-            cfg,
+            hdmi_band_config(cfg, settings.layout),
             slide,
             bg_rgba=(*key, 255),
             width=1920,
@@ -454,6 +474,7 @@ class HdmiSettingsDialog(QDialog):
             QTimer.singleShot(0, self._render_preview)
 
     def _reset_overlay(self) -> None:
+        self._layout.setCurrentIndex(0)
         self._key_color.setCurrentIndex(0)
         self._text_scale.setValue(100)
         self._offset_y.setValue(0)
@@ -468,6 +489,7 @@ class HdmiSettingsDialog(QDialog):
             key_color=str(self._key_color.currentData() or "green"),
             text_scale=int(self._text_scale.value()),
             offset_y=int(self._offset_y.value()),
+            layout=str(self._layout.currentData() or "subtitle"),
         ).sanitized()
 
     def _on_change(self, *_args) -> None:

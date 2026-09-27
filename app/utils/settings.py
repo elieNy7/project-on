@@ -584,6 +584,10 @@ def _read_obs_output(d: dict, out: ObsOutputSettings) -> ObsOutputSettings:
     return out
 
 
+# Dispositions de la sortie HDMI (voir HdmiSettings.layout).
+HDMI_LAYOUTS = ("subtitle", "obs", "lower_third", "side_panel", "focus_card")
+
+
 @dataclass
 class HdmiSettings:
     """Sortie HDMI vers un mélangeur vidéo (ATEM, Roland V/AV…).
@@ -605,11 +609,18 @@ class HdmiSettings:
     key_color: str = "green"  # green|magenta|blue
     text_scale: int = 100  # taille de la section texte : 60..180 (%)
     offset_y: int = 0  # décalage vertical : -300..300 px @1080
+    # Disposition du texte : « subtitle » = mode Sous-titre de la page OBS
+    # (défaut), « obs » = suivre la disposition choisie pour OBS, ou un mode
+    # imposé (lower_third, side_panel, focus_card).
+    layout: str = "subtitle"
 
     def sanitized(self) -> HdmiSettings:
         key = str(self.key_color or "green").strip().lower()
         if key not in ("green", "magenta", "blue"):
             key = "green"
+        layout = str(self.layout or "subtitle").strip().lower()
+        if layout not in HDMI_LAYOUTS:
+            layout = "subtitle"
         return HdmiSettings(
             enabled=bool(self.enabled),
             screen=str(self.screen or "auto").strip() or "auto",
@@ -617,6 +628,7 @@ class HdmiSettings:
             key_color=key,
             text_scale=max(60, min(180, int(self.text_scale or 100))),
             offset_y=max(-300, min(300, int(self.offset_y or 0))),
+            layout=layout,
         )
 
 
@@ -809,6 +821,7 @@ class AppSettings:
             hdmi.key_color = _gs(hm, "key_color", hdmi.key_color)
             hdmi.text_scale = _gi(hm, "text_scale", hdmi.text_scale)
             hdmi.offset_y = _gi(hm, "offset_y", hdmi.offset_y)
+            hdmi.layout = _gs(hm, "layout", hdmi.layout)
         hdmi = hdmi.sanitized()
 
         # Guard: if a background image was selected but the file no longer
