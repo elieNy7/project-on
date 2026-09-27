@@ -5,18 +5,17 @@ from __future__ import annotations
 Mêmes familles de réglages que la page OBS (police, tailles, position,
 arrière-plan, couleurs, effets, animation), appliquées à la seule sortie
 HDMI. Les widgets sont décrits une fois (clé → widget) : lecture, écriture
-et préréglages passent par la même table.
+et réinitialisation passent par la même table.
 """
 
-from dataclasses import asdict, fields
+from dataclasses import asdict
 from typing import Any
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDoubleSpinBox,
-    QPushButton,
     QSpinBox,
     QVBoxLayout,
     QWidget,
@@ -25,83 +24,10 @@ from PySide6.QtWidgets import (
 from app.ui.obs_output_settings_dialog import ColorPickerButton
 from app.ui.setting_cards import SettingSection
 from app.ui.settings_dialog import _style_combo
-from app.utils.flow_layout import FlowLayout
 from app.utils.fonts import get_available_fonts
 from app.utils.settings import HdmiStyle
 
-__all__ = ["HdmiStyleEditor", "HDMI_STYLE_PRESETS", "style_from_obs_config"]
-
-
-# Préréglages pensés pour l'incrustation caméra (clé chroma).
-HDMI_STYLE_PRESETS: tuple[tuple[str, str, dict[str, Any]], ...] = (
-    (
-        "Sous-titre TV",
-        "Bandeau sombre sobre, texte blanc centré",
-        {},  # valeurs par défaut de HdmiStyle
-    ),
-    (
-        "Contour seul",
-        "Sans bandeau : texte blanc cerné de noir, comme un sous-titre de film",
-        {
-            "bg_enabled": False,
-            "show_accent_bar": False,
-            "text_color": "rgba(255, 255, 255, 1.00)",
-            "text_stroke": True,
-            "stroke_color": "rgba(0, 0, 0, 1.00)",
-            "stroke_width": 3,
-            "text_shadow": True,
-            "shadow_blur": 10,
-            "reference_style": "plain",
-            "text_size": 56,
-        },
-    ),
-    (
-        "Jaune cinéma",
-        "Texte jaune cerné, lisible sur toutes les images",
-        {
-            "bg_enabled": False,
-            "show_accent_bar": False,
-            "text_color": "rgba(255, 221, 51, 1.00)",
-            "ref_color": "rgba(255, 255, 255, 0.95)",
-            "text_stroke": True,
-            "stroke_color": "rgba(0, 0, 0, 1.00)",
-            "stroke_width": 3,
-            "reference_style": "plain",
-            "text_size": 56,
-        },
-    ),
-    (
-        "Bandeau clair",
-        "Panneau blanc, texte foncé : pour un décor sombre",
-        {
-            "bg_color": "rgba(248, 248, 244, 1.00)",
-            "text_color": "rgba(18, 22, 30, 1.00)",
-            "ref_color": "rgba(60, 66, 80, 1.00)",
-            "text_shadow": False,
-            "border_radius": 14,
-        },
-    ),
-    (
-        "Louange — Impact",
-        "Majuscules, entrée mot à mot",
-        {
-            "bg_color": "rgba(24, 14, 44, 1.00)",
-            "bg_gradient_enabled": True,
-            "bg_color_2": "rgba(8, 5, 20, 1.00)",
-            "text_transform": "uppercase",
-            "text_size": 58,
-            "animation_style": "words",
-            "animation_type": "slide",
-        },
-    ),
-)
-
-
-def style_from_obs_config(cfg: dict[str, Any] | None) -> HdmiStyle:
-    """Style HDMI initialisé depuis la configuration de la page OBS."""
-    names = {f.name for f in fields(HdmiStyle)}
-    payload = {k: v for k, v in (cfg or {}).items() if k in names}
-    return HdmiStyle.from_payload(payload)
+__all__ = ["HdmiStyleEditor"]
 
 
 class HdmiStyleEditor(QWidget):
@@ -330,33 +256,3 @@ class HdmiStyleEditor(QWidget):
         if hasattr(self, "_rules"):
             self._refresh_dependencies()
         self.changed.emit()
-
-    def apply_preset(self, params: dict[str, Any]) -> None:
-        """Préréglage : valeurs par défaut + paramètres du préréglage.
-
-        La police choisie est conservée : un préréglage change l'allure,
-        pas l'identité typographique de l'église.
-        """
-        payload = asdict(HdmiStyle())
-        payload.update(params)
-        payload["font_family"] = self.style().font_family
-        self.set_style(HdmiStyle.from_payload(payload))
-
-
-def build_preset_bar(on_preset, on_copy_obs) -> QWidget:
-    """Rangée de boutons de préréglages (+ « Partir du style OBS »)."""
-    chips = QWidget()
-    chips.setStyleSheet("background: transparent;")
-    flow = FlowLayout(chips, margin=0, hSpacing=6, vSpacing=6)
-    for name, hint, params in HDMI_STYLE_PRESETS:
-        button = QPushButton(name)
-        button.setCursor(Qt.CursorShape.PointingHandCursor)
-        button.setToolTip(hint)
-        button.clicked.connect(lambda _checked=False, p=params: on_preset(p))
-        flow.addWidget(button)
-    copy_button = QPushButton("Partir du style OBS")
-    copy_button.setCursor(Qt.CursorShape.PointingHandCursor)
-    copy_button.setToolTip("Recopie le style actuel de la page OBS, pour l'ajuster ici")
-    copy_button.clicked.connect(lambda _checked=False: on_copy_obs())
-    flow.addWidget(copy_button)
-    return chips

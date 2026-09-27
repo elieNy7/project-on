@@ -168,12 +168,14 @@ def test_obs_pages_are_sized_to_the_visible_tab(obs_screen) -> None:
     assert len(heights) > 1  # a short tab leaves no blank space
 
 
-def test_obs_preset_still_applies(obs_screen) -> None:
-    emitted = []
-    obs_screen.obsSettingsChanged.connect(emitted.append)
-    obs_screen._apply_preset({"layout_mode": "fullscreen", "text_size": 61})
-    obs_screen._change_timer.timeout.emit()
-    assert emitted and emitted[-1].output.layout_mode == "fullscreen"
+def test_obs_screen_has_no_presets(obs_screen) -> None:
+    from PySide6.QtWidgets import QLabel, QPushButton
+
+    assert not hasattr(obs_screen, "_apply_preset")
+    texts = [w.text() for w in obs_screen.findChildren(QLabel)]
+    texts += [w.text() for w in obs_screen.findChildren(QPushButton)]
+    assert "Préréglages" not in texts
+    assert "Lower Third TV" not in texts
 
 
 # ── Projection screen ─────────────────────────────────────────────────────

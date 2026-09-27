@@ -875,19 +875,14 @@ def test_hdmi_dialog_style_editor_round_trip(tmp_path: Path) -> None:
         assert read.use_obs_style is False
         assert read.style == style.sanitized()
 
-        # Préréglage « Contour seul » : plus de bandeau, contour épais.
-        dialog._apply_style_preset({"bg_enabled": False, "stroke_width": 3, "text_stroke": True})
-        read = dialog.read_settings()
-        assert read.style.bg_enabled is False and read.style.stroke_width == 3
-        assert read.style.font_family == style.font_family  # police conservée
+        # Aucun préréglage : seuls les réglages eux-mêmes.
+        assert not hasattr(dialog, "_preset_bar")
+        assert not hasattr(dialog._style_editor, "apply_preset")
 
-        # Partir du style OBS.
-        (tmp_path / "obs-config.json").write_text(
-            json.dumps({"text_size": 44, "text_transform": "uppercase"}), encoding="utf-8"
-        )
-        dialog._copy_obs_style()
-        read = dialog.read_settings()
-        assert read.style.text_size == 44 and read.style.text_transform == "uppercase"
+        # Réinitialiser : style HDMI par défaut, style OBS réactivé.
+        dialog._reset_overlay()
+        assert dialog.read_settings().style == HdmiStyle()
+        dialog._use_obs_style.setChecked(False)
 
         dialog._use_obs_style.setChecked(True)
         assert dialog.read_settings().style_overrides() is None

@@ -21,11 +21,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app.ui.hdmi_style_editor import (
-    HdmiStyleEditor,
-    build_preset_bar,
-    style_from_obs_config,
-)
+from app.ui.hdmi_style_editor import HdmiStyleEditor
 from app.ui.icons import app_icon
 from app.ui.obs_output_settings_dialog import DIALOG_STYLE
 from app.ui.setting_cards import PageHeader, SettingSection, fit_combos
@@ -33,7 +29,7 @@ from app.ui.settings_dialog import _style_combo
 from app.ui.theme import Colors, Radius, Typography
 from app.ui.mixer_output_window import hdmi_band_config
 from app.utils.obs_overlay_render import chroma_key_rgb, render_obs_overlay_on_color
-from app.utils.settings import HdmiSettings
+from app.utils.settings import HdmiSettings, HdmiStyle
 
 # Texte de démonstration quand la slide en cours est masquée ou vide :
 # l'aperçu reste utile pour régler l'incrustation hors service.
@@ -281,8 +277,6 @@ class HdmiSettingsDialog(QDialog):
             f"border: none; font-size: {Typography.SIZE_META}px;"
         )
         style_section.addWidget(self._style_hint)
-        self._preset_bar = build_preset_bar(self._apply_style_preset, self._copy_obs_style)
-        style_section.addWidget(self._preset_bar)
         layout.addWidget(style_section)
 
         self._style_editor = HdmiStyleEditor(settings.style)
@@ -501,7 +495,6 @@ class HdmiSettingsDialog(QDialog):
 
     def _on_style_mode_changed(self, *_args, emit: bool = True) -> None:
         custom = not self._use_obs_style.isChecked()
-        self._preset_bar.setVisible(custom)
         self._style_editor.setVisible(custom)
         self._style_hint.setText(
             "Style propre à la sortie HDMI : police, tailles, couleurs, effets et "
@@ -513,18 +506,9 @@ class HdmiSettingsDialog(QDialog):
         if emit:
             self._on_change()
 
-    def _apply_style_preset(self, params: dict) -> None:
-        self._style_editor.apply_preset(params)
-
-    def _copy_obs_style(self) -> None:
-        cfg = self._read_json(
-            self._presentation_dir / "obs-config.json" if self._presentation_dir else None
-        )
-        self._style_editor.set_style(style_from_obs_config(cfg))
-
     def _reset_overlay(self) -> None:
         self._use_obs_style.setChecked(True)
-        self._style_editor.apply_preset({})
+        self._style_editor.set_style(HdmiStyle())
         self._layout.setCurrentIndex(0)
         self._key_color.setCurrentIndex(0)
         self._text_scale.setValue(100)

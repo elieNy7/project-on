@@ -24,10 +24,10 @@ Sortie OBS (lower-third) · Projection plein écran cinématique · 100 % hors-l
 - **Recherche globale (Ctrl+K)** — références bibliques (« Jean 3:16 », « 1 co 13 ») ou texte libre, dans la Bible, les prédications, les exposés, les médias et les playlists.
 - **Interface Windows 11** — menu latéral repliable, barre de commandes avec l'état des sorties (projection, OBS, HDMI, NDI), effet Mica, une seule page Réglages à application immédiate.
 - **Texte rapide** — projetez une annonce ou un texte libre en un instant depuis l'aperçu.
-- **Sortie OBS · Lower Third** — bandeau « broadcast » personnalisable (position, police, couleurs, dégradé, flou, ombres, contour, préréglages) avec aperçu en direct.
+- **Sortie OBS · Lower Third** — bandeau « broadcast » personnalisable (position, police, couleurs, dégradé, flou, ombres, contour) avec aperçu en direct.
 - **Animation mot à mot (broadcast)** — le texte des slides se révèle mot par mot en cascade, avec entrée de bandeau chorégraphiée (barre d'accent, badge source, référence).
 - **Styles par scène OBS** — plusieurs looks indépendants (louange plein écran, prédication discrète…) via des URL dédiées `?scene=…`, gérés et prévisualisés dans les réglages.
-- **Sortie HDMI pour mélangeur (ATEM, Roland…)** — le texte en **sous-titre OBS** sur fond de clé chroma (vert, magenta ou bleu), style de la page OBS ou style propre au HDMI (police, tailles, position, bandeau, couleurs, ombre et contour, animation, préréglages), mire de calibrage (F8), retour automatique sur l'écran du mélangeur après un débranchement.
+- **Sortie HDMI pour mélangeur (ATEM, Roland…)** — le texte en **sous-titre OBS** sur fond de clé chroma (vert, magenta ou bleu), style de la page OBS ou style propre au HDMI (police, tailles, position, bandeau, couleurs, ombre et contour, animation), mire de calibrage (F8), retour automatique sur l'écran du mélangeur après un débranchement.
 - **Contrôle OBS (WebSocket)** — bascule automatique de scène OBS à la projection/masquage, chargement des scènes et création de la source Navigateur Project-On en un clic.
 - **Projection cinématique** — transitions Fondu, Glissement, Zoom, Flou et Reveal + zoom lent (Ken Burns) sur les images de fond.
 - **Arrière-plans chrétiens** — fonds sobres et lisibles (croix, aigle, lion, agneau).
