@@ -767,3 +767,130 @@ def test_glyph_cache_matches_direct_measure() -> None:
     expected = sum(draw.textlength(ch, font=font) for ch in text) + 2 * (len(text) - 1)
     assert abs(_tracked_width(draw, text, font, 2) - expected) < 0.01
     assert abs(_tracked_width(draw, text, font, 2) - expected) < 0.01
+
+
+# ── Style propre à la sortie HDMI ────────────────────────────────────────
+
+
+def test_hdmi_style_round_trip_and_sanitized(tmp_path: Path) -> None:
+    from app.utils.settings import HdmiStyle
+
+    assert HdmiSettings().use_obs_style is True
+    assert HdmiSettings().style_overrides() is None
+
+    path = tmp_path / "settings.json"
+    settings = AppSettings()
+    settings.hdmi = HdmiSettings(
+        use_obs_style=False,
+        style=HdmiStyle(text_size=70, position="top", text_color="rgba(255, 221, 51, 1.00)"),
+    )
+    settings.save(path)
+    loaded = AppSettings.load(path).hdmi
+    assert loaded.use_obs_style is False
+    assert loaded.style.text_size == 70
+    assert loaded.style.position == "top"
+    assert loaded.style.text_color == "rgba(255, 221, 51, 1.00)"
+
+    wild = HdmiStyle.from_payload(
+        {"text_size": 999, "position": "partout", "max_lines": "2", "font_family": ""}
+    )
+    assert wild.text_size == 120
+    assert wild.position == "bottom"
+    assert wild.max_lines == 2
+    assert wild.font_family == HdmiStyle().font_family
+
+
+def test_hdmi_style_overrides_the_obs_style_only_on_hdmi() -> None:
+    from app.ui.mixer_output_window import hdmi_band_config
+    from app.utils.settings import HdmiStyle
+
+    obs_cfg = {"font_family": "Arial", "text_size": 40, "text_color": "rgba(0,0,0,1)"}
+    hdmi = HdmiSettings(use_obs_style=False, style=HdmiStyle(text_size=66)).sanitized()
+    cfg = hdmi_band_config(obs_cfg, "subtitle", hdmi.style_overrides())
+    assert cfg["text_size"] == 66
+    assert cfg["font_family"] == HdmiStyle().font_family
+    assert cfg["layout_mode"] == "subtitle"
+    assert obs_cfg["text_size"] == 40  # la configuration OBS n'est pas touchée
+
+    # Style OBS : rien n'est remplacé.
+    assert hdmi_band_config(obs_cfg, "subtitle", None)["text_size"] == 40
+
+
+def test_hdmi_style_changes_the_rendered_frame() -> None:
+    from app.ui.mixer_output_window import hdmi_band_config
+    from app.utils.settings import HdmiStyle
+
+    slide = {"text": "Car Dieu a tant aimé le monde", "reference": "Jean 3:16", "source": "bible"}
+    band = render_obs_overlay_on_color(
+        hdmi_band_config({}, "subtitle", HdmiStyle().to_overrides()), slide
+    )
+    outline = render_obs_overlay_on_color(
+        hdmi_band_config(
+            {}, "subtitle", HdmiStyle(bg_enabled=False, text_stroke=True).to_overrides()
+        ),
+        slide,
+    )
+    assert band.tobytes() != outline.tobytes()
+    # Sans bandeau, bien moins de pixels hors clé.
+    key = (*CHROMA_KEY_GREEN, 255)
+    def non_key(img):
+        return sum(1 for px in img.getdata() if px != key)
+    assert non_key(outline) < non_key(band)
+
+
+def test_mixer_window_applies_hdmi_style_live(tmp_path: Path) -> None:
+    _make_qapp()
+    from app.ui.mixer_output_window import MixerOutputWindow
+    from app.utils.settings import HdmiStyle
+
+    _write_presentation(
+        tmp_path,
+        {"text": "Car Dieu a tant aimé le monde", "reference": "Jean 3:16", "source": "bible"},
+        {"font_family": "Arial"},
+    )
+    window = MixerOutputWindow(tmp_path, screen="auto")
+    try:
+        window._tick()
+        before = window._frame_pixmap.toImage()
+        window.set_style(HdmiStyle(text_size=90, bg_enabled=False).to_overrides())
+        assert window._band_config()["text_size"] == 90
+        window._anim_timer.stop()
+        window._render_band_frame(window._last_slide, None)
+        assert window._frame_pixmap.toImage() != before
+        window.set_style(None)
+        assert window._band_config().get("text_size") is None
+    finally:
+        window.close()
+
+
+def test_hdmi_dialog_style_editor_round_trip(tmp_path: Path) -> None:
+    _make_qapp()
+    from app.ui.hdmi_settings_dialog import HdmiSettingsDialog
+    from app.utils.settings import HdmiStyle
+
+    style = HdmiStyle(text_size=64, position="top", text_stroke=True, animation_style="words")
+    dialog = HdmiSettingsDialog(HdmiSettings(use_obs_style=False, style=style), tmp_path)
+    try:
+        read = dialog.read_settings()
+        assert read.use_obs_style is False
+        assert read.style == style.sanitized()
+
+        # Préréglage « Contour seul » : plus de bandeau, contour épais.
+        dialog._apply_style_preset({"bg_enabled": False, "stroke_width": 3, "text_stroke": True})
+        read = dialog.read_settings()
+        assert read.style.bg_enabled is False and read.style.stroke_width == 3
+        assert read.style.font_family == style.font_family  # police conservée
+
+        # Partir du style OBS.
+        (tmp_path / "obs-config.json").write_text(
+            json.dumps({"text_size": 44, "text_transform": "uppercase"}), encoding="utf-8"
+        )
+        dialog._copy_obs_style()
+        read = dialog.read_settings()
+        assert read.style.text_size == 44 and read.style.text_transform == "uppercase"
+
+        dialog._use_obs_style.setChecked(True)
+        assert dialog.read_settings().style_overrides() is None
+        assert dialog._style_editor.isHidden()
+    finally:
+        dialog.close()

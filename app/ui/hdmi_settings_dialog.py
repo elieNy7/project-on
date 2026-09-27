@@ -21,6 +21,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.ui.hdmi_style_editor import (
+    HdmiStyleEditor,
+    build_preset_bar,
+    style_from_obs_config,
+)
 from app.ui.icons import app_icon
 from app.ui.obs_output_settings_dialog import DIALOG_STYLE
 from app.ui.setting_cards import PageHeader, SettingSection, fit_combos
@@ -261,8 +266,29 @@ class HdmiSettingsDialog(QDialog):
             "Décalage fin du bandeau (px @1080) pour éviter un habillage caméra",
         )
 
-
         layout.addWidget(overlay_section)
+
+        # ═══════ Section: Style du texte (OBS ou propre au HDMI) ═══════
+        style_section = SettingSection("Style du texte", "type.svg")
+        self._use_obs_style = QCheckBox("Utiliser le style de la page OBS")
+        self._use_obs_style.setChecked(bool(settings.use_obs_style))
+        self._use_obs_style.toggled.connect(self._on_style_mode_changed)
+        style_section.addWidget(self._use_obs_style)
+        self._style_hint = QLabel()
+        self._style_hint.setWordWrap(True)
+        self._style_hint.setStyleSheet(
+            f"color: {Colors.TEXT_SECONDARY}; background: transparent; "
+            f"border: none; font-size: {Typography.SIZE_META}px;"
+        )
+        style_section.addWidget(self._style_hint)
+        self._preset_bar = build_preset_bar(self._apply_style_preset, self._copy_obs_style)
+        style_section.addWidget(self._preset_bar)
+        layout.addWidget(style_section)
+
+        self._style_editor = HdmiStyleEditor(settings.style)
+        self._style_editor.changed.connect(self._on_change)
+        layout.addWidget(self._style_editor)
+        self._on_style_mode_changed(emit=False)
 
         # ═══════ Section: Sortie ═══════
         output_section = SettingSection("Sortie", "cast.svg")
@@ -325,9 +351,9 @@ class HdmiSettingsDialog(QDialog):
         layout.addWidget(check_section)
 
         note = QLabel(
-            "Le style du texte (police, couleurs, contour, animation) suit la "
-            "sortie OBS : Paramètres → Modes & style OBS ; la disposition se "
-            "choisit ci-dessus (Sous-titre par défaut). Masquer (B) vide "
+            "La disposition (Sous-titre par défaut) et le style du texte se "
+            "règlent ci-dessus : style de la page OBS ou style propre au HDMI. "
+            "Masquer (B) vide "
             "l'incrustation ; la mire (F8) sert au calibrage du mélangeur."
         )
         note.setWordWrap(True)
@@ -436,7 +462,7 @@ class HdmiSettingsDialog(QDialog):
         # Même configuration que la sortie réelle (disposition HDMI, plein
         # écran OBS exclu) : l'aperçu ne peut pas différer de l'écran.
         img = render_obs_overlay_on_color(
-            hdmi_band_config(cfg, settings.layout),
+            hdmi_band_config(cfg, settings.layout, settings.style_overrides()),
             slide,
             bg_rgba=(*key, 255),
             width=1920,
@@ -473,7 +499,32 @@ class HdmiSettingsDialog(QDialog):
         if self._preview.pixmap() is not None:
             QTimer.singleShot(0, self._render_preview)
 
+    def _on_style_mode_changed(self, *_args, emit: bool = True) -> None:
+        custom = not self._use_obs_style.isChecked()
+        self._preset_bar.setVisible(custom)
+        self._style_editor.setVisible(custom)
+        self._style_hint.setText(
+            "Style propre à la sortie HDMI : police, tailles, couleurs, effets et "
+            "animation ci-dessous ne changent pas la page OBS."
+            if custom
+            else "Police, couleurs, contour et animation suivent Paramètres → "
+            "Modes & style OBS. Décochez pour régler un style propre au HDMI."
+        )
+        if emit:
+            self._on_change()
+
+    def _apply_style_preset(self, params: dict) -> None:
+        self._style_editor.apply_preset(params)
+
+    def _copy_obs_style(self) -> None:
+        cfg = self._read_json(
+            self._presentation_dir / "obs-config.json" if self._presentation_dir else None
+        )
+        self._style_editor.set_style(style_from_obs_config(cfg))
+
     def _reset_overlay(self) -> None:
+        self._use_obs_style.setChecked(True)
+        self._style_editor.apply_preset({})
         self._layout.setCurrentIndex(0)
         self._key_color.setCurrentIndex(0)
         self._text_scale.setValue(100)
@@ -490,6 +541,8 @@ class HdmiSettingsDialog(QDialog):
             text_scale=int(self._text_scale.value()),
             offset_y=int(self._offset_y.value()),
             layout=str(self._layout.currentData() or "subtitle"),
+            use_obs_style=self._use_obs_style.isChecked(),
+            style=self._style_editor.style(),
         ).sanitized()
 
     def _on_change(self, *_args) -> None:

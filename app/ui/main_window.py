@@ -1302,6 +1302,7 @@ class MainWindow(QMainWindow):
                 text_scale=hdmi.text_scale,
                 offset_y=hdmi.offset_y,
                 layout=hdmi.layout,
+                style=hdmi.style_overrides(),
             )
             self._mixer_window.destroyed.connect(
                 lambda: setattr(self, "_mixer_window", None)
@@ -1322,6 +1323,7 @@ class MainWindow(QMainWindow):
             self._mixer_window.set_text_scale(hdmi.text_scale)
             self._mixer_window.set_offset_y(hdmi.offset_y)
             self._mixer_window.set_layout(hdmi.layout)
+            self._mixer_window.set_style(hdmi.style_overrides())
             self._mixer_window.show()
         self._update_hdmi_status()
 

@@ -62,7 +62,9 @@ BAND_LAYOUT_MODES = ("lower_third", "subtitle", "side_panel", "focus_card")
 
 
 def hdmi_band_config(
-    cfg: dict[str, Any] | None, layout: str = "obs"
+    cfg: dict[str, Any] | None,
+    layout: str = "obs",
+    style: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Config du bandeau HDMI : TOUS les réglages OBS, sauf le plein écran.
 
@@ -70,6 +72,10 @@ def hdmi_band_config(
     (mode Sous-titre de la page OBS, réglage par défaut de la sortie),
     ``"lower_third"``, ``"side_panel"``, ``"focus_card"`` — ou ``"obs"``
     pour reprendre la disposition choisie dans la page OBS.
+
+    ``style`` (``HdmiSettings.style_overrides()``) remplace le style de la
+    page OBS par le style propre à la sortie HDMI ; ``None`` garde le style
+    OBS.
 
     La sortie mixeur incruste une zone sur la caméra : le mode plein écran
     de la page OBS n'y hérite jamais (il ne resterait aucun fond à
@@ -81,6 +87,8 @@ def hdmi_band_config(
     par source, opacité) et l'entrée animée.
     """
     out = dict(cfg or {})
+    if style:
+        out.update(style)
     forced = str(layout or "obs").strip().lower()
     if forced in BAND_LAYOUT_MODES:
         out["layout_mode"] = forced
@@ -136,6 +144,7 @@ class MixerOutputWindow(QWidget):
         text_scale: int = 100,
         offset_y: int = 0,
         layout: str = "subtitle",
+        style: dict[str, Any] | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -159,6 +168,7 @@ class MixerOutputWindow(QWidget):
         self._text_scale = 100
         self._offset_y = 0
         self._layout = str(layout or "subtitle").strip().lower()
+        self._style: dict[str, Any] | None = dict(style) if style else None
         self._active_screen = ""
         self._mire_enabled = False
         self._power_held = False
@@ -333,8 +343,16 @@ class MixerOutputWindow(QWidget):
         self._layout = value
         self._rerender()
 
+    def set_style(self, style: dict[str, Any] | None) -> None:
+        """Style propre à la sortie HDMI (``None`` = style OBS), en direct."""
+        value = dict(style) if style else None
+        if value == self._style:
+            return
+        self._style = value
+        self._rerender()
+
     def _band_config(self) -> dict[str, Any]:
-        return hdmi_band_config(self._last_cfg, self._layout)
+        return hdmi_band_config(self._last_cfg, self._layout, self._style)
 
     def _rerender(self) -> None:
         """Force la recomposition du cadre au prochain tick."""

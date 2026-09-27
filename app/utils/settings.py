@@ -587,6 +587,137 @@ def _read_obs_output(d: dict, out: ObsOutputSettings) -> ObsOutputSettings:
 # Dispositions de la sortie HDMI (voir HdmiSettings.layout).
 HDMI_LAYOUTS = ("subtitle", "obs", "lower_third", "side_panel", "focus_card")
 
+# Valeurs admises des réglages à choix du style HDMI (premier = repli).
+_HDMI_STYLE_CHOICES: dict[str, tuple[str, ...]] = {
+    "font_weight": ("bold", "normal", "light"),
+    "text_transform": ("none", "uppercase", "capitalize"),
+    "reference_style": ("badge", "plain", "inline"),
+    "position": ("bottom", "top", "center"),
+    "align": ("center", "left", "right"),
+    "accent_mode": ("auto", "custom"),
+    "animation_type": ("fade", "none", "slide", "scale", "blur", "reveal", "auto"),
+    "animation_style": ("block", "words"),
+    "animation_direction": ("up", "down", "left", "right"),
+}
+
+# Bornes des réglages numériques du style HDMI.
+_HDMI_STYLE_RANGES: dict[str, tuple[float, float]] = {
+    "text_size": (16, 120),
+    "ref_size": (10, 60),
+    "edge_margin": (0, 300),
+    "max_width": (30, 100),
+    "max_lines": (1, 8),
+    "border_radius": (0, 60),
+    "shadow_blur": (0, 30),
+    "stroke_width": (1, 8),
+    "letter_spacing": (-5, 20),
+    "line_height": (1.0, 2.0),
+    "animation_duration": (0, 2000),
+}
+
+
+@dataclass
+class HdmiStyle:
+    """Style propre à la sortie HDMI (mêmes familles de réglages que OBS).
+
+    Utilisé quand ``HdmiSettings.use_obs_style`` est désactivé : ces valeurs
+    remplacent celles de la page OBS pour la seule sortie HDMI. Les valeurs
+    par défaut donnent un sous-titre télévisé lisible sur la caméra.
+    """
+
+    # Police
+    font_family: str = "Poppins"
+    font_weight: str = "bold"
+    text_transform: str = "none"
+    letter_spacing: int = 0
+    line_height: float = 1.16
+    # Tailles et référence
+    text_size: int = 52
+    ref_size: int = 22
+    show_reference: bool = True
+    reference_style: str = "badge"
+    auto_fit: bool = True
+    max_lines: int = 3
+    # Position
+    position: str = "bottom"
+    align: str = "center"
+    edge_margin: int = 64
+    max_width: int = 82
+    # Arrière-plan (toujours opaque sur la clé chroma : une transparence
+    # mélangerait le panneau à la couleur supprimée par le mélangeur)
+    bg_enabled: bool = True
+    bg_color: str = "rgba(7, 12, 22, 0.92)"
+    bg_gradient_enabled: bool = False
+    bg_color_2: str = "rgba(2, 6, 14, 0.94)"
+    border_radius: int = 18
+    # Couleurs
+    text_color: str = "rgba(255, 255, 255, 0.98)"
+    ref_color: str = "rgba(255, 247, 226, 0.94)"
+    # Effets
+    text_shadow: bool = True
+    shadow_color: str = "rgba(0, 0, 0, 0.70)"
+    shadow_blur: int = 12
+    text_stroke: bool = False
+    stroke_color: str = "rgba(0, 0, 0, 0.90)"
+    stroke_width: int = 2
+    # Habillage
+    show_kicker: bool = False
+    show_accent_bar: bool = True
+    accent_mode: str = "auto"
+    accent_color: str = "#74a7f8"
+    # Animation d'entrée
+    animation_enabled: bool = True
+    animation_type: str = "fade"
+    animation_style: str = "block"
+    animation_direction: str = "up"
+    animation_duration: int = 420
+
+    def sanitized(self) -> HdmiStyle:
+        out = HdmiStyle()
+        for name, default in asdict(out).items():
+            value = getattr(self, name, default)
+            try:
+                if isinstance(default, bool):
+                    value = bool(value)
+                elif isinstance(default, int):
+                    value = int(round(float(value)))
+                elif isinstance(default, float):
+                    value = float(value)
+                else:
+                    value = str(value if value is not None else "").strip()
+            except (TypeError, ValueError):
+                value = default
+            if name in _HDMI_STYLE_RANGES and not isinstance(default, bool):
+                low, high = _HDMI_STYLE_RANGES[name]
+                value = type(default)(max(low, min(high, value)))
+            if name in _HDMI_STYLE_CHOICES:
+                value = str(value).lower()
+                if value not in _HDMI_STYLE_CHOICES[name]:
+                    value = _HDMI_STYLE_CHOICES[name][0]
+            if isinstance(default, str) and not value and name not in ("bg_color_2",):
+                value = default
+            setattr(out, name, value)
+        return out
+
+    @classmethod
+    def from_payload(cls, payload: Any) -> HdmiStyle:
+        out = cls()
+        if isinstance(payload, dict):
+            for name in asdict(out):
+                if name in payload and payload[name] is not None:
+                    setattr(out, name, payload[name])
+        return out.sanitized()
+
+    def to_overrides(self) -> dict[str, Any]:
+        """Clés de configuration OBS remplacées sur la sortie HDMI."""
+        out = asdict(self.sanitized())
+        # Taille configurée respectée d'une slide à l'autre ; l'ajustement
+        # automatique ne rétrécit que ce qui dépasse le nombre de lignes.
+        out["uniform_text_size"] = not out["auto_fit"]
+        # Image de fond de bandeau et flou : propres au navigateur OBS.
+        out["bg_mode"] = "color"
+        return out
+
 
 @dataclass
 class HdmiSettings:
@@ -613,6 +744,14 @@ class HdmiSettings:
     # (défaut), « obs » = suivre la disposition choisie pour OBS, ou un mode
     # imposé (lower_third, side_panel, focus_card).
     layout: str = "subtitle"
+    # Style du texte : celui de la page OBS (défaut) ou un style propre à
+    # la sortie HDMI (``style``), réglable sans toucher à OBS.
+    use_obs_style: bool = True
+    style: HdmiStyle = field(default_factory=HdmiStyle)
+
+    def style_overrides(self) -> dict[str, Any] | None:
+        """Réglages remplaçant le style OBS, ou ``None`` pour le style OBS."""
+        return None if self.use_obs_style else self.style.to_overrides()
 
     def sanitized(self) -> HdmiSettings:
         key = str(self.key_color or "green").strip().lower()
@@ -629,6 +768,12 @@ class HdmiSettings:
             text_scale=max(60, min(180, int(self.text_scale or 100))),
             offset_y=max(-300, min(300, int(self.offset_y or 0))),
             layout=layout,
+            use_obs_style=bool(self.use_obs_style),
+            style=(
+                self.style
+                if isinstance(self.style, HdmiStyle)
+                else HdmiStyle.from_payload(self.style)
+            ).sanitized(),
         )
 
 
@@ -822,6 +967,8 @@ class AppSettings:
             hdmi.text_scale = _gi(hm, "text_scale", hdmi.text_scale)
             hdmi.offset_y = _gi(hm, "offset_y", hdmi.offset_y)
             hdmi.layout = _gs(hm, "layout", hdmi.layout)
+            hdmi.use_obs_style = _gb(hm, "use_obs_style", hdmi.use_obs_style)
+            hdmi.style = HdmiStyle.from_payload(hm.get("style"))
         hdmi = hdmi.sanitized()
 
         # Guard: if a background image was selected but the file no longer

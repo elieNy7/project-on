@@ -5,6 +5,8 @@
 ## Nouveautés
 
 - **Disposition HDMI « Sous-titre OBS »** par défaut. Réglages → Sortie HDMI → **Disposition** permet aussi de suivre la disposition choisie pour OBS, ou d'imposer bandeau bas, panneau latéral ou carte focus. Police, couleurs, contour et animation restent ceux de la page OBS.
+- **Style du texte propre à la sortie HDMI** 🎨 : décochez « Utiliser le style de la page OBS » pour régler le HDMI indépendamment d'OBS, avec les mêmes familles de réglages — **police** (famille, épaisseur, casse, espacement, hauteur de ligne), **tailles et référence** (taille du texte et de la référence, style de référence, ajustement automatique, lignes au maximum), **position** (bas, haut ou centre, alignement, marges, largeur), **arrière-plan** (bandeau, couleur, dégradé, coins arrondis), **couleurs et habillage** (texte, référence, barre d'accent, pastille de source, accent personnalisé), **effets** (ombre, contour des lettres) et **animation d'entrée** (style, mot à mot, direction, durée).
+- **Préréglages HDMI** : Sous-titre TV, Contour seul (sans bandeau, comme un sous-titre de film), Jaune cinéma, Bandeau clair, Louange — Impact, et « Partir du style OBS » pour ajuster une copie du style OBS.
 - **Aperçu HDMI fidèle** : l'aperçu des réglages utilise exactement la configuration de la sortie (il pouvait afficher le plein écran OBS alors que l'écran HDMI montrait un bandeau).
 
 ## Corrections
