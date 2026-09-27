@@ -338,7 +338,7 @@ def split_text_into_slides(
 
 def split_hymn_stanza(
     text: str,
-    max_lines: int = 4,
+    max_lines: int = 2,
     max_chars: int = MAX_CHARS_PER_SLIDE,
     *,
     keep_couplets: bool = True,

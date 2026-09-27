@@ -110,12 +110,12 @@ class SplitSettingsDialog(QDialog):
         self._hymn_enabled = QCheckBox("Diviser les strophes longues")
         hymn_section.addWidget(self._hymn_enabled)
         self._hymn_max_lines = QSpinBox()
-        self._hymn_max_lines.setRange(2, 12)
+        self._hymn_max_lines.setRange(1, 12)
         self._hymn_max_lines.setSuffix(" vers")
         hymn_section.addRow(
-            "Vers par partie au maximum",
+            "Lignes par slide",
             self._hymn_max_lines,
-            "Une strophe de 8 vers devient 2 parties de 4 vers",
+            "2 par défaut : chaque slide montre deux lignes du cantique",
         )
         self._hymn_couplets = QCheckBox("Garder les vers deux par deux (rimes)")
         hymn_section.addWidget(self._hymn_couplets)

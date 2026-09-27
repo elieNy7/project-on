@@ -791,7 +791,7 @@ class SplitSettings:
     max_chars: int = 280  # 120..800 caractères par partie
     keep_line_breaks: bool = True  # alinéas et vers gardent leur ligne
     hymn_enabled: bool = True
-    hymn_max_lines: int = 4  # vers par partie : 2..12
+    hymn_max_lines: int = 2  # vers par slide : 1..12 (2 = deux lignes)
     hymn_keep_couplets: bool = True  # vers 1-2, 3-4… restent ensemble
     show_part_counter: bool = True  # « (1/2) » dans la référence
 
@@ -807,7 +807,7 @@ class SplitSettings:
             max_chars=_int(self.max_chars, 280, 120, 800),
             keep_line_breaks=bool(self.keep_line_breaks),
             hymn_enabled=bool(self.hymn_enabled),
-            hymn_max_lines=_int(self.hymn_max_lines, 4, 2, 12),
+            hymn_max_lines=_int(self.hymn_max_lines, 2, 1, 12),
             hymn_keep_couplets=bool(self.hymn_keep_couplets),
             show_part_counter=bool(self.show_part_counter),
         )

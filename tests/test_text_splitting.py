@@ -122,18 +122,28 @@ def _controller(tmp_path: Path):
 def test_hymn_stanzas_are_split_into_parts(tmp_path: Path) -> None:
     controller = _controller(tmp_path)
     controller.load_program("hymn", "Cantique 1", [("1 - Strophe 1", "Refrain\n" + STANZA_8)])
+    # Par défaut : deux lignes par slide.
     refs = [s.reference for s in controller._program_slides]
-    assert refs == ["1 - Strophe 1 (1/2)", "1 - Strophe 1 (2/2)"]
-    assert controller._program_slides[0].text.count("\n") == 3  # 4 vers
+    assert refs == [f"1 - Strophe 1 ({i}/4)" for i in range(1, 5)]
+    assert all(s.text.count("\n") == 1 for s in controller._program_slides)
     assert not controller._program_slides[0].text.startswith("Refrain")
+
+    # Deux lignes : une strophe de 2 vers reste une seule slide.
+    two = "\n".join(STANZA_8.split("\n")[:2])
+    controller.load_program("hymn", "Cantique 1", [("R", two)])
+    assert controller.program_count == 1
+
+    controller.set_split_settings(SplitSettings(hymn_max_lines=4))
+    controller.load_program("hymn", "Cantique 1", [("1 - Strophe 1", STANZA_8)])
+    assert controller.program_count == 2
 
     controller.set_split_settings(SplitSettings(hymn_enabled=False))
     controller.load_program("hymn", "Cantique 1", [("1 - Strophe 1", STANZA_8)])
     assert controller.program_count == 1
 
-    controller.set_split_settings(SplitSettings(hymn_max_lines=2))
+    controller.set_split_settings(SplitSettings(hymn_max_lines=1))
     controller.load_program("hymn", "Cantique 1", [("1 - Strophe 1", STANZA_8)])
-    assert controller.program_count == 4
+    assert controller.program_count == 8
 
 
 def test_sermon_paragraph_keeps_alineas_on_their_own_lines(tmp_path: Path) -> None:
@@ -170,6 +180,7 @@ def test_split_settings_round_trip_and_sanitized(tmp_path: Path) -> None:
     wild = SplitSettings.from_payload({"max_chars": 5, "hymn_max_lines": 99})
     assert wild.max_chars == 120 and wild.hymn_max_lines == 12
     assert AppSettings().split == SplitSettings()
+    assert SplitSettings().hymn_max_lines == 2
 
 
 def test_split_settings_dialog_reads_back_and_previews() -> None:
@@ -188,3 +199,10 @@ def test_split_settings_dialog_reads_back_and_previews() -> None:
         assert not dialog._hymn_max_lines.isEnabled()
     finally:
         dialog.close()
+
+
+def test_default_hymn_split_is_two_lines_per_slide() -> None:
+    five = "\n".join(STANZA_8.split("\n")[:5])
+    parts = split_hymn_stanza(five)
+    assert [p.count("\n") + 1 for p in parts] == [2, 2, 1]
+    assert "\n".join(parts) == five
