@@ -778,11 +778,57 @@ class HdmiSettings:
 
 
 @dataclass
+class SplitSettings:
+    """Découpage des textes longs en parties navigables « réf (1/3) ».
+
+    Textes (versets, paragraphes de sermon, livres, textes rapides) :
+    coupés au-delà de ``max_chars`` caractères, aux endroits les plus
+    naturels. Cantiques : une strophe de plus de ``hymn_max_lines`` vers
+    est répartie en parties de quelques vers, sans jamais couper un vers.
+    """
+
+    text_enabled: bool = True
+    max_chars: int = 280  # 120..800 caractères par partie
+    keep_line_breaks: bool = True  # alinéas et vers gardent leur ligne
+    hymn_enabled: bool = True
+    hymn_max_lines: int = 4  # vers par partie : 2..12
+    hymn_keep_couplets: bool = True  # vers 1-2, 3-4… restent ensemble
+    show_part_counter: bool = True  # « (1/2) » dans la référence
+
+    def sanitized(self) -> SplitSettings:
+        def _int(value, default, low, high):
+            try:
+                return max(low, min(high, int(value)))
+            except (TypeError, ValueError):
+                return default
+
+        return SplitSettings(
+            text_enabled=bool(self.text_enabled),
+            max_chars=_int(self.max_chars, 280, 120, 800),
+            keep_line_breaks=bool(self.keep_line_breaks),
+            hymn_enabled=bool(self.hymn_enabled),
+            hymn_max_lines=_int(self.hymn_max_lines, 4, 2, 12),
+            hymn_keep_couplets=bool(self.hymn_keep_couplets),
+            show_part_counter=bool(self.show_part_counter),
+        )
+
+    @classmethod
+    def from_payload(cls, payload: Any) -> SplitSettings:
+        out = cls()
+        if isinstance(payload, dict):
+            for name in asdict(out):
+                if name in payload and payload[name] is not None:
+                    setattr(out, name, payload[name])
+        return out.sanitized()
+
+
+@dataclass
 class AppSettings:
     projection: ProjectionSettings = field(default_factory=ProjectionSettings)
     obs: ObsSettings = field(default_factory=ObsSettings)
     appearance: AppearanceSettings = field(default_factory=AppearanceSettings)
     hdmi: HdmiSettings = field(default_factory=HdmiSettings)
+    split: SplitSettings = field(default_factory=SplitSettings)
     load_warning: str = field(default="", repr=False, compare=False)
 
     @staticmethod
@@ -1002,6 +1048,7 @@ class AppSettings:
             obs=obs,
             appearance=appearance,
             hdmi=hdmi,
+            split=SplitSettings.from_payload(payload.get("split")),
             load_warning=load_warning,
         )
 
@@ -1012,6 +1059,7 @@ class AppSettings:
             "obs": asdict(self.obs),
             "appearance": asdict(self.appearance),
             "hdmi": asdict(self.hdmi),
+            "split": asdict(self.split),
         }
         secret = str(self.obs.remote.password or "")
         if secret:

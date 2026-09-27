@@ -97,95 +97,203 @@ MAX_CHARS_PER_SLIDE = constants.MAX_CHARS_PER_SLIDE
 MIN_CHARS_PER_SLIDE = constants.MIN_CHARS_PER_SLIDE
 
 
-def _force_split(text: str, limit: int) -> list[str]:
-    """Force-split an oversized sentence at the best available break."""
-    tokens = re.findall(r"\S+(?:\s+|$)", text)
-    parts: list[str] = []
-    current = ""
-    break_chars = {".", ",", ";", ":", "!", "?"}
-    for tok in tokens:
-        if len(current) + len(tok) > limit and current:
-            parts.append(current.strip())
-            current = ""
-        current += tok
-        stripped = tok.strip()
-        if stripped and stripped[-1] in break_chars and len(current) >= limit * 0.55:
-            parts.append(current.strip())
-            current = ""
-    if current.strip():
-        parts.append(current.strip())
-    return parts or [text]
+# Force des coupures (plus la valeur est haute, plus la coupure est naturelle).
+_BREAK_PARAGRAPH = 4
+_BREAK_LINE = 3
+_BREAK_SENTENCE = 2
+_BREAK_CLAUSE = 1
+_BREAK_WORD = 0
+
+# Pénalité de coupure selon sa force : on coupe entre deux paragraphes ou
+# deux lignes avant de couper une phrase, et une phrase avant un mot.
+_BREAK_PENALTY = {
+    _BREAK_PARAGRAPH: 0.0,
+    _BREAK_LINE: 0.05,
+    _BREAK_SENTENCE: 0.15,
+    _BREAK_CLAUSE: 0.6,
+    _BREAK_WORD: 2.0,
+}
+
+# Abréviations suivies d'un point qui ne terminent pas la phrase.
+_ABBREVIATIONS = {
+    "m", "mm", "mme", "mlle", "dr", "st", "ste", "fr", "sr", "jr", "mr", "mrs",
+    "rév", "rev", "frère", "soeur", "p", "pp", "v", "vv", "ch", "chap", "cf",
+    "etc", "no", "n°", "env", "vol", "av", "apr", "j.-c", "c-à-d", "ex",
+}
+
+_SENTENCE_END_RE = re.compile(r"[.!?…]+[»\"”’')\]]*$")
+_CLAUSE_END_RE = re.compile(r"[,;:—–]$")
 
 
-def _rebalance(slides: list[str], limit: int, min_chars: int) -> list[str]:
-    """Merge any too-short slide into a neighbour so no slide feels orphaned.
+def _is_sentence_end(token: str, next_token: str) -> bool:
+    """Vrai si ``token`` termine une phrase (et pas une abréviation)."""
+    if not _SENTENCE_END_RE.search(token):
+        return False
+    word = token.rstrip(".!?…»\"”’')]").lower().lstrip("«\"“‘(")
+    if token.rstrip("»\"”’')]").endswith(".") and not token.endswith(".."):
+        if word in _ABBREVIATIONS or (len(word) == 1 and word.isalpha()):
+            return False
+        # « 3. » suivi d'une minuscule : numérotation, pas une fin de phrase.
+        if word.isdigit() and next_token[:1].islower():
+            return False
+    return True
 
-    Works on every slide (not just the last one): a short slide is merged
-    into the neighbour that keeps both sides under *limit*; when no merge
-    fits, the pair is re-split in two balanced halves at a word boundary.
+
+def _units_of_line(line: str, limit: int) -> list[tuple[str, int]]:
+    """Découpe une ligne en unités (phrase, proposition ou mot).
+
+    Chaque unité porte la force de la coupure qui la SUIT dans la ligne.
+    Une phrase qui tient dans ``limit`` reste entière ; sinon elle est
+    découpée à ses virgules/points-virgules, puis entre les mots.
     """
-    guard = len(slides) * 3 + 4
-    while len(slides) >= 2 and guard > 0:
-        guard -= 1
-        short_idx = next(
-            (i for i, s in enumerate(slides) if len(s) < min_chars), None
-        )
-        if short_idx is None:
-            break
-        s = slides[short_idx]
-        merged = False
-        # Prefer merging into the shorter neighbour.
-        neighbours = []
-        if short_idx > 0:
-            neighbours.append(short_idx - 1)
-        if short_idx < len(slides) - 1:
-            neighbours.append(short_idx + 1)
-        neighbours.sort(key=lambda j: len(slides[j]))
-        for j in neighbours:
-            combined = (
-                slides[j] + " " + s if j < short_idx else s + " " + slides[j]
-            )
-            if len(combined) <= limit:
-                slides[j] = combined
-                del slides[short_idx]
-                merged = True
-                break
-        if merged:
+    tokens = line.split()
+    if not tokens:
+        return []
+    sentences: list[list[str]] = [[]]
+    for index, token in enumerate(tokens):
+        sentences[-1].append(token)
+        following = tokens[index + 1] if index + 1 < len(tokens) else ""
+        if following and _is_sentence_end(token, following):
+            sentences.append([])
+    sentences = [words for words in sentences if words]
+
+    units: list[tuple[str, int]] = []
+    for words in sentences:
+        sentence = " ".join(words)
+        if len(sentence) <= limit:
+            units.append((sentence, _BREAK_SENTENCE))
             continue
-        # No merge fits: re-split the pair with the first neighbour in two
-        # balanced halves at a word boundary.
-        if neighbours:
-            j = neighbours[0]
-            combined = (
-                slides[j] + " " + s if j < short_idx else s + " " + slides[j]
-            )
-            words = combined.split()
-            mid = len(words) // 2
-            part1 = " ".join(words[:mid])
-            part2 = " ".join(words[mid:])
-            if part1 and part2 and len(part1) <= limit and len(part2) <= limit:
-                slides[j] = part1
-                slides[short_idx] = part2
-            else:
-                # Give up on this slide rather than loop forever.
-                break
-        else:
-            break
-    return slides
+        clauses: list[list[str]] = [[]]
+        for index, word in enumerate(words):
+            clauses[-1].append(word)
+            if index + 1 < len(words) and _CLAUSE_END_RE.search(word):
+                clauses.append([])
+        for clause_words in clauses:
+            clause = " ".join(clause_words)
+            if len(clause) <= limit:
+                units.append((clause, _BREAK_CLAUSE))
+                continue
+            for word in clause_words:
+                if len(word) > limit:  # URL, mot démesuré : coupe brute
+                    for pos in range(0, len(word), limit):
+                        units.append((word[pos : pos + limit], _BREAK_WORD))
+                else:
+                    units.append((word, _BREAK_WORD))
+            units[-1] = (units[-1][0], _BREAK_CLAUSE)
+        units[-1] = (units[-1][0], _BREAK_SENTENCE)
+    return units
+
+
+def _text_units(raw: str, limit: int) -> list[tuple[str, int]]:
+    """Unités du texte : (morceau, force de la coupure qui le suit)."""
+    units: list[tuple[str, int]] = []
+    paragraphs = [p for p in re.split(r"\n\s*\n+", raw) if p.strip()]
+    for p_index, para in enumerate(paragraphs):
+        lines = [line.strip() for line in para.split("\n") if line.strip()]
+        for l_index, line in enumerate(lines):
+            line_units = _units_of_line(line, limit)
+            if not line_units:
+                continue
+            last_line = l_index == len(lines) - 1
+            strength = _BREAK_PARAGRAPH if last_line else _BREAK_LINE
+            line_units[-1] = (line_units[-1][0], strength)
+            units.extend(line_units)
+    if units:
+        units[-1] = (units[-1][0], _BREAK_PARAGRAPH)
+    return units
+
+
+def _join_units(units: list[tuple[str, int]], keep_line_breaks: bool) -> str:
+    parts: list[str] = []
+    for index, (chunk, _strength) in enumerate(units):
+        parts.append(chunk)
+        if index < len(units) - 1:
+            strength = units[index][1]
+            parts.append("\n" if keep_line_breaks and strength >= _BREAK_LINE else " ")
+    return "".join(parts)
+
+
+def _unit_span_length(lengths: list[int], i: int, j: int) -> int:
+    """Longueur des unités [i, j) jointes (un séparateur entre chacune)."""
+    return lengths[j] - lengths[i] + (j - i - 1)
+
+
+def _partition_units(
+    units: list[tuple[str, int]], limit: int, min_chars: int
+) -> list[tuple[int, int]]:
+    """Découpage optimal des unités en parties équilibrées.
+
+    Programmation dynamique : le moins de parties possible (chacune tient
+    dans ``limit``), et parmi ces découpages, celui dont les parties sont
+    les plus égales et les coupures les plus naturelles (paragraphe > ligne
+    > phrase > proposition > mot). Aucune partie « orpheline » trop courte
+    tant qu'un autre découpage l'évite.
+    """
+    n = len(units)
+    prefix = [0]
+    for chunk, _strength in units:
+        prefix.append(prefix[-1] + len(chunk))
+
+    # Nombre minimal de parties (glouton : optimal pour ce critère).
+    k_min = 0
+    i = 0
+    while i < n:
+        j = i + 1
+        while j < n and _unit_span_length(prefix, i, j + 1) <= limit:
+            j += 1
+        k_min += 1
+        i = j
+
+    total = _unit_span_length(prefix, 0, n)
+    target = total / max(1, k_min)
+    inf = float("inf")
+    # best[k][j] : coût minimal des j premières unités en k parties.
+    best = [[inf] * (n + 1) for _ in range(k_min + 1)]
+    back = [[-1] * (n + 1) for _ in range(k_min + 1)]
+    best[0][0] = 0.0
+    for k in range(1, k_min + 1):
+        for j in range(1, n + 1):
+            for i in range(j - 1, -1, -1):
+                length = _unit_span_length(prefix, i, j)
+                if length > limit and j - i > 1:
+                    break
+                previous = best[k - 1][i]
+                if previous == inf:
+                    continue
+                cost = ((length - target) / max(1.0, target)) ** 2
+                if length < min_chars and k_min > 1:
+                    cost += 4.0
+                if j < n:
+                    cost += _BREAK_PENALTY[units[j - 1][1]]
+                if previous + cost < best[k][j]:
+                    best[k][j] = previous + cost
+                    back[k][j] = i
+    if best[k_min][n] == inf:  # sécurité : ne devrait pas arriver
+        return [(0, n)]
+    spans: list[tuple[int, int]] = []
+    j = n
+    for k in range(k_min, 0, -1):
+        i = back[k][j]
+        spans.append((i, j))
+        j = i
+    spans.reverse()
+    return spans
 
 
 def split_text_into_slides(
     text: str,
     max_chars: int = MAX_CHARS_PER_SLIDE,
     min_chars: int = MIN_CHARS_PER_SLIDE,
+    *,
+    keep_line_breaks: bool = True,
 ) -> list[str]:
-    """Split text into balanced, readable slides.
+    """Découpe un texte long en parties équilibrées et lisibles.
 
-    Breaks at natural boundaries first — blank lines (paragraphs/stanzas),
-    then single line breaks (verses), then sentence punctuation — force-splits
-    only oversized segments, then packs segments so every slide lands close
-    to an even share of the text instead of filling the first slides to the
-    limit and leaving a tiny leftover at the end.
+    Coupe d'abord entre paragraphes, puis entre lignes (alinéas, vers),
+    puis en fin de phrase (sans couper après « M. », « St. », « v. »…),
+    puis aux virgules, et seulement en dernier recours entre deux mots.
+    Toutes les parties ont une longueur proche ; les retours à la ligne du
+    texte d'origine sont conservés (``keep_line_breaks``).
     """
     raw = str(text or "").strip()
     if not raw:
@@ -194,46 +302,109 @@ def split_text_into_slides(
     raw = raw.replace("\r", "")
     raw = re.sub(r"[\t ]+", " ", raw)
     raw = re.sub(r"\n[ \t]+", "\n", raw)
+    raw = re.sub(r"[ \t]+\n", "\n", raw)
+    max_chars = max(40, int(max_chars))
+    min_chars = max(0, min(int(min_chars), max_chars // 2))
 
+    if not keep_line_breaks:
+        raw = re.sub(r"\s*\n\s*", " ", raw)
     if len(raw) <= max_chars:
         return [raw]
 
-    # Natural segments: paragraph > line > sentence.
-    segments: list[str] = []
-    for para in re.split(r"\n\s*\n+", raw):
-        para = para.strip()
-        if not para:
-            continue
-        for line in para.split("\n"):
-            line = line.strip()
-            if not line:
-                continue
-            if len(line) <= max_chars:
-                for part in re.split(r"(?<=[.!?])\s+", line):
-                    part = part.strip()
-                    if part:
-                        segments.append(part)
-            else:
-                segments.extend(_force_split(line, max_chars))
-
-    if not segments:
+    units = _text_units(raw, max_chars)
+    if not units:
         return [raw]
+    if len(units) > 600:
+        # Texte démesuré : regroupement glouton (évite un calcul trop long).
+        spans: list[tuple[int, int]] = []
+        start = 0
+        length = 0
+        for index, (chunk, _strength) in enumerate(units):
+            extra = len(chunk) + (1 if index > start else 0)
+            if index > start and length + extra > max_chars:
+                spans.append((start, index))
+                start, length = index, len(chunk)
+            else:
+                length += extra
+        spans.append((start, len(units)))
+    else:
+        spans = _partition_units(units, max_chars, min_chars)
+    return [
+        _join_units(units[i:j], keep_line_breaks)
+        for i, j in spans
+        if units[i:j]
+    ]
 
-    # Balanced packing: aim for slides of roughly equal size.
-    total = sum(len(s) for s in segments) + max(0, len(segments) - 1)
-    slide_count = max(1, -(-total // max_chars))  # ceil division
-    target = total / slide_count
 
-    slides: list[str] = []
-    current = ""
-    for s in segments:
-        candidate = (current + " " + s).strip() if current else s
-        if current and (len(candidate) > max_chars or len(current) >= target):
-            slides.append(current)
-            current = s
+def split_hymn_stanza(
+    text: str,
+    max_lines: int = 4,
+    max_chars: int = MAX_CHARS_PER_SLIDE,
+    *,
+    keep_couplets: bool = True,
+) -> list[str]:
+    """Découpe une strophe longue en parties de quelques vers.
+
+    Les vers ne sont jamais coupés (sauf un vers plus long que
+    ``max_chars``). Les parties sont équilibrées : 8 vers en 4 + 4, 6 vers
+    en 4 + 2 avec les couplets (vers 1-2, 3-4, 5-6 restent ensemble) ou
+    3 + 3 sans. Une strophe sans retours à la ligne (import à plat) est
+    découpée comme un texte, phrase par phrase.
+    """
+    raw = str(text or "").replace("\r", "").strip()
+    if not raw:
+        return []
+    lines = [re.sub(r"[\t ]+", " ", line).strip() for line in raw.split("\n")]
+    lines = [line for line in lines if line]
+    max_lines = max(1, int(max_lines))
+    max_chars = max(40, int(max_chars))
+
+    if len(lines) <= 1:
+        return split_text_into_slides(raw, max_chars, 0)
+
+    # Vers démesuré : on le découpe d'abord pour respecter la limite.
+    verses: list[str] = []
+    for line in lines:
+        if len(line) > max_chars:
+            verses.extend(
+                part.replace("\n", " ")
+                for part in split_text_into_slides(line, max_chars, 0)
+            )
         else:
-            current = candidate
-    if current:
-        slides.append(current)
+            verses.append(line)
 
-    return _rebalance(slides, max_chars, min_chars)
+    def span_len(group: list[str]) -> int:
+        return sum(len(v) for v in group) + max(0, len(group) - 1)
+
+    if len(verses) <= max_lines and span_len(verses) <= max_chars:
+        return ["\n".join(verses)]
+
+    # Blocs insécables : couplets (2 vers) ou vers seuls.
+    block = 2 if keep_couplets and max_lines >= 2 else 1
+    blocks = [verses[i : i + block] for i in range(0, len(verses), block)]
+    parts_count = max(
+        -(-len(verses) // max_lines),
+        -(-span_len(verses) // max_chars),
+        1,
+    )
+    while True:
+        parts_count = min(parts_count, len(blocks))
+        base, extra = divmod(len(blocks), parts_count)
+        groups: list[list[str]] = []
+        pos = 0
+        for index in range(parts_count):
+            size = base + (1 if index < extra else 0)
+            group = [verse for blk in blocks[pos : pos + size] for verse in blk]
+            groups.append(group)
+            pos += size
+        too_big = any(
+            len(g) > max_lines or span_len(g) > max_chars for g in groups
+        )
+        if not too_big or parts_count >= len(blocks):
+            if too_big and block == 2:
+                # Couplets trop longs pour la limite : vers par vers.
+                block = 1
+                blocks = [[v] for v in verses]
+                continue
+            return ["\n".join(g) for g in groups if g]
+        parts_count += 1

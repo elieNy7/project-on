@@ -9,6 +9,7 @@ from PySide6.QtCore import QObject, Signal
 from app.database.connection import Database
 from app.utils.constants import MAX_CHARS_PER_SLIDE, MIN_CHARS_PER_SLIDE
 from app.utils.models import Slide, SourceType
+from app.utils.settings import SplitSettings
 from app.utils.slide_writer import LiveSnapshot, SlideWriter
 from app.utils.text_utils import strip_hymn_projection_label
 
@@ -70,10 +71,23 @@ class ProjectOnController(QObject):
         self._program_title: str = ""
         self._current_row = -1
         self._entry_start_rows: list[int | None] = []
+        self._split = SplitSettings()
         # Crochet « activation manuelle » : appelé avant tout chargement
         # demandé par l'opérateur (pas par le diaporama) pour que l'interface
         # puisse le clore sans restauration obsolète.
         self._before_manual_load: Callable[[], None] | None = None
+
+    @property
+    def split_settings(self) -> SplitSettings:
+        return self._split
+
+    def set_split_settings(self, split: SplitSettings) -> None:
+        """Règles de découpage des textes longs et des strophes.
+
+        S'appliquent aux prochains programmes (et à l'aperçu) ; le programme
+        déjà en direct garde son découpage pour ne pas déplacer l'opérateur.
+        """
+        self._split = (split or SplitSettings()).sanitized()
 
     def set_before_manual_load(self, handler: Callable[[], None] | None) -> None:
         self._before_manual_load = handler
@@ -195,7 +209,7 @@ class ProjectOnController(QObject):
                 continue
 
             if split:
-                chunks = self._split_text(text_clean)
+                chunks = self._split_entry(source, text)
             else:
                 chunks = [text_clean] if text_clean else []
             total = len(chunks)
@@ -203,9 +217,9 @@ class ProjectOnController(QObject):
             start: int | None = None
             for i, chunk in enumerate(chunks, start=1):
                 ref = ref_clean
-                if total > 1:
+                if total > 1 and self._split.show_part_counter:
                     ref = f"{ref_clean} ({i}/{total})"
-                chunk_clean = self._clean_text(chunk)
+                chunk_clean = self._clean_chunk(chunk)
                 if chunk_clean:
                     if start is None:
                         start = len(slides)
@@ -316,7 +330,47 @@ class ProjectOnController(QObject):
         """Split text into balanced, readable slides (see text_utils)."""
         from app.utils.text_utils import split_text_into_slides
 
-        return split_text_into_slides(text, self._MAX_CHARS_PER_SLIDE, self._MIN_CHARS)
+        return split_text_into_slides(
+            text,
+            self._split.max_chars,
+            self._MIN_CHARS,
+            keep_line_breaks=self._split.keep_line_breaks,
+        )
+
+    def _split_entry(self, source: SourceType, text: object) -> list[str]:
+        """Parties d'une entrée selon sa source et les réglages de découpage.
+
+        Le texte est nettoyé ligne par ligne : ``clean_text`` garde les
+        retours à la ligne (alinéas, vers), que le découpage respecte.
+        """
+        from app.utils.text_utils import split_hymn_stanza, strip_hymn_projection_label
+
+        cleaned = self._clean_text(text)
+        if source == "hymn":
+            cleaned = strip_hymn_projection_label(cleaned)
+            if not cleaned:
+                return []
+            if not self._split.hymn_enabled:
+                return [cleaned]
+            return split_hymn_stanza(
+                cleaned,
+                self._split.hymn_max_lines,
+                max(self._split.max_chars, 120),
+                keep_couplets=self._split.hymn_keep_couplets,
+            )
+        if not cleaned:
+            return []
+        if not self._split.text_enabled:
+            return [cleaned]
+        return self._split_text(cleaned)
+
+    @staticmethod
+    def _clean_chunk(value: str) -> str:
+        """Nettoie une partie en conservant ses retours à la ligne."""
+        from app.utils.text_utils import clean_text
+
+        lines = [clean_text(line) for line in str(value or "").split("\n")]
+        return "\n".join(line for line in lines if line)
 
     # ── Navigation ─────────────────────────────────────────────────────────
 

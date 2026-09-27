@@ -97,6 +97,7 @@ class MainWindow(QMainWindow):
         self._project_controller = ProjectOnController(
             db=db, presentation_dir=presentation_dir
         )
+        self._project_controller.set_split_settings(self._settings.split)
         self._obs = ObsController(settings=self._settings.obs)
         # Lecteur vidéo partagé : l'aperçu, le mixeur HDMI et le NDI lisent les
         # mêmes images — un seul décodage, aucune dérive entre les sorties.
@@ -817,6 +818,7 @@ class MainWindow(QMainWindow):
         page = self.library_panel.settings_page
         page.register("projection", tr("local_projection"), "monitor.svg", self._build_projection_section)
         page.register("hdmi", "Sortie HDMI", "cast.svg", self._build_hdmi_section)
+        page.register("split", "Découpage des textes", "file-text.svg", self._build_split_section)
         page.register("obs", tr("connectivity"), "wifi.svg", self._build_obs_section)
         page.register("obs_output", tr("lower_third_style"), "layout.svg", self._build_obs_output_section)
         page.register("appearance", tr("appearance"), "eye.svg", self._build_appearance_section)
@@ -883,6 +885,18 @@ class MainWindow(QMainWindow):
         self._sync_obs_background(projection.bg_mode, projection.bg_image, projection.bg_image_fit)
         # Media framing is shared with the OBS page / NDI output.
         self._write_obs_config()
+        self._settings_changed()
+
+    def _build_split_section(self) -> QWidget:
+        from app.ui.split_settings_dialog import SplitSettingsDialog
+
+        dlg = embed_dialog(SplitSettingsDialog, self._settings.split)
+        dlg.splitChanged.connect(self._apply_split_settings)
+        return dlg
+
+    def _apply_split_settings(self, split) -> None:
+        self._settings.split = split.sanitized()
+        self._project_controller.set_split_settings(self._settings.split)
         self._settings_changed()
 
     def _build_hdmi_section(self) -> QWidget:
