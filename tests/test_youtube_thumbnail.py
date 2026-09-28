@@ -167,7 +167,7 @@ def test_dialog_saves_applies_and_deletes_models(tmp_path: Path, monkeypatch) ->
         dialog.layout_combo.setCurrentIndex(dialog.layout_combo.findData("band"))
         dialog.composition.setCurrentIndex(dialog.composition.findData("photo"))
         dialog.label.setCurrentText("Veillée")
-        dialog.darkness.setValue(40)
+        dialog.sliders["darkness"].setValue(40)
         monkeypatch.setattr(QInputDialog, "getText", lambda *a, **k: ("Veillée du vendredi", True))
         dialog._save_model()
         saved = emitted[-1][0]
@@ -214,7 +214,8 @@ def test_background_is_composed_of_church_photos(tmp_path: Path) -> None:
     photos = [_photo(tmp_path / "a.png", (230, 40, 40)), _photo(tmp_path / "b.png", (40, 200, 60)),
               _photo(tmp_path / "c.png", (40, 60, 230))]
     profile = ChurchProfile(photos=photos, accent_color="#FFFFFF")
-    plain = ThumbnailSpec(tint=False, blur=False, darkness=0)
+    plain = ThumbnailSpec(tint_strength=0, blur_amount=0, vignette=0, darkness=0, contrast=0,
+                          saturation=0)
 
     # Mosaïque : une photo par panneau (rouge, vert, bleu de gauche à droite).
     mosaic = thumbnail_background(profile, plain, 1280, 720).convert("RGB")
@@ -225,8 +226,8 @@ def test_background_is_composed_of_church_photos(tmp_path: Path) -> None:
 
     # Une photo : la première choisie remplit le cadre.
     single = thumbnail_background(
-        profile, ThumbnailSpec(composition="photo", photos=[photos[1]], tint=False, blur=False,
-                               darkness=0), 1280, 720).convert("RGB")
+        profile, ThumbnailSpec(composition="photo", photos=[photos[1]], tint_strength=0,
+                               blur_amount=0, vignette=0, darkness=0), 1280, 720).convert("RGB")
     assert single.getpixel((640, 360))[1] > 150 and single.getpixel((1000, 360))[1] > 150
 
     # Teinte de l'église et assombrissement changent l'image.
@@ -263,5 +264,117 @@ def test_church_dialog_gallery(tmp_path: Path) -> None:
         assert changes and Path(changes[-1].photos[0]).parent == tmp_path / "church" / "photos"
         dialog.set_gallery_photos([])
         assert dialog.read_profile().photos == []
+    finally:
+        dialog.close()
+
+
+NEUTRAL = dict(tint_strength=0, blur_amount=0, vignette=0, darkness=0, contrast=0, saturation=0)
+
+
+def test_fade_blend_merges_photos_without_hard_edge(tmp_path: Path) -> None:
+    from app.utils.church_graphics import thumbnail_background
+
+    photos = [_photo(tmp_path / "a.png", (240, 0, 0)), _photo(tmp_path / "b.png", (0, 0, 240))]
+    profile = ChurchProfile(photos=photos)
+    fade = thumbnail_background(profile, ThumbnailSpec(blend="fade", blend_width=60, **NEUTRAL),
+                                1280, 720).convert("RGB")
+    reds = [fade.getpixel((x, 360))[0] for x in range(0, 1280, 16)]
+    # Transition progressive : beaucoup de valeurs intermédiaires, pas de saut.
+    assert max(abs(a - b) for a, b in zip(reds, reds[1:])) < 60
+    assert sum(1 for r in reds if 30 < r < 210) >= 8
+    straight = thumbnail_background(profile, ThumbnailSpec(blend="straight", **NEUTRAL),
+                                    1280, 720).convert("RGB")
+    assert straight.getpixel((300, 100))[0] > 200 and straight.getpixel((980, 600))[2] > 200
+
+
+def test_image_settings_change_the_background(tmp_path: Path) -> None:
+    from app.utils.church_graphics import THUMBNAIL_TINT_MODES, thumbnail_background
+
+    source = tmp_path / "photo.png"
+    gradient = Image.linear_gradient("L").resize((320, 180)).convert("RGB")
+    Image.merge("RGB", (gradient.getchannel(0), Image.new("L", (320, 180), 140),
+                        gradient.getchannel(0).transpose(Image.FLIP_LEFT_RIGHT))).save(source)
+    profile = ChurchProfile(photos=[str(source)], primary_color="#1040A0")
+
+    def render(**values):
+        spec = ThumbnailSpec(composition="photo", **{**NEUTRAL, **values})
+        return thumbnail_background(profile, spec, 640, 360).convert("RGB")
+
+    def mean(image):
+        small = image.resize((32, 18))
+        return sum(sum(small.getpixel((x, y))) for x in range(32) for y in range(18))
+
+    base = render()
+    assert mean(render(darkness=60)) < mean(base) * 0.6
+    assert mean(render(brightness=40)) > mean(base)
+    gray = render(saturation=-100)
+    assert all(abs(r - g) < 4 and abs(g - b) < 4
+               for r, g, b in (gray.getpixel((x, 180)) for x in range(0, 640, 40)))
+    assert render(grain=30).tobytes() != base.tobytes()
+    assert render(vignette=100).getpixel((2, 2))[0] < base.getpixel((2, 2))[0]
+    assert render(blur_amount=20).tobytes() != base.tobytes()
+    tinted = {mode: render(tint_mode=mode, tint_strength=100).tobytes()
+              for mode in THUMBNAIL_TINT_MODES}
+    assert len(set(tinted.values())) == len(THUMBNAIL_TINT_MODES)  # chaque mode diffère
+    # Cadrage et zoom : autre partie de la photo.
+    assert render(zoom=200).getpixel((320, 20)) != base.getpixel((320, 20))
+    assert render(focus_y=0, zoom=150).getpixel((320, 20)) != render(
+        focus_y=100, zoom=150).getpixel((320, 20))
+
+
+def test_text_veil_and_glow_settings(tmp_path: Path) -> None:
+    profile = _profile(tmp_path)
+    spec = ThumbnailSpec(title="Foi", composition="plain")
+    strong = render_youtube_thumbnail(profile, spec).convert("RGB")
+    none = render_youtube_thumbnail(
+        profile, ThumbnailSpec(title="Foi", composition="plain", text_veil=0, glow=0)
+    ).convert("RGB")
+    assert sum(none.getpixel((30, 400))) > sum(strong.getpixel((30, 400)))  # sans voile
+    # Halo coloré derrière l'orateur (accent doré) : absent à 0.
+    halo = strong.getpixel((790, 330))  # à côté de la photo, dans le halo
+    plain = none.getpixel((790, 330))
+    assert halo[0] > plain[0] + 20
+
+
+def test_legacy_models_and_defaults() -> None:
+    old = {"name": "Ancien", "layout": "band", "tint": False, "blur": False, "darkness": 30}
+    spec = ThumbnailSpec().with_model(old)
+    assert (spec.tint_strength, spec.blur_amount, spec.darkness) == (0, 0, 30)
+    wild = ThumbnailSpec(grain=500, zoom=10, tint_mode="?", blend="?").sanitized()
+    assert (wild.grain, wild.zoom, wild.tint_mode, wild.blend) == (30, 100, "duotone", "slant")
+    reset = ThumbnailSpec(title="T", darkness=70, grain=9, layout="band").with_image_defaults()
+    assert (reset.title, reset.layout, reset.darkness, reset.grain) == ("T", "band", 20, 0)
+
+
+def test_dialog_image_settings_saved_in_models(tmp_path: Path, monkeypatch) -> None:
+    from PySide6.QtWidgets import QApplication, QInputDialog
+
+    QApplication.instance() or QApplication([])
+    from app.ui.church_profile_dialog import ThumbnailDialog
+    from app.utils.church_graphics import THUMBNAIL_IMAGE_SETTINGS
+
+    dialog = ThumbnailDialog(_profile(tmp_path), title="Foi")
+    emitted: list = []
+    dialog.modelsChanged.connect(emitted.append)
+    try:
+        assert set(dialog.sliders) == set(THUMBNAIL_IMAGE_SETTINGS)
+        assert [dialog.tabs.tabText(i) for i in range(dialog.tabs.count())] == [
+            "Contenu", "Arrière-plan", "Réglages de l'image"]
+        dialog.sliders["grain"].setValue(12)
+        dialog.sliders["vignette"].setValue(90)
+        assert not dialog.sliders["blend_width"].isEnabled()  # coupe inclinée
+        dialog.blend.setCurrentIndex(dialog.blend.findData("fade"))
+        assert dialog.sliders["blend_width"].isEnabled()
+        dialog.tint_mode.setCurrentIndex(dialog.tint_mode.findData("overlay"))
+        spec = dialog.spec()
+        assert (spec.grain, spec.vignette, spec.blend, spec.tint_mode) == (
+            12, 90, "fade", "overlay")
+        monkeypatch.setattr(QInputDialog, "getText", lambda *a, **k: ("Grain", True))
+        dialog._save_model()
+        assert emitted[-1][0]["grain"] == 12 and emitted[-1][0]["tint_mode"] == "overlay"
+        dialog._reset_image_settings()
+        spec = dialog.spec()
+        assert (spec.grain, spec.vignette, spec.tint_mode, spec.blend) == (
+            0, 45, "duotone", "fade")  # la fusion des photos n'est pas un réglage d'image
     finally:
         dialog.close()

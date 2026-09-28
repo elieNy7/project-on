@@ -26,20 +26,26 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSizePolicy,
+    QSlider,
     QSpinBox,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
 
 from app.ui.obs_output_settings_dialog import DIALOG_STYLE, ColorPickerButton
 from app.ui.setting_cards import PageHeader, SettingSection
+from app.ui.theme import Colors
 from app.utils.church_graphics import (
     FORMATS,
     SOCIAL_PLATFORMS,
     ChurchProfile,
     BUILTIN_THUMBNAIL_MODELS,
+    THUMBNAIL_BLENDS,
     THUMBNAIL_COMPOSITIONS,
+    THUMBNAIL_IMAGE_SETTINGS,
     THUMBNAIL_LAYOUTS,
+    THUMBNAIL_TINT_MODES,
     ThumbnailSpec,
     render_quote,
     render_speaker,
@@ -904,7 +910,7 @@ class ThumbnailDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Miniature YouTube")
         self.setStyleSheet(DIALOG_STYLE)
-        self.resize(1120, 640)
+        self.resize(1220, 720)
         self._profile = profile
         self._background = ""
         self._accent = ""
@@ -957,28 +963,22 @@ class ThumbnailDialog(QDialog):
         self.composition = QComboBox()
         for key, label in THUMBNAIL_COMPOSITIONS.items():
             self.composition.addItem(label, key)
+        self.blend = QComboBox()
+        for key, label in THUMBNAIL_BLENDS.items():
+            self.blend.addItem(label, key)
         self.gallery = ChurchPhotoGallery(profile.photos, folder=photos_folder, checkable=True)
         self.gallery.photosChanged.connect(self._on_gallery_changed)
         self.gallery.selectionChanged.connect(lambda _p: self._render())
-        self.tint = QCheckBox("Teinte aux couleurs de l'église")
-        self.tint.setChecked(True)
-        self.blur = QCheckBox("Flou léger")
-        self.blur.setChecked(True)
-        self.darkness = QSpinBox()
-        self.darkness.setRange(0, 80)
-        self.darkness.setSuffix(" %")
-        self.darkness.setValue(20)
-        self.darkness.setMinimumWidth(90)
-        treatment_row = QHBoxLayout()
-        treatment_row.addWidget(self.tint)
-        treatment_row.addWidget(self.blur)
-        treatment_row.addWidget(QLabel("Assombrir"))
-        treatment_row.addWidget(self.darkness)
-        treatment_row.addStretch(1)
+        self.tint_mode = QComboBox()
+        for key, label in THUMBNAIL_TINT_MODES.items():
+            self.tint_mode.addItem(label, key)
 
-        form = QVBoxLayout()
-        form.addWidget(QLabel("Modèle"))
-        form.addLayout(models_row)
+        # Réglages de l'image : curseurs (nom → curseur).
+        self.sliders: dict[str, QSlider] = {}
+
+        # ── Onglet « Contenu » ──
+        content_tab = QWidget()
+        form = QVBoxLayout(content_tab)
         form.addWidget(QLabel("Titre de la prédication"))
         form.addWidget(self.title)
         hint = QLabel("Mettez un mot entre *astérisques* pour l'écrire en couleur d'accent.")
@@ -1001,10 +1001,6 @@ class ThumbnailDialog(QDialog):
         form.addLayout(grid)
         form.addWidget(self.show_speaker)
         form.addWidget(self.uppercase)
-        form.addWidget(QLabel("Arrière-plan"))
-        form.addWidget(self.composition)
-        form.addWidget(self.gallery)
-        form.addLayout(treatment_row)
         speaker = " ".join(p for p in speaker_info(profile)[:2] if p)
         note = QLabel(
             f"Orateur : {speaker}" if speaker else
@@ -1016,11 +1012,73 @@ class ThumbnailDialog(QDialog):
         form.addWidget(note)
         form.addStretch(1)
 
+        # ── Onglet « Arrière-plan » ──
+        background_tab = QWidget()
+        bg = QVBoxLayout(background_tab)
+        bg.addWidget(QLabel("Composition"))
+        bg.addWidget(self.composition)
+        bg.addWidget(QLabel("Photos de l'église (cochez celles à utiliser)"))
+        bg.addWidget(self.gallery)
+        bg.addWidget(QLabel("Fusion des photos (mosaïque)"))
+        bg.addWidget(self.blend)
+        bg.addLayout(self._slider_row("blend_width", "Largeur du fondu", "%"))
+        bg.addLayout(self._slider_row("focus_y", "Cadrage vertical", "",
+                                      "0 = haut de la photo, 100 = bas"))
+        bg.addLayout(self._slider_row("zoom", "Zoom", "%"))
+        bg.addStretch(1)
+
+        # ── Onglet « Réglages de l'image » ──
+        image_tab = QWidget()
+        adjust = QVBoxLayout(image_tab)
+        adjust.addWidget(QLabel("Fusion de la couleur de l'église"))
+        adjust.addWidget(self.tint_mode)
+        for name, label, suffix, tip in (
+            ("tint_strength", "Intensité de la couleur", "%", ""),
+            ("darkness", "Assombrir l'arrière-plan", "%", ""),
+            ("brightness", "Luminosité", "", ""),
+            ("contrast", "Contraste", "", ""),
+            ("saturation", "Saturation", "", "-100 = noir et blanc"),
+            ("blur_amount", "Flou", "", ""),
+            ("vignette", "Vignettage (coins sombres)", "%", ""),
+            ("grain", "Grain photo", "", ""),
+            ("text_veil", "Voile derrière le titre", "%", "Lisibilité du titre"),
+            ("glow", "Halo derrière l'orateur", "%", ""),
+        ):
+            adjust.addLayout(self._slider_row(name, label, suffix, tip))
+        reset = QPushButton("Réinitialiser les réglages de l'image")
+        reset.clicked.connect(self._reset_image_settings)
+        adjust.addWidget(reset)
+        adjust.addStretch(1)
+
+        self.tabs = QTabWidget()
+        self.tabs.setStyleSheet(
+            "QTabWidget::pane { background: transparent; border: none; }"
+            "QTabBar::tab { background: transparent; padding: 8px 14px; margin: 0 2px;"
+            f" color: {Colors.TEXT_SECONDARY}; border-bottom: 3px solid transparent; }}"
+            f"QTabBar::tab:selected {{ color: {Colors.TEXT_PRIMARY};"
+            f" border-bottom: 3px solid {Colors.ACCENT_PRIMARY}; }}"
+        )
+        for widget, title_text in ((content_tab, "Contenu"), (background_tab, "Arrière-plan"),
+                                   (image_tab, "Réglages de l'image")):
+            scroll = QScrollArea()
+            scroll.setWidgetResizable(True)
+            scroll.setFrameShape(QFrame.Shape.NoFrame)
+            scroll.setStyleSheet("QScrollArea { background: transparent; }")
+            scroll.viewport().setStyleSheet("background: transparent;")
+            widget.setStyleSheet("background: transparent;")
+            scroll.setWidget(widget)
+            self.tabs.addTab(scroll, title_text)
+
+        side_panel = QVBoxLayout()
+        side_panel.addWidget(QLabel("Modèle"))
+        side_panel.addLayout(models_row)
+        side_panel.addWidget(self.tabs, 1)
+
         self.preview = QLabel()
         self.preview.setMinimumSize(640, 360)
         self.preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
         body = QHBoxLayout()
-        body.addLayout(form, 2)
+        body.addLayout(side_panel, 2)
         body.addWidget(self.preview, 3)
 
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
@@ -1035,7 +1093,7 @@ class ThumbnailDialog(QDialog):
 
         self._debounce = QTimer(self)
         self._debounce.setSingleShot(True)
-        self._debounce.setInterval(250)
+        self._debounce.setInterval(200)
         self._debounce.timeout.connect(self._render)
         self.title.textChanged.connect(self._debounce.start)
         self.label.currentTextChanged.connect(self._debounce.start)
@@ -1043,16 +1101,58 @@ class ThumbnailDialog(QDialog):
         self.reference.textChanged.connect(self._debounce.start)
         for box in (self.show_speaker, self.uppercase):
             box.toggled.connect(self._render)
-        for combo in (self.side, self.layout_combo, self.composition):
+        for combo in (self.side, self.layout_combo, self.composition, self.blend,
+                      self.tint_mode):
             combo.currentIndexChanged.connect(self._render)
-        for box in (self.tint, self.blur):
-            box.toggled.connect(self._render)
-        self.darkness.valueChanged.connect(self._debounce.start)
+        for slider in self.sliders.values():
+            slider.valueChanged.connect(self._debounce.start)
+        # Le fondu n'a de largeur qu'en fusion « Fondu » de la mosaïque.
+        self.blend.currentIndexChanged.connect(self._update_blend_controls)
+        self.composition.currentIndexChanged.connect(self._update_blend_controls)
 
         self._fill_models()
         # Dernier modèle de l'église s'il y en a, sinon le premier fourni.
         self.model.setCurrentIndex(self.model.count() - 1 if self._models else 0)
         self._apply_selected_model()
+
+    def _slider_row(self, name: str, label: str, suffix: str = "", tip: str = ""):
+        """Curseur d'un réglage de l'image (bornes de THUMBNAIL_IMAGE_SETTINGS)."""
+        low, high, default = THUMBNAIL_IMAGE_SETTINGS[name]
+        slider = QSlider(Qt.Orientation.Horizontal)
+        slider.setRange(low, high)
+        slider.setValue(default)
+        slider.setMinimumWidth(150)
+        value = QLabel(f"{default}{suffix}")
+        value.setMinimumWidth(44)
+        value.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        slider.valueChanged.connect(lambda v, lab=value: lab.setText(f"{v}{suffix}"))
+        # Double-clic sur le nom : valeur par défaut.
+        title = QLabel(label)
+        title.setMinimumWidth(170)
+        title.setToolTip((tip + " · " if tip else "") + "Double-clic : valeur par défaut")
+        title.mouseDoubleClickEvent = lambda _e, sl=slider, d=default: sl.setValue(d)
+        if tip:
+            slider.setToolTip(tip)
+        self.sliders[name] = slider
+        row = QHBoxLayout()
+        row.addWidget(title)
+        row.addWidget(slider, 1)
+        row.addWidget(value)
+        return row
+
+    def _update_blend_controls(self, *_args) -> None:
+        mosaic = self.composition.currentData() == "mosaic"
+        self.blend.setEnabled(mosaic)
+        self.sliders["blend_width"].setEnabled(mosaic and self.blend.currentData() == "fade")
+
+    def _reset_image_settings(self) -> None:
+        spec = self.spec().with_image_defaults()
+        self._loading = True
+        self.tint_mode.setCurrentIndex(max(0, self.tint_mode.findData(spec.tint_mode)))
+        for name, slider in self.sliders.items():
+            slider.setValue(getattr(spec, name))
+        self._loading = False
+        self._render()
 
     # ── Modèles ──────────────────────────────────────────────────────
 
@@ -1100,11 +1200,13 @@ class ThumbnailDialog(QDialog):
         self._background = spec.background if spec.background and Path(
             spec.background).is_file() else ""
         self.composition.setCurrentIndex(max(0, self.composition.findData(spec.composition)))
+        self.blend.setCurrentIndex(max(0, self.blend.findData(spec.blend)))
+        self.tint_mode.setCurrentIndex(max(0, self.tint_mode.findData(spec.tint_mode)))
         self.gallery.set_checked(spec.photos)
-        self.tint.setChecked(spec.tint)
-        self.blur.setChecked(spec.blur)
-        self.darkness.setValue(spec.darkness)
+        for name, slider in self.sliders.items():
+            slider.setValue(getattr(spec, name))
         self._loading = False
+        self._update_blend_controls()
         self._render()
 
     def models(self) -> list[dict]:
@@ -1160,9 +1262,9 @@ class ThumbnailDialog(QDialog):
             accent=self._accent,
             composition=str(self.composition.currentData() or "mosaic"),
             photos=self._selected_photos(),
-            tint=self.tint.isChecked(),
-            blur=self.blur.isChecked(),
-            darkness=self.darkness.value(),
+            blend=str(self.blend.currentData() or "slant"),
+            tint_mode=str(self.tint_mode.currentData() or "duotone"),
+            **{name: slider.value() for name, slider in self.sliders.items()},
         ).sanitized()
 
     def _selected_photos(self) -> list[str]:
