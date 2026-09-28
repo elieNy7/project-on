@@ -461,6 +461,11 @@ class PlaylistTab(QFrame):
 
     # ── Public API ────────────────────────────────────────────────────────
 
+    def attach_service_panel(self, panel: QWidget) -> None:
+        """Place le panneau « Déroulé du culte » sous la liste des slides."""
+        self.list_preview_splitter.addWidget(panel)
+        self.list_preview_splitter.setStretchFactor(2, 0)
+
     def select_folder(self, folder_id: int) -> bool:
         """Select a playlist (emits folderSelected when it changes)."""
         return select_first(self.folders_list, lambda it: int(it.data(256)) == int(folder_id))

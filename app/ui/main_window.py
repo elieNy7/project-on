@@ -227,6 +227,8 @@ class MainWindow(QMainWindow):
         playlist_tab = self.library_panel.playlist_tab
         if playlist_tab is not None and hasattr(playlist_tab, "slideshowRequested"):
             playlist_tab.slideshowRequested.connect(self._start_slideshow)
+        if playlist_tab is not None:
+            self._setup_service_plan(playlist_tab)
 
         if hasattr(self.library_panel, "settings_tab"):
             self.library_panel.settings_tab.projectionSettingsRequested.connect(
@@ -474,6 +476,11 @@ class MainWindow(QMainWindow):
     # ── Aperçu → Direct ───────────────────────────────────────────────────
 
     def _on_program_cued(self, cue) -> None:
+        # Le premier programme préparé après un clic sur un slide de playlist
+        # est celui de ce slide : le déroulé le reconnaîtra au passage au direct.
+        pending = getattr(self, "_cued_playlist_item", None)
+        self._cue_playlist_item = (cue, pending) if pending is not None else None
+        self._cued_playlist_item = None
         self.cue_monitor.set_cue(cue, self._project_controller.cue_slide(cue))
 
     def _take_cue(self) -> None:
@@ -481,6 +488,9 @@ class MainWindow(QMainWindow):
         cue = self.cue_monitor.cue()
         if cue is not None:
             self._library_controller.take(cue)
+            linked = getattr(self, "_cue_playlist_item", None)
+            if linked is not None and linked[0] is cue and hasattr(self, "service_plan"):
+                self.service_plan.on_item_live(int(linked[1]))
 
     # ── Recherche globale ─────────────────────────────────────────────────
 
@@ -888,6 +898,24 @@ class MainWindow(QMainWindow):
         # Media framing is shared with the OBS page / NDI output.
         self._write_obs_config()
         self._settings_changed()
+
+    def _setup_service_plan(self, playlist_tab) -> None:
+        """Déroulé du culte sous les slides de la playlist, suivi automatique."""
+        from app.database.dao_service_plan import ServicePlanDao
+        from app.ui.service_plan_panel import ServicePlanPanel
+
+        self.service_plan = ServicePlanPanel(
+            ServicePlanDao(self._db), selected_item=playlist_tab.selected_item_id
+        )
+        playlist_tab.attach_service_panel(self.service_plan)
+        playlist_tab.folderSelected.connect(self.service_plan.set_folder)
+        playlist_tab.itemActivated.connect(self.service_plan.on_item_live)
+        playlist_tab.playRequested.connect(
+            lambda item_id: item_id is not None and self.service_plan.on_item_live(item_id)
+        )
+        # Clic simple puis F2 : la section démarre quand le slide passe au direct.
+        self._cued_playlist_item: int | None = None
+        playlist_tab.itemCued.connect(lambda item_id: setattr(self, "_cued_playlist_item", item_id))
 
     def _build_bibles_section(self) -> QWidget:
         from app.ui.bible_manager_dialog import BibleManagerDialog

@@ -1054,6 +1054,30 @@ class Database:
     def _ensure_playlist_tables(self, conn: sqlite3.Connection) -> None:
         """S'assure que les tables playlist existent (pour les bases existantes)."""
         self._apply_migration_v3(conn)
+        self._ensure_service_plan_tables(conn)
+
+    @staticmethod
+    def _ensure_service_plan_tables(conn: sqlite3.Connection) -> None:
+        """Déroulé du culte : heure de début par playlist + sections (idempotent)."""
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(playlist_folder)").fetchall()]
+        if "start_time" not in cols:
+            conn.execute("ALTER TABLE playlist_folder ADD COLUMN start_time TEXT DEFAULT ''")
+        conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS service_section (
+                id INTEGER PRIMARY KEY,
+                folder_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                duration_min INTEGER NOT NULL DEFAULT 10,
+                item_id INTEGER,
+                sort_order INTEGER DEFAULT 0,
+                FOREIGN KEY (folder_id) REFERENCES playlist_folder (id) ON DELETE CASCADE
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_service_section_folder
+                ON service_section (folder_id, sort_order);
+            """
+        )
 
     def _ensure_media_tables(self, conn: sqlite3.Connection) -> None:
         """S'assure que la table des médias existe (idempotent, bases existantes)."""
