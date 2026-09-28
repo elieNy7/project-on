@@ -280,6 +280,7 @@ class LibraryController(QObject):
         for name, slot in (
             ("newHymnRequested", self.on_new_hymn),
             ("editHymnRequested", self.on_edit_hymn),
+            ("importSongFilesRequested", self.on_import_song_files),
         ):
             signal = getattr(self._hymns_tab, name, None)
             if hasattr(signal, "connect"):
@@ -1186,6 +1187,40 @@ class LibraryController(QObject):
                 return None
             return self._hymns_dao.import_hymn(hymn["title"], hymn["stanzas"])
         self._start_import("Import PowerPoint", paths, process, lambda report: self.refresh_hymns())
+
+    def on_import_song_files(self) -> None:
+        """Importe des chants OpenLyrics, OpenSong ou CCLI SongSelect."""
+        from app.utils.song_formats import SONG_FILE_FILTER
+
+        paths, _ = QFileDialog.getOpenFileNames(
+            None, "Importer des chants (OpenLyrics, OpenSong, CCLI)", "", SONG_FILE_FILTER
+        )
+        if paths:
+            self.import_song_paths([Path(p) for p in paths])
+
+    def import_song_paths(self, paths):
+        from app.utils.song_formats import read_song_file
+
+        def process(path, cancel):
+            song = read_song_file(path)
+            if cancel.is_set():
+                raise InterruptedError()
+            # Même forme que l'enregistrement (refrain préfixé) : un chant
+            # déjà importé est reconnu et n'est pas dupliqué.
+            detect = self._hymns_dao._detect_chorus
+            texts = [
+                f"Refrain\n{text}" if chorus and not detect(text) else text
+                for text, chorus in song["stanzas"]
+            ]
+            if self._hymns_dao.exact_duplicate_exists(song["title"], texts):
+                return None
+            return self._hymns_dao.save_hymn(
+                None, song["title"], song["stanzas"], number=song.get("number") or None
+            )
+
+        return self._start_import(
+            "Import de chants", paths, process, lambda report: self.refresh_hymns()
+        )
 
     def on_import_pptx_folder(self) -> None:
         folder_path = QFileDialog.getExistingDirectory(
