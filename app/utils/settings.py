@@ -480,6 +480,8 @@ class AppearanceSettings:
     language: str = "fr"  # "fr" or "en"
     mica: bool = True  # Windows 11 Mica backdrop behind the main window
     rail_compact: bool = False  # navigation rail collapsed to icons
+    # Mode PC modeste : sans animations, flou, Ken Burns, fond vidéo ni Mica.
+    low_power: bool = False
 
 
 def _gs(d: dict, key: str, default: str) -> str:
@@ -1012,6 +1014,7 @@ class AppSettings:
                 appearance.language = "fr"
             appearance.mica = bool(a.get("mica", appearance.mica))
             appearance.rail_compact = bool(a.get("rail_compact", appearance.rail_compact))
+            appearance.low_power = bool(a.get("low_power", appearance.low_power))
 
         hdmi = HdmiSettings()
         hm = payload.get("hdmi")

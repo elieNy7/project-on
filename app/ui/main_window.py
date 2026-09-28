@@ -100,6 +100,8 @@ class MainWindow(QMainWindow):
         )
         self._project_controller.set_split_settings(self._settings.split)
         self._obs = ObsController(settings=self._settings.obs)
+        if self._settings.appearance.low_power:
+            self._obs.set_low_power(True)
         # Lecteur vidéo partagé : l'aperçu, le mixeur HDMI et le NDI lisent les
         # mêmes images — un seul décodage, aucune dérive entre les sorties.
         # La projection plein écran garde son lecteur natif (son + matériel).
@@ -740,7 +742,31 @@ class MainWindow(QMainWindow):
 
     def _build_projection_config(self) -> dict:
         """Config de projection (config.json) : le style de projection."""
-        return self._settings.projection.to_presentation_config()
+        cfg = self._settings.projection.to_presentation_config()
+        if self._settings.appearance.low_power:
+            cfg.update(low_power_projection_overrides(cfg))
+        return cfg
+
+    def _hdmi_style_overrides(self):
+        """Style HDMI propre, sans animation en mode PC modeste."""
+        style = self._settings.hdmi.style_overrides()
+        if style is not None and self._settings.appearance.low_power:
+            style = {**style, **low_power_obs_overrides()}
+        return style
+
+    def _apply_low_power(self) -> None:
+        """Mode PC modeste appliqué à chaud à toutes les sorties."""
+        self._apply_projection_config()
+        self._write_obs_config()
+        window = self._projection_window
+        if window is not None:
+            window._low_power = self._settings.appearance.low_power
+        if self._mixer_window is not None:
+            self._mixer_window.set_style(self._hdmi_style_overrides())
+        try:
+            self._obs.set_low_power(self._settings.appearance.low_power)
+        except Exception:
+            log.exception("Mode PC modeste : sortie OBS non mise à jour")
 
     def _write_obs_config(self) -> None:
         # Les médias se projettent avec les mêmes règles partout : la sortie
@@ -752,6 +778,10 @@ class MainWindow(QMainWindow):
         out.media_backdrop = projection.media_backdrop
         out.media_backdrop_dim = projection.media_backdrop_dim
         cfg = self._settings.obs.to_full_obs_config()
+        if self._settings.appearance.low_power:
+            cfg.update(low_power_obs_overrides())
+            for scene in (cfg.get("scenes") or {}).values():
+                scene.update(low_power_obs_overrides())
         target = self._presentation_dir / "obs-config.json"
         self._safe_write_json(target, cfg)
 
@@ -1007,13 +1037,19 @@ class MainWindow(QMainWindow):
             appearance.theme,
             appearance.language,
             mica=appearance.mica if mica_supported() else None,
+            low_power=appearance.low_power,
         )
 
         def on_change() -> None:
             theme, language = dlg.get_settings()
             mica = dlg.mica_enabled()
+            low_power = dlg.low_power_enabled()
+            if low_power != appearance.low_power:
+                appearance.low_power = low_power
+                self._apply_low_power()
             state = (theme, language, appearance.mica if mica is None else mica)
             if state == (appearance.theme, appearance.language, appearance.mica):
+                self._settings_changed()
                 return
             appearance.theme, appearance.language = theme, language
             if mica is not None:
@@ -1391,6 +1427,7 @@ class MainWindow(QMainWindow):
     def _open_local_projection(self) -> None:
         if self._projection_window is None:
             self._projection_window = ProjectionWindow(self._presentation_dir)
+            self._projection_window._low_power = self._settings.appearance.low_power
             # Fin de vidéo : le diaporama enchaîne sur le média suivant.
             self._projection_window.videoFinished.connect(
                 lambda: self._slideshow.on_video_finished()
@@ -1447,7 +1484,7 @@ class MainWindow(QMainWindow):
                 text_scale=hdmi.text_scale,
                 offset_y=hdmi.offset_y,
                 layout=hdmi.layout,
-                style=hdmi.style_overrides(),
+                style=self._hdmi_style_overrides(),
             )
             self._mixer_window.destroyed.connect(
                 lambda: setattr(self, "_mixer_window", None)
@@ -1468,7 +1505,7 @@ class MainWindow(QMainWindow):
             self._mixer_window.set_text_scale(hdmi.text_scale)
             self._mixer_window.set_offset_y(hdmi.offset_y)
             self._mixer_window.set_layout(hdmi.layout)
-            self._mixer_window.set_style(hdmi.style_overrides())
+            self._mixer_window.set_style(self._hdmi_style_overrides())
             self._mixer_window.show()
         self._update_hdmi_status()
 
@@ -1544,3 +1581,16 @@ class MainWindow(QMainWindow):
         if hasattr(self, "_obs_remote") and self._obs_remote:
             self._obs_remote.disconnect_from_obs()
         event.accept()
+
+
+def low_power_projection_overrides(cfg: dict) -> dict:
+    """Projection allégée : ni transition, ni zoom lent, ni fond vidéo."""
+    out = {"animation_enabled": False, "animation_type": "none", "ken_burns": False}
+    if cfg.get("bg_mode") == "video":
+        out["bg_mode"] = "color"
+    return out
+
+
+def low_power_obs_overrides() -> dict:
+    """Page OBS, NDI et HDMI allégés : sans animation ni flou."""
+    return {"animation_enabled": False, "animation_type": "none", "bg_blur": False}

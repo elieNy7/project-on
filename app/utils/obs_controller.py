@@ -97,6 +97,11 @@ class ObsController:
 
         self.start()
 
+    def set_low_power(self, enabled: bool) -> None:
+        """Mode PC modeste : page OBS sans animation ni flou."""
+        self._low_power = bool(enabled)
+        self._apply_output_config()
+
     def update_output_settings(self, output: ObsOutputSettings) -> None:
         """Update only the output/style settings."""
         self._settings.output = output
@@ -110,6 +115,11 @@ class ObsController:
         """
         try:
             config = self._settings.to_full_obs_config()
+            if getattr(self, "_low_power", False):
+                light = {"animation_enabled": False, "animation_type": "none", "bg_blur": False}
+                config.update(light)
+                for scene in (config.get("scenes") or {}).values():
+                    scene.update(light)
             logger.debug("Applying OBS output config: %s", config)
             self._web_server.update_config(config)
         except Exception as e:

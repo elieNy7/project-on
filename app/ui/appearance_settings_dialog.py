@@ -100,8 +100,10 @@ class AppearanceSettingsDialog(QDialog):
         parent=None,
         embedded: bool = False,
         mica: bool | None = None,
+        low_power: bool = False,
     ) -> None:
         super().__init__(parent)
+        self._low_power = bool(low_power)
         self._embedded = embedded
         # None: the Mica option is not offered (unsupported Windows).
         self._mica = mica
@@ -170,6 +172,22 @@ class AppearanceSettingsDialog(QDialog):
             window_section.addWidget(self._mica_box)
             layout.addWidget(window_section)
 
+        perf_section = SettingSection("Performances", "zap.svg")
+        self._low_power_box = QCheckBox("Mode PC modeste")
+        self._low_power_box.setToolTip(
+            "Pour un ordinateur ancien ou peu puissant : transitions, animation "
+            "mot à mot, zoom lent des fonds, fond vidéo, flou et effet Mica "
+            "désactivés. Le texte reste identique."
+        )
+        self._low_power_box.setChecked(self._low_power)
+        self._low_power_box.toggled.connect(lambda _on: self.settingsChanged.emit())
+        perf_section.addRow(
+            "Mode PC modeste",
+            self._low_power_box,
+            "Sans animations, flou ni fond vidéo : fluide sur un petit ordinateur",
+        )
+        layout.addWidget(perf_section)
+
         note = QLabel(tr("restart_required"), self)
         note.setWordWrap(True)
         note.setStyleSheet(
@@ -208,6 +226,9 @@ class AppearanceSettingsDialog(QDialog):
     def get_settings(self) -> tuple[str, str]:
         """Retourne (theme, language)."""
         return self._theme, self._language
+
+    def low_power_enabled(self) -> bool:
+        return self._low_power_box.isChecked()
 
     def mica_enabled(self) -> bool | None:
         """Mica switch state, or None when the option is not offered."""

@@ -167,7 +167,9 @@ def main() -> int:
     set_theme(settings.appearance.theme)
     set_language(settings.appearance.language)
     apply_color_scheme(app, settings.appearance.theme)
-    set_window_backdrop(settings.appearance.mica and mica_supported())
+    set_window_backdrop(
+        settings.appearance.mica and mica_supported() and not settings.appearance.low_power
+    )
 
     app.setStyleSheet(build_app_stylesheet())
     palette = app.palette()
