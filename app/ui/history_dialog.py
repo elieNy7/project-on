@@ -20,9 +20,12 @@ from PySide6.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
+    QWidget,
 )
 
 from app.ui.obs_output_settings_dialog import DIALOG_STYLE
+from app.ui.setting_cards import PageHeader, SettingSection
+from app.ui.theme import Colors, Typography, get_accent_button_style
 from app.utils.montage_export import export_montage, load_obs_config
 from app.utils.service_log import EVENT_LABELS, ServiceLog, to_csv, to_report, to_srt
 
@@ -42,10 +45,13 @@ class HistoryDialog(QDialog):
             self.day.addItem(day.strftime("%A %d/%m/%Y"), day)
         self.day.currentIndexChanged.connect(self._reload)
         self.summary = QLabel("")
-        top = QHBoxLayout()
-        top.addWidget(QLabel("Jour"))
-        top.addWidget(self.day)
-        top.addWidget(self.summary, 1)
+        self.summary.setStyleSheet(
+            f"color: {Colors.TEXT_SECONDARY}; font-size: {Typography.SIZE_META}px;"
+            " background: transparent; border: none;"
+        )
+        day_section = SettingSection("Journée", "clock.svg")
+        day_section.addRow("Jour", self.day, "Chaque culte est conservé jour par jour.")
+        day_section.addWidget(self.summary)
 
         self.table = QTableWidget(0, 4)
         self.table.setHorizontalHeaderLabels(["Heure", "Type", "Référence", "Texte"])
@@ -70,15 +76,30 @@ class HistoryDialog(QDialog):
             button.setToolTip(tip)
             button.clicked.connect(slot)
             actions.addWidget(button)
-        actions.addStretch(1)
         close = QPushButton("Fermer")
+        close.setStyleSheet(get_accent_button_style())
         close.clicked.connect(self.accept)
-        actions.addWidget(close)
 
         layout = QVBoxLayout(self)
-        layout.addLayout(top)
+        layout.setContentsMargins(24, 20, 24, 16)
+        layout.setSpacing(14)
+        layout.addWidget(PageHeader(
+            "Historique du culte",
+            "Ce qui a été projeté, heure par heure, avec les exports pour le rapport et le montage.",
+        ))
+        layout.addWidget(day_section)
         layout.addWidget(self.table, 1)
-        layout.addLayout(actions)
+        export_section = SettingSection("Exporter", "file-plus.svg")
+        export_row = QWidget()
+        export_row.setStyleSheet("background: transparent;")
+        export_row.setLayout(actions)
+        actions.setContentsMargins(0, 0, 0, 0)
+        export_section.addWidget(export_row)
+        layout.addWidget(export_section)
+        footer = QHBoxLayout()
+        footer.addStretch(1)
+        footer.addWidget(close)
+        layout.addLayout(footer)
         self._reload()
 
     def events(self):
