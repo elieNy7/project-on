@@ -984,13 +984,12 @@ class MainWindow(QMainWindow):
         )
 
     def _project_pastor_screen(self) -> None:
-        """Écran du prédicateur : photo détourée, titre, nom, message du jour."""
-        from app.utils.church_graphics import pastor_label, render_pastor
+        """Écran de l'orateur du jour (le pasteur, ou l'invité du jour)."""
+        from app.utils.church_graphics import render_speaker, speaker_label
 
         church = self._settings.church
         self._project_church_visual(
-            "predicateur.png", pastor_label(church) or "Prédicateur",
-            lambda profile: render_pastor(profile, subtitle=profile.pastor_message),
+            "orateur-du-jour.png", speaker_label(church) or "Orateur du jour", render_speaker,
         )
 
     def _project_socials_screen(self) -> None:

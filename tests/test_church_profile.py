@@ -162,7 +162,8 @@ def test_profile_dialog_reads_socials_and_exports(tmp_path: Path) -> None:
             assert dialog.preview.pixmap() is not None
         written = export_visuals(profile, tmp_path / "visuels")
         assert [p.name for p in written] == [
-            "accueil.png", "reseaux-sociaux.png", "reseaux-sociaux-carre.png"
+            "accueil.png", "reseaux-sociaux.png", "reseaux-sociaux-carre.png",
+            "orateur-du-jour.png",
         ]
     finally:
         dialog.close()

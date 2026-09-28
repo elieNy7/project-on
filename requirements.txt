@@ -6,4 +6,3 @@ pymupdf>=1.24.0
 numpy>=1.26
 ndi-python>=5.1
 qrcode>=7.4
-onnxruntime>=1.17

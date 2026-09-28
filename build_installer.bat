@@ -108,12 +108,6 @@ if "%RUN_PYINSTALLER%"=="1" (
         goto :fail
     )
 
-    echo [+] Modele de detourage (photo du pasteur)...
-    "%PYTHON_EXE%" %PYTHON_ARGS% tools\download_models.py
-    if errorlevel 1 (
-        echo [WARN] Modele absent : l'application le telechargera a la premiere utilisation.
-    )
-
     echo [2/2] Build de l'application avec PyInstaller...
     echo       Log: %PYINSTALLER_LOG%
     "%PYTHON_EXE%" %PYTHON_ARGS% -m PyInstaller --noconfirm --clean "%SPEC_FILE%" > "%PYINSTALLER_LOG%" 2>&1

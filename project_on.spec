@@ -126,7 +126,6 @@ added_files = [
     data_file("licenses/LUCIDE-ISC.txt", "licenses"),
     data_file("licenses/BIBLES.txt", "licenses"),
     data_file("licenses/SIMPLE-ICONS-CC0.txt", "licenses"),
-    data_file("licenses/SILUETA-MIT.txt", "licenses"),
     data_file(f"ndi/bin/Processing.NDI.Lib.{ndi_arch}.dll", "ndi/bin"),
 ]
 
@@ -144,12 +143,6 @@ added_files += [
 added_files += [
     (str(p), "assets/social")
     for p in sorted((spec_root / "assets" / "social").glob("*.png"))
-]
-
-# Modèle de détourage (tools/download_models.py) : détourage sans Internet.
-added_files += [
-    (str(p), "models")
-    for p in sorted((spec_root / "models").glob("*.onnx"))
 ]
 
 # Bibles libres fournies (tools/download_bibles.py) : installées au démarrage.
@@ -190,7 +183,6 @@ a = Analysis(
         'pythoncom',
         'qrcode',
         'qrcode.image.pil',
-        'onnxruntime',
     ],
     hookspath=[],
     hooksconfig={},

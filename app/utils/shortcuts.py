@@ -34,7 +34,7 @@ ACTIONS: tuple[ShortcutAction, ...] = (
     ShortcutAction("preflight", "Contrôle avant culte", "Ctrl+Shift+D", "shortcut_preflight"),
     ShortcutAction("history", "Historique du culte", "Ctrl+H"),
     ShortcutAction("welcome", "Projeter l'écran d'accueil", "Ctrl+Shift+W"),
-    ShortcutAction("pastor", "Projeter l'écran du prédicateur", "Ctrl+Shift+P"),
+    ShortcutAction("pastor", "Projeter l'écran de l'orateur du jour", "Ctrl+Shift+P"),
     ShortcutAction("socials", "Projeter l'écran « Réseaux sociaux »", "Ctrl+Shift+R"),
     ShortcutAction("quote", "Image de citation du direct", "Ctrl+Shift+I"),
     ShortcutAction("help", "Aide des raccourcis", "F1", "shortcut_help"),

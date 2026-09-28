@@ -57,6 +57,3 @@ docs/_render_raw/
 docs/_frames/
 docs/_thumb_2x.png
 
-# Modèle de détourage (44 Mo) : téléchargé par tools/download_models.py.
-models/*.onnx
-models/*.part
