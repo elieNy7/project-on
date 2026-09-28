@@ -981,6 +981,7 @@ class MainWindow(QMainWindow):
         dlg.pastorRequested.connect(self._project_pastor_screen)
         dlg.quoteRequested.connect(self._quote_from_live)
         dlg.thumbnailRequested.connect(self.open_thumbnail_dialog)
+        self._church_dialog = dlg
         return dlg
 
     def _project_church_visual(self, filename: str, label: str, render) -> None:
@@ -1023,7 +1024,19 @@ class MainWindow(QMainWindow):
         dialog = ThumbnailDialog(
             self._settings.church, parent=self, models=self._settings.thumbnail_models,
             media_folder=data_dir() / "church" / "miniatures",
+            photos_folder=data_dir() / "church" / "photos",
         )
+
+        def on_photos(photos: list) -> None:
+            from dataclasses import replace
+
+            self._settings.church = replace(self._settings.church, photos=list(photos))
+            church_dialog = getattr(self, "_church_dialog", None)
+            if church_dialog is not None:
+                church_dialog.set_gallery_photos(photos)
+            self._settings_changed()
+
+        dialog.photosChanged.connect(on_photos)
 
         def on_models(models: list) -> None:
             self._settings.thumbnail_models = models

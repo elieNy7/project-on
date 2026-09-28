@@ -145,29 +145,46 @@ def test_dialog_saves_applies_and_deletes_models(tmp_path: Path, monkeypatch) ->
     QApplication.instance() or QApplication([])
     from app.ui.church_profile_dialog import ThumbnailDialog
 
-    background = tmp_path / "fond.png"
-    Image.new("RGB", (64, 36), (10, 90, 200)).save(background)
-    media = tmp_path / "miniatures"
-    dialog = ThumbnailDialog(_profile(tmp_path), title="Foi", media_folder=media)
+    sources = []
+    for index, color in enumerate(((10, 90, 200), (200, 120, 30), (40, 160, 80))):
+        path = tmp_path / f"culte-{index}.png"
+        Image.new("RGB", (160, 90), color).save(path)
+        sources.append(str(path))
+    photos_folder = tmp_path / "photos"
+    dialog = ThumbnailDialog(_profile(tmp_path), title="Foi", photos_folder=photos_folder)
     emitted: list = []
+    gallery_changes: list = []
     dialog.modelsChanged.connect(emitted.append)
+    dialog.photosChanged.connect(gallery_changes.append)
     try:
+        # Photos ajoutées depuis la miniature : copiées et renvoyées au profil.
+        dialog.gallery.add_photos(sources)
+        copied = gallery_changes[-1]
+        assert len(copied) == 3 and all(Path(p).parent == photos_folder for p in copied)
+        dialog.gallery.set_checked(copied[:2])
+        assert dialog.spec().photos == copied[:2]
+
         dialog.layout_combo.setCurrentIndex(dialog.layout_combo.findData("band"))
+        dialog.composition.setCurrentIndex(dialog.composition.findData("photo"))
         dialog.label.setCurrentText("Veillée")
-        dialog._set_background(str(background))
+        dialog.darkness.setValue(40)
         monkeypatch.setattr(QInputDialog, "getText", lambda *a, **k: ("Veillée du vendredi", True))
         dialog._save_model()
         saved = emitted[-1][0]
-        assert saved["name"] == "Veillée du vendredi" and saved["layout"] == "band"
-        assert Path(saved["background"]).parent == media  # fond copié avec le modèle
+        assert (saved["name"], saved["layout"], saved["composition"], saved["darkness"]) == (
+            "Veillée du vendredi", "band", "photo", 40)
+        assert saved["photos"] == copied[:2]
 
         # Revenir à un modèle fourni puis réappliquer celui de l'église.
         dialog.model.setCurrentIndex(0)
         dialog._apply_selected_model()
         assert dialog.spec().layout == "split" and dialog.spec().title == "Foi"
+        assert dialog.spec().photos == []  # modèle fourni : toutes les photos
         dialog.model.setCurrentIndex(dialog.model.findData("church:Veillée du vendredi"))
         dialog._apply_selected_model()
-        assert dialog.spec().layout == "band" and dialog.spec().label == "Veillée"
+        spec = dialog.spec()
+        assert (spec.layout, spec.label, spec.composition) == ("band", "Veillée", "photo")
+        assert spec.photos == copied[:2]
         assert dialog.delete_model_btn.isEnabled()
         assert dialog.model.currentText() == "★ Veillée du vendredi"
 
@@ -184,3 +201,67 @@ def test_dialog_saves_applies_and_deletes_models(tmp_path: Path, monkeypatch) ->
         assert reopened.spec().layout == "band"
     finally:
         reopened.close()
+
+
+def _photo(path: Path, color) -> str:
+    Image.new("RGB", (320, 180), color).save(path)
+    return str(path)
+
+
+def test_background_is_composed_of_church_photos(tmp_path: Path) -> None:
+    from app.utils.church_graphics import thumbnail_background
+
+    photos = [_photo(tmp_path / "a.png", (230, 40, 40)), _photo(tmp_path / "b.png", (40, 200, 60)),
+              _photo(tmp_path / "c.png", (40, 60, 230))]
+    profile = ChurchProfile(photos=photos, accent_color="#FFFFFF")
+    plain = ThumbnailSpec(tint=False, blur=False, darkness=0)
+
+    # Mosaïque : une photo par panneau (rouge, vert, bleu de gauche à droite).
+    mosaic = thumbnail_background(profile, plain, 1280, 720).convert("RGB")
+    left, middle, right = (mosaic.getpixel((x, 360)) for x in (200, 640, 1080))
+    assert left[0] > 150 and middle[1] > 150 and right[2] > 150
+    # Séparation couleur d'accent entre deux panneaux (inclinée).
+    assert (255, 255, 255) in {mosaic.getpixel((x, 360)) for x in range(400, 480)}
+
+    # Une photo : la première choisie remplit le cadre.
+    single = thumbnail_background(
+        profile, ThumbnailSpec(composition="photo", photos=[photos[1]], tint=False, blur=False,
+                               darkness=0), 1280, 720).convert("RGB")
+    assert single.getpixel((640, 360))[1] > 150 and single.getpixel((1000, 360))[1] > 150
+
+    # Teinte de l'église et assombrissement changent l'image.
+    graded = thumbnail_background(profile, ThumbnailSpec(composition="photo", darkness=60),
+                                  1280, 720).convert("RGB")
+    assert sum(graded.getpixel((640, 360))) < sum(single.getpixel((640, 360)))
+
+    # Fond uni, ou pas de photos : fond de l'église.
+    for spec, prof in ((ThumbnailSpec(composition="plain"), profile),
+                       (ThumbnailSpec(), ChurchProfile(primary_color="#102030"))):
+        image = thumbnail_background(prof, spec, 1280, 720).convert("RGB")
+        r, g, b = image.getpixel((640, 360))
+        assert max(r, g, b) < 120
+
+
+def test_profile_keeps_photos(tmp_path: Path) -> None:
+    photos = [_photo(tmp_path / "a.png", (1, 2, 3))]
+    profile = ChurchProfile.from_payload({"photos": photos + photos + ["", 5]})
+    assert profile.photos == photos + ["5"]
+    assert ChurchProfile.from_payload({"photos": "x"}).photos == []
+
+
+def test_church_dialog_gallery(tmp_path: Path) -> None:
+    from PySide6.QtWidgets import QApplication
+
+    QApplication.instance() or QApplication([])
+    from app.ui.church_profile_dialog import ChurchProfileDialog
+
+    dialog = ChurchProfileDialog(ChurchProfile(), logo_folder=tmp_path / "church")
+    changes: list = []
+    dialog.profileChanged.connect(changes.append)
+    try:
+        dialog.gallery.add_photos([_photo(tmp_path / "culte.png", (9, 9, 9))])
+        assert changes and Path(changes[-1].photos[0]).parent == tmp_path / "church" / "photos"
+        dialog.set_gallery_photos([])
+        assert dialog.read_profile().photos == []
+    finally:
+        dialog.close()

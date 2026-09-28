@@ -13,6 +13,7 @@ postes et s'enregistrent en PNG.
 
 from __future__ import annotations
 
+import copy
 import re
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -92,6 +93,9 @@ class ChurchProfile:
     # Orateur sur OBS, NDI et HDMI (à côté du bandeau) : all | sermon | off
     speaker_on_broadcast: str = "all"
     speaker_broadcast_size: int = 16  # hauteur de la photo, % du cadre
+    # Photos de l'église (culte, louange, assemblée, bâtiment) : fonds des
+    # miniatures YouTube. Copiées dans les données de Project-On.
+    photos: list[str] = field(default_factory=list)
 
     def sanitized(self) -> ChurchProfile:
         defaults = ChurchProfile()
@@ -105,6 +109,13 @@ class ChurchProfile:
                     value = int(value)
                 except (TypeError, ValueError):
                     value = default
+            elif isinstance(default, list):
+                seen: list[str] = []
+                for item in value if isinstance(value, list) else []:
+                    item = str(item or "").strip()
+                    if item and item not in seen:
+                        seen.append(item)
+                value = seen[:40]
             elif isinstance(default, dict):
                 raw = value if isinstance(value, dict) else {}
                 value = {
@@ -909,7 +920,14 @@ THUMBNAIL_LAYOUTS: dict[str, str] = {
 # Champs d'une miniature gardés dans un modèle (le titre, la date et la
 # référence changent à chaque culte : ils ne sont pas enregistrés).
 THUMBNAIL_MODEL_FIELDS = ("layout", "label", "background", "photo_side", "show_speaker",
-                          "uppercase", "accent")
+                          "uppercase", "accent", "composition", "photos", "tint", "blur",
+                          "darkness")
+
+THUMBNAIL_COMPOSITIONS: dict[str, str] = {
+    "mosaic": "Photos de l'église (mosaïque)",
+    "photo": "Une photo de l'église",
+    "plain": "Fond uni de l'église",
+}
 
 
 @dataclass
@@ -926,9 +944,24 @@ class ThumbnailSpec:
     uppercase: bool = True
     layout: str = "split"  # voir THUMBNAIL_LAYOUTS
     accent: str = ""  # couleur d'accent du modèle ("" = celle de l'église)
+    # Arrière-plan composé des photos de l'église (voir THUMBNAIL_COMPOSITIONS).
+    composition: str = "mosaic"
+    photos: list[str] = field(default_factory=list)  # choisies ; vide = toutes
+    tint: bool = True  # teinte aux couleurs de l'église
+    blur: bool = True  # léger flou : le titre et l'orateur ressortent
+    darkness: int = 20  # % d'assombrissement des photos
 
     def sanitized(self) -> ThumbnailSpec:
         out = ThumbnailSpec(**{k: getattr(self, k) for k in asdict(self)})
+        if out.composition not in THUMBNAIL_COMPOSITIONS:
+            out.composition = "mosaic"
+        out.photos = [str(p) for p in (out.photos if isinstance(out.photos, list) else [])
+                      if str(p or "").strip()][:12]
+        out.tint, out.blur = bool(out.tint), bool(out.blur)
+        try:
+            out.darkness = max(0, min(80, int(out.darkness)))
+        except (TypeError, ValueError):
+            out.darkness = 20
         if out.layout not in THUMBNAIL_LAYOUTS:
             out.layout = "split"
         if out.photo_side not in ("right", "left"):
@@ -943,7 +976,8 @@ class ThumbnailSpec:
     def model(self, name: str) -> dict[str, Any]:
         """Modèle réutilisable (nom + mise en page, bandeau, fond, couleur…)."""
         spec = self.sanitized()
-        return {"name": str(name).strip(), **{k: getattr(spec, k) for k in THUMBNAIL_MODEL_FIELDS}}
+        return {"name": str(name).strip(),
+                **{k: copy.copy(getattr(spec, k)) for k in THUMBNAIL_MODEL_FIELDS}}
 
     def with_model(self, model: dict[str, Any]) -> ThumbnailSpec:
         """Applique un modèle en gardant le titre, la date et la référence."""
@@ -955,11 +989,12 @@ class ThumbnailSpec:
 BUILTIN_THUMBNAIL_MODELS: tuple[dict[str, Any], ...] = (
     ThumbnailSpec(label="Culte du dimanche").model("Culte du dimanche"),
     ThumbnailSpec(label="En direct", layout="band").model("En direct"),
-    ThumbnailSpec(label="Enseignement", layout="center").model("Enseignement"),
+    ThumbnailSpec(label="Enseignement", layout="center", composition="photo",
+                  darkness=50).model("Enseignement"),
     ThumbnailSpec(label="Culte de prière", layout="boxed", photo_side="left").model("Prière"),
     ThumbnailSpec(label="Conférence", layout="boxed").model("Conférence"),
-    ThumbnailSpec(label="Témoignage", layout="split", photo_side="left",
-                  uppercase=False).model("Témoignage"),
+    ThumbnailSpec(label="Témoignage", layout="split", photo_side="left", uppercase=False,
+                  composition="photo", tint=False).model("Témoignage"),
 )
 
 
@@ -1022,15 +1057,19 @@ def _cover(path: str, width: int, height: int):
     return resized.crop((left, upper, left + width, upper + height)).convert("RGBA")
 
 
-def _horizontal_veil(width: int, height: int, strength: int, reverse: bool):
-    """Voile noir dégradé (fort du côté du texte) pour lire le titre sur tout fond."""
+def _horizontal_veil(width: int, height: int, strength: int, reverse: bool,
+                     reach: float = 0.8):
+    """Voile noir dégradé (fort du côté du texte) pour lire le titre sur tout fond.
+
+    ``reach`` : part de la largeur couverte avant que le voile disparaisse.
+    """
     from PIL import Image
 
     veil = Image.new("L", (width, 1))
     for x in range(width):
         t = x / max(1, width - 1)
         t = 1 - t if reverse else t
-        veil.putpixel((x, 0), int(strength * max(0.0, 1 - t * 1.25)))
+        veil.putpixel((x, 0), int(strength * max(0.0, 1 - t / reach) ** 0.8))
     shade = Image.new("RGBA", (width, height), (0, 0, 0, 255))
     shade.putalpha(veil.resize((width, height)))
     return shade
@@ -1128,6 +1167,115 @@ def _medallion(photo, diameter: int, accent):
     return disc
 
 
+def thumbnail_photos(profile: ChurchProfile, spec: ThumbnailSpec) -> list[str]:
+    """Photos du fond : image choisie, puis photos cochées (ou toutes)."""
+    paths = [spec.background] if spec.background else []
+    paths += spec.photos or profile.photos
+    out: list[str] = []
+    for path in paths:
+        if path and path not in out and Path(path).is_file():
+            out.append(path)
+    return out
+
+
+def _grade_photo(image, profile: ChurchProfile, spec: ThumbnailSpec, unit: float):
+    """Traitement « miniature » : flou léger, contraste, teinte de l'église, assombri."""
+    from PIL import Image, ImageEnhance, ImageFilter, ImageOps
+
+    rgb = image.convert("RGB")
+    if spec.blur:
+        rgb = rgb.filter(ImageFilter.GaussianBlur(max(1.0, 2.6 * unit)))
+    rgb = ImageEnhance.Contrast(rgb).enhance(1.12)
+    rgb = ImageEnhance.Color(rgb).enhance(1.15)
+    if spec.tint:
+        # Duotone doux : ombres dans la couleur de l'église, lumières chaudes.
+        base = _rgb(profile.primary_color, "#0B1E3F")
+        accent = _rgb(spec.accent or profile.accent_color, "#F0BE64")
+        shadow = tuple(max(0, int(c * 0.45)) for c in base)
+        light = tuple(min(255, int(c * 0.35 + 255 * 0.65)) for c in accent)
+        toned = ImageOps.colorize(ImageOps.grayscale(rgb), black=shadow, white=light,
+                                  mid=tuple((a + b) // 2 for a, b in zip(base, accent)))
+        rgb = Image.blend(rgb, toned, 0.45)
+    if spec.darkness:
+        rgb = ImageEnhance.Brightness(rgb).enhance(1 - spec.darkness / 100)
+    return rgb.convert("RGBA")
+
+
+def _vignette(width: int, height: int, strength: int = 170):
+    """Coins assombris : le regard va au centre, comme sur les vraies miniatures."""
+    from PIL import Image, ImageDraw, ImageFilter
+
+    small = Image.new("L", (width // 8, height // 8), strength)
+    ImageDraw.Draw(small).ellipse((-width // 80, -height // 60, width // 8 + width // 80,
+                                   height // 8 + height // 60), fill=0)
+    mask = small.filter(ImageFilter.GaussianBlur(max(2, width // 90))).resize((width, height))
+    shade = Image.new("RGBA", (width, height), (0, 0, 0, 255))
+    shade.putalpha(mask)
+    return shade
+
+
+def _mosaic(paths: list[str], width: int, height: int, unit: float):
+    """2 ou 3 photos en panneaux inclinés ; renvoie (image, séparations)."""
+    from PIL import Image, ImageDraw
+
+    count = min(3, len(paths))
+    slant = int(90 * unit)
+    # Panneaux de largeur égale, bords inclinés (haut décalé vers la droite).
+    cuts = [int(width * i / count) for i in range(1, count)]
+    canvas = Image.new("RGBA", (width, height), (0, 0, 0, 255))
+    lines = []
+    for index in range(count):
+        left = cuts[index - 1] if index else None
+        right = cuts[index] if index < count - 1 else None
+        polygon = [
+            (left + slant if left is not None else 0, 0),
+            (right + slant if right is not None else width, 0),
+            (right - slant if right is not None else width, height),
+            (left - slant if left is not None else 0, height),
+        ]
+        xs = [x for x, _y in polygon]
+        panel_w = max(1, max(xs) - min(xs))
+        photo = _cover(paths[index], panel_w, height)
+        if photo is None:
+            continue
+        mask = Image.new("L", (width, height), 0)
+        ImageDraw.Draw(mask).polygon(polygon, fill=255)
+        layer = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+        layer.paste(photo, (max(0, min(xs)), 0))
+        canvas.paste(layer, (0, 0), mask)
+        if right is not None:
+            lines.append(((right + slant, 0), (right - slant, height)))
+    return canvas, lines
+
+
+def thumbnail_background(profile: ChurchProfile, spec: ThumbnailSpec,
+                         width: int, height: int):
+    """Fond de miniature composé des photos de l'église (ou fond uni)."""
+    from PIL import Image, ImageDraw
+
+    spec = spec.sanitized()
+    unit = height / 720
+    paths = thumbnail_photos(profile, spec)
+    if spec.composition == "plain" or not paths:
+        image = _background(width, height, profile)
+        return Image.alpha_composite(image, _vignette(width, height, 120))
+    lines = []
+    if spec.composition == "mosaic" and len(paths) >= 2:
+        image, lines = _mosaic(paths, width, height, unit)
+    else:
+        image = _cover(paths[0], width, height)
+        if image is None:
+            return _background(width, height, profile)
+    image = _grade_photo(image, profile, spec, unit)
+    image = Image.alpha_composite(image, _vignette(width, height, 110))
+    if lines:
+        accent = _rgb(spec.accent or profile.accent_color, "#F0BE64")
+        draw = ImageDraw.Draw(image)
+        for start, end in lines:
+            draw.line([start, end], fill=(*accent, 255), width=max(4, int(7 * unit)))
+    return image
+
+
 def render_youtube_thumbnail(profile: ChurchProfile, spec: ThumbnailSpec,
                              width: int = THUMBNAIL_SIZE[0], height: int = THUMBNAIL_SIZE[1]):
     """Miniature YouTube : grand titre lisible, orateur détouré, logo et date.
@@ -1148,11 +1296,7 @@ def render_youtube_thumbnail(profile: ChurchProfile, spec: ThumbnailSpec,
     margin = int(52 * unit)
     family = profile.font_family
 
-    image = None
-    if spec.background and Path(spec.background).is_file():
-        image = _cover(spec.background, width, height)
-    if image is None:
-        image = _background(width, height, profile)
+    image = thumbnail_background(profile, spec, width, height)
 
     speaker_title, speaker_name, photo_path = speaker_info(profile)
     source_photo = None
@@ -1163,12 +1307,16 @@ def render_youtube_thumbnail(profile: ChurchProfile, spec: ThumbnailSpec,
     on_left = spec.photo_side == "left"
     centered = layout == "center"
 
-    # Voile : dégradé côté texte, uniforme pour un titre centré.
+    # Voile : dégradé côté texte, uniforme pour un titre centré. Plus léger
+    # sur les photos de l'église pour qu'elles restent bien visibles.
+    photo_bg = spec.composition != "plain" and bool(thumbnail_photos(profile, spec))
     if centered:
-        image = Image.alpha_composite(image, Image.new("RGBA", (width, height), (0, 0, 0, 130)))
-    else:
         image = Image.alpha_composite(
-            image, _horizontal_veil(width, height, 215, on_left and photo is not None))
+            image, Image.new("RGBA", (width, height), (0, 0, 0, 80 if photo_bg else 130)))
+    else:
+        image = Image.alpha_composite(image, _horizontal_veil(
+            width, height, 200 if photo_bg else 215, on_left and photo is not None,
+            reach=0.62 if photo_bg else 0.8))
 
     text_left, text_right = margin, width - margin
     if photo is not None:
