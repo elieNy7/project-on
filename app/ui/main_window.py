@@ -144,6 +144,22 @@ class MainWindow(QMainWindow):
         self._service_log = ServiceLog(data_dir() / "history")
         self._project_controller.currentSlideChanged.connect(self._log_live_slide)
 
+        # Reprise après coupure : le direct est sauvegardé en continu ; un
+        # fichier encore présent au démarrage signale un arrêt brutal.
+        from app.utils import live_recovery
+
+        self._recovery_path = data_dir() / "live-recovery.json"
+        self._pending_recovery = live_recovery.load(self._recovery_path)
+        self._recovery_timer = QTimer(self)
+        self._recovery_timer.setSingleShot(True)
+        self._recovery_timer.setInterval(400)
+        self._recovery_timer.timeout.connect(self._save_recovery)
+        self._project_controller.currentSlideChanged.connect(
+            lambda _slide: self._recovery_timer.start()
+        )
+        if self._pending_recovery is not None:
+            QTimer.singleShot(900, self._offer_recovery)
+
         # Fluent shell: navigation rail on the window edge, command bar on
         # top, then the library and preview layers. Rail and bar sit on the
         # window backdrop (Mica); the layers are opaque cards.
@@ -1147,6 +1163,43 @@ class MainWindow(QMainWindow):
 
     def _log_hidden(self, hidden: bool) -> None:
         self._service_log.record("hide" if hidden else "show")
+        timer = getattr(self, "_recovery_timer", None)
+        if timer is not None:
+            timer.start()
+
+    def _save_recovery(self) -> None:
+        from app.utils import live_recovery
+
+        live_recovery.save(
+            self._recovery_path,
+            live_recovery.snapshot(
+                self._project_controller,
+                hidden=self._project_controller.slide_writer.is_hidden,
+            ),
+        )
+
+    def _offer_recovery(self) -> None:
+        """Propose de reprendre le direct interrompu par un arrêt brutal."""
+        from app.utils import live_recovery
+
+        data, self._pending_recovery = self._pending_recovery, None
+        if data is None or self._project_controller.program_count:
+            return
+        title = data.get("title") or "le programme"
+        answer = QMessageBox.question(
+            self,
+            "Reprendre la projection ?",
+            f"Project-On s'est arrêté brutalement à {data['saved_at']:%H:%M} "
+            f"(coupure de courant ?) pendant « {title} ».\n\n"
+            "Reprendre exactement là où vous étiez ?",
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            live_recovery.clear(self._recovery_path)
+            return
+        live_recovery.restore(self._project_controller, data)
+        if data.get("hidden"):
+            self._on_hide_toggled(True)
+            self.preview_panel.set_hidden(True)
 
     def _show_history_dialog(self) -> None:
         from app.ui.history_dialog import HistoryDialog
@@ -1461,6 +1514,12 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event) -> None:
         """Handle application shutdown gracefully."""
         self._flush_settings_save()
+        # Fermeture normale : rien à reprendre au prochain démarrage.
+        if hasattr(self, "_recovery_timer"):
+            self._recovery_timer.stop()
+            from app.utils import live_recovery
+
+            live_recovery.clear(self._recovery_path)
         app = QApplication.instance()
         if app is not None and hasattr(self, "_global_arrow_nav_filter"):
             try:

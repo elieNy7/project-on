@@ -507,6 +507,25 @@ class ProjectOnController(QObject):
             writer=self._slide_writer.snapshot(),
         )
 
+    def restore_program(
+        self,
+        slides: list[Slide],
+        title: str,
+        entry_start_rows: list[int | None],
+        current_row: int,
+    ) -> int:
+        """Recharge un programme déjà découpé (reprise après coupure)."""
+        if not slides:
+            return -1
+        self._program_slides = list(slides)
+        self._program_title = self._clean_text(title)
+        self._entry_start_rows = list(entry_start_rows) or [0]
+        self._current_row = -1
+        self.programChanged.emit(self._program_title)
+        row = max(0, min(int(current_row), len(self._program_slides) - 1))
+        self.set_current_row(row)
+        return row
+
     def restore_live_state(self, state: LiveState) -> None:
         """Restaure un état capturé, y compris l'édition en cours."""
         self._program_slides = list(state.slides)
