@@ -176,3 +176,41 @@ def test_profile_socials_round_trip(tmp_path: Path) -> None:
     settings.save(path)
     loaded = AppSettings.load(path).church
     assert loaded.socials == {"tiktok": "@eglise"} and loaded.qr_target == "tiktok"
+
+
+# ── Logos officiels des réseaux ───────────────────────────────────────────
+
+
+def test_every_platform_has_its_official_logo() -> None:
+    from app.utils.church_graphics import SOCIAL_PLATFORMS, _social_mask, social_badge
+
+    for platform in SOCIAL_PLATFORMS:
+        assert (ROOT / "assets" / "social" / f"{platform.key}.png").is_file(), platform.key
+        assert (ROOT / "assets" / "social" / "svg" / f"{platform.key}.svg").is_file()
+        assert _social_mask(platform.key) is not None
+        badge = social_badge(platform.key, 64)
+        assert badge.size == (64, 64) and badge.getpixel((0, 0))[3] == 0  # rond
+
+    def color_at(key, x, y):
+        return social_badge(key, 120).getpixel((x, y))[:3]
+
+    r, g, b = color_at("facebook", 30, 40)
+    assert b > 200 and r < 60  # bleu Facebook
+    r, g, b = color_at("youtube", 30, 60)
+    assert r > 200 and g < 40  # rouge YouTube
+    r, g, b = color_at("whatsapp", 12, 60)
+    assert g > 180 and r < 80  # vert WhatsApp
+
+
+def test_qr_code_with_logo_stays_readable() -> None:
+    import pytest
+
+    cv2 = pytest.importorskip("cv2")
+    import numpy as np
+
+    from app.utils.church_graphics import qr_image
+
+    url = "https://youtube.com/@Eglise"
+    image = qr_image(url, 300, "youtube").convert("RGB").resize((600, 600))
+    data, _points, _raw = cv2.QRCodeDetector().detectAndDecode(np.array(image)[:, :, ::-1])
+    assert data == url

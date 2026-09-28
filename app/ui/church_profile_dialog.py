@@ -36,6 +36,7 @@ from app.utils.church_graphics import (
     render_quote,
     render_socials,
     render_welcome,
+    social_badge,
 )
 from app.utils.fonts import get_available_fonts
 
@@ -44,6 +45,14 @@ def _to_pixmap(image) -> QPixmap:
     rgb = image.convert("RGB")
     data = rgb.tobytes()
     qimage = QImage(data, rgb.width, rgb.height, rgb.width * 3, QImage.Format.Format_RGB888)
+    return QPixmap.fromImage(qimage.copy())
+
+
+def _to_pixmap_rgba(image) -> QPixmap:
+    """Image PIL RGBA → QPixmap (transparence conservée)."""
+    rgba = image.convert("RGBA")
+    data = rgba.tobytes()
+    qimage = QImage(data, rgba.width, rgba.height, rgba.width * 4, QImage.Format.Format_RGBA8888)
     return QPixmap.fromImage(qimage.copy())
 
 
@@ -150,7 +159,20 @@ class ChurchProfileDialog(QDialog):
             edit = QLineEdit(self._profile.socials.get(platform.key, ""))
             edit.setPlaceholderText(platform.placeholder)
             edit.setMinimumWidth(220)
-            socials.addRow(platform.label, edit)
+            # Logo officiel du réseau devant le champ.
+            field_box = QWidget()
+            field_box.setStyleSheet("background: transparent;")
+            field_row = QHBoxLayout(field_box)
+            field_row.setContentsMargins(0, 0, 0, 0)
+            field_row.setSpacing(8)
+            logo = QLabel()
+            badge = social_badge(platform.key, 26)
+            if badge is not None:
+                logo.setPixmap(_to_pixmap_rgba(badge))
+            logo.setFixedSize(26, 26)
+            field_row.addWidget(logo)
+            field_row.addWidget(edit, 1)
+            socials.addRow(platform.label, field_box)
             self.social_edits[platform.key] = edit
         self.qr_target = QComboBox()
         self.qr_target.addItem("Aucun QR code", "")

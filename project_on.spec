@@ -125,6 +125,7 @@ added_files = [
     data_file("assets/logo/app icon.png", "assets/logo"),
     data_file("licenses/LUCIDE-ISC.txt", "licenses"),
     data_file("licenses/BIBLES.txt", "licenses"),
+    data_file("licenses/SIMPLE-ICONS-CC0.txt", "licenses"),
     data_file(f"ndi/bin/Processing.NDI.Lib.{ndi_arch}.dll", "ndi/bin"),
 ]
 
@@ -136,6 +137,12 @@ added_files += [
 added_files += [
     data_file(f"assets/fonts/{name}", f"assets/fonts/{Path(name).parent.as_posix()}")
     for name in font_files
+]
+
+# Logos des réseaux sociaux (masques recolorés, voir tools/build_social_icons.py).
+added_files += [
+    (str(p), "assets/social")
+    for p in sorted((spec_root / "assets" / "social").glob("*.png"))
 ]
 
 # Bibles libres fournies (tools/download_bibles.py) : installées au démarrage.

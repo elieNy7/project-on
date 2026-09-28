@@ -1,0 +1,15 @@
+Logos des réseaux sociaux
+=========================
+
+Les logos Facebook, YouTube, Instagram, WhatsApp, TikTok, X et Telegram
+(assets/social/svg) proviennent de Simple Icons — https://simpleicons.org —
+publiés sous licence CC0 1.0 Universal (domaine public) :
+https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md
+
+Ces logos sont des marques de leurs propriétaires respectifs. Project-On les
+affiche uniquement pour indiquer les comptes de l'église sur ces réseaux,
+conformément aux règles d'usage des marques (logo non modifié dans sa forme,
+aux couleurs officielles).
+
+Les icônes site web, e-mail et téléphone proviennent de Lucide
+(https://lucide.dev), licence ISC — voir LUCIDE-ISC.txt.

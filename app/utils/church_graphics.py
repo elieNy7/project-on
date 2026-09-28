@@ -293,8 +293,12 @@ def _paste_logo(image, profile: ChurchProfile, center_x: int, top: int, max_h: i
     return logo.height
 
 
-def qr_image(url: str, size: int):
-    """QR code blanc à coins arrondis (None si la bibliothèque manque)."""
+def qr_image(url: str, size: int, logo_key: str = ""):
+    """QR code blanc à coins arrondis (None si la bibliothèque manque).
+
+    ``logo_key`` place le logo du réseau au centre ; la correction d'erreur
+    haute (30 %) garde le code lisible malgré le logo.
+    """
     if not url:
         return None
     try:
@@ -302,8 +306,8 @@ def qr_image(url: str, size: int):
         from PIL import Image, ImageDraw
     except Exception:
         return None
-    code = qrcode.QRCode(border=2, box_size=10,
-                         error_correction=qrcode.constants.ERROR_CORRECT_M)
+    level = qrcode.constants.ERROR_CORRECT_H if logo_key else qrcode.constants.ERROR_CORRECT_M
+    code = qrcode.QRCode(border=2, box_size=10, error_correction=level)
     code.add_data(url)
     code.make(fit=True)
     matrix = code.make_image(fill_color="black", back_color="white").convert("RGBA")
@@ -312,31 +316,125 @@ def qr_image(url: str, size: int):
     mask = Image.new("L", (size, size), 0)
     ImageDraw.Draw(mask).rounded_rectangle((0, 0, size - 1, size - 1), radius=size // 12, fill=255)
     card.paste(matrix, (0, 0), mask)
+    badge = social_badge(logo_key, int(size * 0.22)) if logo_key else None
+    if badge is not None:
+        ring = int(size * 0.26)
+        offset = (size - ring) // 2
+        ImageDraw.Draw(card).ellipse((offset, offset, offset + ring, offset + ring),
+                                     fill=(255, 255, 255, 255))
+        card.alpha_composite(badge, ((size - badge.width) // 2, (size - badge.height) // 2))
     return card
 
 
-def _badge(draw, x: int, y: int, platform: SocialPlatform, diameter: int, font) -> None:
-    """Pastille ronde à la couleur de la plateforme, sigle au centre."""
-    color = _rgb(platform.color, "#6B7280")
-    draw.ellipse((x, y, x + diameter, y + diameter), fill=color)
-    cx, cy = x + diameter / 2, y + diameter / 2
-    if platform.key == "youtube":
-        # Triangle « lecture » dessiné : aucune police n'est requise.
-        r = diameter * 0.22
-        draw.polygon([(cx - r * 0.8, cy - r), (cx - r * 0.8, cy + r), (cx + r * 1.1, cy)],
-                     fill=(255, 255, 255))
-        return
-    sigle = {
-        "facebook": "f", "instagram": "IG", "whatsapp": "WA", "tiktok": "TT",
-        "x": "X", "telegram": "TG", "website": "www", "email": "@", "phone": "Tél",
-    }.get(platform.key, platform.label[:1])
-    scale = 1.0 if len(sigle) == 1 else (0.75 if len(sigle) == 2 else 0.58)
-    sized = font
+_BADGE_CACHE: dict[tuple[str, int], Any] = {}
+
+
+def _social_mask(key: str):
+    """Masque blanc du logo (assets/social/<réseau>.png), ou None."""
+    from PIL import Image
+
+    from app.utils.app_paths import resource_root
+
+    path = resource_root() / "assets" / "social" / f"{key}.png"
     try:
-        sized = font.font_variant(size=max(8, int(font.size * scale)))
+        return Image.open(path).convert("RGBA").getchannel("A")
     except Exception:
-        pass
-    draw.text((cx, cy), sigle, font=sized, fill=(255, 255, 255), anchor="mm")
+        return None
+
+
+def social_badge(key: str, diameter: int):
+    """Pastille ronde au logo officiel du réseau (image RGBA, mise en cache).
+
+    Logos Simple Icons (CC0) et Lucide (ISC) recolorés aux couleurs des
+    marques : Facebook et Telegram bleus au glyphe blanc, YouTube rouge au
+    bouton blanc, Instagram en dégradé, TikTok noir aux reflets cyan/rose…
+    """
+    from PIL import Image, ImageDraw
+
+    diameter = max(8, int(diameter))
+    cache_key = (key, diameter)
+    if cache_key in _BADGE_CACHE:
+        return _BADGE_CACHE[cache_key]
+    platform = PLATFORM_BY_KEY.get(key)
+    if platform is None:
+        return None
+    mask = _social_mask(key)
+    scale = 4
+    size = diameter * scale
+    badge = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(badge)
+    brand = _rgb(platform.color, "#6B7280")
+    white = (255, 255, 255, 255)
+
+    def glyph(fraction: float, color, dx: float = 0.0, dy: float = 0.0) -> None:
+        if mask is None:
+            return
+        side = int(size * fraction)
+        resized = mask.resize((side, side), Image.LANCZOS)
+        layer = Image.new("RGBA", (side, side), color)
+        layer.putalpha(resized)
+        offset = ((size - side) // 2 + int(dx * size), (size - side) // 2 + int(dy * size))
+        badge.alpha_composite(layer, offset)
+
+    if mask is None:
+        # Logo introuvable : pastille à la couleur de la marque + initiale.
+        draw.ellipse((0, 0, size - 1, size - 1), fill=(*brand, 255))
+        font = _font("Poppins", int(size * 0.45))
+        draw.text((size / 2, size / 2), platform.label[:1], font=font, fill=white, anchor="mm")
+    elif key in ("facebook", "telegram"):
+        # Logo rond officiel : glyphe bleu plein cadre sur un disque blanc.
+        inset = int(size * 0.12)
+        draw.ellipse((inset, inset, size - inset, size - inset), fill=white)
+        glyph(1.0, (*brand, 255))
+    elif key == "youtube":
+        draw.ellipse((0, 0, size - 1, size - 1), fill=white)
+        draw.rectangle((int(size * 0.36), int(size * 0.34), int(size * 0.66), int(size * 0.66)),
+                       fill=white)
+        glyph(0.74, (*brand, 255))
+    elif key == "instagram":
+        # Dégradé officiel (jaune → rose → violet), en diagonale.
+        stops = [(254, 218, 117), (250, 126, 30), (214, 41, 118), (150, 47, 191), (79, 91, 213)]
+        gradient = Image.new("RGBA", (size, size))
+        pixels = gradient.load()
+        for yy in range(size):
+            for xx in range(0, size, 2):
+                t = ((size - yy) + xx) / (2 * size)
+                pos = t * (len(stops) - 1)
+                i = min(int(pos), len(stops) - 2)
+                f = pos - i
+                c = tuple(int(stops[i][k] + (stops[i + 1][k] - stops[i][k]) * f) for k in range(3))
+                pixels[xx, yy] = (*c, 255)
+                if xx + 1 < size:
+                    pixels[xx + 1, yy] = (*c, 255)
+        circle = Image.new("L", (size, size), 0)
+        ImageDraw.Draw(circle).ellipse((0, 0, size - 1, size - 1), fill=255)
+        badge.paste(gradient, (0, 0), circle)
+        glyph(0.56, white)
+    elif key == "tiktok":
+        draw.ellipse((0, 0, size - 1, size - 1), fill=(0, 0, 0, 255))
+        glyph(0.54, (37, 244, 238, 255), -0.018, -0.018)
+        glyph(0.54, (254, 44, 85, 255), 0.018, 0.018)
+        glyph(0.54, white)
+    elif key == "x":
+        draw.ellipse((0, 0, size - 1, size - 1), fill=(0, 0, 0, 255))
+        glyph(0.5, white)
+    elif key == "whatsapp":
+        draw.ellipse((0, 0, size - 1, size - 1), fill=(*brand, 255))
+        glyph(0.6, white)
+    else:  # site web, e-mail, téléphone (icônes Lucide)
+        draw.ellipse((0, 0, size - 1, size - 1), fill=(*brand, 255))
+        glyph(0.54, white)
+
+    result = badge.resize((diameter, diameter), Image.LANCZOS)
+    _BADGE_CACHE[cache_key] = result
+    return result
+
+
+def _badge(image, x: int, y: int, platform: SocialPlatform, diameter: int) -> None:
+    """Colle la pastille du réseau (logo officiel) à la position donnée."""
+    badge = social_badge(platform.key, diameter)
+    if badge is not None:
+        image.alpha_composite(badge, (int(x), int(y)))
 
 
 def _socials_strip(image, draw, profile: ChurchProfile, center_x: int, y: int,
@@ -347,7 +445,6 @@ def _socials_strip(image, draw, profile: ChurchProfile, center_x: int, y: int,
         return 0
     size = int(28 * unit)
     font = _font(profile.font_family, size, bold=False)
-    badge_font = _font(profile.font_family, int(size * 0.62))
     diameter = int(size * 1.25)
     gap = int(34 * unit)
     pieces = []
@@ -371,7 +468,7 @@ def _socials_strip(image, draw, profile: ChurchProfile, center_x: int, y: int,
         x = center_x - total // 2
         top = y + index * line_h
         for platform, label, width in row:
-            _badge(draw, x, top, platform, diameter, badge_font)
+            _badge(image, x, top, platform, diameter)
             draw.text((x + diameter + int(10 * unit), top + diameter / 2), label,
                       font=font, fill=(*text_rgb, 235), anchor="lm")
             x += width + gap
@@ -492,7 +589,7 @@ def render_welcome(profile: ChurchProfile, width: int = 1920, height: int = 1080
     # Bas de l'écran : réseaux sociaux (centrés), QR code (à droite).
     qr_platform = PLATFORM_BY_KEY.get(profile.qr_target)
     qr = qr_image(link_url(profile.qr_target, profile.socials.get(profile.qr_target, "")),
-                  int(170 * unit)) if qr_platform else None
+                  int(170 * unit), profile.qr_target) if qr_platform else None
     bottom = height - int(60 * unit)
     if qr is not None:
         qx, qy = width - qr.width - int(60 * unit), bottom - qr.height - int(30 * unit)
@@ -535,7 +632,7 @@ def render_socials(profile: ChurchProfile, width: int = 1920, height: int = 1080
     items = profile.social_items()[:7]
     qr_platform = PLATFORM_BY_KEY.get(profile.qr_target)
     qr = qr_image(link_url(profile.qr_target, profile.socials.get(profile.qr_target, "")),
-                  int(380 * unit)) if qr_platform else None
+                  int(380 * unit), profile.qr_target) if qr_platform else None
     list_left = margin if qr is not None else int(width * 0.26)
     list_top = margin + int(210 * unit)
     available = height - list_top - margin
@@ -543,10 +640,9 @@ def render_socials(profile: ChurchProfile, width: int = 1920, height: int = 1080
     diameter = int(row_h * 0.62)
     label_font = _font(profile.font_family, int(row_h * 0.26), bold=False)
     value_font = _font(profile.font_family, int(row_h * 0.36))
-    badge_font = _font(profile.font_family, int(diameter * 0.5))
     for index, (platform, value) in enumerate(items):
         top = list_top + index * row_h
-        _badge(draw, list_left, top, platform, diameter, badge_font)
+        _badge(image, list_left, top, platform, diameter)
         tx = list_left + diameter + int(26 * unit)
         draw.text((tx, top - int(4 * unit)), platform.label, font=label_font,
                   fill=(*text_rgb, 170), anchor="la")
