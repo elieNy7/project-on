@@ -72,7 +72,7 @@ def test_photo_and_name_painted_and_text_moved_aside(canvas, tmp_path: Path) -> 
     assert canvas._speaker_reserve_applied > 0
     assert canvas._available_content_width < full_width  # le texte laisse la place
     image = canvas.grab().toImage()
-    assert image.pixelColor(1920 - 150, 1080 - 300).green() > 150  # photo, à droite
+    assert image.pixelColor(1920 - 110, 1080 - 110).green() > 150  # photo, à droite
 
     # Média plein écran : pas d'orateur par-dessus l'image.
     canvas.set_slide({"text": "", "image": str(tmp_path / "o.png"), "source": "image"})
@@ -91,7 +91,7 @@ def test_sermon_only_mode_and_left_side(canvas, tmp_path: Path) -> None:
     margins = canvas._main_layout.contentsMargins()
     assert margins.left() > margins.right()
     image = canvas.grab().toImage()
-    assert image.pixelColor(150, 1080 - 300).green() > 150  # photo, à gauche
+    assert image.pixelColor(110, 1080 - 110).green() > 150  # photo, à gauche
 
 
 def test_main_window_sends_badge_to_projection_and_preview(tmp_path: Path, monkeypatch) -> None:

@@ -989,7 +989,7 @@ def render_obs_overlay(
     safe_margin = int(round(min(width, height) * cfg.safe_area_percent / 100))
     inset = max(0, int(cfg.edge_margin)) + safe_margin
     # Orateur du jour : sa photo occupe un côté ; le bandeau prend le reste.
-    speaker = _speaker_overlay(cfg_payload, slide, width, height)
+    speaker = _speaker_overlay(cfg_payload, slide, width, height, cfg.font_family)
     speaker_reserve = speaker["reserve"] if speaker else 0
     speaker_left = bool(speaker) and speaker["side"] == "left"
     available_w = max(160, width - inset * 2 - speaker_reserve)
@@ -1485,7 +1485,8 @@ def render_obs_overlay(
 _SPEAKER_PHOTO_CACHE: dict[tuple[str, float], Any] = {}
 
 
-def _speaker_overlay(cfg_payload, slide, width: int, height: int) -> dict | None:
+def _speaker_overlay(cfg_payload, slide, width: int, height: int,
+                     family: str = "") -> dict | None:
     """Orateur du jour à afficher près du bandeau (config « speaker_badge »).
 
     ``mode`` : all (tous les textes) | sermon (prédications) | off. Photo
@@ -1518,16 +1519,27 @@ def _speaker_overlay(cfg_payload, slide, width: int, height: int) -> dict | None
             photo = None
     if photo is None and not (title or name):
         return None
-    size = max(15, min(70, int(badge.get("size") or 34)))
+    size = max(10, min(40, int(badge.get("size") or 16)))
     photo_h = int(height * size / 100)
     photo_w = 0
     if photo is not None:
         photo_w = int(photo_h * photo.width / max(1, photo.height))
-        if photo_w > int(width * 0.28):
-            photo_h = int(photo_h * width * 0.28 / photo_w)
-            photo_w = int(width * 0.28)
+        if photo_w > int(width * 0.16):
+            photo_h = int(photo_h * width * 0.16 / photo_w)
+            photo_w = int(width * 0.16)
     unit = min(width, height) / 1080
-    caption_w = int(300 * unit) if (title or name) else 0
+    caption_w = 0
+    if title or name:
+        # Cartouche compact : largeur du nom, pas plus.
+        fonts = _speaker_fonts(family, unit)
+        if fonts:
+            from PIL import ImageDraw  # type: ignore
+
+            probe = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
+            caption_w = int(max(
+                probe.textlength(name, font=fonts[1]) if name else 0,
+                probe.textlength(title.upper(), font=fonts[0]) if title else 0,
+            )) + int(24 * unit)
     return {
         "side": "left" if badge.get("side") == "left" else "right",
         "photo": photo, "photo_w": photo_w, "photo_h": photo_h,
@@ -1559,33 +1571,40 @@ def _draw_speaker_overlay(img, speaker: dict, cfg, key_rgb, accent) -> None:
     title, name = speaker["title"], speaker["name"]
     if not (title or name):
         return
-    family = cfg.font_family
-    title_font = _cached_truetype(_font_file(family, "bold") or "DejaVuSans.ttf", int(22 * unit)) \
-        or _cached_truetype("DejaVuSans.ttf", int(22 * unit))
-    name_font = _cached_truetype(_font_file(family, "bold") or "DejaVuSans.ttf", int(32 * unit)) \
-        or _cached_truetype("DejaVuSans.ttf", int(32 * unit))
-    if title_font is None or name_font is None:
+    fonts = _speaker_fonts(cfg.font_family, unit)
+    if not fonts:
         return
+    title_font, name_font = fonts
     draw = ImageDraw.Draw(img)
     name_w = int(draw.textlength(name, font=name_font)) if name else 0
-    box_w = max(block_w, name_w + int(36 * unit))
-    title_h = int(30 * unit) if title else 0
-    name_h = int(42 * unit) if name else 0
-    box_h = title_h + name_h + int(18 * unit)
+    box_w = max(block_w, name_w + int(24 * unit))
+    title_h = int(20 * unit) if title else 0
+    name_h = int(28 * unit) if name else 0
+    box_h = title_h + name_h + int(12 * unit)
     box_x = x + (block_w - box_w) // 2
-    box_y = height - box_h - int(16 * unit)
+    box_y = height - box_h - int(10 * unit)
     # Clé chroma : cartouche opaque (aucun mélange avec la couleur de clé).
     fill = (8, 12, 22, 255) if key_rgb is not None else (0, 0, 0, 160)
     draw.rounded_rectangle((box_x, box_y, box_x + box_w, box_y + box_h),
-                           radius=int(12 * unit), fill=fill)
+                           radius=int(8 * unit), fill=fill)
     cx = box_x + box_w // 2
-    top = box_y + int(9 * unit)
+    top = box_y + int(6 * unit)
     if title:
         draw.text((cx, top), title.upper(), font=title_font,
                   fill=(accent[0], accent[1], accent[2], 255), anchor="ma")
         top += title_h
     if name:
         draw.text((cx, top), name, font=name_font, fill=(255, 255, 255, 255), anchor="ma")
+
+
+def _speaker_fonts(family: str, unit: float):
+    """(titre, nom) du cartouche de l'orateur, petits pour une petite photo."""
+    path = _font_file(family, "bold") or "DejaVuSans.ttf"
+    title = _cached_truetype(path, max(9, int(15 * unit))) \
+        or _cached_truetype("DejaVuSans.ttf", max(9, int(15 * unit)))
+    name = _cached_truetype(path, max(11, int(21 * unit))) \
+        or _cached_truetype("DejaVuSans.ttf", max(11, int(21 * unit)))
+    return (title, name) if title is not None and name is not None else None
 
 
 def _flatten_layer(layer, base_rgb, opacity: float):

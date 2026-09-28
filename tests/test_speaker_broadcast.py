@@ -47,8 +47,8 @@ def _band_bbox(image):
 
 
 def test_broadcast_badge_settings(tmp_path: Path) -> None:
-    badge = _badge(tmp_path, speaker_on_broadcast="sermon", speaker_broadcast_size=40)
-    assert (badge["mode"], badge["size"], badge["name"]) == ("sermon", 40, "Jean Kabasele")
+    badge = _badge(tmp_path, speaker_on_broadcast="sermon", speaker_broadcast_size=30)
+    assert (badge["mode"], badge["size"], badge["name"]) == ("sermon", 30, "Jean Kabasele")
     assert ChurchProfile(speaker_on_broadcast="bof").sanitized().speaker_on_broadcast == "all"
 
 
@@ -56,7 +56,7 @@ def test_ndi_hdmi_render_places_speaker_beside_the_band(tmp_path: Path) -> None:
     plain = render_obs_overlay({}, SLIDE, 1920, 1080)
     with_speaker = render_obs_overlay({"speaker_badge": _badge(tmp_path)}, SLIDE, 1920, 1080)
     # Photo en bas à droite, bandeau décalé vers la gauche.
-    r, g, b, a = with_speaker.getpixel((1920 - 170, 1080 - 210))
+    r, g, b, a = with_speaker.getpixel((1920 - 100, 1080 - 95))
     assert a == 255 and r > 150 and g < 80
     assert _band_bbox(with_speaker)[0] < _band_bbox(plain)[0]
 
@@ -75,7 +75,7 @@ def test_hdmi_chroma_key_photo_has_hard_edges(tmp_path: Path) -> None:
         hdmi_band_config({"speaker_badge": _badge(tmp_path)}, "subtitle"), SLIDE,
         bg_rgba=(*key, 255),
     )
-    head = image.crop((1920 - 330, 1080 - 420, 1920, 1080 - 280)).convert("RGB")
+    head = image.crop((1920 - 300, 1080 - 180, 1920, 1080 - 75)).convert("RGB")
     # Aucun mélange photo / couleur de clé : chaque pixel est la clé ou la photo.
     pixels = list(head.get_flattened_data() if hasattr(head, "get_flattened_data")
                   else head.getdata())
@@ -153,3 +153,15 @@ def test_main_window_writes_badge_for_ndi_and_hdmi(tmp_path: Path, monkeypatch) 
         assert cfg["speaker_badge"]["mode"] == "sermon"
     finally:
         window.close()
+
+
+def test_speaker_photo_is_small_by_default(tmp_path: Path) -> None:
+    profile = ChurchProfile.from_payload({"speaker_slides_size": 42, "speaker_broadcast_size": 34})
+    # Anciennes valeurs par défaut (grande photo) ramenées à la petite photo.
+    assert (profile.speaker_slides_size, profile.speaker_broadcast_size) == (20, 16)
+    assert ChurchProfile(speaker_broadcast_size=70).sanitized().speaker_broadcast_size == 40
+
+    image = render_obs_overlay({"speaker_badge": _badge(tmp_path)}, SLIDE, 1920, 1080)
+    opaque = image.getchannel("A").point(lambda a: 255 if a > 250 else 0)
+    right = opaque.crop((1700, 0, 1920, 1080)).getbbox()
+    assert right[1] > 1080 * 0.8  # la photo occupe moins d'un cinquième de la hauteur

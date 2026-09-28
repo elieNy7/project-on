@@ -203,7 +203,7 @@ class ChurchProfileDialog(QDialog):
             max(0, self.speaker_slides_side.findData(self._profile.speaker_slides_side)))
         speaker.addRow("Côté", self.speaker_slides_side, "Le texte se décale pour lui laisser la place")
         self.speaker_slides_size = QSpinBox()
-        self.speaker_slides_size.setRange(20, 70)
+        self.speaker_slides_size.setRange(10, 40)
         self.speaker_slides_size.setSuffix(" %")
         self.speaker_slides_size.setValue(self._profile.speaker_slides_size)
         speaker.addRow("Hauteur de la photo", self.speaker_slides_size, "Part de la hauteur de l'écran")
@@ -218,7 +218,7 @@ class ChurchProfileDialog(QDialog):
             "À côté du bandeau sur la caméra (même côté que les slides)",
         )
         self.speaker_broadcast_size = QSpinBox()
-        self.speaker_broadcast_size.setRange(15, 70)
+        self.speaker_broadcast_size.setRange(10, 40)
         self.speaker_broadcast_size.setSuffix(" %")
         self.speaker_broadcast_size.setValue(self._profile.speaker_broadcast_size)
         speaker.addRow("Hauteur sur OBS / HDMI", self.speaker_broadcast_size,

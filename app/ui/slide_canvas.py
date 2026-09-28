@@ -558,12 +558,12 @@ class SlideCanvas(QWidget):
     def _speaker_geometry(self, sw: int, sh: int) -> tuple[int, int]:
         """(largeur, hauteur) de la photo de l'orateur à l'écran."""
         photo = self._speaker_photo()
-        size = max(20, min(70, int(self._speaker_badge().get("size") or 42)))
+        size = max(10, min(40, int(self._speaker_badge().get("size") or 20)))
         height = int(sh * size / 100)
         if photo.isNull():
             return 0, 0
         width = int(height * photo.width() / max(1, photo.height()))
-        max_width = int(sw * 0.30)
+        max_width = int(sw * 0.16)
         if width > max_width:
             height = int(height * max_width / width)
             width = max_width
@@ -574,8 +574,30 @@ class SlideCanvas(QWidget):
         if not self._speaker_badge_active():
             return 0
         width, _height = self._speaker_geometry(sw, sh)
-        caption = int(min(sw, sh) * 0.30)  # cartouche du nom sans photo
-        return max(width, caption if not width else 0) + int(sw * 0.015)
+        return max(width, self._speaker_caption_width(sw, sh)) + int(sw * 0.015)
+
+    def _speaker_fonts(self, sw: int, sh: int) -> tuple[QFont, QFont]:
+        """(titre, nom) du cartouche, petits pour une petite photo."""
+        unit = min(sw, sh) / 1080
+        title_font = QFont(self._resolve_font_family(str(self._config.get("font_family") or "")))
+        title_font.setPixelSize(max(9, int(15 * unit)))
+        title_font.setWeight(QFont.Weight.Bold)
+        name_font = QFont(title_font)
+        name_font.setPixelSize(max(11, int(21 * unit)))
+        return title_font, name_font
+
+    def _speaker_caption_width(self, sw: int, sh: int) -> int:
+        badge = self._speaker_badge()
+        title = str(badge.get("title") or "").strip()
+        name = str(badge.get("name") or "").strip()
+        if not (title or name):
+            return 0
+        title_font, name_font = self._speaker_fonts(sw, sh)
+        text_w = max(
+            QFontMetrics(name_font).horizontalAdvance(name) if name else 0,
+            QFontMetrics(title_font).horizontalAdvance(title.upper()) if title else 0,
+        )
+        return text_w + int(24 * min(sw, sh) / 1080)
 
     def _paint_speaker_badge(self, painter: QPainter, rect) -> None:
         """Photo (sans arrière-plan) et nom de l'orateur du jour, au pied du slide."""
@@ -590,27 +612,24 @@ class SlideCanvas(QWidget):
         x = margin if on_left else sw - margin - reserve
         photo = self._speaker_photo()
         if width and not photo.isNull():
-            painter.drawPixmap(QRectF(x, sh - height, width, height), photo, QRectF(photo.rect()))
+            painter.drawPixmap(QRectF(x + (reserve - width) / 2, sh - height, width, height),
+                               photo, QRectF(photo.rect()))
         title = str(badge.get("title") or "").strip()
         name = str(badge.get("name") or "").strip()
         if not (title or name):
             return
         unit = min(sw, sh) / 1080
-        title_font = QFont(self._resolve_font_family(str(self._config.get("font_family") or "")))
-        title_font.setPixelSize(max(10, int(22 * unit)))
-        title_font.setWeight(QFont.Weight.Bold)
-        name_font = QFont(title_font)
-        name_font.setPixelSize(max(12, int(32 * unit)))
+        title_font, name_font = self._speaker_fonts(sw, sh)
         title_h = QFontMetrics(title_font).height() if title else 0
         name_h = QFontMetrics(name_font).height() if name else 0
-        box_w = max(reserve, QFontMetrics(name_font).horizontalAdvance(name) + int(36 * unit))
-        box_h = title_h + name_h + int(20 * unit)
+        box_w = self._speaker_caption_width(sw, sh)
+        box_h = title_h + name_h + int(12 * unit)
         box_x = x + (reserve - box_w) / 2
-        box = QRectF(box_x, sh - box_h - int(16 * unit), box_w, box_h)
+        box = QRectF(box_x, sh - box_h - int(10 * unit), box_w, box_h)
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QColor(0, 0, 0, 150))
-        painter.drawRoundedRect(box, 12 * unit, 12 * unit)
-        top = box.top() + int(10 * unit)
+        painter.drawRoundedRect(box, 8 * unit, 8 * unit)
+        top = box.top() + int(6 * unit)
         if title:
             painter.setFont(title_font)
             painter.setPen(self._stage_accent)

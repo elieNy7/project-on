@@ -1033,7 +1033,7 @@ function updateSpeaker(payload) {
         root.style.setProperty('--speaker-reserve', '0px');
         return;
     }
-    const size = Math.max(15, Math.min(70, Number(badge.size || 34)));
+    const size = Math.max(10, Math.min(40, Number(badge.size || 16)));
     root.style.setProperty('--speaker-h', `${size}vh`);
     const img = document.getElementById('speaker-photo');
     const baseUrl = window.location.protocol === 'file:' ? 'http://127.0.0.1:8080' : '';
@@ -1057,6 +1057,12 @@ function updateSpeaker(payload) {
 function reserveSpeakerSpace() {
     const el = document.getElementById('speaker');
     if (!el || !el.classList.contains('visible')) return;
-    const width = el.getBoundingClientRect().width;
+    // La légende est centrée sous la photo : le bloc prend sa largeur pour
+    // qu'elle ne sorte pas de l'écran.
+    const caption = document.getElementById('speaker-caption');
+    const captionW = caption && !caption.classList.contains('empty')
+        ? caption.getBoundingClientRect().width : 0;
+    el.style.minWidth = `${Math.ceil(captionW)}px`;
+    const width = Math.max(el.getBoundingClientRect().width, captionW);
     document.documentElement.style.setProperty('--speaker-reserve', `${Math.ceil(width + 24)}px`);
 }

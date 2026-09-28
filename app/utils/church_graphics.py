@@ -88,10 +88,10 @@ class ChurchProfile:
     # Orateur sur les slides de projection : all | sermon | off
     speaker_on_slides: str = "all"
     speaker_slides_side: str = "right"  # right | left
-    speaker_slides_size: int = 42  # hauteur de la photo, % de l'écran
+    speaker_slides_size: int = 20  # hauteur de la photo, % de l'écran
     # Orateur sur OBS, NDI et HDMI (à côté du bandeau) : all | sermon | off
     speaker_on_broadcast: str = "all"
-    speaker_broadcast_size: int = 34  # hauteur de la photo, % du cadre
+    speaker_broadcast_size: int = 16  # hauteur de la photo, % du cadre
 
     def sanitized(self) -> ChurchProfile:
         defaults = ChurchProfile()
@@ -126,10 +126,10 @@ class ChurchProfile:
             out.speaker_on_slides = "all"
         if out.speaker_slides_side not in ("right", "left"):
             out.speaker_slides_side = "right"
-        out.speaker_slides_size = max(20, min(70, out.speaker_slides_size))
+        out.speaker_slides_size = max(10, min(40, int(out.speaker_slides_size)))
         if out.speaker_on_broadcast not in ("all", "sermon", "off"):
             out.speaker_on_broadcast = "all"
-        out.speaker_broadcast_size = max(15, min(70, out.speaker_broadcast_size))
+        out.speaker_broadcast_size = max(10, min(40, int(out.speaker_broadcast_size)))
         if out.quote_style not in QUOTE_STYLES:
             out.quote_style = defaults.quote_style
         if out.qr_target and out.qr_target not in out.socials:
@@ -146,6 +146,11 @@ class ChurchProfile:
             # 2.7 préversion : « message du jour » rattaché au pasteur.
             if payload.get("pastor_message") and not payload.get("speaker_message"):
                 out.speaker_message = str(payload["pastor_message"])
+            # Anciennes hauteurs par défaut (grande photo) → petite photo.
+            if payload.get("speaker_slides_size") == 42:
+                out.speaker_slides_size = cls.speaker_slides_size
+            if payload.get("speaker_broadcast_size") == 34:
+                out.speaker_broadcast_size = cls.speaker_broadcast_size
         return out.sanitized()
 
     def social_items(self) -> list[tuple[SocialPlatform, str]]:
