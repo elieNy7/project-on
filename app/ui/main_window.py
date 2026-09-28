@@ -385,6 +385,8 @@ class MainWindow(QMainWindow):
         # Contrôle avant culte en arrière-plan, une fois l'interface affichée.
         if self._settings.appearance.startup_check:
             QTimer.singleShot(4000, self._run_startup_check)
+        if self._settings.appearance.check_updates:
+            QTimer.singleShot(12000, self._run_update_check)
         QTimer.singleShot(0, self._start_obs_output)
         # La sortie HDMI ne s'ouvre JAMAIS au démarrage : elle s'active à la
         # demande (Réglages → Sortie HDMI) et se quitte par Échap.
@@ -847,6 +849,7 @@ class MainWindow(QMainWindow):
         page.register("split", "Découpage des textes", "file-text.svg", self._build_split_section)
         page.register("bibles", "Bibles", "book.svg", self._build_bibles_section)
         page.register("shortcuts", "Raccourcis", "zap.svg", self._build_shortcuts_section)
+        page.register("update", "Mise à jour", "download.svg", self._build_update_section)
         page.register("obs", tr("connectivity"), "wifi.svg", self._build_obs_section)
         page.register("obs_output", tr("lower_third_style"), "layout.svg", self._build_obs_output_section)
         page.register("appearance", tr("appearance"), "eye.svg", self._build_appearance_section)
@@ -938,6 +941,59 @@ class MainWindow(QMainWindow):
         # Clic simple puis F2 : la section démarre quand le slide passe au direct.
         self._cued_playlist_item: int | None = None
         playlist_tab.itemCued.connect(lambda item_id: setattr(self, "_cued_playlist_item", item_id))
+
+    def _build_update_section(self) -> QWidget:
+        from app.ui.update_dialog import UpdateDialog
+
+        dlg = embed_dialog(UpdateDialog, self._settings.appearance.check_updates)
+
+        def on_auto(enabled: bool) -> None:
+            self._settings.appearance.check_updates = bool(enabled)
+            self._settings_changed()
+
+        dlg.autoCheckChanged.connect(on_auto)
+        return dlg
+
+    def _run_update_check(self) -> None:
+        """Nouvelle version ? Vérification discrète, en arrière-plan."""
+        import threading
+
+        from PySide6.QtCore import QObject, Signal
+
+        from app.utils import updater
+
+        class _Relay(QObject):
+            found = Signal(object)
+
+        self._update_relay = _Relay(self)
+        self._update_relay.found.connect(self._on_update_found)
+
+        def work() -> None:
+            try:
+                info = updater.check_latest()
+            except Exception:
+                return  # pas d'Internet : rien à signaler
+            if info is not None and updater.is_newer(info.version):
+                self._update_relay.found.emit(info)
+
+        threading.Thread(target=work, name="update-check", daemon=True).start()
+
+    def _on_update_found(self, info) -> None:
+        box = QMessageBox(
+            QMessageBox.Icon.Information,
+            "Mise à jour disponible",
+            f"Project-On {info.version} est disponible. L'installation garde "
+            "vos cantiques, playlists et réglages.",
+            QMessageBox.StandardButton.Close,
+            self,
+        )
+        see = box.addButton("Voir", QMessageBox.ButtonRole.AcceptRole)
+        box.buttonClicked.connect(
+            lambda button: self._show_settings_section("update") if button is see else None
+        )
+        box.setWindowModality(Qt.WindowModality.NonModal)
+        self._update_box = box
+        box.show()
 
     def _build_shortcuts_section(self) -> QWidget:
         from app.ui.shortcut_settings_dialog import ShortcutSettingsDialog

@@ -122,4 +122,5 @@ def no_background_startup_check(monkeypatch: pytest.MonkeyPatch):
         yield
         return
     monkeypatch.setattr(MainWindow, "_run_startup_check", lambda self: None)
+    monkeypatch.setattr(MainWindow, "_run_update_check", lambda self: None)
     yield

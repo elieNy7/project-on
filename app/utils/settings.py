@@ -484,6 +484,8 @@ class AppearanceSettings:
     low_power: bool = False
     # Contrôle avant culte lancé en arrière-plan à chaque démarrage.
     startup_check: bool = True
+    # Recherche d'une nouvelle version au démarrage (si Internet).
+    check_updates: bool = True
 
 
 def _gs(d: dict, key: str, default: str) -> str:
@@ -1018,6 +1020,7 @@ class AppSettings:
             appearance.rail_compact = bool(a.get("rail_compact", appearance.rail_compact))
             appearance.low_power = bool(a.get("low_power", appearance.low_power))
             appearance.startup_check = bool(a.get("startup_check", appearance.startup_check))
+            appearance.check_updates = bool(a.get("check_updates", appearance.check_updates))
 
         hdmi = HdmiSettings()
         hm = payload.get("hdmi")
