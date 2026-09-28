@@ -33,11 +33,15 @@ from app.utils.church_graphics import (
     FORMATS,
     SOCIAL_PLATFORMS,
     ChurchProfile,
+    ThumbnailSpec,
     render_quote,
     render_speaker,
     render_socials,
     render_welcome,
+    render_youtube_thumbnail,
+    save_thumbnail,
     social_badge,
+    speaker_info,
 )
 from app.utils.fonts import get_available_fonts
 
@@ -112,6 +116,7 @@ class ChurchProfileDialog(QDialog):
         self.preview_kind.addItem("Écran « Réseaux sociaux »", "socials")
         self.preview_kind.addItem("Écran de l'orateur du jour", "pastor")
         self.preview_kind.addItem("Image de citation", "quote")
+        self.preview_kind.addItem("Miniature YouTube", "thumbnail")
         self.preview_kind.currentIndexChanged.connect(self._render_preview)
         preview_section.addRow("Afficher", self.preview_kind)
         self.preview = QLabel()
@@ -329,6 +334,10 @@ class ChurchProfileDialog(QDialog):
         quote_btn.clicked.connect(self.quoteRequested.emit)
         use.addRow("Image de citation", quote_btn,
                    "Aussi par clic droit sur un verset ou un paragraphe")
+        thumb_btn = QPushButton("Créer une miniature…")
+        thumb_btn.clicked.connect(self._open_thumbnail)
+        use.addRow("Miniature YouTube", thumb_btn,
+                   "Titre, orateur et date en 1280×720 · Ctrl+Shift+Y")
         export_btn = QPushButton("Enregistrer…")
         export_btn.clicked.connect(self._export_visuals)
         use.addRow("Visuels en PNG", export_btn,
@@ -419,6 +428,10 @@ class ChurchProfileDialog(QDialog):
                 profile, "Car Dieu a tant aimé le monde qu'il a donné son Fils unique.",
                 "Jean 3:16", "square",
             )
+        elif kind == "thumbnail":
+            image = render_youtube_thumbnail(profile, ThumbnailSpec(
+                title="Le *vrai* repos de l'âme", date=french_date(), reference="Matthieu 11:28",
+            ))
         else:
             image = render_welcome(profile, 960, 540)
         self.preview.setPixmap(_to_pixmap(image).scaledToHeight(
@@ -535,6 +548,9 @@ class ChurchProfileDialog(QDialog):
         self.background_mode.setCurrentIndex(self.background_mode.findData("image"))
         self._emit()
 
+    def _open_thumbnail(self) -> None:
+        ThumbnailDialog(self.read_profile(), parent=self).exec()
+
     def _export_visuals(self) -> None:
         folder = QFileDialog.getExistingDirectory(self, "Dossier des visuels")
         if not folder:
@@ -638,6 +654,162 @@ class QuoteImageDialog(QDialog):
             return
         self.image().convert("RGB").save(path)
         QMessageBox.information(self, "Image de citation", f"Image enregistrée :\n{path}")
+
+
+_MONTHS = ("janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août",
+           "septembre", "octobre", "novembre", "décembre")
+_DAYS = ("lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche")
+
+
+def french_date(day=None) -> str:
+    """« Dimanche 28 septembre 2026 »."""
+    from datetime import date
+
+    day = day or date.today()
+    return f"{_DAYS[day.weekday()].capitalize()} {day.day} {_MONTHS[day.month - 1]} {day.year}"
+
+
+class ThumbnailDialog(QDialog):
+    """Miniature YouTube (1280×720) aux couleurs de l'église, avec l'orateur."""
+
+    LABELS = ("Culte du dimanche", "En direct", "Culte d'enseignement", "Culte de prière",
+              "Veillée de prière", "Conférence", "Culte spécial")
+
+    def __init__(self, profile: ChurchProfile, title: str = "", reference: str = "",
+                 parent=None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Miniature YouTube")
+        self.setStyleSheet(DIALOG_STYLE)
+        self.resize(1080, 560)
+        self._profile = profile
+        self._background = ""
+
+        self.title = QPlainTextEdit(title)
+        self.title.setPlaceholderText("Le *vrai* repos de l'âme")
+        self.title.setMaximumHeight(90)
+        self.label = QComboBox()
+        self.label.setEditable(True)
+        self.label.addItems(self.LABELS)
+        self.label.addItem("")
+        self.date = QLineEdit(french_date())
+        self.reference = QLineEdit(reference)
+        self.reference.setPlaceholderText("Matthieu 11:28 (facultatif)")
+        self.show_speaker = QCheckBox("Afficher l'orateur du jour (photo et nom)")
+        self.show_speaker.setChecked(True)
+        self.side = QComboBox()
+        self.side.addItem("Photo à droite", "right")
+        self.side.addItem("Photo à gauche", "left")
+        self.uppercase = QCheckBox("Titre en majuscules")
+        self.uppercase.setChecked(True)
+        self.background_btn = QPushButton("Choisir une image de fond…")
+        self.background_btn.clicked.connect(self._browse_background)
+        clear_bg = QPushButton("Fond de l'église")
+        clear_bg.clicked.connect(lambda: self._set_background(""))
+        background_row = QHBoxLayout()
+        background_row.addWidget(self.background_btn, 1)
+        background_row.addWidget(clear_bg)
+
+        form = QVBoxLayout()
+        title_label = QLabel("Titre de la prédication")
+        form.addWidget(title_label)
+        form.addWidget(self.title)
+        hint = QLabel("Mettez un mot entre *astérisques* pour l'écrire en couleur d'accent.")
+        hint.setWordWrap(True)
+        hint.setStyleSheet("color: #9aa4b2; font-size: 11px;")
+        form.addWidget(hint)
+        for text, widget in (("Bandeau", self.label), ("Date", self.date),
+                             ("Référence biblique", self.reference)):
+            form.addWidget(QLabel(text))
+            form.addWidget(widget)
+        form.addWidget(self.show_speaker)
+        form.addWidget(self.side)
+        form.addWidget(self.uppercase)
+        form.addLayout(background_row)
+        speaker = " ".join(p for p in speaker_info(profile)[:2] if p)
+        note = QLabel(
+            f"Orateur : {speaker}" if speaker else
+            "Astuce : renseignez l'orateur du jour (et sa photo sans arrière-plan) "
+            "dans Réglages → Profil de l'église."
+        )
+        note.setWordWrap(True)
+        note.setStyleSheet("color: #9aa4b2; font-size: 11px;")
+        form.addWidget(note)
+        form.addStretch(1)
+
+        self.preview = QLabel()
+        self.preview.setMinimumSize(640, 360)
+        self.preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        body = QHBoxLayout()
+        body.addLayout(form, 2)
+        body.addWidget(self.preview, 3)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        save = buttons.addButton("Enregistrer la miniature…",
+                                 QDialogButtonBox.ButtonRole.AcceptRole)
+        buttons.button(QDialogButtonBox.StandardButton.Close).setText("Fermer")
+        save.clicked.connect(self._save)
+        buttons.rejected.connect(self.reject)
+        layout = QVBoxLayout(self)
+        layout.addLayout(body, 1)
+        layout.addWidget(buttons)
+
+        self._debounce = QTimer(self)
+        self._debounce.setSingleShot(True)
+        self._debounce.setInterval(250)
+        self._debounce.timeout.connect(self._render)
+        self.title.textChanged.connect(self._debounce.start)
+        self.label.currentTextChanged.connect(self._debounce.start)
+        self.date.textChanged.connect(self._debounce.start)
+        self.reference.textChanged.connect(self._debounce.start)
+        for box in (self.show_speaker, self.uppercase):
+            box.toggled.connect(self._render)
+        self.side.currentIndexChanged.connect(self._render)
+        self._render()
+
+    def spec(self) -> ThumbnailSpec:
+        return ThumbnailSpec(
+            title=self.title.toPlainText().strip(),
+            label=self.label.currentText().strip(),
+            date=self.date.text().strip(),
+            reference=self.reference.text().strip(),
+            background=self._background,
+            photo_side=str(self.side.currentData() or "right"),
+            show_speaker=self.show_speaker.isChecked(),
+            uppercase=self.uppercase.isChecked(),
+        )
+
+    def image(self):
+        return render_youtube_thumbnail(self._profile, self.spec())
+
+    def _render(self) -> None:
+        self.preview.setPixmap(_to_pixmap(self.image()).scaled(
+            640, 360, Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation))
+
+    def _browse_background(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Image de fond", "", "Images (*.png *.jpg *.jpeg *.webp *.bmp)")
+        if path:
+            self._set_background(path)
+
+    def _set_background(self, path: str) -> None:
+        self._background = path
+        self.background_btn.setText(Path(path).name if path else "Choisir une image de fond…")
+        self._render()
+
+    def _save(self) -> None:
+        from app.utils.montage_export import _slug
+
+        default = f"miniature-{_slug(self.title.toPlainText().replace('*', '') or 'culte')}.png"
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Enregistrer la miniature", default, "PNG (*.png);;JPEG (*.jpg)")
+        if not path:
+            return
+        written = save_thumbnail(self.image(), Path(path))
+        QMessageBox.information(
+            self, "Miniature YouTube",
+            f"Miniature enregistrée (1280×720, moins de 2 Mo) :\n{written}",
+        )
 
 
 def has_transparency(path: Path) -> bool:

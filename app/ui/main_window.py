@@ -1015,6 +1015,12 @@ class MainWindow(QMainWindow):
 
         self._project_church_visual("reseaux-sociaux.png", "Réseaux sociaux", render_socials)
 
+    def open_thumbnail_dialog(self) -> None:
+        """Miniature YouTube du culte (titre, orateur du jour, date)."""
+        from app.ui.church_profile_dialog import ThumbnailDialog
+
+        ThumbnailDialog(self._settings.church, parent=self).exec()
+
     def open_quote_dialog(self, reference: str = "", text: str = "") -> None:
         from app.ui.church_profile_dialog import QuoteImageDialog
 
@@ -1476,6 +1482,7 @@ class MainWindow(QMainWindow):
             "socials": self._project_socials_screen,
             "pastor": self._project_pastor_screen,
             "quote": self._quote_from_live,
+            "thumbnail": self.open_thumbnail_dialog,
             "help": self._show_shortcuts_dialog,
         }
 

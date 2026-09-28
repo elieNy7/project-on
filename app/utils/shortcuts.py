@@ -37,6 +37,7 @@ ACTIONS: tuple[ShortcutAction, ...] = (
     ShortcutAction("pastor", "Projeter l'écran de l'orateur du jour", "Ctrl+Shift+P"),
     ShortcutAction("socials", "Projeter l'écran « Réseaux sociaux »", "Ctrl+Shift+R"),
     ShortcutAction("quote", "Image de citation du direct", "Ctrl+Shift+I"),
+    ShortcutAction("thumbnail", "Miniature YouTube", "Ctrl+Shift+Y"),
     ShortcutAction("help", "Aide des raccourcis", "F1", "shortcut_help"),
 )
 

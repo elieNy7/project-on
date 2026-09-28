@@ -891,3 +891,233 @@ def render_socials(profile: ChurchProfile, width: int = 1920, height: int = 1080
     if not photo_w:
         _paste_logo(image, profile, width // 2, height - int(120 * unit), int(80 * unit))
     return image
+
+
+# ── Miniature YouTube ──────────────────────────────────────────────────────
+
+THUMBNAIL_SIZE = (1280, 720)  # format recommandé par YouTube (16:9)
+THUMBNAIL_MAX_BYTES = 2 * 1024 * 1024  # limite d'envoi de YouTube
+
+
+@dataclass
+class ThumbnailSpec:
+    """Contenu d'une miniature : titre, bandeau, date, orateur, fond."""
+
+    title: str = ""
+    label: str = "Culte du dimanche"
+    date: str = ""
+    reference: str = ""
+    background: str = ""  # image de fond (sinon le fond de l'église)
+    photo_side: str = "right"  # right | left
+    show_speaker: bool = True
+    uppercase: bool = True
+
+
+def _highlight_words(text: str) -> list[tuple[str, bool]]:
+    """« Le *vrai* repos » → mots, les mots entre astérisques en couleur d'accent."""
+    words: list[tuple[str, bool]] = []
+    highlighted = False
+    for chunk in re.split(r"(\*)", str(text or "")):
+        if chunk == "*":
+            highlighted = not highlighted
+            continue
+        words.extend((word, highlighted) for word in chunk.split())
+    return words
+
+
+def _wrap_words(draw, words: list[tuple[str, bool]], font, width: int):
+    lines: list[list[tuple[str, bool]]] = []
+    current: list[tuple[str, bool]] = []
+    for word in words:
+        candidate = " ".join(w for w, _h in current + [word])
+        if current and draw.textlength(candidate, font=font) > width:
+            lines.append(current)
+            current = [word]
+        else:
+            current.append(word)
+    if current:
+        lines.append(current)
+    return lines
+
+
+def _cover(path: str, width: int, height: int):
+    """Image remplissant le cadre (recadrée au centre) ; None si illisible."""
+    from PIL import Image
+
+    try:
+        source = Image.open(path).convert("RGB")
+    except Exception:
+        return None
+    scale = max(width / source.width, height / source.height)
+    resized = source.resize(
+        (max(1, int(source.width * scale)), max(1, int(source.height * scale))), Image.LANCZOS
+    )
+    left = (resized.width - width) // 2
+    upper = (resized.height - height) // 2
+    return resized.crop((left, upper, left + width, upper + height)).convert("RGBA")
+
+
+def render_youtube_thumbnail(profile: ChurchProfile, spec: ThumbnailSpec,
+                             width: int = THUMBNAIL_SIZE[0], height: int = THUMBNAIL_SIZE[1]):
+    """Miniature YouTube : grand titre lisible, orateur détouré, logo et date.
+
+    Les mots du titre écrits entre astérisques (« Le *vrai* repos ») prennent
+    la couleur d'accent de l'église.
+    """
+    from PIL import Image, ImageDraw, ImageFilter
+
+    profile = profile.sanitized()
+    accent = _rgb(profile.accent_color, "#F0BE64")
+    text_rgb = _rgb(profile.text_color, "#FFFFFF")
+    unit = height / 720
+    margin = int(52 * unit)
+
+    image = None
+    if spec.background and Path(spec.background).is_file():
+        image = _cover(spec.background, width, height)
+    if image is None:
+        image = _background(width, height, profile)
+
+    title, name, photo_path = speaker_info(profile)
+    photo = None
+    if spec.show_speaker:
+        photo = _photo_image(photo_path, int(width * 0.46), int(height * 0.98))
+    on_left = spec.photo_side == "left"
+
+    # Voile dégradé côté texte : le titre reste lisible sur n'importe quel fond.
+    veil = Image.new("L", (width, 1))
+    for x in range(width):
+        t = x / max(1, width - 1)
+        t = 1 - t if on_left and photo is not None else t
+        veil.putpixel((x, 0), int(215 * max(0.0, 1 - t * 1.25)))
+    shade = Image.new("RGBA", (width, height), (0, 0, 0, 255))
+    shade.putalpha(veil.resize((width, height)))
+    image = Image.alpha_composite(image, shade)
+    draw = ImageDraw.Draw(image)
+
+    # Orateur détouré, avec un halo aux couleurs de l'église derrière lui.
+    text_left, text_right = margin, width - margin
+    if photo is not None:
+        px = margin // 2 if on_left else width - photo.width - margin // 2
+        glow = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+        radius = int(min(photo.width, photo.height) * 0.46)
+        cx, cy = px + photo.width // 2, height - int(photo.height * 0.52)
+        ImageDraw.Draw(glow).ellipse(
+            (cx - radius, cy - radius, cx + radius, cy + radius), fill=(*accent, 150)
+        )
+        image.alpha_composite(glow.filter(ImageFilter.GaussianBlur(int(60 * unit))))
+        shadow = Image.new("RGBA", photo.size, (0, 0, 0, 0))
+        shadow.putalpha(photo.getchannel("A").point(lambda a: int(a * 0.55)))
+        image.alpha_composite(shadow.filter(ImageFilter.GaussianBlur(int(14 * unit))),
+                              (px + int(10 * unit), height - photo.height))
+        image.alpha_composite(photo, (px, height - photo.height))
+        if on_left:
+            text_left = px + photo.width + int(10 * unit)
+        else:
+            text_right = px - int(10 * unit)
+        draw = ImageDraw.Draw(image)
+    text_w = max(int(width * 0.42), text_right - text_left)
+
+    # En-tête : logo + nom de l'église, puis bandeau et date.
+    y = margin
+    logo_h = logo_w = 0
+    if profile.logo and Path(profile.logo).is_file():
+        try:
+            logo = Image.open(profile.logo).convert("RGBA")
+            logo.thumbnail((int(170 * unit), int(62 * unit)))
+            image.alpha_composite(logo, (text_left, y))
+            logo_h = logo.height
+            logo_w = logo.width
+        except Exception:
+            logo_h = 0
+    if profile.name:
+        nx = text_left + (logo_w + int(14 * unit) if logo_h else 0)
+        draw.text((nx, y + (logo_h // 2 if logo_h else int(16 * unit))), profile.name,
+                  font=_font(profile.font_family, int(28 * unit)), fill=text_rgb,
+                  anchor="lm", stroke_width=max(1, int(2 * unit)), stroke_fill=(0, 0, 0))
+    y += max(logo_h, int(34 * unit)) + int(26 * unit)
+
+    pill_font = _font(profile.font_family, int(28 * unit))
+    x = text_left
+    for index, value in enumerate(v for v in (spec.label, spec.date) if v.strip()):
+        value = value.strip().upper()
+        pad_x, pill_h = int(18 * unit), int(48 * unit)
+        pill_w = int(draw.textlength(value, font=pill_font)) + pad_x * 2
+        fill = (*accent, 255) if index == 0 else (255, 255, 255, 235)
+        draw.rounded_rectangle((x, y, x + pill_w, y + pill_h), radius=int(10 * unit), fill=fill)
+        draw.text((x + pill_w // 2, y + pill_h // 2), value, font=pill_font,
+                  fill=(12, 16, 28), anchor="mm")
+        x += pill_w + int(12 * unit)
+    if spec.label.strip() or spec.date.strip():
+        y += int(48 * unit) + int(22 * unit)
+
+    # Pied : orateur (titre + nom) et référence biblique.
+    footer_h = 0
+    speaker_line = " ".join(p for p in (title, name) if p).strip() if spec.show_speaker else ""
+    if speaker_line or spec.reference.strip():
+        footer_h = int(110 * unit)
+    footer_top = height - margin - footer_h
+
+    # Titre : le plus grand possible, contour noir épais (lisible en petit).
+    text = spec.title.strip() or "Titre de la prédication"
+    if spec.uppercase:
+        text = text.upper()
+    words = _highlight_words(text)
+    box_h = footer_top - y - int(16 * unit)
+    size = int(118 * unit)
+    while True:
+        font = _font(profile.font_family, size)
+        lines = _wrap_words(draw, words, font, text_w)
+        line_h = int(size * 1.08)
+        if (len(lines) * line_h <= box_h and len(lines) <= 4) or size <= int(44 * unit):
+            break
+        size = max(int(44 * unit), int(size * 0.92))
+    stroke = max(2, int(size * 0.07))
+    ty = y + max(0, (box_h - len(lines) * line_h) // 2)
+    space = draw.textlength(" ", font=font)
+    for line in lines:
+        x = text_left
+        for word, highlighted in line:
+            draw.text((x, ty), word, font=font, fill=accent if highlighted else text_rgb,
+                      stroke_width=stroke, stroke_fill=(0, 0, 0))
+            x += draw.textlength(word, font=font) + space
+        ty += line_h
+
+    if footer_h:
+        fy = footer_top + int(20 * unit)
+        draw.rectangle((text_left, fy, text_left + int(8 * unit), fy + int(76 * unit)), fill=accent)
+        fx = text_left + int(24 * unit)
+        if speaker_line:
+            draw.text((fx, fy), speaker_line, font=_font(profile.font_family, int(40 * unit)),
+                      fill=text_rgb, stroke_width=max(1, int(3 * unit)), stroke_fill=(0, 0, 0))
+        if spec.reference.strip():
+            draw.text((fx, fy + (int(48 * unit) if speaker_line else int(18 * unit))),
+                      spec.reference.strip(),
+                      font=_font(profile.font_family, int(30 * unit), bold=False),
+                      fill=accent, stroke_width=max(1, int(2 * unit)), stroke_fill=(0, 0, 0))
+    return image
+
+
+def save_thumbnail(image, path: Path) -> Path:
+    """Enregistre la miniature sous la limite de 2 Mo de YouTube.
+
+    PNG si le fichier tient sous la limite, sinon JPEG de qualité décroissante.
+    """
+    from io import BytesIO
+
+    path = Path(path)
+    rgb = image.convert("RGB")
+    if path.suffix.lower() == ".png":
+        buffer = BytesIO()
+        rgb.save(buffer, "PNG", optimize=True)
+        if buffer.tell() <= THUMBNAIL_MAX_BYTES:
+            path.write_bytes(buffer.getvalue())
+            return path
+        path = path.with_suffix(".jpg")
+    for quality in (95, 90, 85, 80, 70, 60):
+        buffer = BytesIO()
+        rgb.save(buffer, "JPEG", quality=quality, optimize=True, progressive=True)
+        if buffer.tell() <= THUMBNAIL_MAX_BYTES:
+            break
+    path.write_bytes(buffer.getvalue())
+    return path
