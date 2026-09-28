@@ -332,15 +332,10 @@ class MainWindow(QMainWindow):
         self._global_arrow_nav_filter = _GlobalArrowNavFilter(self)
         QApplication.instance().installEventFilter(self._global_arrow_nav_filter)
 
-        sc = QShortcut(QKeySequence(Qt.Key.Key_B), self)
-        sc.setContext(Qt.ShortcutContext.ApplicationShortcut)
-        sc.activated.connect(self._toggle_hide)
-
-        # ── New shortcuts ──
-        # F1 → Shortcuts help dialog
-        sc_f1 = QShortcut(QKeySequence(Qt.Key.Key_F1), self)
-        sc_f1.setContext(Qt.ShortcutContext.ApplicationShortcut)
-        sc_f1.activated.connect(self._show_shortcuts_dialog)
+        # Raccourcis configurables (Réglages → Raccourcis) : télécommande de
+        # présentation (Page suivante/précédente) et Stream Deck compris.
+        self._shortcuts: dict[str, QShortcut] = {}
+        self._install_shortcuts()
 
         # Ctrl+1..7 → Switch library tabs (Bible, Cantiques, Prédications,
         # Livres, Médias, Playlists, Paramètres)
@@ -350,41 +345,6 @@ class MainWindow(QMainWindow):
             sc_tab.activated.connect(
                 lambda idx=i: self.library_panel.tab_bar.setCurrentIndex(idx)
             )
-
-        # F5 → Toggle local projection
-        sc_f5 = QShortcut(QKeySequence(Qt.Key.Key_F5), self)
-        sc_f5.setContext(Qt.ShortcutContext.ApplicationShortcut)
-        sc_f5.activated.connect(self._toggle_local_projection)
-
-        # F8 → Mire de la sortie HDMI mixeur (calibrage de l'entrée)
-        sc_f8 = QShortcut(QKeySequence(Qt.Key.Key_F8), self)
-        sc_f8.setContext(Qt.ShortcutContext.ApplicationShortcut)
-        sc_f8.activated.connect(self._toggle_hdmi_mire)
-
-        # Ctrl+F → Focus recherche dans l'onglet actif
-        sc_search = QShortcut(QKeySequence("Ctrl+F"), self)
-        sc_search.setContext(Qt.ShortcutContext.ApplicationShortcut)
-        sc_search.activated.connect(self._focus_active_search)
-
-        # F2 → envoyer l'aperçu au direct
-        sc_take = QShortcut(QKeySequence(Qt.Key.Key_F2), self)
-        sc_take.setContext(Qt.ShortcutContext.ApplicationShortcut)
-        sc_take.activated.connect(self._take_cue)
-
-        # Ctrl+K → recherche globale (toutes les bibliothèques)
-        sc_global = QShortcut(QKeySequence("Ctrl+K"), self)
-        sc_global.setContext(Qt.ShortcutContext.ApplicationShortcut)
-        sc_global.activated.connect(self._focus_global_search)
-
-        # Ctrl+G → Focus recherche paragraphe global
-        sc_para = QShortcut(QKeySequence("Ctrl+G"), self)
-        sc_para.setContext(Qt.ShortcutContext.ApplicationShortcut)
-        sc_para.activated.connect(self._focus_paragraph_search)
-
-        # Ctrl+Shift+D → operator preflight / diagnostics
-        sc_diagnostics = QShortcut(QKeySequence("Ctrl+Shift+D"), self)
-        sc_diagnostics.setContext(Qt.ShortcutContext.ApplicationShortcut)
-        sc_diagnostics.activated.connect(self._show_preflight_dialog)
 
         # Escape → Close projection (Only when MainWindow is active)
         sc_esc = QShortcut(QKeySequence(Qt.Key.Key_Escape), self)
@@ -831,6 +791,7 @@ class MainWindow(QMainWindow):
         page.register("hdmi", "Sortie HDMI", "cast.svg", self._build_hdmi_section)
         page.register("split", "Découpage des textes", "file-text.svg", self._build_split_section)
         page.register("bibles", "Bibles", "book.svg", self._build_bibles_section)
+        page.register("shortcuts", "Raccourcis", "zap.svg", self._build_shortcuts_section)
         page.register("obs", tr("connectivity"), "wifi.svg", self._build_obs_section)
         page.register("obs_output", tr("lower_third_style"), "layout.svg", self._build_obs_output_section)
         page.register("appearance", tr("appearance"), "eye.svg", self._build_appearance_section)
@@ -918,6 +879,19 @@ class MainWindow(QMainWindow):
         # Clic simple puis F2 : la section démarre quand le slide passe au direct.
         self._cued_playlist_item: int | None = None
         playlist_tab.itemCued.connect(lambda item_id: setattr(self, "_cued_playlist_item", item_id))
+
+    def _build_shortcuts_section(self) -> QWidget:
+        from app.ui.shortcut_settings_dialog import ShortcutSettingsDialog
+
+        dlg = embed_dialog(ShortcutSettingsDialog, self._settings.shortcuts)
+
+        def on_change(shortcuts) -> None:
+            self._settings.shortcuts = shortcuts
+            self._install_shortcuts()
+            self._settings_changed()
+
+        dlg.shortcutsChanged.connect(on_change)
+        return dlg
 
     def _build_bibles_section(self) -> QWidget:
         from app.ui.bible_manager_dialog import BibleManagerDialog
@@ -1217,10 +1191,44 @@ class MainWindow(QMainWindow):
 
     # ── New feature handlers ───────────────────────────────────────────────
 
+    def _shortcut_handlers(self) -> dict:
+        return {
+            "take": self._take_cue,
+            "next_slide": lambda: self._handle_navigation(1),
+            "prev_slide": lambda: self._handle_navigation(-1),
+            "hide": self._toggle_hide,
+            "projection": self._toggle_local_projection,
+            "hdmi_mire": self._toggle_hdmi_mire,
+            "next_section": lambda: getattr(self, "service_plan", None)
+            and self.service_plan.next_section(),
+            "global_search": self._focus_global_search,
+            "search": self._focus_active_search,
+            "paragraph_search": self._focus_paragraph_search,
+            "preflight": self._show_preflight_dialog,
+            "history": lambda: getattr(self, "_show_history_dialog", lambda: None)(),
+            "help": self._show_shortcuts_dialog,
+        }
+
+    def _install_shortcuts(self) -> None:
+        """(Re)crée les raccourcis de la régie depuis les réglages."""
+        for shortcut in self._shortcuts.values():
+            shortcut.setEnabled(False)
+            shortcut.deleteLater()
+        self._shortcuts = {}
+        keys = self._settings.shortcuts.effective()
+        for action_id, handler in self._shortcut_handlers().items():
+            key = keys.get(action_id, "")
+            if not key:
+                continue
+            shortcut = QShortcut(QKeySequence(key), self)
+            shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
+            shortcut.activated.connect(handler)
+            self._shortcuts[action_id] = shortcut
+
     def _show_shortcuts_dialog(self) -> None:
         from app.ui.shortcuts_dialog import ShortcutsDialog
 
-        dlg = ShortcutsDialog(self)
+        dlg = ShortcutsDialog(self, keys=self._settings.shortcuts.effective())
         dlg.exec()
 
     def _show_preflight_dialog(self) -> None:

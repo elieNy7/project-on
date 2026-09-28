@@ -7,6 +7,8 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
+from app.utils.shortcuts import ShortcutSettings
+
 
 @dataclass
 class ObsOutputSettings:
@@ -835,6 +837,7 @@ class AppSettings:
     appearance: AppearanceSettings = field(default_factory=AppearanceSettings)
     hdmi: HdmiSettings = field(default_factory=HdmiSettings)
     split: SplitSettings = field(default_factory=SplitSettings)
+    shortcuts: ShortcutSettings = field(default_factory=ShortcutSettings)
     load_warning: str = field(default="", repr=False, compare=False)
 
     @staticmethod
@@ -1060,6 +1063,7 @@ class AppSettings:
             appearance=appearance,
             hdmi=hdmi,
             split=SplitSettings.from_payload(payload.get("split")),
+            shortcuts=ShortcutSettings.from_payload(payload.get("shortcuts")),
             load_warning=load_warning,
         )
 
@@ -1071,6 +1075,7 @@ class AppSettings:
             "appearance": asdict(self.appearance),
             "hdmi": asdict(self.hdmi),
             "split": asdict(self.split),
+            "shortcuts": asdict(self.shortcuts.sanitized()),
         }
         secret = str(self.obs.remote.password or "")
         if secret:

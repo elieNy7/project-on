@@ -46,9 +46,18 @@ _SHORTCUTS: list[tuple[str, str]] = [
 class ShortcutsDialog(QDialog):
     """Modal dialog listing all available keyboard shortcuts."""
 
-    def __init__(self, parent=None) -> None:
+    def __init__(self, parent=None, keys: dict[str, str] | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle(tr("keyboard_shortcuts"))
+        from app.utils.shortcuts import ACTIONS
+
+        keys = keys or {}
+        # Raccourcis configurables : la touche réellement active est affichée.
+        by_help = {a.help_key: keys.get(a.id, a.default) for a in ACTIONS if a.help_key}
+        extra = [
+            (a.label, keys.get(a.id, a.default)) for a in ACTIONS
+            if not a.help_key and keys.get(a.id, a.default)
+        ]
         self.setMinimumSize(480, 460)
         self.setMaximumSize(560, 640)
         self.setStyleSheet(f"""
@@ -97,8 +106,14 @@ class ShortcutsDialog(QDialog):
 
         # Shortcut rows
         for key, shortcut in _SHORTCUTS:
+            if key in by_help:
+                shortcut = by_help[key] or "—"
+                if key == "shortcut_hide" and shortcut == "B":
+                    shortcut = "B  /  Space"
             row = self._make_row(tr(key), shortcut)
             rows_layout.addWidget(row)
+        for label, shortcut in extra:
+            rows_layout.addWidget(self._make_row(label, shortcut))
 
         rows_layout.addStretch(1)
         scroll.setWidget(container)
