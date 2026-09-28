@@ -186,6 +186,27 @@ class ChurchProfileDialog(QDialog):
         pastor_preaches.setToolTip("Efface l'orateur invité (le message du jour est gardé)")
         pastor_preaches.clicked.connect(self._pastor_preaches)
         speaker.addRow("Pas d'invité aujourd'hui", pastor_preaches)
+        self.speaker_on_slides = QComboBox()
+        self.speaker_on_slides.addItem("Tous les slides de texte", "all")
+        self.speaker_on_slides.addItem("Prédications seulement", "sermon")
+        self.speaker_on_slides.addItem("Non", "off")
+        self.speaker_on_slides.setCurrentIndex(
+            max(0, self.speaker_on_slides.findData(self._profile.speaker_on_slides)))
+        speaker.addRow(
+            "Sur les slides de projection", self.speaker_on_slides,
+            "Photo et nom de l'orateur au pied des slides (sans invité : le pasteur)",
+        )
+        self.speaker_slides_side = QComboBox()
+        self.speaker_slides_side.addItem("À droite", "right")
+        self.speaker_slides_side.addItem("À gauche", "left")
+        self.speaker_slides_side.setCurrentIndex(
+            max(0, self.speaker_slides_side.findData(self._profile.speaker_slides_side)))
+        speaker.addRow("Côté", self.speaker_slides_side, "Le texte se décale pour lui laisser la place")
+        self.speaker_slides_size = QSpinBox()
+        self.speaker_slides_size.setRange(20, 70)
+        self.speaker_slides_size.setSuffix(" %")
+        self.speaker_slides_size.setValue(self._profile.speaker_slides_size)
+        speaker.addRow("Hauteur de la photo", self.speaker_slides_size, "Part de la hauteur de l'écran")
         layout.addWidget(speaker)
         for key in self._photos:
             self._refresh_thumb(key)
@@ -320,9 +341,11 @@ class ChurchProfileDialog(QDialog):
         self.service_times.textChanged.connect(self._debounce.start)
         for button in (self.primary, self.accent, self.text):
             button.colorChanged.connect(self._debounce.start)
-        for combo in (self.font, self.qr_target, self.background_mode, self.quote_style):
+        for combo in (self.font, self.qr_target, self.background_mode, self.quote_style,
+                      self.speaker_on_slides, self.speaker_slides_side):
             combo.currentIndexChanged.connect(self._debounce.start)
         self.background_dim.valueChanged.connect(self._debounce.start)
+        self.speaker_slides_size.valueChanged.connect(self._debounce.start)
         for box in (self.show_socials_welcome, self.show_socials_quotes):
             box.toggled.connect(self._debounce.start)
         self._render_preview()
@@ -354,6 +377,9 @@ class ChurchProfileDialog(QDialog):
             speaker_title=self.speaker_title.currentText(),
             speaker_photo=self._photos["speaker"],
             speaker_message=self.speaker_message.text(),
+            speaker_on_slides=str(self.speaker_on_slides.currentData() or "all"),
+            speaker_slides_side=str(self.speaker_slides_side.currentData() or "right"),
+            speaker_slides_size=self.speaker_slides_size.value(),
         ).sanitized()
 
     def _emit(self) -> None:

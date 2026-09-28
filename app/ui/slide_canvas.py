@@ -191,6 +191,10 @@ class SlideCanvas(QWidget):
         # dernière image décodée (fournie par la fenêtre de projection).
         self._bg_video_path = ""
         self._bg_video_frame = QPixmap()
+        # Orateur du jour sur les slides : photo (cache) et place réservée.
+        self._speaker_pixmap = QPixmap()
+        self._speaker_pixmap_path = ""
+        self._speaker_reserve_applied = 0
 
         self._main_layout = QVBoxLayout(self)
         self._main_layout.setContentsMargins(0, 0, 0, 0)
@@ -522,6 +526,103 @@ class SlideCanvas(QWidget):
                 vignette.setColorAt(1.0, QColor(0, 0, 0, 60))
                 painter.fillRect(rect, QBrush(vignette))
 
+        # Orateur du jour : photo et nom au pied du slide (sous le texte).
+        self._paint_speaker_badge(painter, rect)
+
+    # ── Orateur du jour sur les slides ─────────────────────────────────────
+
+    def _speaker_badge(self) -> dict[str, Any]:
+        badge = self._config.get("speaker_badge")
+        return badge if isinstance(badge, dict) else {}
+
+    def _speaker_badge_active(self) -> bool:
+        badge = self._speaker_badge()
+        mode = str(badge.get("mode") or "off")
+        slide = self._current_slide or {}
+        if mode == "off" or not (badge.get("photo") or badge.get("name")):
+            return False
+        if slide.get("hidden") or self._media_content or slide.get("video"):
+            return False
+        if not str(slide.get("text") or "").strip():
+            return False
+        return mode == "all" or str(slide.get("source") or "") == "sermon"
+
+    def _speaker_photo(self) -> QPixmap:
+        path = str(self._speaker_badge().get("photo") or "")
+        if path != self._speaker_pixmap_path:
+            self._speaker_pixmap_path = path
+            pixmap = QPixmap(path) if path and Path(path).is_file() else QPixmap()
+            self._speaker_pixmap = self._bounded_pixmap(pixmap) if not pixmap.isNull() else pixmap
+        return self._speaker_pixmap
+
+    def _speaker_geometry(self, sw: int, sh: int) -> tuple[int, int]:
+        """(largeur, hauteur) de la photo de l'orateur à l'écran."""
+        photo = self._speaker_photo()
+        size = max(20, min(70, int(self._speaker_badge().get("size") or 42)))
+        height = int(sh * size / 100)
+        if photo.isNull():
+            return 0, 0
+        width = int(height * photo.width() / max(1, photo.height()))
+        max_width = int(sw * 0.30)
+        if width > max_width:
+            height = int(height * max_width / width)
+            width = max_width
+        return width, height
+
+    def _speaker_reserve(self, sw: int, sh: int) -> int:
+        """Largeur retirée à la zone de texte pour la photo de l'orateur."""
+        if not self._speaker_badge_active():
+            return 0
+        width, _height = self._speaker_geometry(sw, sh)
+        caption = int(min(sw, sh) * 0.30)  # cartouche du nom sans photo
+        return max(width, caption if not width else 0) + int(sw * 0.015)
+
+    def _paint_speaker_badge(self, painter: QPainter, rect) -> None:
+        """Photo (sans arrière-plan) et nom de l'orateur du jour, au pied du slide."""
+        if not self._speaker_badge_active():
+            return
+        badge = self._speaker_badge()
+        sw, sh = rect.width(), rect.height()
+        width, height = self._speaker_geometry(sw, sh)
+        on_left = badge.get("side") == "left"
+        margin = int(sw * 0.012)
+        reserve = self._speaker_reserve(sw, sh) - int(sw * 0.015)
+        x = margin if on_left else sw - margin - reserve
+        photo = self._speaker_photo()
+        if width and not photo.isNull():
+            painter.drawPixmap(QRectF(x, sh - height, width, height), photo, QRectF(photo.rect()))
+        title = str(badge.get("title") or "").strip()
+        name = str(badge.get("name") or "").strip()
+        if not (title or name):
+            return
+        unit = min(sw, sh) / 1080
+        title_font = QFont(self._resolve_font_family(str(self._config.get("font_family") or "")))
+        title_font.setPixelSize(max(10, int(22 * unit)))
+        title_font.setWeight(QFont.Weight.Bold)
+        name_font = QFont(title_font)
+        name_font.setPixelSize(max(12, int(32 * unit)))
+        title_h = QFontMetrics(title_font).height() if title else 0
+        name_h = QFontMetrics(name_font).height() if name else 0
+        box_w = max(reserve, QFontMetrics(name_font).horizontalAdvance(name) + int(36 * unit))
+        box_h = title_h + name_h + int(20 * unit)
+        box_x = x + (reserve - box_w) / 2
+        box = QRectF(box_x, sh - box_h - int(16 * unit), box_w, box_h)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(0, 0, 0, 150))
+        painter.drawRoundedRect(box, 12 * unit, 12 * unit)
+        top = box.top() + int(10 * unit)
+        if title:
+            painter.setFont(title_font)
+            painter.setPen(self._stage_accent)
+            painter.drawText(QRectF(box.left(), top, box.width(), title_h),
+                             Qt.AlignmentFlag.AlignCenter, title.upper())
+            top += title_h
+        if name:
+            painter.setFont(name_font)
+            painter.setPen(QColor(255, 255, 255))
+            painter.drawText(QRectF(box.left(), top, box.width(), name_h),
+                             Qt.AlignmentFlag.AlignCenter, name)
+
     def _on_background_video_changed(self, path: str) -> None:
         """Fond vidéo demandé ou retiré (la projection lance son lecteur)."""
 
@@ -829,9 +930,16 @@ class SlideCanvas(QWidget):
         sh = self.height() if self.height() > 100 else 1080
 
         edge_guard = max(0, min(240, int(cfg.get("safe_margin") or 0)))
+        # Orateur du jour : son côté de l'écran est réservé, le texte ne
+        # passe jamais sous sa photo.
+        reserve = self._speaker_reserve(sw, sh)
+        self._speaker_reserve_applied = reserve
+        on_left = self._speaker_badge().get("side") == "left"
         self._main_layout.setContentsMargins(
-            edge_guard, edge_guard, edge_guard, edge_guard
+            edge_guard + (reserve if on_left else 0), edge_guard,
+            edge_guard + (0 if on_left else reserve), edge_guard,
         )
+        sw -= reserve
 
         mode = self._choice(
             cfg.get("layout_mode"), self._LAYOUT_MODES, "fullscreen"
@@ -1156,6 +1264,10 @@ class SlideCanvas(QWidget):
         self._media_content = bool(media_path)
         self._set_source_accent(str(slide.get("source") or "custom"))
         self._set_visual_background(visual_path)
+        sw_now = self.width() if self.width() > 100 else 1920
+        sh_now = self.height() if self.height() > 100 else 1080
+        if self._speaker_reserve(sw_now, sh_now) != self._speaker_reserve_applied:
+            self._apply_layout_metrics(self._config)
 
         if hidden:
             self._media_caption = False

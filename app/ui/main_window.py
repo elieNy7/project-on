@@ -752,6 +752,9 @@ class MainWindow(QMainWindow):
     def _build_projection_config(self) -> dict:
         """Config de projection (config.json) : le style de projection."""
         cfg = self._settings.projection.to_presentation_config()
+        from app.utils.church_graphics import speaker_slide_badge
+
+        cfg["speaker_badge"] = speaker_slide_badge(self._settings.church)
         if self._settings.appearance.low_power:
             cfg.update(low_power_projection_overrides(cfg))
         return cfg
@@ -956,6 +959,8 @@ class MainWindow(QMainWindow):
 
         def on_change(profile) -> None:
             self._settings.church = profile
+            # L'orateur du jour s'affiche sur les slides : mise à jour immédiate.
+            self._apply_projection_config()
             self._settings_changed()
 
         dlg.profileChanged.connect(on_change)

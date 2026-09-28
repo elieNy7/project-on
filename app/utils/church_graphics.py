@@ -85,6 +85,10 @@ class ChurchProfile:
     speaker_title: str = ""
     speaker_photo: str = ""
     speaker_message: str = ""
+    # Orateur sur les slides de projection : all | sermon | off
+    speaker_on_slides: str = "all"
+    speaker_slides_side: str = "right"  # right | left
+    speaker_slides_size: int = 42  # hauteur de la photo, % de l'écran
 
     def sanitized(self) -> ChurchProfile:
         defaults = ChurchProfile()
@@ -115,6 +119,11 @@ class ChurchProfile:
         out.background_dim = max(0, min(85, out.background_dim))
         if out.background_mode not in BACKGROUND_MODES:
             out.background_mode = defaults.background_mode
+        if out.speaker_on_slides not in ("all", "sermon", "off"):
+            out.speaker_on_slides = "all"
+        if out.speaker_slides_side not in ("right", "left"):
+            out.speaker_slides_side = "right"
+        out.speaker_slides_size = max(20, min(70, out.speaker_slides_size))
         if out.quote_style not in QUOTE_STYLES:
             out.quote_style = defaults.quote_style
         if out.qr_target and out.qr_target not in out.socials:
@@ -597,6 +606,20 @@ def speaker_info(profile: ChurchProfile) -> tuple[str, str, str]:
     if has_guest_speaker(profile):
         return profile.speaker_title, profile.speaker_name, profile.speaker_photo
     return profile.pastor_title, profile.pastor_name, profile.pastor_photo
+
+
+def speaker_slide_badge(profile: ChurchProfile) -> dict[str, Any]:
+    """Réglage « orateur sur les slides » transmis à la projection (config.json)."""
+    profile = profile.sanitized()
+    title, name, photo = speaker_info(profile)
+    return {
+        "mode": profile.speaker_on_slides,
+        "side": profile.speaker_slides_side,
+        "size": profile.speaker_slides_size,
+        "photo": photo if photo and Path(photo).is_file() else "",
+        "title": title,
+        "name": name,
+    }
 
 
 def speaker_label(profile: ChurchProfile) -> str:

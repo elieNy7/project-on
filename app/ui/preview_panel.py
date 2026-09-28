@@ -946,9 +946,16 @@ class PreviewPanel(QFrame):
         if self._settings is None or not hasattr(self._settings, "projection"):
             return {}
         try:
-            return self._settings.projection.to_presentation_config()
+            cfg = self._settings.projection.to_presentation_config()
         except Exception:
             return {}
+        church = getattr(self._settings, "church", None)
+        if church is not None:
+            # Aperçu fidèle : l'orateur du jour figure aussi sur les slides.
+            from app.utils.church_graphics import speaker_slide_badge
+
+            cfg["speaker_badge"] = speaker_slide_badge(church)
+        return cfg
 
     def render_slide_pixmap(
         self, reference: str, text: str, source: str = "", image_path: str = ""
