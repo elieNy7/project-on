@@ -231,6 +231,16 @@ def main() -> int:
 
         logging.getLogger(__name__).exception("Data pack upgrade failed")
 
+    # Bibles libres fournies avec l'application : installées si absentes.
+    try:
+        from app.utils.bible_catalog import install_bundled_bibles
+
+        _run_responsive(app, lambda: install_bundled_bibles(db))
+    except Exception:
+        import logging
+
+        logging.getLogger(__name__).exception("Installation des Bibles fournies impossible")
+
     splash.set_progress(65, tr("splash_modules"))
     try:
         from app.ui.main_window import MainWindow  # type: ignore

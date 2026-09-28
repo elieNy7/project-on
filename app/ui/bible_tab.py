@@ -227,6 +227,14 @@ class BibleTab(QFrame):
             self.translation_combo.setCurrentIndex(0)
         self.translation_combo.blockSignals(False)
 
+    def select_translation(self, translation_id: int) -> None:
+        """Affiche la traduction courante sans relancer son chargement."""
+        index = self.translation_combo.findData(int(translation_id))
+        if index >= 0:
+            self.translation_combo.blockSignals(True)
+            self.translation_combo.setCurrentIndex(index)
+            self.translation_combo.blockSignals(False)
+
     def set_books(self, books: list[dict[str, Any]]) -> None:
         self._books = books
         self.books_list.clear()

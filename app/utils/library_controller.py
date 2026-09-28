@@ -444,8 +444,12 @@ class LibraryController(QObject):
 
         if translations and hasattr(self._bible_tab, "set_translations"):
             self._bible_tab.set_translations(translations)
-            if self._current_translation_id is None:
-                self._current_translation_id = int(translations[0]["id"])
+            ids = [int(t["id"]) for t in translations]
+            # Traduction retirée entre-temps : on revient à la première.
+            if self._current_translation_id not in ids:
+                self._current_translation_id = ids[0]
+            if hasattr(self._bible_tab, "select_translation"):
+                self._bible_tab.select_translation(self._current_translation_id)
             books = self._bible_dao.list_translation_books(self._current_translation_id)
         else:
             books = self._bible_dao.list_books()

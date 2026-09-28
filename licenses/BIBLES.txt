@@ -1,0 +1,22 @@
+Bibles fournies et catalogue de Bibles libres
+=============================================
+
+Les Bibles fournies avec Project-On (dossier « bibles ») et celles du
+catalogue téléchargeable proviennent du projet libre
+scrollmapper/bible_databases : https://github.com/scrollmapper/bible_databases
+
+Fournies avec l'application (domaine public) :
+- Bible David Martin (1744)
+- Bible Augustin Crampon (1923) — livres deutérocanoniques non repris
+- Bible Perret-Gentil et Rilliet (1866)
+- Bible Bovet-Bonnet (1900)
+- King James Version (1769)
+- Berean Standard Bible (placée dans le domaine public en 2023)
+- La Santa Biblia Reina-Valera (1909)
+
+Catalogue téléchargeable : textes du domaine public, sauf la Bíblia Livre
+(licence Creative Commons BY 3.0 Brésil, attribution : Bíblia Livre,
+https://sites.google.com/site/biblialivre/).
+
+Une Bible importée depuis un fichier reste sous la licence de son éditeur :
+l'église doit en détenir les droits de projection.

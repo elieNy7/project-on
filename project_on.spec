@@ -124,6 +124,7 @@ added_files = [
     data_file("assets/logo.ico", "assets"),
     data_file("assets/logo/app icon.png", "assets/logo"),
     data_file("licenses/LUCIDE-ISC.txt", "licenses"),
+    data_file("licenses/BIBLES.txt", "licenses"),
     data_file(f"ndi/bin/Processing.NDI.Lib.{ndi_arch}.dll", "ndi/bin"),
 ]
 
@@ -135,6 +136,12 @@ added_files += [
 added_files += [
     data_file(f"assets/fonts/{name}", f"assets/fonts/{Path(name).parent.as_posix()}")
     for name in font_files
+]
+
+# Bibles libres fournies (tools/download_bibles.py) : installées au démarrage.
+added_files += [
+    (str(p), "bibles")
+    for p in sorted((spec_root / "bibles").glob("*.json.gz"))
 ]
 
 # Default projection backgrounds (gradients + Christian symbol watermarks).

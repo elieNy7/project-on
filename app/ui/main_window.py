@@ -70,6 +70,7 @@ def _is_text_entry(widget: QWidget | None) -> bool:
 class MainWindow(QMainWindow):
     def __init__(self, db: Database) -> None:
         super().__init__()
+        self._db = db
 
         # Load settings first to apply theme and language
         self._settings_path = settings_path()
@@ -819,6 +820,7 @@ class MainWindow(QMainWindow):
         page.register("projection", tr("local_projection"), "monitor.svg", self._build_projection_section)
         page.register("hdmi", "Sortie HDMI", "cast.svg", self._build_hdmi_section)
         page.register("split", "Découpage des textes", "file-text.svg", self._build_split_section)
+        page.register("bibles", "Bibles", "book.svg", self._build_bibles_section)
         page.register("obs", tr("connectivity"), "wifi.svg", self._build_obs_section)
         page.register("obs_output", tr("lower_third_style"), "layout.svg", self._build_obs_output_section)
         page.register("appearance", tr("appearance"), "eye.svg", self._build_appearance_section)
@@ -886,6 +888,13 @@ class MainWindow(QMainWindow):
         # Media framing is shared with the OBS page / NDI output.
         self._write_obs_config()
         self._settings_changed()
+
+    def _build_bibles_section(self) -> QWidget:
+        from app.ui.bible_manager_dialog import BibleManagerDialog
+
+        dlg = embed_dialog(BibleManagerDialog, self._db)
+        dlg.biblesChanged.connect(self._library_controller.refresh_bible_books)
+        return dlg
 
     def _build_split_section(self) -> QWidget:
         from app.ui.split_settings_dialog import SplitSettingsDialog
