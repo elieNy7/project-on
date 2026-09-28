@@ -54,6 +54,7 @@ class SermonsTab(QFrame):
     filtersChanged = Signal()
     paragraphSearchRequested = Signal(str)  # query text
     addToPlaylistRequested = Signal(list)  # list of (ref, text) tuples
+    quoteImageRequested = Signal(str, str)  # référence, texte (image à partager)
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -657,8 +658,15 @@ class SermonsTab(QFrame):
         solo_action = menu.addAction("Projeter cet alinéa seulement")
         playlist_action = menu.addAction("Ajouter à la playlist")
         playlist_range_action = menu.addAction("Ajouter une plage de paragraphes…")
+        menu.addSeparator()
+        quote_action = menu.addAction("Créer une image de citation…")
 
         action = menu.exec(self.paragraphs_list.mapToGlobal(pos))
+        if action == quote_action:
+            self.quoteImageRequested.emit(
+                str(item.data(256) or ""), str(item.data(257) or "")
+            )
+            return
 
         if action == copy_action:
             self._on_copy_paragraph()

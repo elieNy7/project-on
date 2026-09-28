@@ -7,6 +7,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
+from app.utils.church_graphics import ChurchProfile
 from app.utils.shortcuts import ShortcutSettings
 
 
@@ -844,6 +845,7 @@ class AppSettings:
     hdmi: HdmiSettings = field(default_factory=HdmiSettings)
     split: SplitSettings = field(default_factory=SplitSettings)
     shortcuts: ShortcutSettings = field(default_factory=ShortcutSettings)
+    church: ChurchProfile = field(default_factory=ChurchProfile)
     load_warning: str = field(default="", repr=False, compare=False)
 
     @staticmethod
@@ -1073,6 +1075,7 @@ class AppSettings:
             hdmi=hdmi,
             split=SplitSettings.from_payload(payload.get("split")),
             shortcuts=ShortcutSettings.from_payload(payload.get("shortcuts")),
+            church=ChurchProfile.from_payload(payload.get("church")),
             load_warning=load_warning,
         )
 
@@ -1085,6 +1088,7 @@ class AppSettings:
             "hdmi": asdict(self.hdmi),
             "split": asdict(self.split),
             "shortcuts": asdict(self.shortcuts.sanitized()),
+            "church": asdict(self.church.sanitized()),
         }
         secret = str(self.obs.remote.password or "")
         if secret:

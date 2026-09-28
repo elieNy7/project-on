@@ -253,6 +253,10 @@ class MainWindow(QMainWindow):
             playlist_tab.slideshowRequested.connect(self._start_slideshow)
         if playlist_tab is not None:
             self._setup_service_plan(playlist_tab)
+        for tab in (self.library_panel.bible_tab, self.library_panel.sermons_tab):
+            signal = getattr(tab, "quoteImageRequested", None)
+            if hasattr(signal, "connect"):
+                signal.connect(self.open_quote_dialog)
 
         if hasattr(self.library_panel, "settings_tab"):
             self.library_panel.settings_tab.projectionSettingsRequested.connect(
@@ -850,6 +854,7 @@ class MainWindow(QMainWindow):
         page.register("bibles", "Bibles", "book.svg", self._build_bibles_section)
         page.register("shortcuts", "Raccourcis", "zap.svg", self._build_shortcuts_section)
         page.register("update", "Mise à jour", "download.svg", self._build_update_section)
+        page.register("church", "Profil de l'église", "church.svg", self._build_church_section)
         page.register("obs", tr("connectivity"), "wifi.svg", self._build_obs_section)
         page.register("obs_output", tr("lower_third_style"), "layout.svg", self._build_obs_output_section)
         page.register("appearance", tr("appearance"), "eye.svg", self._build_appearance_section)
@@ -941,6 +946,47 @@ class MainWindow(QMainWindow):
         # Clic simple puis F2 : la section démarre quand le slide passe au direct.
         self._cued_playlist_item: int | None = None
         playlist_tab.itemCued.connect(lambda item_id: setattr(self, "_cued_playlist_item", item_id))
+
+    def _build_church_section(self) -> QWidget:
+        from app.ui.church_profile_dialog import ChurchProfileDialog
+
+        dlg = embed_dialog(
+            ChurchProfileDialog, self._settings.church, logo_folder=data_dir() / "church"
+        )
+
+        def on_change(profile) -> None:
+            self._settings.church = profile
+            self._settings_changed()
+
+        dlg.profileChanged.connect(on_change)
+        dlg.welcomeRequested.connect(self._project_welcome_screen)
+        dlg.quoteRequested.connect(self._quote_from_live)
+        return dlg
+
+    def _project_welcome_screen(self) -> None:
+        """Écran d'accueil (logo, nom, devise) projeté comme une image."""
+        from app.utils.church_graphics import render_welcome
+
+        folder = data_dir() / "church"
+        folder.mkdir(parents=True, exist_ok=True)
+        path = folder / "accueil.png"
+        render_welcome(self._settings.church).convert("RGB").save(path)
+        name = self._settings.church.name or "Accueil"
+        self._project_controller.load_program(
+            "image", name, [(name, "")], entry_visuals=[str(path)]
+        )
+
+    def open_quote_dialog(self, reference: str = "", text: str = "") -> None:
+        from app.ui.church_profile_dialog import QuoteImageDialog
+
+        QuoteImageDialog(self._settings.church, reference, text, self).exec()
+
+    def _quote_from_live(self) -> None:
+        slide = self._project_controller.current_slide()
+        if slide is not None and slide.text:
+            self.open_quote_dialog(slide.reference.replace("\n", " — "), slide.text)
+        else:
+            self.open_quote_dialog()
 
     def _build_update_section(self) -> QWidget:
         from app.ui.update_dialog import UpdateDialog
@@ -1387,6 +1433,8 @@ class MainWindow(QMainWindow):
             "paragraph_search": self._focus_paragraph_search,
             "preflight": self._show_preflight_dialog,
             "history": lambda: getattr(self, "_show_history_dialog", lambda: None)(),
+            "welcome": self._project_welcome_screen,
+            "quote": self._quote_from_live,
             "help": self._show_shortcuts_dialog,
         }
 

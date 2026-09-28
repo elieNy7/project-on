@@ -56,6 +56,7 @@ class BibleTab(QFrame):
     versesActivated = Signal(list)  # list of (ref, text) tuples
     searchRequested = Signal(str)
     addToPlaylistRequested = Signal(list)  # list of (ref, text) tuples
+    quoteImageRequested = Signal(str, str)  # référence, texte (image à partager)
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -431,7 +432,15 @@ class BibleTab(QFrame):
         )
         act_range = menu.addAction("Ajouter une plage de versets…")
         act_chapter = menu.addAction("Ajouter tout le chapitre à la playlist")
+        menu.addSeparator()
+        act_quote = menu.addAction("Créer une image de citation…")
         chosen = menu.exec(self.verses_list.mapToGlobal(pos))
+        if chosen is act_quote:
+            ordered = sorted(selected, key=self.verses_list.row)
+            refs = [str(i.data(256) or "") for i in ordered]
+            text = " ".join(str(i.data(257) or "").strip() for i in ordered)
+            self.quoteImageRequested.emit(join_references(refs), text)
+            return
         if chosen is act_selection:
             payload = [
                 (str(i.data(256) or ""), str(i.data(257) or "")) for i in selected
@@ -516,3 +525,16 @@ class BibleTab(QFrame):
                 continue
             book_name = item.text().lower()
             item.setHidden(query != "" and query not in book_name)
+
+
+def join_references(refs: list[str]) -> str:
+    """« Jean 3:16 », « Jean 3:17 » → « Jean 3:16-17 » (sinon première – dernière)."""
+    refs = [r for r in refs if r]
+    if len(refs) <= 1:
+        return refs[0] if refs else ""
+    first, last = refs[0], refs[-1]
+    head_first, _, verse_first = first.rpartition(":")
+    head_last, _, verse_last = last.rpartition(":")
+    if head_first and head_first == head_last:
+        return f"{head_first}:{verse_first}-{verse_last}"
+    return f"{first} – {last}"

@@ -33,6 +33,8 @@ ACTIONS: tuple[ShortcutAction, ...] = (
     ShortcutAction("paragraph_search", "Rechercher un paragraphe", "Ctrl+G", "shortcut_search_global"),
     ShortcutAction("preflight", "Contrôle avant culte", "Ctrl+Shift+D", "shortcut_preflight"),
     ShortcutAction("history", "Historique du culte", "Ctrl+H"),
+    ShortcutAction("welcome", "Projeter l'écran d'accueil", "Ctrl+Shift+W"),
+    ShortcutAction("quote", "Image de citation du direct", "Ctrl+Shift+I"),
     ShortcutAction("help", "Aide des raccourcis", "F1", "shortcut_help"),
 )
 
