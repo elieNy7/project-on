@@ -8,6 +8,7 @@ from pathlib import Path
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -21,13 +22,21 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSizePolicy,
+    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
 
 from app.ui.obs_output_settings_dialog import DIALOG_STYLE, ColorPickerButton
 from app.ui.setting_cards import PageHeader, SettingSection
-from app.utils.church_graphics import FORMATS, ChurchProfile, render_quote, render_welcome
+from app.utils.church_graphics import (
+    FORMATS,
+    SOCIAL_PLATFORMS,
+    ChurchProfile,
+    render_quote,
+    render_socials,
+    render_welcome,
+)
 from app.utils.fonts import get_available_fonts
 
 
@@ -46,10 +55,11 @@ def _hex(color: str) -> str:
 
 
 class ChurchProfileDialog(QDialog):
-    """Nom, devise, logo, couleurs : écran d'accueil et images de citations."""
+    """Identité, réseaux sociaux et personnalisation des visuels de l'église."""
 
     profileChanged = Signal(ChurchProfile)
     welcomeRequested = Signal()  # projeter l'écran d'accueil
+    socialsRequested = Signal()  # projeter l'écran « Réseaux sociaux »
     quoteRequested = Signal()  # créer une image de citation
 
     def __init__(self, profile: ChurchProfile, parent=None, embedded: bool = False,
@@ -57,9 +67,11 @@ class ChurchProfileDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Profil de l'église")
         self.setStyleSheet(DIALOG_STYLE)
-        self.resize(640, 820)
+        self.resize(660, 900)
         self._profile = (profile or ChurchProfile()).sanitized()
         self._logo_folder = logo_folder
+        self._logo = self._profile.logo
+        self._background_image = self._profile.background_image
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -69,7 +81,7 @@ class ChurchProfileDialog(QDialog):
         layout.setSpacing(14)
         layout.addWidget(PageHeader(
             "Profil de l'église",
-            "Nom, devise, logo et couleurs : écran d'accueil et images à partager.",
+            "Identité, réseaux sociaux et personnalisation de l'écran d'accueil et des images.",
         ))
         if embedded:
             layout.setContentsMargins(16, 16, 16, 16)
@@ -82,26 +94,45 @@ class ChurchProfileDialog(QDialog):
             scroll.setWidget(content)
             main_layout.addWidget(scroll, 1)
 
+        # ── Aperçu ──
+        preview_section = SettingSection("Aperçu", "eye.svg")
+        self.preview_kind = QComboBox()
+        self.preview_kind.addItem("Écran d'accueil", "welcome")
+        self.preview_kind.addItem("Écran « Réseaux sociaux »", "socials")
+        self.preview_kind.addItem("Image de citation", "quote")
+        self.preview_kind.currentIndexChanged.connect(self._render_preview)
+        preview_section.addRow("Afficher", self.preview_kind)
         self.preview = QLabel()
-        self.preview.setMinimumHeight(200)
+        self.preview.setMinimumHeight(220)
         self.preview.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
         self.preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(self.preview)
+        preview_section.addWidget(self.preview)
+        layout.addWidget(preview_section)
 
+        # ── Identité ──
         identity = SettingSection("Identité", "church.svg")
         self.name = QLineEdit(self._profile.name)
         self.name.setPlaceholderText("Église …")
         identity.addRow("Nom de l'église", self.name)
+        self.welcome_title = QLineEdit(self._profile.welcome_title)
+        self.welcome_title.setPlaceholderText("Bienvenue")
+        identity.addRow("Titre d'accueil", self.welcome_title, "Au-dessus du logo (vide = aucun)")
         self.motto = QLineEdit(self._profile.motto)
         self.motto.setPlaceholderText("Devise ou verset de l'église")
         identity.addRow("Devise", self.motto)
+        self.service_times = QPlainTextEdit(self._profile.service_times)
+        self.service_times.setPlaceholderText(
+            "Dimanche 9h30 · Culte d'adoration\nMercredi 17h00 · Étude biblique"
+        )
+        self.service_times.setFixedHeight(80)
+        identity.addRow("Horaires des cultes", self.service_times, "Une ligne par rendez-vous")
         self.contact = QLineEdit(self._profile.contact)
-        self.contact.setPlaceholderText("site, page Facebook, @compte…")
-        identity.addRow("Contact", self.contact)
+        self.contact.setPlaceholderText("Adresse, quartier, autre contact…")
+        identity.addRow("Autre information", self.contact)
         logo_box = QWidget()
         logo_row = QHBoxLayout(logo_box)
         logo_row.setContentsMargins(0, 0, 0, 0)
-        self.logo_label = QLabel(Path(self._profile.logo).name if self._profile.logo else "Aucun")
+        self.logo_label = QLabel(Path(self._logo).name if self._logo else "Aucun")
         browse = QPushButton("Parcourir")
         browse.clicked.connect(self._browse_logo)
         clear = QPushButton("Aucun")
@@ -112,7 +143,59 @@ class ChurchProfileDialog(QDialog):
         identity.addRow("Logo", logo_box, "PNG à fond transparent conseillé")
         layout.addWidget(identity)
 
-        look = SettingSection("Couleurs et police", "palette.svg")
+        # ── Réseaux sociaux ──
+        socials = SettingSection("Réseaux sociaux et contacts", "globe.svg")
+        self.social_edits: dict[str, QLineEdit] = {}
+        for platform in SOCIAL_PLATFORMS:
+            edit = QLineEdit(self._profile.socials.get(platform.key, ""))
+            edit.setPlaceholderText(platform.placeholder)
+            edit.setMinimumWidth(220)
+            socials.addRow(platform.label, edit)
+            self.social_edits[platform.key] = edit
+        self.qr_target = QComboBox()
+        self.qr_target.addItem("Aucun QR code", "")
+        for platform in SOCIAL_PLATFORMS:
+            self.qr_target.addItem(f"QR code vers {platform.label}", platform.key)
+        index = self.qr_target.findData(self._profile.qr_target)
+        self.qr_target.setCurrentIndex(max(index, 0))
+        socials.addRow(
+            "QR code", self.qr_target,
+            "Affiché sur l'écran d'accueil et l'écran « Réseaux sociaux » : à scanner",
+        )
+        self.show_socials_welcome = QCheckBox("Réseaux sur l'écran d'accueil")
+        self.show_socials_welcome.setChecked(self._profile.show_socials_welcome)
+        socials.addWidget(self.show_socials_welcome)
+        self.show_socials_quotes = QCheckBox("Réseaux sur les images de citations")
+        self.show_socials_quotes.setChecked(self._profile.show_socials_quotes)
+        socials.addWidget(self.show_socials_quotes)
+        layout.addWidget(socials)
+
+        # ── Personnalisation ──
+        look = SettingSection("Personnalisation", "palette.svg")
+        self.background_mode = QComboBox()
+        self.background_mode.addItem("Dégradé de la couleur principale", "gradient")
+        self.background_mode.addItem("Couleur unie", "solid")
+        self.background_mode.addItem("Image de fond", "image")
+        self.background_mode.setCurrentIndex(
+            max(0, self.background_mode.findData(self._profile.background_mode))
+        )
+        look.addRow("Fond", self.background_mode)
+        bg_box = QWidget()
+        bg_row = QHBoxLayout(bg_box)
+        bg_row.setContentsMargins(0, 0, 0, 0)
+        self.background_label = QLabel(
+            Path(self._background_image).name if self._background_image else "Aucune"
+        )
+        bg_browse = QPushButton("Parcourir")
+        bg_browse.clicked.connect(self._browse_background)
+        bg_row.addWidget(self.background_label, 1)
+        bg_row.addWidget(bg_browse)
+        look.addRow("Image de fond", bg_box, "Photo de l'église, de la chorale…")
+        self.background_dim = QSpinBox()
+        self.background_dim.setRange(0, 85)
+        self.background_dim.setSuffix(" %")
+        self.background_dim.setValue(self._profile.background_dim)
+        look.addRow("Assombrir l'image", self.background_dim, "Rend le texte lisible sur la photo")
         self.primary = ColorPickerButton(self._profile.primary_color)
         self.accent = ColorPickerButton(self._profile.accent_color)
         self.text = ColorPickerButton(self._profile.text_color)
@@ -125,38 +208,77 @@ class ChurchProfileDialog(QDialog):
         index = self.font.findData(self._profile.font_family)
         self.font.setCurrentIndex(max(index, 0))
         look.addRow("Police", self.font)
+        self.quote_style = QComboBox()
+        self.quote_style.addItem("Classique (grand guillemet)", "classic")
+        self.quote_style.addItem("Minimal", "minimal")
+        self.quote_style.addItem("Encadré", "framed")
+        self.quote_style.setCurrentIndex(max(0, self.quote_style.findData(self._profile.quote_style)))
+        look.addRow("Style des citations", self.quote_style)
         layout.addWidget(look)
 
+        # ── Utiliser ──
         use = SettingSection("Utiliser", "cast.svg")
-        welcome_btn = QPushButton("Projeter l'écran d'accueil")
+        welcome_btn = QPushButton("Projeter")
         welcome_btn.clicked.connect(self.welcomeRequested.emit)
-        use.addRow("Avant le culte", welcome_btn, "Logo, nom et devise en plein écran")
+        use.addRow("Écran d'accueil", welcome_btn, "Avant le culte · Ctrl+Shift+W")
+        socials_btn = QPushButton("Projeter")
+        socials_btn.clicked.connect(self.socialsRequested.emit)
+        use.addRow("Écran « Réseaux sociaux »", socials_btn, "En fin de culte · Ctrl+Shift+R")
         quote_btn = QPushButton("Créer une image…")
         quote_btn.clicked.connect(self.quoteRequested.emit)
-        use.addRow(
-            "Image de citation", quote_btn,
-            "Aussi par clic droit sur un verset ou un paragraphe",
-        )
+        use.addRow("Image de citation", quote_btn,
+                   "Aussi par clic droit sur un verset ou un paragraphe")
+        export_btn = QPushButton("Enregistrer…")
+        export_btn.clicked.connect(self._export_visuals)
+        use.addRow("Visuels en PNG", export_btn,
+                   "Accueil et réseaux sociaux, à publier ou imprimer")
         layout.addWidget(use)
         layout.addStretch(1)
 
+        # Champs assez larges pour lire une adresse entière, début visible.
+        for edit in (self.name, self.welcome_title, self.motto, self.contact,
+                     *self.social_edits.values()):
+            edit.setMinimumWidth(260)
+            edit.setCursorPosition(0)
+        self.service_times.setMinimumWidth(260)
+
         self._debounce = QTimer(self)
         self._debounce.setSingleShot(True)
-        self._debounce.setInterval(250)
+        self._debounce.setInterval(300)
         self._debounce.timeout.connect(self._emit)
-        for edit in (self.name, self.motto, self.contact):
+        for edit in (self.name, self.welcome_title, self.motto, self.contact,
+                     *self.social_edits.values()):
             edit.textChanged.connect(self._debounce.start)
+        self.service_times.textChanged.connect(self._debounce.start)
         for button in (self.primary, self.accent, self.text):
             button.colorChanged.connect(self._debounce.start)
-        self.font.currentIndexChanged.connect(self._debounce.start)
+        for combo in (self.font, self.qr_target, self.background_mode, self.quote_style):
+            combo.currentIndexChanged.connect(self._debounce.start)
+        self.background_dim.valueChanged.connect(self._debounce.start)
+        for box in (self.show_socials_welcome, self.show_socials_quotes):
+            box.toggled.connect(self._debounce.start)
         self._render_preview()
 
     def read_profile(self) -> ChurchProfile:
         return ChurchProfile(
-            name=self.name.text(), motto=self.motto.text(), logo=self._profile.logo,
-            primary_color=_hex(self.primary.color()), accent_color=_hex(self.accent.color()),
+            name=self.name.text(),
+            motto=self.motto.text(),
+            logo=self._logo,
+            contact=self.contact.text(),
+            socials={k: e.text() for k, e in self.social_edits.items()},
+            primary_color=_hex(self.primary.color()),
+            accent_color=_hex(self.accent.color()),
             text_color=_hex(self.text.color()),
-            font_family=str(self.font.currentData() or "Poppins"), contact=self.contact.text(),
+            font_family=str(self.font.currentData() or "Poppins"),
+            welcome_title=self.welcome_title.text(),
+            service_times=self.service_times.toPlainText(),
+            background_mode=str(self.background_mode.currentData() or "gradient"),
+            background_image=self._background_image,
+            background_dim=self.background_dim.value(),
+            show_socials_welcome=self.show_socials_welcome.isChecked(),
+            show_socials_quotes=self.show_socials_quotes.isChecked(),
+            qr_target=str(self.qr_target.currentData() or ""),
+            quote_style=str(self.quote_style.currentData() or "classic"),
         ).sanitized()
 
     def _emit(self) -> None:
@@ -164,30 +286,77 @@ class ChurchProfileDialog(QDialog):
         self._render_preview()
         self.profileChanged.emit(self._profile)
 
-    def _render_preview(self) -> None:
-        image = render_welcome(self.read_profile(), 960, 540)
+    def _render_preview(self, *_args) -> None:
+        profile = self.read_profile()
+        kind = self.preview_kind.currentData()
+        if kind == "socials":
+            image = render_socials(profile, 960, 540)
+        elif kind == "quote":
+            image = render_quote(
+                profile, "Car Dieu a tant aimé le monde qu'il a donné son Fils unique.",
+                "Jean 3:16", "square",
+            )
+        else:
+            image = render_welcome(profile, 960, 540)
         self.preview.setPixmap(_to_pixmap(image).scaledToHeight(
-            200, Qt.TransformationMode.SmoothTransformation))
+            220, Qt.TransformationMode.SmoothTransformation))
+
+    def _copy_into_folder(self, source: Path, stem: str) -> Path:
+        if self._logo_folder is None:
+            return source
+        self._logo_folder.mkdir(parents=True, exist_ok=True)
+        target = self._logo_folder / f"{stem}{source.suffix.lower()}"
+        shutil.copy2(source, target)
+        return target
 
     def _browse_logo(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
-            self, "Logo de l'église", "", "Images (*.png *.jpg *.jpeg *.webp *.svg)")
+            self, "Logo de l'église", "", "Images (*.png *.jpg *.jpeg *.webp)")
         if not path:
             return
-        source = Path(path)
-        target = source
-        if self._logo_folder is not None:
-            self._logo_folder.mkdir(parents=True, exist_ok=True)
-            target = self._logo_folder / f"logo{source.suffix.lower()}"
-            shutil.copy2(source, target)
-        self._profile.logo = str(target)
-        self.logo_label.setText(source.name)
+        self._logo = str(self._copy_into_folder(Path(path), "logo"))
+        self.logo_label.setText(Path(path).name)
         self._emit()
 
     def _clear_logo(self) -> None:
-        self._profile.logo = ""
+        self._logo = ""
         self.logo_label.setText("Aucun")
         self._emit()
+
+    def _browse_background(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Image de fond", "", "Images (*.png *.jpg *.jpeg *.webp)")
+        if not path:
+            return
+        self._background_image = str(self._copy_into_folder(Path(path), "fond"))
+        self.background_label.setText(Path(path).name)
+        self.background_mode.setCurrentIndex(self.background_mode.findData("image"))
+        self._emit()
+
+    def _export_visuals(self) -> None:
+        folder = QFileDialog.getExistingDirectory(self, "Dossier des visuels")
+        if not folder:
+            return
+        written = export_visuals(self.read_profile(), Path(folder))
+        QMessageBox.information(
+            self, "Visuels", "Enregistrés :\n" + "\n".join(p.name for p in written)
+        )
+
+
+def export_visuals(profile: ChurchProfile, folder: Path) -> list[Path]:
+    """Écran d'accueil et « Réseaux sociaux » en PNG (paysage + carré)."""
+    folder.mkdir(parents=True, exist_ok=True)
+    outputs = [
+        ("accueil.png", render_welcome(profile, 1920, 1080)),
+        ("reseaux-sociaux.png", render_socials(profile, 1920, 1080)),
+        ("reseaux-sociaux-carre.png", render_socials(profile, 1080, 1080)),
+    ]
+    written = []
+    for name, image in outputs:
+        path = folder / name
+        image.convert("RGB").save(path)
+        written.append(path)
+    return written
 
 
 class QuoteImageDialog(QDialog):

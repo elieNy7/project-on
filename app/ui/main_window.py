@@ -960,21 +960,33 @@ class MainWindow(QMainWindow):
 
         dlg.profileChanged.connect(on_change)
         dlg.welcomeRequested.connect(self._project_welcome_screen)
+        dlg.socialsRequested.connect(self._project_socials_screen)
         dlg.quoteRequested.connect(self._quote_from_live)
         return dlg
 
-    def _project_welcome_screen(self) -> None:
-        """Écran d'accueil (logo, nom, devise) projeté comme une image."""
-        from app.utils.church_graphics import render_welcome
-
+    def _project_church_visual(self, filename: str, label: str, render) -> None:
+        """Projette un visuel de l'église (image 1920×1080 régénérée)."""
         folder = data_dir() / "church"
         folder.mkdir(parents=True, exist_ok=True)
-        path = folder / "accueil.png"
-        render_welcome(self._settings.church).convert("RGB").save(path)
-        name = self._settings.church.name or "Accueil"
+        path = folder / filename
+        render(self._settings.church).convert("RGB").save(path)
         self._project_controller.load_program(
-            "image", name, [(name, "")], entry_visuals=[str(path)]
+            "image", label, [(label, "")], entry_visuals=[str(path)]
         )
+
+    def _project_welcome_screen(self) -> None:
+        """Écran d'accueil (logo, nom, devise, horaires, réseaux)."""
+        from app.utils.church_graphics import render_welcome
+
+        self._project_church_visual(
+            "accueil.png", self._settings.church.name or "Accueil", render_welcome
+        )
+
+    def _project_socials_screen(self) -> None:
+        """Écran « Réseaux sociaux » de fin de culte, avec QR code."""
+        from app.utils.church_graphics import render_socials
+
+        self._project_church_visual("reseaux-sociaux.png", "Réseaux sociaux", render_socials)
 
     def open_quote_dialog(self, reference: str = "", text: str = "") -> None:
         from app.ui.church_profile_dialog import QuoteImageDialog
@@ -1434,6 +1446,7 @@ class MainWindow(QMainWindow):
             "preflight": self._show_preflight_dialog,
             "history": lambda: getattr(self, "_show_history_dialog", lambda: None)(),
             "welcome": self._project_welcome_screen,
+            "socials": self._project_socials_screen,
             "quote": self._quote_from_live,
             "help": self._show_shortcuts_dialog,
         }

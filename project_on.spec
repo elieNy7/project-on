@@ -174,6 +174,8 @@ a = Analysis(
         'PySide6.QtNetwork',
         'win32com.client',
         'pythoncom',
+        'qrcode',
+        'qrcode.image.pil',
     ],
     hookspath=[],
     hooksconfig={},

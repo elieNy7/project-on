@@ -11,7 +11,9 @@
 - **Refrain répété automatiquement** : projeter tout le cantique donne strophe 1 → refrain → strophe 2 → refrain… (désactivable).
 - **Import OpenLyrics, OpenSong et CCLI SongSelect** 🎵 : Cantiques → Importer, plusieurs fichiers à la fois, refrains reconnus, doublons ignorés.
 - **Historique du culte** 🗒️ (Ctrl+H ou bouton « Historique » du déroulé) : tout ce qui est passé en direct, heure par heure. Exports : rapport de culte (.txt), tableur (.csv), **sous-titres .srt** calés sur l'heure de début de la vidéo, et **images transparentes** au style OBS + minutage pour DaVinci Resolve, Premiere ou CapCut.
-- **Profil de l'église** 🏛️ : nom, devise, logo, couleurs et police. **Écran d'accueil** projeté avant le culte (Ctrl+Shift+W) et **images de citations** à partager (carré, story, paysage) par clic droit sur un verset ou un paragraphe (Ctrl+Shift+I pour le slide en direct).
+- **Profil de l'église** 🏛️ : nom, titre d'accueil, devise, horaires des cultes, logo, couleurs et police. **Écran d'accueil** projeté avant le culte (Ctrl+Shift+W) et **images de citations** à partager (carré, story, paysage) par clic droit sur un verset ou un paragraphe (Ctrl+Shift+I pour le slide en direct).
+- **Réseaux sociaux de l'église** 📱 : Facebook, YouTube, Instagram, WhatsApp, TikTok, X, Telegram, site web, e-mail et téléphone. Ils s'affichent sur l'écran d'accueil et les images de citations (au choix), et sur un nouvel **écran « Réseaux sociaux »** de fin de culte (Ctrl+Shift+R), avec un **QR code** à scanner vers le compte choisi.
+- **Personnalisation des visuels** 🎨 : fond en dégradé, couleur unie ou **photo de l'église** assombrie à volonté ; style des citations classique, minimal ou encadré ; aperçu en direct ; export des visuels en PNG (accueil, réseaux sociaux paysage et carré) pour publier ou imprimer.
 - **Raccourcis configurables** ⌨️ (Réglages → Raccourcis) : une touche par action, conflits signalés. **Télécommande de présentation** reconnue (Page suivante / Page précédente) et **Stream Deck** via l'action « Raccourci clavier ».
 
 ## Fiabilité

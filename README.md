@@ -19,7 +19,7 @@ Sortie OBS (lower-third) · Projection plein écran cinématique · 100 % hors-l
 - **Déroulé du culte** — sections, heures prévues, avance ou retard en direct, section démarrée par son slide.
 - **Éditeur de cantiques** — création, modification, refrain répété automatiquement ; import OpenLyrics, OpenSong et CCLI SongSelect.
 - **Historique du culte** — rapport, tableur, sous-titres SRT et images transparentes pour le montage vidéo.
-- **Profil de l'église** — écran d'accueil et images de citations (carré, story, paysage) aux couleurs de l'église.
+- **Profil de l'église** — écran d'accueil (horaires, réseaux, QR code), écran « Réseaux sociaux » de fin de culte, images de citations (carré, story, paysage) ; fond dégradé, uni ou photo, couleurs, police et style personnalisables.
 - **Fiabilité** — reprise après coupure de courant, contrôle avant culte au démarrage, mode PC modeste, mise à jour intégrée.
 - **Raccourcis configurables** — télécommande de présentation et Stream Deck.
 - **Cantiques** — bibliothèque organisée par strophes.

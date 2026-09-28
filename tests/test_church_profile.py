@@ -78,5 +78,101 @@ def test_dialogs_and_welcome_projection(tmp_path: Path, monkeypatch) -> None:
         window._project_welcome_screen()
         slide = json.loads((window._presentation_dir / "slide.json").read_text("utf-8"))
         assert slide["image"].endswith("accueil.png") and Path(slide["image"]).is_file()
+        window._project_socials_screen()
+        slide = json.loads((window._presentation_dir / "slide.json").read_text("utf-8"))
+        assert slide["image"].endswith("reseaux-sociaux.png")
     finally:
         window.close()
+
+
+# ── Réseaux sociaux et personnalisation ──────────────────────────────────
+
+
+def test_socials_sanitized_and_links() -> None:
+    from app.utils.church_graphics import display_handle, link_url
+
+    profile = ChurchProfile.from_payload({
+        "socials": {"facebook": " facebook.com/eglise ", "inconnu": "x", "youtube": ""},
+        "qr_target": "youtube",  # compte vide : pas de QR code
+        "background_dim": 300, "quote_style": "fantaisie",
+    })
+    assert profile.socials == {"facebook": "facebook.com/eglise"}
+    assert profile.qr_target == ""
+    assert profile.background_dim == 85 and profile.quote_style == "classic"
+    assert [p.key for p, _v in profile.social_items()] == ["facebook"]
+
+    assert link_url("youtube", "@Eglise") == "https://youtube.com/@Eglise"
+    assert link_url("whatsapp", "+243 81 234 5678") == "https://wa.me/243812345678"
+    assert link_url("facebook", "facebook.com/eglise") == "https://facebook.com/eglise"
+    assert link_url("instagram", "@eglise") == "https://instagram.com/eglise"
+    assert link_url("email", "a@b.org") == "mailto:a@b.org"
+    assert link_url("website", "https://eglise.org") == "https://eglise.org"
+    assert display_handle("website", "https://www.eglise.org/") == "eglise.org"
+
+
+def test_socials_screen_and_qr_code(tmp_path: Path) -> None:
+    from app.utils.church_graphics import qr_image, render_socials
+
+    profile = ChurchProfile(
+        name="Église",
+        socials={"youtube": "@Eglise", "whatsapp": "+243 81 000 0000"},
+        qr_target="youtube",
+        background_mode="solid",
+        primary_color="#224466",
+    )
+    image = render_socials(profile)
+    assert image.size == (1920, 1080)
+    assert image.getpixel((5, 5))[:3] == (34, 68, 102)  # couleur unie
+    qr = qr_image("https://youtube.com/@Eglise", 200)
+    assert qr is not None and qr.size == (200, 200)
+    # Le QR code est bien présent : pixels noirs dans la zone de droite.
+    right = image.crop((1300, 300, 1860, 900)).convert("L")
+    assert right.getextrema()[0] < 40
+
+
+def test_background_image_is_dimmed(tmp_path: Path) -> None:
+    from PIL import Image
+
+    photo = tmp_path / "fond.png"
+    Image.new("RGB", (400, 300), (200, 200, 200)).save(photo)
+    profile = ChurchProfile(background_mode="image", background_image=str(photo),
+                            background_dim=50)
+    pixel = render_welcome(profile, 640, 360).getpixel((3, 3))
+    assert 90 <= pixel[0] <= 110  # 200 assombri de moitié
+
+
+def test_profile_dialog_reads_socials_and_exports(tmp_path: Path) -> None:
+    from PySide6.QtWidgets import QApplication
+
+    QApplication.instance() or QApplication([])
+    from app.ui.church_profile_dialog import ChurchProfileDialog, export_visuals
+
+    dialog = ChurchProfileDialog(ChurchProfile(name="Église", socials={"facebook": "fb.com/e"}))
+    try:
+        dialog.social_edits["youtube"].setText("@Eglise")
+        dialog.qr_target.setCurrentIndex(dialog.qr_target.findData("youtube"))
+        dialog.service_times.setPlainText("Dimanche 9h30")
+        dialog.quote_style.setCurrentIndex(dialog.quote_style.findData("framed"))
+        profile = dialog.read_profile()
+        assert profile.socials == {"facebook": "fb.com/e", "youtube": "@Eglise"}
+        assert profile.qr_target == "youtube" and profile.quote_style == "framed"
+        assert profile.service_times == "Dimanche 9h30"
+        for index in range(dialog.preview_kind.count()):
+            dialog.preview_kind.setCurrentIndex(index)
+            assert dialog.preview.pixmap() is not None
+        written = export_visuals(profile, tmp_path / "visuels")
+        assert [p.name for p in written] == [
+            "accueil.png", "reseaux-sociaux.png", "reseaux-sociaux-carre.png"
+        ]
+    finally:
+        dialog.close()
+
+
+def test_profile_socials_round_trip(tmp_path: Path) -> None:
+    path = tmp_path / "s.json"
+    settings = AppSettings()
+    settings.church = ChurchProfile(socials={"tiktok": "@eglise"}, qr_target="tiktok",
+                                    service_times="Dimanche")
+    settings.save(path)
+    loaded = AppSettings.load(path).church
+    assert loaded.socials == {"tiktok": "@eglise"} and loaded.qr_target == "tiktok"
