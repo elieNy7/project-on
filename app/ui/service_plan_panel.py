@@ -76,6 +76,7 @@ class ServicePlanPanel(QFrame):
     """Déroulé du culte d'une playlist, avec suivi de l'avance ou du retard."""
 
     sectionEntered = Signal(str)  # nom de la section (historique du culte)
+    historyRequested = Signal()
 
     def __init__(
         self,
@@ -113,6 +114,13 @@ class ServicePlanPanel(QFrame):
         header.setContentsMargins(0, 0, 0, 0)
         header.addWidget(self.toggle)
         header.addWidget(self.status, 1)
+        self.history_btn = QPushButton("Historique", self)
+        self.history_btn.setToolTip(
+            "Historique du culte (Ctrl+H) : rapport, tableur, sous-titres, images"
+        )
+        self.history_btn.setStyleSheet(get_compact_button_style())
+        self.history_btn.clicked.connect(self.historyRequested.emit)
+        header.addWidget(self.history_btn)
 
         # ── Corps (repliable) ──
         self.body = QWidget(self)

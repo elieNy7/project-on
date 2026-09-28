@@ -138,6 +138,12 @@ class MainWindow(QMainWindow):
             self._on_slide_changed_for_obs
         )
 
+        # Historique du culte : tout ce qui passe en direct est horodaté.
+        from app.utils.service_log import ServiceLog
+
+        self._service_log = ServiceLog(data_dir() / "history")
+        self._project_controller.currentSlideChanged.connect(self._log_live_slide)
+
         # Fluent shell: navigation rail on the window edge, command bar on
         # top, then the library and preview layers. Rail and bar sit on the
         # window backdrop (Mica); the layers are opaque cards.
@@ -871,6 +877,10 @@ class MainWindow(QMainWindow):
             ServicePlanDao(self._db), selected_item=playlist_tab.selected_item_id
         )
         playlist_tab.attach_service_panel(self.service_plan)
+        self.service_plan.sectionEntered.connect(
+            lambda name: self._service_log.record("section", reference=name)
+        )
+        self.service_plan.historyRequested.connect(self._show_history_dialog)
         playlist_tab.folderSelected.connect(self.service_plan.set_folder)
         playlist_tab.itemActivated.connect(self.service_plan.on_item_live)
         playlist_tab.playRequested.connect(
@@ -1124,8 +1134,28 @@ class MainWindow(QMainWindow):
             title, list(texts), split=split
         )
 
+    def _log_live_slide(self, slide) -> None:
+        if slide is None:
+            return
+        reference = slide.reference or ""
+        if not reference and (slide.image_path or slide.video_path):
+            reference = Path(slide.image_path or slide.video_path).stem
+        self._service_log.record(
+            "slide", reference=reference, text=slide.text or "",
+            source=str(slide.source or ""), program=self._project_controller.program_title,
+        )
+
+    def _log_hidden(self, hidden: bool) -> None:
+        self._service_log.record("hide" if hidden else "show")
+
+    def _show_history_dialog(self) -> None:
+        from app.ui.history_dialog import HistoryDialog
+
+        HistoryDialog(self._service_log, self._presentation_dir, self).exec()
+
     def _on_hide_toggled(self, hidden: bool) -> None:
         """Toggle visibility of text on projection and OBS."""
+        self._log_hidden(bool(hidden))
         self._project_controller.slide_writer.set_hidden(hidden)
         self.command_bar.set_hidden(hidden)
         # Masquer les écritures coupe aussi la vidéo des sorties secondaires.
@@ -1150,6 +1180,7 @@ class MainWindow(QMainWindow):
     def _toggle_hide(self) -> None:
         """Toggle hide state via keyboard shortcut."""
         hidden = self._project_controller.slide_writer.toggle_hidden()
+        self._log_hidden(hidden)
         self.preview_panel.set_hidden(hidden)
         self.command_bar.set_hidden(hidden)
         # Masquer les écritures coupe aussi la vidéo des sorties secondaires.
