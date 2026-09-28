@@ -94,3 +94,93 @@ def test_thumbnail_dialog_and_shortcut(tmp_path: Path) -> None:
         assert dialog.image().size == (1280, 720)
     finally:
         dialog.close()
+
+
+def test_all_layouts_render(tmp_path: Path) -> None:
+    from app.utils.church_graphics import BUILTIN_THUMBNAIL_MODELS, THUMBNAIL_LAYOUTS
+
+    profile = _profile(tmp_path)
+    assert {m["layout"] for m in BUILTIN_THUMBNAIL_MODELS} == set(THUMBNAIL_LAYOUTS)
+    for model in BUILTIN_THUMBNAIL_MODELS:
+        spec = ThumbnailSpec(title="Le *vrai* repos de l'âme", date="Dimanche",
+                             reference="Mt 11:28").with_model(model)
+        assert render_youtube_thumbnail(profile, spec).size == (1280, 720)
+    # Couleur d'accent propre au modèle.
+    spec = ThumbnailSpec(title="*Foi*", accent="#FF0000", show_speaker=False, layout="center")
+    image = render_youtube_thumbnail(profile, spec).convert("RGB")
+    assert (255, 0, 0) in list(image.crop((300, 200, 980, 560)).get_flattened_data() if hasattr(image, "get_flattened_data") else image.crop((300, 200, 980, 560)).getdata())
+
+
+def test_models_keep_design_not_sermon_text() -> None:
+    from app.utils.church_graphics import sanitize_thumbnail_models
+
+    spec = ThumbnailSpec(title="Titre", date="Hier", reference="Jn 3:16", layout="band",
+                         label="En direct", accent="rgb(10, 20, 30)", photo_side="left")
+    model = spec.model("Mon direct")
+    assert model["name"] == "Mon direct" and "title" not in model and "date" not in model
+    assert model["accent"] == "#0A141E"
+    applied = ThumbnailSpec(title="Nouveau", date="Dimanche").with_model(model)
+    assert (applied.title, applied.date, applied.layout, applied.photo_side) == (
+        "Nouveau", "Dimanche", "band", "left")
+    cleaned = sanitize_thumbnail_models(
+        [model, {**model, "name": "mon DIRECT"}, {"name": ""}, "x", {"name": "B", "layout": "?"}])
+    assert [m["name"] for m in cleaned] == ["Mon direct", "B"]
+    assert cleaned[1]["layout"] == "split"
+
+
+def test_models_saved_in_settings(tmp_path: Path) -> None:
+    from app.utils.settings import AppSettings
+
+    settings = AppSettings()
+    settings.thumbnail_models = [ThumbnailSpec(layout="boxed").model("Prière du soir")]
+    settings.save(tmp_path / "settings.json")
+    loaded = AppSettings.load(tmp_path / "settings.json")
+    assert loaded.thumbnail_models[0]["name"] == "Prière du soir"
+    assert loaded.thumbnail_models[0]["layout"] == "boxed"
+
+
+def test_dialog_saves_applies_and_deletes_models(tmp_path: Path, monkeypatch) -> None:
+    from PySide6.QtWidgets import QApplication, QInputDialog, QMessageBox
+
+    QApplication.instance() or QApplication([])
+    from app.ui.church_profile_dialog import ThumbnailDialog
+
+    background = tmp_path / "fond.png"
+    Image.new("RGB", (64, 36), (10, 90, 200)).save(background)
+    media = tmp_path / "miniatures"
+    dialog = ThumbnailDialog(_profile(tmp_path), title="Foi", media_folder=media)
+    emitted: list = []
+    dialog.modelsChanged.connect(emitted.append)
+    try:
+        dialog.layout_combo.setCurrentIndex(dialog.layout_combo.findData("band"))
+        dialog.label.setCurrentText("Veillée")
+        dialog._set_background(str(background))
+        monkeypatch.setattr(QInputDialog, "getText", lambda *a, **k: ("Veillée du vendredi", True))
+        dialog._save_model()
+        saved = emitted[-1][0]
+        assert saved["name"] == "Veillée du vendredi" and saved["layout"] == "band"
+        assert Path(saved["background"]).parent == media  # fond copié avec le modèle
+
+        # Revenir à un modèle fourni puis réappliquer celui de l'église.
+        dialog.model.setCurrentIndex(0)
+        dialog._apply_selected_model()
+        assert dialog.spec().layout == "split" and dialog.spec().title == "Foi"
+        dialog.model.setCurrentIndex(dialog.model.findData("church:Veillée du vendredi"))
+        dialog._apply_selected_model()
+        assert dialog.spec().layout == "band" and dialog.spec().label == "Veillée"
+        assert dialog.delete_model_btn.isEnabled()
+        assert dialog.model.currentText() == "★ Veillée du vendredi"
+
+        monkeypatch.setattr(QMessageBox, "question",
+                            lambda *a, **k: QMessageBox.StandardButton.Yes)
+        dialog._delete_model()
+        assert emitted[-1] == []
+    finally:
+        dialog.close()
+
+    # Réouverture : le dernier modèle de l'église est présélectionné.
+    reopened = ThumbnailDialog(_profile(tmp_path), models=[saved])
+    try:
+        assert reopened.spec().layout == "band"
+    finally:
+        reopened.close()

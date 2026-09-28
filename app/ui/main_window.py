@@ -980,6 +980,7 @@ class MainWindow(QMainWindow):
         dlg.socialsRequested.connect(self._project_socials_screen)
         dlg.pastorRequested.connect(self._project_pastor_screen)
         dlg.quoteRequested.connect(self._quote_from_live)
+        dlg.thumbnailRequested.connect(self.open_thumbnail_dialog)
         return dlg
 
     def _project_church_visual(self, filename: str, label: str, render) -> None:
@@ -1019,7 +1020,17 @@ class MainWindow(QMainWindow):
         """Miniature YouTube du culte (titre, orateur du jour, date)."""
         from app.ui.church_profile_dialog import ThumbnailDialog
 
-        ThumbnailDialog(self._settings.church, parent=self).exec()
+        dialog = ThumbnailDialog(
+            self._settings.church, parent=self, models=self._settings.thumbnail_models,
+            media_folder=data_dir() / "church" / "miniatures",
+        )
+
+        def on_models(models: list) -> None:
+            self._settings.thumbnail_models = models
+            self._settings_changed()
+
+        dialog.modelsChanged.connect(on_models)
+        dialog.exec()
 
     def open_quote_dialog(self, reference: str = "", text: str = "") -> None:
         from app.ui.church_profile_dialog import QuoteImageDialog

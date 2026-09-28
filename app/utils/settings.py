@@ -7,7 +7,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
-from app.utils.church_graphics import ChurchProfile
+from app.utils.church_graphics import ChurchProfile, sanitize_thumbnail_models
 from app.utils.shortcuts import ShortcutSettings
 
 
@@ -846,6 +846,8 @@ class AppSettings:
     split: SplitSettings = field(default_factory=SplitSettings)
     shortcuts: ShortcutSettings = field(default_factory=ShortcutSettings)
     church: ChurchProfile = field(default_factory=ChurchProfile)
+    # Modèles de miniatures YouTube enregistrés par l'église.
+    thumbnail_models: list[dict[str, Any]] = field(default_factory=list)
     load_warning: str = field(default="", repr=False, compare=False)
 
     @staticmethod
@@ -1076,6 +1078,7 @@ class AppSettings:
             split=SplitSettings.from_payload(payload.get("split")),
             shortcuts=ShortcutSettings.from_payload(payload.get("shortcuts")),
             church=ChurchProfile.from_payload(payload.get("church")),
+            thumbnail_models=sanitize_thumbnail_models(payload.get("thumbnail_models")),
             load_warning=load_warning,
         )
 
@@ -1089,6 +1092,7 @@ class AppSettings:
             "split": asdict(self.split),
             "shortcuts": asdict(self.shortcuts.sanitized()),
             "church": asdict(self.church.sanitized()),
+            "thumbnail_models": sanitize_thumbnail_models(self.thumbnail_models),
         }
         secret = str(self.obs.remote.password or "")
         if secret:

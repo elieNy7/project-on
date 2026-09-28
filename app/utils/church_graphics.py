@@ -899,9 +899,22 @@ THUMBNAIL_SIZE = (1280, 720)  # format recommandé par YouTube (16:9)
 THUMBNAIL_MAX_BYTES = 2 * 1024 * 1024  # limite d'envoi de YouTube
 
 
+THUMBNAIL_LAYOUTS: dict[str, str] = {
+    "split": "Orateur en grand",
+    "boxed": "Titre surligné",
+    "band": "Bandeau en bas",
+    "center": "Titre centré",
+}
+
+# Champs d'une miniature gardés dans un modèle (le titre, la date et la
+# référence changent à chaque culte : ils ne sont pas enregistrés).
+THUMBNAIL_MODEL_FIELDS = ("layout", "label", "background", "photo_side", "show_speaker",
+                          "uppercase", "accent")
+
+
 @dataclass
 class ThumbnailSpec:
-    """Contenu d'une miniature : titre, bandeau, date, orateur, fond."""
+    """Contenu d'une miniature : titre, bandeau, date, orateur, fond, mise en page."""
 
     title: str = ""
     label: str = "Culte du dimanche"
@@ -911,6 +924,58 @@ class ThumbnailSpec:
     photo_side: str = "right"  # right | left
     show_speaker: bool = True
     uppercase: bool = True
+    layout: str = "split"  # voir THUMBNAIL_LAYOUTS
+    accent: str = ""  # couleur d'accent du modèle ("" = celle de l'église)
+
+    def sanitized(self) -> ThumbnailSpec:
+        out = ThumbnailSpec(**{k: getattr(self, k) for k in asdict(self)})
+        if out.layout not in THUMBNAIL_LAYOUTS:
+            out.layout = "split"
+        if out.photo_side not in ("right", "left"):
+            out.photo_side = "right"
+        out.accent = "#{:02X}{:02X}{:02X}".format(*_parse_color(out.accent)) \
+            if _parse_color(out.accent) else ""
+        for name in ("title", "label", "date", "reference", "background"):
+            setattr(out, name, str(getattr(out, name) or ""))
+        out.show_speaker, out.uppercase = bool(out.show_speaker), bool(out.uppercase)
+        return out
+
+    def model(self, name: str) -> dict[str, Any]:
+        """Modèle réutilisable (nom + mise en page, bandeau, fond, couleur…)."""
+        spec = self.sanitized()
+        return {"name": str(name).strip(), **{k: getattr(spec, k) for k in THUMBNAIL_MODEL_FIELDS}}
+
+    def with_model(self, model: dict[str, Any]) -> ThumbnailSpec:
+        """Applique un modèle en gardant le titre, la date et la référence."""
+        values = asdict(self)
+        values.update({k: model[k] for k in THUMBNAIL_MODEL_FIELDS if k in model})
+        return ThumbnailSpec(**values).sanitized()
+
+
+BUILTIN_THUMBNAIL_MODELS: tuple[dict[str, Any], ...] = (
+    ThumbnailSpec(label="Culte du dimanche").model("Culte du dimanche"),
+    ThumbnailSpec(label="En direct", layout="band").model("En direct"),
+    ThumbnailSpec(label="Enseignement", layout="center").model("Enseignement"),
+    ThumbnailSpec(label="Culte de prière", layout="boxed", photo_side="left").model("Prière"),
+    ThumbnailSpec(label="Conférence", layout="boxed").model("Conférence"),
+    ThumbnailSpec(label="Témoignage", layout="split", photo_side="left",
+                  uppercase=False).model("Témoignage"),
+)
+
+
+def sanitize_thumbnail_models(models: Any) -> list[dict[str, Any]]:
+    """Modèles enregistrés par l'église : noms uniques et non vides, 50 au plus."""
+    out: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for model in models if isinstance(models, list) else []:
+        if not isinstance(model, dict):
+            continue
+        name = str(model.get("name") or "").strip()[:60]
+        if not name or name.lower() in seen:
+            continue
+        seen.add(name.lower())
+        out.append(ThumbnailSpec().with_model(model).model(name))
+    return out[:50]
 
 
 def _highlight_words(text: str) -> list[tuple[str, bool]]:
@@ -957,20 +1022,131 @@ def _cover(path: str, width: int, height: int):
     return resized.crop((left, upper, left + width, upper + height)).convert("RGBA")
 
 
+def _horizontal_veil(width: int, height: int, strength: int, reverse: bool):
+    """Voile noir dégradé (fort du côté du texte) pour lire le titre sur tout fond."""
+    from PIL import Image
+
+    veil = Image.new("L", (width, 1))
+    for x in range(width):
+        t = x / max(1, width - 1)
+        t = 1 - t if reverse else t
+        veil.putpixel((x, 0), int(strength * max(0.0, 1 - t * 1.25)))
+    shade = Image.new("RGBA", (width, height), (0, 0, 0, 255))
+    shade.putalpha(veil.resize((width, height)))
+    return shade
+
+
+def _fit_title(draw, words, family: str, box_w: int, box_h: int, unit: float,
+               max_lines: int = 4, start: int = 118):
+    size = int(start * unit)
+    minimum = int(44 * unit)
+    while True:
+        font = _font(family, size)
+        lines = _wrap_words(draw, words, font, box_w)
+        line_h = int(size * 1.08)
+        if (len(lines) * line_h <= box_h and len(lines) <= max_lines) or size <= minimum:
+            return font, lines, size, line_h
+        size = max(minimum, int(size * 0.92))
+
+
+def _draw_title(draw, lines, font, size: int, line_h: int, x: int, width: int, top: int,
+                accent, text_rgb, align: str = "left", boxed: bool = False) -> None:
+    """Titre mot à mot (mots surlignés en accent) ; « boxed » : lignes sur pavés."""
+    space = draw.textlength(" ", font=font)
+    stroke = max(2, int(size * 0.07))
+    pad = int(size * 0.16)
+    for line in lines:
+        line_w = sum(draw.textlength(w, font=font) for w, _h in line) + space * (len(line) - 1)
+        lx = x + (width - line_w) / 2 if align == "center" else x
+        if boxed:
+            draw.rectangle((lx - pad, top + int(size * 0.1), lx + line_w + pad,
+                            top + int(size * 1.2)), fill=(*accent, 255))
+        for word, highlighted in line:
+            if boxed:
+                # Pavé d'accent : texte sombre, mot surligné en blanc cerclé.
+                fill = (255, 255, 255) if highlighted else (12, 16, 28)
+                width_stroke = max(2, int(size * 0.05)) if highlighted else 0
+                stroke_fill = (12, 16, 28)
+            else:
+                fill = accent if highlighted else text_rgb
+                width_stroke, stroke_fill = stroke, (0, 0, 0)
+            draw.text((lx, top), word, font=font, fill=fill,
+                      stroke_width=width_stroke, stroke_fill=stroke_fill)
+            lx += draw.textlength(word, font=font) + space
+        top += line_h + (int(size * 0.2) if boxed else 0)
+
+
+def _pills(draw, values: list[str], font, x: int, y: int, unit: float, accent,
+           max_w: int, center: bool = False) -> int:
+    """Bandeau et date en pastilles ; renvoie la hauteur occupée (0 si vide).
+
+    Une pastille qui ne tient pas sur la ligne passe à la ligne suivante.
+    """
+    values = [v.strip().upper() for v in values if v and v.strip()]
+    if not values:
+        return 0
+    pad_x, pill_h, gap = int(18 * unit), int(48 * unit), int(12 * unit)
+    rows: list[list[tuple[int, str, int]]] = [[]]
+    used = 0
+    for index, value in enumerate(values):
+        pill_w = int(draw.textlength(value, font=font)) + pad_x * 2
+        if rows[-1] and used + gap + pill_w > max_w:
+            rows.append([])
+            used = 0
+        used += (gap if rows[-1] else 0) + pill_w
+        rows[-1].append((index, value, pill_w))
+    for row_index, row in enumerate(rows):
+        row_w = sum(w for _i, _v, w in row) + gap * (len(row) - 1)
+        px = x + (max_w - row_w) // 2 if center else x
+        py = y + row_index * (pill_h + gap)
+        for index, value, pill_w in row:
+            fill = (*accent, 255) if index == 0 else (255, 255, 255, 235)
+            draw.rounded_rectangle((px, py, px + pill_w, py + pill_h),
+                                   radius=int(10 * unit), fill=fill)
+            draw.text((px + pill_w // 2, py + pill_h // 2), value, font=font,
+                      fill=(12, 16, 28), anchor="mm")
+            px += pill_w + gap
+    return len(rows) * pill_h + (len(rows) - 1) * gap
+
+
+def _medallion(photo, diameter: int, accent):
+    """Photo détourée dans un médaillon rond sur fond d'accent."""
+    from PIL import Image, ImageDraw
+
+    disc = Image.new("RGBA", (diameter, diameter), (0, 0, 0, 0))
+    mask = Image.new("L", (diameter, diameter), 0)
+    ImageDraw.Draw(mask).ellipse((0, 0, diameter - 1, diameter - 1), fill=255)
+    inner = Image.new("RGBA", (diameter, diameter), (*accent, 255))
+    scaled = photo.copy()
+    scaled.thumbnail((int(diameter * 1.1), int(diameter * 1.15)))
+    inner.alpha_composite(scaled, ((diameter - scaled.width) // 2,
+                                   max(0, diameter - scaled.height + int(diameter * 0.08))))
+    disc.paste(inner, (0, 0), mask)
+    ring = ImageDraw.Draw(disc)
+    ring.ellipse((0, 0, diameter - 1, diameter - 1), outline=(255, 255, 255, 255),
+                 width=max(3, diameter // 40))
+    return disc
+
+
 def render_youtube_thumbnail(profile: ChurchProfile, spec: ThumbnailSpec,
                              width: int = THUMBNAIL_SIZE[0], height: int = THUMBNAIL_SIZE[1]):
     """Miniature YouTube : grand titre lisible, orateur détouré, logo et date.
 
-    Les mots du titre écrits entre astérisques (« Le *vrai* repos ») prennent
-    la couleur d'accent de l'église.
+    Mises en page (``spec.layout``) : split (orateur en grand à côté du
+    titre), boxed (titre sur pavés de couleur), band (bandeau en bas),
+    center (titre centré, orateur en médaillon). Les mots du titre écrits
+    entre astérisques (« Le *vrai* repos ») prennent la couleur d'accent.
     """
     from PIL import Image, ImageDraw, ImageFilter
 
     profile = profile.sanitized()
-    accent = _rgb(profile.accent_color, "#F0BE64")
+    spec = spec.sanitized()
+    layout = spec.layout
+    accent = _rgb(spec.accent or profile.accent_color, "#F0BE64")
     text_rgb = _rgb(profile.text_color, "#FFFFFF")
     unit = height / 720
     margin = int(52 * unit)
+    family = profile.font_family
 
     image = None
     if spec.background and Path(spec.background).is_file():
@@ -978,24 +1154,22 @@ def render_youtube_thumbnail(profile: ChurchProfile, spec: ThumbnailSpec,
     if image is None:
         image = _background(width, height, profile)
 
-    title, name, photo_path = speaker_info(profile)
-    photo = None
+    speaker_title, speaker_name, photo_path = speaker_info(profile)
+    source_photo = None
     if spec.show_speaker:
-        photo = _photo_image(photo_path, int(width * 0.46), int(height * 0.98))
+        max_h = 0.98 if layout != "center" else 0.5
+        source_photo = _photo_image(photo_path, int(width * 0.46), int(height * max_h))
+    photo = source_photo if layout != "center" else None
     on_left = spec.photo_side == "left"
+    centered = layout == "center"
 
-    # Voile dégradé côté texte : le titre reste lisible sur n'importe quel fond.
-    veil = Image.new("L", (width, 1))
-    for x in range(width):
-        t = x / max(1, width - 1)
-        t = 1 - t if on_left and photo is not None else t
-        veil.putpixel((x, 0), int(215 * max(0.0, 1 - t * 1.25)))
-    shade = Image.new("RGBA", (width, height), (0, 0, 0, 255))
-    shade.putalpha(veil.resize((width, height)))
-    image = Image.alpha_composite(image, shade)
-    draw = ImageDraw.Draw(image)
+    # Voile : dégradé côté texte, uniforme pour un titre centré.
+    if centered:
+        image = Image.alpha_composite(image, Image.new("RGBA", (width, height), (0, 0, 0, 130)))
+    else:
+        image = Image.alpha_composite(
+            image, _horizontal_veil(width, height, 215, on_left and photo is not None))
 
-    # Orateur détouré, avec un halo aux couleurs de l'église derrière lui.
     text_left, text_right = margin, width - margin
     if photo is not None:
         px = margin // 2 if on_left else width - photo.width - margin // 2
@@ -1006,95 +1180,144 @@ def render_youtube_thumbnail(profile: ChurchProfile, spec: ThumbnailSpec,
             (cx - radius, cy - radius, cx + radius, cy + radius), fill=(*accent, 150)
         )
         image.alpha_composite(glow.filter(ImageFilter.GaussianBlur(int(60 * unit))))
+        if on_left:
+            text_left = px + photo.width + int(10 * unit)
+        else:
+            text_right = px - int(10 * unit)
+    text_w = max(int(width * 0.42), text_right - text_left)
+
+    # Bandeau en bas : pavé sombre sous le titre (la photo passe devant).
+    band_top = int(height * 0.48)
+    if layout == "band":
+        dark = tuple(max(0, int(c * 0.35)) for c in _rgb(profile.primary_color, "#0B1E3F"))
+        band = Image.new("RGBA", (width, height - band_top), (*dark, 236))
+        image.alpha_composite(band, (0, band_top))
+        ImageDraw.Draw(image).rectangle((0, band_top, width, band_top + int(8 * unit)),
+                                        fill=(*accent, 255))
+    if photo is not None:
         shadow = Image.new("RGBA", photo.size, (0, 0, 0, 0))
         shadow.putalpha(photo.getchannel("A").point(lambda a: int(a * 0.55)))
         image.alpha_composite(shadow.filter(ImageFilter.GaussianBlur(int(14 * unit))),
                               (px + int(10 * unit), height - photo.height))
         image.alpha_composite(photo, (px, height - photo.height))
-        if on_left:
-            text_left = px + photo.width + int(10 * unit)
-        else:
-            text_right = px - int(10 * unit)
-        draw = ImageDraw.Draw(image)
-    text_w = max(int(width * 0.42), text_right - text_left)
+    if layout == "boxed":
+        frame = max(6, int(10 * unit))
+        ImageDraw.Draw(image).rectangle((0, 0, width - 1, height - 1), outline=(*accent, 255),
+                                        width=frame)
+    draw = ImageDraw.Draw(image)
 
-    # En-tête : logo + nom de l'église, puis bandeau et date.
+    # En-tête : logo + nom de l'église.
     y = margin
-    logo_h = logo_w = 0
+    logo = None
     if profile.logo and Path(profile.logo).is_file():
         try:
             logo = Image.open(profile.logo).convert("RGBA")
             logo.thumbnail((int(170 * unit), int(62 * unit)))
-            image.alpha_composite(logo, (text_left, y))
-            logo_h = logo.height
-            logo_w = logo.width
         except Exception:
-            logo_h = 0
-    if profile.name:
-        nx = text_left + (logo_w + int(14 * unit) if logo_h else 0)
-        draw.text((nx, y + (logo_h // 2 if logo_h else int(16 * unit))), profile.name,
-                  font=_font(profile.font_family, int(28 * unit)), fill=text_rgb,
-                  anchor="lm", stroke_width=max(1, int(2 * unit)), stroke_fill=(0, 0, 0))
-    y += max(logo_h, int(34 * unit)) + int(26 * unit)
+            logo = None
+    name_font = _font(family, int(28 * unit))
+    if centered:
+        header_h = 0
+        if logo is not None:
+            image.alpha_composite(logo, ((width - logo.width) // 2, y))
+            header_h = logo.height + int(8 * unit)
+        if profile.name:
+            draw.text((width // 2, y + header_h), profile.name, font=name_font, fill=text_rgb,
+                      anchor="ma", stroke_width=max(1, int(2 * unit)), stroke_fill=(0, 0, 0))
+            header_h += int(36 * unit)
+        y += max(header_h, int(34 * unit)) + int(18 * unit)
+    else:
+        logo_h = logo_w = 0
+        if logo is not None:
+            image.alpha_composite(logo, (text_left, y))
+            logo_h, logo_w = logo.height, logo.width
+        if profile.name:
+            nx = text_left + (logo_w + int(14 * unit) if logo_h else 0)
+            draw.text((nx, y + (logo_h // 2 if logo_h else int(16 * unit))), profile.name,
+                      font=name_font, fill=text_rgb, anchor="lm",
+                      stroke_width=max(1, int(2 * unit)), stroke_fill=(0, 0, 0))
+        y += max(logo_h, int(34 * unit)) + int(26 * unit)
 
-    pill_font = _font(profile.font_family, int(28 * unit))
-    x = text_left
-    for index, value in enumerate(v for v in (spec.label, spec.date) if v.strip()):
-        value = value.strip().upper()
-        pad_x, pill_h = int(18 * unit), int(48 * unit)
-        pill_w = int(draw.textlength(value, font=pill_font)) + pad_x * 2
-        fill = (*accent, 255) if index == 0 else (255, 255, 255, 235)
-        draw.rounded_rectangle((x, y, x + pill_w, y + pill_h), radius=int(10 * unit), fill=fill)
-        draw.text((x + pill_w // 2, y + pill_h // 2), value, font=pill_font,
-                  fill=(12, 16, 28), anchor="mm")
-        x += pill_w + int(12 * unit)
-    if spec.label.strip() or spec.date.strip():
-        y += int(48 * unit) + int(22 * unit)
+    pill_font = _font(family, int(28 * unit))
+    pills_h = _pills(draw, [spec.label, spec.date], pill_font,
+                     margin if centered else text_left, y, unit, accent,
+                     max_w=width - 2 * margin if centered else text_w, center=centered)
+    if pills_h:
+        y += pills_h + int(22 * unit)
 
     # Pied : orateur (titre + nom) et référence biblique.
-    footer_h = 0
-    speaker_line = " ".join(p for p in (title, name) if p).strip() if spec.show_speaker else ""
-    if speaker_line or spec.reference.strip():
-        footer_h = int(110 * unit)
+    speaker_line = (" ".join(p for p in (speaker_title, speaker_name) if p).strip()
+                    if spec.show_speaker else "")
+    footer_h = int(110 * unit) if (speaker_line or spec.reference) else 0
+    if centered and source_photo is not None:
+        footer_h = max(footer_h, int(130 * unit))
     footer_top = height - margin - footer_h
 
-    # Titre : le plus grand possible, contour noir épais (lisible en petit).
     text = spec.title.strip() or "Titre de la prédication"
     if spec.uppercase:
         text = text.upper()
     words = _highlight_words(text)
-    box_h = footer_top - y - int(16 * unit)
-    size = int(118 * unit)
-    while True:
-        font = _font(profile.font_family, size)
-        lines = _wrap_words(draw, words, font, text_w)
-        line_h = int(size * 1.08)
-        if (len(lines) * line_h <= box_h and len(lines) <= 4) or size <= int(44 * unit):
-            break
-        size = max(int(44 * unit), int(size * 0.92))
-    stroke = max(2, int(size * 0.07))
-    ty = y + max(0, (box_h - len(lines) * line_h) // 2)
-    space = draw.textlength(" ", font=font)
-    for line in lines:
-        x = text_left
-        for word, highlighted in line:
-            draw.text((x, ty), word, font=font, fill=accent if highlighted else text_rgb,
-                      stroke_width=stroke, stroke_fill=(0, 0, 0))
-            x += draw.textlength(word, font=font) + space
-        ty += line_h
+    boxed = layout == "boxed"
+    if layout == "band":
+        box_top = band_top + int(30 * unit)
+        box_h = footer_top - box_top - int(6 * unit)
+        font, lines, size, line_h = _fit_title(draw, words, family, text_w, box_h, unit,
+                                               max_lines=2, start=100)
+        ty = box_top
+    else:
+        box_h = footer_top - y - int(16 * unit)
+        box_w = width - 2 * margin if centered else text_w - (int(20 * unit) if boxed else 0)
+        # Pavés : chaque ligne prend ~18 % de hauteur en plus (espacement).
+        font, lines, size, line_h = _fit_title(draw, words, family, box_w,
+                                               int(box_h * 0.84) if boxed else box_h, unit,
+                                               max_lines=3 if boxed else 4)
+        if boxed:
+            total = len(lines) * (line_h + int(size * 0.2))
+        else:
+            total = len(lines) * line_h
+        ty = y + max(0, (box_h - total) // 2)
+    _draw_title(draw, lines, font, size, line_h,
+                margin if centered else text_left + (int(size * 0.16) if boxed else 0),
+                width - 2 * margin if centered else text_w, ty, accent, text_rgb,
+                align="center" if centered else "left", boxed=boxed)
 
-    if footer_h:
-        fy = footer_top + int(20 * unit)
-        draw.rectangle((text_left, fy, text_left + int(8 * unit), fy + int(76 * unit)), fill=accent)
-        fx = text_left + int(24 * unit)
-        if speaker_line:
-            draw.text((fx, fy), speaker_line, font=_font(profile.font_family, int(40 * unit)),
+    if not footer_h:
+        return image
+    if centered:
+        cx = width // 2
+        fy = footer_top + int(10 * unit)
+        if source_photo is not None:
+            diameter = int(120 * unit)
+            disc = _medallion(source_photo, diameter, accent)
+            name_w = draw.textlength(speaker_line, font=_font(family, int(38 * unit)))
+            block_w = diameter + int(20 * unit) + name_w
+            left = int(cx - block_w / 2)
+            image.alpha_composite(disc, (left, footer_top + (footer_h - diameter) // 2))
+            tx = left + diameter + int(20 * unit)
+            draw = ImageDraw.Draw(image)
+            draw.text((tx, fy + int(22 * unit)), speaker_line, font=_font(family, int(38 * unit)),
                       fill=text_rgb, stroke_width=max(1, int(3 * unit)), stroke_fill=(0, 0, 0))
-        if spec.reference.strip():
-            draw.text((fx, fy + (int(48 * unit) if speaker_line else int(18 * unit))),
-                      spec.reference.strip(),
-                      font=_font(profile.font_family, int(30 * unit), bold=False),
-                      fill=accent, stroke_width=max(1, int(2 * unit)), stroke_fill=(0, 0, 0))
+            if spec.reference:
+                draw.text((tx, fy + int(70 * unit)), spec.reference,
+                          font=_font(family, int(28 * unit), bold=False), fill=accent)
+            return image
+        if speaker_line:
+            draw.text((cx, fy), speaker_line, font=_font(family, int(40 * unit)), fill=text_rgb,
+                      anchor="ma", stroke_width=max(1, int(3 * unit)), stroke_fill=(0, 0, 0))
+        if spec.reference:
+            draw.text((cx, fy + (int(50 * unit) if speaker_line else 0)), spec.reference,
+                      font=_font(family, int(30 * unit), bold=False), fill=accent, anchor="ma")
+        return image
+    fy = footer_top + int(20 * unit)
+    draw.rectangle((text_left, fy, text_left + int(8 * unit), fy + int(76 * unit)), fill=accent)
+    fx = text_left + int(24 * unit)
+    if speaker_line:
+        draw.text((fx, fy), speaker_line, font=_font(family, int(40 * unit)),
+                  fill=text_rgb, stroke_width=max(1, int(3 * unit)), stroke_fill=(0, 0, 0))
+    if spec.reference:
+        draw.text((fx, fy + (int(48 * unit) if speaker_line else int(18 * unit))),
+                  spec.reference, font=_font(family, int(30 * unit), bold=False),
+                  fill=accent, stroke_width=max(1, int(2 * unit)), stroke_fill=(0, 0, 0))
     return image
 
 

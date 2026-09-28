@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QFrame,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QLineEdit,
     QMessageBox,
@@ -33,12 +34,15 @@ from app.utils.church_graphics import (
     FORMATS,
     SOCIAL_PLATFORMS,
     ChurchProfile,
+    BUILTIN_THUMBNAIL_MODELS,
+    THUMBNAIL_LAYOUTS,
     ThumbnailSpec,
     render_quote,
     render_speaker,
     render_socials,
     render_welcome,
     render_youtube_thumbnail,
+    sanitize_thumbnail_models,
     save_thumbnail,
     social_badge,
     speaker_info,
@@ -76,6 +80,7 @@ class ChurchProfileDialog(QDialog):
     socialsRequested = Signal()  # projeter l'écran « Réseaux sociaux »
     pastorRequested = Signal()  # projeter l'écran du prédicateur
     quoteRequested = Signal()  # créer une image de citation
+    thumbnailRequested = Signal()  # créer une miniature YouTube
 
     def __init__(self, profile: ChurchProfile, parent=None, embedded: bool = False,
                  logo_folder: Path | None = None) -> None:
@@ -335,7 +340,7 @@ class ChurchProfileDialog(QDialog):
         use.addRow("Image de citation", quote_btn,
                    "Aussi par clic droit sur un verset ou un paragraphe")
         thumb_btn = QPushButton("Créer une miniature…")
-        thumb_btn.clicked.connect(self._open_thumbnail)
+        thumb_btn.clicked.connect(self.thumbnailRequested.emit)
         use.addRow("Miniature YouTube", thumb_btn,
                    "Titre, orateur et date en 1280×720 · Ctrl+Shift+Y")
         export_btn = QPushButton("Enregistrer…")
@@ -548,9 +553,6 @@ class ChurchProfileDialog(QDialog):
         self.background_mode.setCurrentIndex(self.background_mode.findData("image"))
         self._emit()
 
-    def _open_thumbnail(self) -> None:
-        ThumbnailDialog(self.read_profile(), parent=self).exec()
-
     def _export_visuals(self) -> None:
         folder = QFileDialog.getExistingDirectory(self, "Dossier des visuels")
         if not folder:
@@ -670,23 +672,53 @@ def french_date(day=None) -> str:
 
 
 class ThumbnailDialog(QDialog):
-    """Miniature YouTube (1280×720) aux couleurs de l'église, avec l'orateur."""
+    """Miniature YouTube (1280×720) aux couleurs de l'église, avec l'orateur.
 
-    LABELS = ("Culte du dimanche", "En direct", "Culte d'enseignement", "Culte de prière",
-              "Veillée de prière", "Conférence", "Culte spécial")
+    Modèles : ceux fournis avec Project-On et ceux enregistrés par l'église
+    (mise en page, bandeau, fond, couleur, côté de la photo…), réutilisables
+    d'un culte à l'autre. ``modelsChanged`` porte la liste des modèles de
+    l'église à enregistrer dans les réglages.
+    """
+
+    modelsChanged = Signal(list)
+
+    LABELS = ("Culte du dimanche", "En direct", "Enseignement", "Culte d'enseignement",
+              "Culte de prière", "Veillée de prière", "Conférence", "Témoignage",
+              "Culte spécial")
 
     def __init__(self, profile: ChurchProfile, title: str = "", reference: str = "",
-                 parent=None) -> None:
+                 parent=None, models: list | None = None,
+                 media_folder: Path | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Miniature YouTube")
         self.setStyleSheet(DIALOG_STYLE)
-        self.resize(1080, 560)
+        self.resize(1120, 640)
         self._profile = profile
         self._background = ""
+        self._accent = ""
+        self._models = sanitize_thumbnail_models(models or [])
+        self._media_folder = media_folder
+        self._loading = False
+
+        # ── Modèles ──
+        self.model = QComboBox()
+        self.model.setMinimumWidth(220)
+        self.model.activated.connect(self._apply_selected_model)
+        self.save_model_btn = QPushButton("Enregistrer comme modèle…")
+        self.save_model_btn.clicked.connect(self._save_model)
+        self.delete_model_btn = QPushButton("Supprimer")
+        self.delete_model_btn.clicked.connect(self._delete_model)
+        models_row = QHBoxLayout()
+        models_row.addWidget(self.model, 1)
+        models_row.addWidget(self.save_model_btn)
+        models_row.addWidget(self.delete_model_btn)
 
         self.title = QPlainTextEdit(title)
         self.title.setPlaceholderText("Le *vrai* repos de l'âme")
-        self.title.setMaximumHeight(90)
+        self.title.setMaximumHeight(80)
+        self.layout_combo = QComboBox()
+        for key, label in THUMBNAIL_LAYOUTS.items():
+            self.layout_combo.addItem(label, key)
         self.label = QComboBox()
         self.label.setEditable(True)
         self.label.addItems(self.LABELS)
@@ -701,6 +733,14 @@ class ThumbnailDialog(QDialog):
         self.side.addItem("Photo à gauche", "left")
         self.uppercase = QCheckBox("Titre en majuscules")
         self.uppercase.setChecked(True)
+        self.accent_btn = ColorPickerButton(profile.accent_color or "#F0BE64")
+        self.accent_btn.colorChanged.connect(self._set_accent)
+        church_color = QPushButton("Couleur de l'église")
+        church_color.clicked.connect(lambda: self._set_accent(""))
+        accent_row = QHBoxLayout()
+        accent_row.addWidget(self.accent_btn)
+        accent_row.addWidget(church_color)
+        accent_row.addStretch(1)
         self.background_btn = QPushButton("Choisir une image de fond…")
         self.background_btn.clicked.connect(self._browse_background)
         clear_bg = QPushButton("Fond de l'église")
@@ -710,19 +750,29 @@ class ThumbnailDialog(QDialog):
         background_row.addWidget(clear_bg)
 
         form = QVBoxLayout()
-        title_label = QLabel("Titre de la prédication")
-        form.addWidget(title_label)
+        form.addWidget(QLabel("Modèle"))
+        form.addLayout(models_row)
+        form.addWidget(QLabel("Titre de la prédication"))
         form.addWidget(self.title)
         hint = QLabel("Mettez un mot entre *astérisques* pour l'écrire en couleur d'accent.")
         hint.setWordWrap(True)
         hint.setStyleSheet("color: #9aa4b2; font-size: 11px;")
         form.addWidget(hint)
-        for text, widget in (("Bandeau", self.label), ("Date", self.date),
-                             ("Référence biblique", self.reference)):
-            form.addWidget(QLabel(text))
-            form.addWidget(widget)
+        grid = QHBoxLayout()
+        left, right = QVBoxLayout(), QVBoxLayout()
+        for column, rows in ((left, (("Mise en page", self.layout_combo), ("Bandeau", self.label),
+                                     ("Date", self.date))),
+                             (right, (("Référence biblique", self.reference),
+                                      ("Photo", self.side)))):
+            for text, widget in rows:
+                column.addWidget(QLabel(text))
+                column.addWidget(widget)
+        right.addWidget(QLabel("Couleur d'accent"))
+        right.addLayout(accent_row)
+        grid.addLayout(left, 1)
+        grid.addLayout(right, 1)
+        form.addLayout(grid)
         form.addWidget(self.show_speaker)
-        form.addWidget(self.side)
         form.addWidget(self.uppercase)
         form.addLayout(background_row)
         speaker = " ".join(p for p in speaker_info(profile)[:2] if p)
@@ -763,8 +813,121 @@ class ThumbnailDialog(QDialog):
         self.reference.textChanged.connect(self._debounce.start)
         for box in (self.show_speaker, self.uppercase):
             box.toggled.connect(self._render)
-        self.side.currentIndexChanged.connect(self._render)
+        for combo in (self.side, self.layout_combo):
+            combo.currentIndexChanged.connect(self._render)
+
+        self._fill_models()
+        # Dernier modèle de l'église s'il y en a, sinon le premier fourni.
+        self.model.setCurrentIndex(self.model.count() - 1 if self._models else 0)
+        self._apply_selected_model()
+
+    # ── Modèles ──────────────────────────────────────────────────────
+
+    def _fill_models(self, select: str = "") -> None:
+        self.model.blockSignals(True)
+        self.model.clear()
+        for model in BUILTIN_THUMBNAIL_MODELS:
+            self.model.addItem(model["name"], f"builtin:{model['name']}")
+        if self._models:
+            self.model.insertSeparator(self.model.count())
+            for model in self._models:
+                self.model.addItem(f"★ {model['name']}", f"church:{model['name']}")
+        if select:
+            index = self.model.findData(f"church:{select}")
+            if index >= 0:
+                self.model.setCurrentIndex(index)
+        self.model.blockSignals(False)
+        self._update_model_buttons()
+
+    def _selected_model(self) -> tuple[str, dict | None]:
+        data = self.model.currentData()
+        if not data:
+            return "", None
+        kind, _sep, name = str(data).partition(":")
+        source = BUILTIN_THUMBNAIL_MODELS if kind == "builtin" else self._models
+        return kind, next((m for m in source if m["name"] == name), None)
+
+    def _update_model_buttons(self) -> None:
+        kind, _model = self._selected_model()
+        self.delete_model_btn.setEnabled(kind == "church")
+
+    def _apply_selected_model(self, *_args) -> None:
+        _kind, model = self._selected_model()
+        self._update_model_buttons()
+        if model is None:
+            return
+        spec = self.spec().with_model(model)
+        self._loading = True
+        self.layout_combo.setCurrentIndex(max(0, self.layout_combo.findData(spec.layout)))
+        self.label.setCurrentText(spec.label)
+        self.side.setCurrentIndex(max(0, self.side.findData(spec.photo_side)))
+        self.show_speaker.setChecked(spec.show_speaker)
+        self.uppercase.setChecked(spec.uppercase)
+        self._set_accent(spec.accent, render=False)
+        self._set_background(spec.background, render=False)
+        self._loading = False
         self._render()
+
+    def models(self) -> list[dict]:
+        return list(self._models)
+
+    def _save_model(self) -> None:
+        kind, current = self._selected_model()
+        suggestion = current["name"] if kind == "church" and current else ""
+        name, ok = QInputDialog.getText(
+            self, "Enregistrer comme modèle",
+            "Nom du modèle (mise en page, bandeau, fond, couleur et côté de la photo) :",
+            text=suggestion,
+        )
+        name = name.strip()
+        if not ok or not name:
+            return
+        spec = self.spec()
+        spec.background = self._keep_background(spec.background)
+        self._background = spec.background
+        model = spec.model(name)
+        others = [m for m in self._models if m["name"].lower() != name.lower()]
+        self._models = sanitize_thumbnail_models(others + [model])
+        self._fill_models(select=model["name"])
+        self.modelsChanged.emit(self.models())
+
+    def _delete_model(self) -> None:
+        kind, model = self._selected_model()
+        if kind != "church" or model is None:
+            return
+        answer = QMessageBox.question(self, "Supprimer le modèle",
+                                      f"Supprimer le modèle « {model['name']} » ?")
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        self._models = [m for m in self._models if m["name"] != model["name"]]
+        self._fill_models()
+        self.modelsChanged.emit(self.models())
+
+    def _keep_background(self, path: str) -> str:
+        """Copie l'image de fond d'un modèle dans les données de Project-On.
+
+        Le modèle reste utilisable même si l'image d'origine est déplacée.
+        """
+        if not path or self._media_folder is None:
+            return path
+        source = Path(path)
+        try:
+            folder = self._media_folder
+            if source.parent.resolve() == folder.resolve():
+                return path
+            folder.mkdir(parents=True, exist_ok=True)
+            target = folder / source.name
+            index = 1
+            while target.exists() and target.read_bytes() != source.read_bytes():
+                target = folder / f"{source.stem}-{index}{source.suffix}"
+                index += 1
+            if not target.exists():
+                shutil.copy2(source, target)
+            return str(target)
+        except OSError:
+            return path
+
+    # ── Miniature ────────────────────────────────────────────────────
 
     def spec(self) -> ThumbnailSpec:
         return ThumbnailSpec(
@@ -776,15 +939,25 @@ class ThumbnailDialog(QDialog):
             photo_side=str(self.side.currentData() or "right"),
             show_speaker=self.show_speaker.isChecked(),
             uppercase=self.uppercase.isChecked(),
-        )
+            layout=str(self.layout_combo.currentData() or "split"),
+            accent=self._accent,
+        ).sanitized()
 
     def image(self):
         return render_youtube_thumbnail(self._profile, self.spec())
 
-    def _render(self) -> None:
+    def _render(self, *_args) -> None:
+        if self._loading:
+            return
         self.preview.setPixmap(_to_pixmap(self.image()).scaled(
             640, 360, Qt.AspectRatioMode.KeepAspectRatio,
             Qt.TransformationMode.SmoothTransformation))
+
+    def _set_accent(self, color: str, render: bool = True) -> None:
+        self._accent = _hex(color) if color else ""
+        self.accent_btn.set_color(self._accent or self._profile.accent_color or "#F0BE64")
+        if render:
+            self._render()
 
     def _browse_background(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
@@ -792,10 +965,12 @@ class ThumbnailDialog(QDialog):
         if path:
             self._set_background(path)
 
-    def _set_background(self, path: str) -> None:
-        self._background = path
-        self.background_btn.setText(Path(path).name if path else "Choisir une image de fond…")
-        self._render()
+    def _set_background(self, path: str, render: bool = True) -> None:
+        self._background = path if path and Path(path).is_file() else ""
+        self.background_btn.setText(
+            Path(self._background).name if self._background else "Choisir une image de fond…")
+        if render:
+            self._render()
 
     def _save(self) -> None:
         from app.utils.montage_export import _slug
