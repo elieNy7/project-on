@@ -332,6 +332,7 @@ class ProjectionSettings:
     bg_mode: str = "color"  # "color" or "image" (mutually exclusive background)
     bg_image: str = ""  # background image path (used only when bg_mode == "image")
     bg_image_fit: str = "cover"  # "cover" (remplir) or "contain" (contenir)
+    bg_video: str = ""  # vidéo de fond en boucle (bg_mode == "video")
     # ── Médias de la bibliothèque (images, diapositives PowerPoint) ──────
     # Un média est projeté comme un CONTENU — image entière centrée, jamais
     # rognée, entourée d'un habillage — et non comme un fond plein cadre.
@@ -436,8 +437,11 @@ class ProjectionSettings:
                 if self.bg_gradient_angle is not None
                 else 160
             ),
-            "bg_mode": "image" if self.bg_mode == "image" else "color",
+            "bg_mode": (
+                self.bg_mode if self.bg_mode in ("image", "video") else "color"
+            ),
             "bg_image": str(self.bg_image or ""),
+            "bg_video": str(self.bg_video or ""),
             "bg_image_fit": "contain" if self.bg_image_fit == "contain" else "cover",
             "media_fit": "cover" if self.media_fit == "cover" else "contain",
             "media_backdrop": (
@@ -916,6 +920,7 @@ class AppSettings:
             )
             projection.bg_mode = _gs(p, "bg_mode", projection.bg_mode)
             projection.bg_image = _gs(p, "bg_image", projection.bg_image)
+            projection.bg_video = _gs(p, "bg_video", projection.bg_video)
             projection.bg_image_fit = _gs(
                 p, "bg_image_fit", projection.bg_image_fit
             )
@@ -1025,6 +1030,10 @@ class AppSettings:
                 not cfg.bg_image or not Path(cfg.bg_image).is_file()
             ):
                 cfg.bg_mode = "color"
+        if projection.bg_mode == "video" and (
+            not projection.bg_video or not Path(projection.bg_video).is_file()
+        ):
+            projection.bg_mode = "color"
 
         # Réglages média : bornés ici pour qu'un fichier de paramètres édité à
         # la main ne puisse jamais produire un rendu aberrant.

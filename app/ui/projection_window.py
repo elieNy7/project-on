@@ -130,6 +130,9 @@ class ProjectionWindow(SlideCanvas):
             power_guard.acquire()
 
     def closeEvent(self, event) -> None:
+        player = getattr(self, "_bg_player", None)
+        if player is not None:
+            player.stop()
         if getattr(self, "_power_held", False):
             self._power_held = False
             power_guard.release()
@@ -166,6 +169,8 @@ class ProjectionWindow(SlideCanvas):
         from PySide6.QtCore import QUrl
 
         self._stage_widget.setVisible(False)
+        # La vidéo projetée couvre l'écran : inutile de décoder le fond.
+        self._pause_background_video(True)
         if path != self._active_video_path:
             self._active_video_path = path
             self._media_player.setSource(QUrl.fromLocalFile(path))
@@ -180,6 +185,7 @@ class ProjectionWindow(SlideCanvas):
         self._active_video_path = ""
         if self._video_widget is not None:
             self._video_widget.hide()
+        self._pause_background_video(False)
 
     def _apply_video_playing(self, playing: bool) -> None:
         """Applique la commande play/pause de l'opérateur (via slide.json)."""
@@ -208,6 +214,48 @@ class ProjectionWindow(SlideCanvas):
                 self._media_player.setPosition(0)
                 # Signalé une seule fois : la régie peut enchaîner (diaporama).
                 self.videoFinished.emit()
+
+    # ── Fond vidéo en boucle (sous le texte, sans son) ────────────────────
+
+    def _on_background_video_changed(self, path: str) -> None:
+        player = getattr(self, "_bg_player", None)
+        if not path or bool(getattr(self, "_low_power", False)):
+            if player is not None:
+                player.stop()
+            return
+        try:
+            from PySide6.QtCore import QUrl
+            from PySide6.QtMultimedia import QMediaPlayer, QVideoSink
+        except Exception as exc:  # pragma: no cover - dépend de l'install
+            log.warning("Fond vidéo indisponible : %s", exc)
+            return
+        if player is None:
+            player = QMediaPlayer(self)
+            sink = QVideoSink(self)
+            sink.videoFrameChanged.connect(self._on_background_frame)
+            player.setVideoSink(sink)
+            player.setLoops(QMediaPlayer.Loops.Infinite)
+            self._bg_player = player
+            self._bg_sink = sink
+        player.setSource(QUrl.fromLocalFile(path))
+        player.play()
+
+    def _on_background_frame(self, frame) -> None:
+        try:
+            image = frame.toImage()
+        except Exception:
+            return
+        if not image.isNull():
+            self.set_background_frame(image)
+
+    def _pause_background_video(self, paused: bool) -> None:
+        player = getattr(self, "_bg_player", None)
+        if player is None or not self._bg_video_path:
+            return
+        if paused:
+            player.pause()
+        else:
+            player.play()
 
     # ── Pages web : supprimé (les Médias ne projettent plus de pages web) ─
 

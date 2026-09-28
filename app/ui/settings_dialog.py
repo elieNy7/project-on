@@ -215,7 +215,10 @@ class ProjectionSettingsDialog(QDialog):
         self._bg_mode_combo = QComboBox()
         self._bg_mode_combo.addItem("Couleur", "color")
         self._bg_mode_combo.addItem("Image", "image")
-        _mode = "image" if str(settings.bg_mode or "color") == "image" else "color"
+        self._bg_mode_combo.addItem("Vidéo en boucle (animé)", "video")
+        _mode = str(settings.bg_mode or "color")
+        if _mode not in ("image", "video"):
+            _mode = "color"
         idx = self._bg_mode_combo.findData(_mode)
         self._bg_mode_combo.setCurrentIndex(max(idx, 0))
         bg_section.addRow("Type de fond", self._bg_mode_combo)
@@ -244,6 +247,29 @@ class ProjectionSettingsDialog(QDialog):
         self._bg_clear_btn.clicked.connect(self._on_clear_bg_image)
         bg_section.addRow("Image de fond", bg_image_widget)
 
+        # Fond animé : une vidéo courte (nuages, lumière, particules) jouée
+        # en boucle, sans son, derrière les paroles et les versets.
+        self._bg_video_path = str(getattr(settings, "bg_video", "") or "")
+        bg_video_widget = QWidget()
+        bg_video_layout = QHBoxLayout(bg_video_widget)
+        bg_video_layout.setContentsMargins(0, 0, 0, 0)
+        bg_video_layout.setSpacing(8)
+        self._bg_video_label = QLabel(self._bg_video_name_text())
+        self._bg_video_label.setStyleSheet(
+            f"color: {Colors.TEXT_SECONDARY}; background: transparent; border: none;"
+        )
+        self._bg_video_label.setWordWrap(True)
+        self._bg_video_browse_btn = QPushButton("Parcourir")
+        self._bg_video_browse_btn.setIcon(app_icon("folder-open.svg", Colors.TEXT_PRIMARY))
+        bg_video_layout.addWidget(self._bg_video_label, 1)
+        bg_video_layout.addWidget(self._bg_video_browse_btn)
+        self._bg_video_browse_btn.clicked.connect(self._on_browse_bg_video)
+        bg_section.addRow(
+            "Vidéo de fond",
+            bg_video_widget,
+            "MP4 ou WebM court, joué en boucle sans son sous le texte",
+        )
+
         self._background_dimmer = QSpinBox()
         self._background_dimmer.setRange(0, 85)
         self._background_dimmer.setSuffix(" %")
@@ -257,11 +283,14 @@ class ProjectionSettingsDialog(QDialog):
         )
 
         def _apply_bg_mode_ui() -> None:
-            is_image = self._bg_mode_combo.currentData() == "image"
+            mode = self._bg_mode_combo.currentData()
+            is_image = mode == "image"
             self._bg_image_label.setEnabled(is_image)
             self._bg_browse_btn.setEnabled(is_image)
             self._bg_clear_btn.setEnabled(is_image)
-            self._bg_color_btn.setEnabled(not is_image)
+            self._bg_video_label.setEnabled(mode == "video")
+            self._bg_video_browse_btn.setEnabled(mode == "video")
+            self._bg_color_btn.setEnabled(mode == "color")
             self._background_dimmer.setEnabled(True)
 
         self._bg_mode_combo.currentIndexChanged.connect(
@@ -429,6 +458,33 @@ class ProjectionSettingsDialog(QDialog):
         self._bg_mode_combo.setCurrentIndex(self._bg_mode_combo.findData("image"))
         self._on_change()
 
+    def _bg_video_name_text(self) -> str:
+        from pathlib import Path
+        return Path(self._bg_video_path).name if self._bg_video_path else "Aucune vidéo"
+
+    def _on_browse_bg_video(self) -> None:
+        import shutil
+        from pathlib import Path
+
+        from PySide6.QtWidgets import QFileDialog
+
+        from app.utils.app_paths import backgrounds_dir
+
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Choisir une vidéo de fond", str(backgrounds_dir()),
+            "Vidéos (*.mp4 *.webm *.mov *.mkv *.avi)",
+        )
+        if not path:
+            return
+        src = Path(path)
+        dest = backgrounds_dir() / src.name
+        if not dest.exists() or dest.stat().st_size != src.stat().st_size:
+            shutil.copy2(src, dest)
+        self._bg_video_path = str(dest)
+        self._bg_video_label.setText(self._bg_video_name_text())
+        self._bg_mode_combo.setCurrentIndex(self._bg_mode_combo.findData("video"))
+        self._on_change()
+
     def _on_clear_bg_image(self) -> None:
         self._bg_image_path = ""
         self._bg_image_label.setText(self._bg_image_name_text())
@@ -489,6 +545,7 @@ class ProjectionSettingsDialog(QDialog):
             bg_mode=str(self._bg_mode_combo.currentData() or "color"),
             bg_color=self._bg_color_btn.color(),
             bg_image=self._bg_image_path,
+            bg_video=self._bg_video_path,
             background_dimmer=self._background_dimmer.value() / 100.0,
             media_fit=str(self._media_fit.currentData() or "contain"),
             media_backdrop=str(self._media_backdrop.currentData() or "blur"),

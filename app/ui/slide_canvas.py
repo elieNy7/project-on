@@ -187,6 +187,10 @@ class SlideCanvas(QWidget):
         # les rendus hors écran restent statiques sur la position de départ).
         self._kb_zoom = 1.0
         self._kb_pan = QPointF(0.0, 0.0)
+        # Fond vidéo en boucle : chemin demandé par la slide/les réglages et
+        # dernière image décodée (fournie par la fenêtre de projection).
+        self._bg_video_path = ""
+        self._bg_video_frame = QPixmap()
 
         self._main_layout = QVBoxLayout(self)
         self._main_layout.setContentsMargins(0, 0, 0, 0)
@@ -461,7 +465,17 @@ class SlideCanvas(QWidget):
         painter.setPen(Qt.PenStyle.NoPen)
         painter.drawRect(rect)
 
-        if not self._background_pixmap.isNull():
+        if self._bg_video_path and not self._bg_video_frame.isNull():
+            frame = self._bg_video_frame
+            target = self._cover_rect(frame.width(), frame.height(), rect, contain=False)
+            painter.drawPixmap(target, frame, QRectF(frame.rect()))
+            dimmer = max(0.0, min(0.85, float(cfg.get("background_dimmer", 0.34))))
+            has_text = bool(str(self._current_slide.get("text") or "").strip())
+            slide_style = self._choice(
+                cfg.get("slide_style"), ("cinematic", "clean", "split"), "cinematic"
+            )
+            self._paint_cinematic_scrim(painter, rect, dimmer, has_text, slide_style)
+        elif not self._background_pixmap.isNull():
             has_text = bool(str(self._current_slide.get("text") or "").strip())
             has_ref = bool(str(self._current_slide.get("reference") or "").strip())
             if self._media_content:
@@ -507,6 +521,16 @@ class SlideCanvas(QWidget):
                 vignette.setColorAt(0.75, QColor(0, 0, 0, 0))
                 vignette.setColorAt(1.0, QColor(0, 0, 0, 60))
                 painter.fillRect(rect, QBrush(vignette))
+
+    def _on_background_video_changed(self, path: str) -> None:
+        """Fond vidéo demandé ou retiré (la projection lance son lecteur)."""
+
+    def set_background_frame(self, image) -> None:
+        """Image courante du fond vidéo (QImage), peinte sous le texte."""
+        if not self._bg_video_path:
+            return
+        self._bg_video_frame = QPixmap.fromImage(image) if image is not None else QPixmap()
+        self.update()
 
     def _apply_ken_burns(self, target: QRectF) -> QRectF:
         """Étend la cible du fond selon l'état Ken Burns (zoom + pan lents).
@@ -1111,7 +1135,22 @@ class SlideCanvas(QWidget):
             and self._config.get("bg_mode") == "image"
         ):
             visual_path = str(self._config.get("bg_image") or "")
-        slide["_visual_key"] = visual_path
+        # Fond vidéo : réglage global (bg_mode == "video") ou fond vidéo d'un
+        # slide de playlist. Jamais sous un média projeté comme contenu.
+        from app.utils.media_utils import is_video_file
+
+        bg_video = ""
+        if not hidden and not media_path:
+            if background_path and is_video_file(background_path):
+                bg_video, visual_path = background_path, ""
+            elif not visual_path and self._config.get("bg_mode") == "video":
+                bg_video = str(self._config.get("bg_video") or "")
+        if bg_video != self._bg_video_path:
+            self._bg_video_path = bg_video
+            if not bg_video:
+                self._bg_video_frame = QPixmap()
+            self._on_background_video_changed(bg_video)
+        slide["_visual_key"] = visual_path or bg_video
         slide["_media_key"] = media_path
         self._current_slide = slide
         self._media_content = bool(media_path)

@@ -894,7 +894,9 @@ class MainWindow(QMainWindow):
     def _apply_projection_settings(self, projection) -> None:
         self._settings.projection = projection
         self._apply_projection_config()
-        self._sync_obs_background(projection.bg_mode, projection.bg_image, projection.bg_image_fit)
+        # Fond vidéo : propre à la projection locale (OBS garde sa couleur).
+        obs_mode = "color" if projection.bg_mode == "video" else projection.bg_mode
+        self._sync_obs_background(obs_mode, projection.bg_image, projection.bg_image_fit)
         # Media framing is shared with the OBS page / NDI output.
         self._write_obs_config()
         self._settings_changed()
