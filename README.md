@@ -15,7 +15,13 @@ Sortie OBS (lower-third) · Projection plein écran cinématique · 100 % hors-l
 
 ## ✨ Fonctionnalités
 
-- **Bible** — navigation livre par livre, recherche et projection du verset avec sa référence.
+- **Bible** — navigation livre par livre, recherche et projection du verset avec sa référence ; **7 Bibles libres fournies** (Martin, Crampon, Perret-Gentil, Bovet-Bonnet, KJV, BSB, Reina-Valera), 15 autres à télécharger, import Zefania / Beblia / JSON.
+- **Déroulé du culte** — sections, heures prévues, avance ou retard en direct, section démarrée par son slide.
+- **Éditeur de cantiques** — création, modification, refrain répété automatiquement ; import OpenLyrics, OpenSong et CCLI SongSelect.
+- **Historique du culte** — rapport, tableur, sous-titres SRT et images transparentes pour le montage vidéo.
+- **Profil de l'église** — écran d'accueil et images de citations (carré, story, paysage) aux couleurs de l'église.
+- **Fiabilité** — reprise après coupure de courant, contrôle avant culte au démarrage, mode PC modeste, mise à jour intégrée.
+- **Raccourcis configurables** — télécommande de présentation et Stream Deck.
 - **Cantiques** — bibliothèque organisée par strophes.
 - **Prédications & Livres** — sermons (alinéas fidèles au PDF), Exposé des Sept Âges, livres et brochures, présentés par chapitre et par page.
 - **Aperçu et Direct** — un clic prépare un verset, une strophe, un paragraphe ou un média dans l'Aperçu (rendu exact de la projection), **F2** l'envoie au Direct ; voyant « EN DIRECT / MASQUÉ / VIDE » sur le moniteur Direct.
@@ -30,7 +36,7 @@ Sortie OBS (lower-third) · Projection plein écran cinématique · 100 % hors-l
 - **Sortie HDMI pour mélangeur (ATEM, Roland…)** — le texte en **sous-titre OBS** sur fond de clé chroma (vert, magenta ou bleu), style de la page OBS ou style propre au HDMI (police, tailles, position, bandeau, couleurs, ombre et contour, animation), mire de calibrage (F8), retour automatique sur l'écran du mélangeur après un débranchement.
 - **Contrôle OBS (WebSocket)** — bascule automatique de scène OBS à la projection/masquage, chargement des scènes et création de la source Navigateur Project-On en un clic.
 - **Projection cinématique** — transitions Fondu, Glissement, Zoom, Flou et Reveal + zoom lent (Ken Burns) sur les images de fond.
-- **Arrière-plans chrétiens** — fonds sobres et lisibles (croix, aigle, lion, agneau).
+- **Arrière-plans chrétiens** — fonds sobres et lisibles (croix, aigle, lion, agneau). Fonds animés : vidéo en boucle derrière le texte.
 - **Contrôle avant service** — diagnostic des données, écrans, stockage et sortie OBS avec rapport exportable.
 - **Sauvegarde sûre** — copie transactionnelle SQLite vérifiée, même lorsque l'application est ouverte.
 - **Mises à niveau sans perte** — l'installeur conserve la base, les playlists et les paramètres utilisateur.
@@ -39,7 +45,7 @@ Sortie OBS (lower-third) · Projection plein écran cinématique · 100 % hors-l
 
 ## ⬇️ Installation (Windows)
 
-1. Téléchargez **`ProjectOn_2.6.2_Setup.exe`** depuis la [dernière version](https://github.com/elieNy7/project-on/releases/latest).
+1. Téléchargez **`ProjectOn_2.7.0_Setup.exe`** depuis la [dernière version](https://github.com/elieNy7/project-on/releases/latest).
 2. Lancez l'installeur (français). Si Windows affiche **SmartScreen**, cliquez sur « Informations complémentaires » → « Exécuter quand même ».
 3. Ouvrez **Project-On**. Tout fonctionne hors-ligne.
 
@@ -69,6 +75,7 @@ build_installer.bat
 ## 📜 Licence & crédits
 
 - Code : voir [LICENSE.txt](LICENSE.txt).
+- Bibles fournies et catalogue : [scrollmapper/bible_databases](https://github.com/scrollmapper/bible_databases), domaine public (détail dans `licenses/BIBLES.txt`).
 - Silhouettes aigle / lion / agneau dérivées de [game-icons.net](https://game-icons.net/) (Lorc, Delapouite) — **CC BY 3.0**.
 - Icônes d’interface SVG issues de [Lucide](https://lucide.dev/) — licence **ISC**, texte fourni dans `licenses/LUCIDE-ISC.txt`.
 - Interface construite avec [Qt for Python (PySide6)](https://doc.qt.io/qtforpython-6/) — licence **LGPL v3** ; les bibliothèques Qt sont livrées sous forme de DLL séparées et remplaçables.

@@ -1,10 +1,29 @@
-# Project-On 2.6.2
+# Project-On 2.7.0
 
-**Sortie HDMI en sous-titre OBS** 📺 — la sortie HDMI vers le mélangeur (ATEM, Roland…) affiche désormais le texte en **sous-titre**, exactement comme le mode « Sous-titre » de la page OBS : centré en bas de l'image, sur la couleur de clé que le mélangeur supprime.
+**Une régie professionnelle** ⛪ — Bibles libres intégrées, déroulé du culte avec avance/retard, fonds animés, éditeur de cantiques, historique et export pour le montage vidéo, reprise après coupure de courant, mise à jour intégrée… et une sortie HDMI en **sous-titre OBS**.
 
-## Nouveautés
+## Nouveautés du culte
 
-- **Disposition HDMI « Sous-titre OBS »** par défaut. Réglages → Sortie HDMI → **Disposition** permet aussi de suivre la disposition choisie pour OBS, ou d'imposer bandeau bas, panneau latéral ou carte focus. Police, couleurs, contour et animation restent ceux de la page OBS.
+- **7 Bibles libres fournies** 📖 : Martin 1744, Crampon 1923, Perret-Gentil, Bovet-Bonnet, King James, Berean Standard Bible et Reina-Valera 1909, installées automatiquement (sans Internet). **Réglages → Bibles** : 15 autres Bibles du domaine public à télécharger (Darby, Synodale, Oltramare, Stapfer, ASV, créole haïtien, malgache…), et **import d'un fichier** (Zefania XML, XML « Beblia », JSON) pour une version dont l'église a les droits — lingala, swahili, tshiluba… Retirer une Bible est possible à tout moment.
+- **Déroulé du culte** ⏱️ : sous les slides d'une playlist, des sections (Louange, Annonces, Prédication…) avec leur durée, l'heure de début prévue et les heures de chaque section. Pendant le culte : section en cours, temps restant, **avance ou retard** en direct, fin estimée. Une section liée à un slide démarre toute seule quand ce slide passe en direct.
+- **Fonds animés** 🎞️ : une vidéo courte jouée en boucle, sans son, derrière les paroles et les versets (Réglages → Projection locale → Type de fond → Vidéo en boucle), ou un fond vidéo propre à un slide de playlist.
+- **Éditeur de cantiques** ✏️ : bouton crayon de l'onglet Cantiques → Nouveau / Modifier. Strophes séparées par une ligne vide, refrain marqué d'un clic, aperçu du découpage.
+- **Refrain répété automatiquement** : projeter tout le cantique donne strophe 1 → refrain → strophe 2 → refrain… (désactivable).
+- **Import OpenLyrics, OpenSong et CCLI SongSelect** 🎵 : Cantiques → Importer, plusieurs fichiers à la fois, refrains reconnus, doublons ignorés.
+- **Historique du culte** 🗒️ (Ctrl+H ou bouton « Historique » du déroulé) : tout ce qui est passé en direct, heure par heure. Exports : rapport de culte (.txt), tableur (.csv), **sous-titres .srt** calés sur l'heure de début de la vidéo, et **images transparentes** au style OBS + minutage pour DaVinci Resolve, Premiere ou CapCut.
+- **Profil de l'église** 🏛️ : nom, devise, logo, couleurs et police. **Écran d'accueil** projeté avant le culte (Ctrl+Shift+W) et **images de citations** à partager (carré, story, paysage) par clic droit sur un verset ou un paragraphe (Ctrl+Shift+I pour le slide en direct).
+- **Raccourcis configurables** ⌨️ (Réglages → Raccourcis) : une touche par action, conflits signalés. **Télécommande de présentation** reconnue (Page suivante / Page précédente) et **Stream Deck** via l'action « Raccourci clavier ».
+
+## Fiabilité
+
+- **Reprise après coupure de courant** 🔌 : si Project-On s'arrête brutalement, il propose au redémarrage de reprendre exactement le programme et la slide où vous étiez.
+- **Contrôle avant culte automatique** au démarrage : base, disque, écrans, OBS, NDI et HDMI ; un message discret n'apparaît qu'en cas de problème.
+- **Mode PC modeste** (Réglages → Apparence) : sans transitions, animation mot à mot, zoom lent, fond vidéo, flou ni effet Mica — fluide sur un petit ordinateur.
+- **Mise à jour intégrée** (Réglages → Mise à jour) : la nouvelle version est détectée quand Internet est disponible, téléchargée depuis GitHub (taille et empreinte vérifiées) puis installée en gardant vos données.
+
+## Sortie HDMI, textes et cantiques
+- **Sortie HDMI en sous-titre OBS** 📺 : la sortie HDMI vers le mélangeur (ATEM, Roland…) affiche le texte en sous-titre, exactement comme le mode « Sous-titre » de la page OBS.
+- **Disposition HDMI « Sous-titre OBS »** « Sous-titre OBS »** par défaut. Réglages → Sortie HDMI → **Disposition** permet aussi de suivre la disposition choisie pour OBS, ou d'imposer bandeau bas, panneau latéral ou carte focus. Police, couleurs, contour et animation restent ceux de la page OBS.
 - **Style du texte propre à la sortie HDMI** 🎨 : décochez « Utiliser le style de la page OBS » pour régler le HDMI indépendamment d'OBS, avec les mêmes familles de réglages — **police** (famille, épaisseur, casse, espacement, hauteur de ligne), **tailles et référence** (taille du texte et de la référence, style de référence, ajustement automatique, lignes au maximum), **position** (bas, haut ou centre, alignement, marges, largeur), **arrière-plan** (bandeau, couleur, dégradé, coins arrondis), **couleurs et habillage** (texte, référence, barre d'accent, pastille de source, accent personnalisé), **effets** (ombre, contour des lettres) et **animation d'entrée** (style, mot à mot, direction, durée).
 - **Préréglages retirés** : les boutons de préréglages disparaissent de toutes les sections des Réglages (dont « Modes & style OBS ») ; chaque réglage se fait directement, et « Réinitialiser » ramène les valeurs par défaut.
 - **Cantiques deux lignes par slide** 🎵 : chaque strophe est projetée deux lignes à la fois (« Strophe 2 (1/3) », « (2/3) »…), sans jamais couper un vers ; les flèches avancent de deux lignes en deux lignes. Nombre de lignes par slide réglable (1 à 12, 2 par défaut).
@@ -22,7 +41,7 @@
 
 ## Installation
 
-Téléchargez **`ProjectOn_2.6.2_Setup.exe`** et installez-le par-dessus la version existante : cantiques, playlists, réglages et base sont conservés.
+Téléchargez **`ProjectOn_2.7.0_Setup.exe`** et installez-le par-dessus la version existante : cantiques, playlists, réglages et base sont conservés.
 
 Windows 10 / 11 (64 bits) · fonctionne hors-ligne.
 
