@@ -146,7 +146,7 @@ body.preview-canvas::before {
    ================================================================ */
 .lower-third {
     width: var(--max-width);
-    max-width: calc(100vw - (var(--safe-inset, 64px) * 2));
+    max-width: calc(100vw - (var(--safe-inset, 64px) * 2) - var(--speaker-reserve, 0px));
     position: relative;
     z-index: 2;
     filter: drop-shadow(var(--container-shadow));
@@ -878,4 +878,56 @@ body.preview-canvas::before {
     .lt-body {
         min-width: 0;
     }
+}
+
+/* ── Orateur du jour ─────────────────────────────────────────── */
+#root.speaker-right { padding-right: calc(var(--safe-inset, 64px) + var(--speaker-reserve, 0px)); }
+#root.speaker-left  { padding-left: calc(var(--safe-inset, 64px) + var(--speaker-reserve, 0px)); }
+
+.speaker {
+    position: absolute;
+    bottom: 0;
+    right: 20px;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    z-index: 3;
+    min-width: 300px;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+}
+.speaker.left { right: auto; left: 20px; }
+.speaker.visible { display: flex; opacity: 1; }
+.speaker-photo {
+    height: var(--speaker-h, 34vh);
+    max-width: 28vw;
+    object-fit: contain;
+    object-position: bottom;
+    display: block;
+}
+.speaker-photo.empty { display: none; }
+.speaker-caption {
+    position: absolute;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.63);
+    border-radius: 12px;
+    padding: 9px 18px;
+    text-align: center;
+    white-space: nowrap;
+    font-family: var(--font-family);
+}
+.speaker-caption.empty { display: none; }
+.speaker-title {
+    color: var(--accent-color, #f0be64);
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+.speaker-name {
+    color: #fff;
+    font-size: 32px;
+    font-weight: 700;
 }

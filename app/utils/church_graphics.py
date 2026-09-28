@@ -89,6 +89,9 @@ class ChurchProfile:
     speaker_on_slides: str = "all"
     speaker_slides_side: str = "right"  # right | left
     speaker_slides_size: int = 42  # hauteur de la photo, % de l'écran
+    # Orateur sur OBS, NDI et HDMI (à côté du bandeau) : all | sermon | off
+    speaker_on_broadcast: str = "all"
+    speaker_broadcast_size: int = 34  # hauteur de la photo, % du cadre
 
     def sanitized(self) -> ChurchProfile:
         defaults = ChurchProfile()
@@ -124,6 +127,9 @@ class ChurchProfile:
         if out.speaker_slides_side not in ("right", "left"):
             out.speaker_slides_side = "right"
         out.speaker_slides_size = max(20, min(70, out.speaker_slides_size))
+        if out.speaker_on_broadcast not in ("all", "sermon", "off"):
+            out.speaker_on_broadcast = "all"
+        out.speaker_broadcast_size = max(15, min(70, out.speaker_broadcast_size))
         if out.quote_style not in QUOTE_STYLES:
             out.quote_style = defaults.quote_style
         if out.qr_target and out.qr_target not in out.socials:
@@ -620,6 +626,15 @@ def speaker_slide_badge(profile: ChurchProfile) -> dict[str, Any]:
         "title": title,
         "name": name,
     }
+
+
+def speaker_broadcast_badge(profile: ChurchProfile) -> dict[str, Any]:
+    """Orateur à côté du bandeau OBS, NDI et HDMI (même côté que les slides)."""
+    badge = speaker_slide_badge(profile)
+    profile = profile.sanitized()
+    badge["mode"] = profile.speaker_on_broadcast
+    badge["size"] = profile.speaker_broadcast_size
+    return badge
 
 
 def speaker_label(profile: ChurchProfile) -> str:

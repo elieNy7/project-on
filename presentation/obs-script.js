@@ -15,6 +15,8 @@ const LAYOUT_MODES = new Set([
 ]);
 const requestedLayout = new URLSearchParams(window.location.search).get('layout');
 const requestedScene = new URLSearchParams(window.location.search).get('scene');
+// Dernière slide reçue : l'orateur du jour se réévalue au changement de réglages.
+let lastSpeakerSlide = null;
 const previewCanvas = ['1', 'true'].includes(
     new URLSearchParams(window.location.search).get('preview')
 );
@@ -74,6 +76,7 @@ function applyConfig(cfg) {
             : configuredLayout,
     };
     currentConfig = { ...currentConfig, ...cfg };
+    updateSpeaker();
     const root = document.documentElement;
     const rootEl = document.getElementById('root');
     const lowerThird = document.getElementById('lower-third');
@@ -706,6 +709,7 @@ async function setSlide(payload) {
     if (slideStr === lastSlideStr) return;
     lastSlideStr = slideStr;
     const localToken = ++transitionToken;
+    updateSpeaker(payload);
 
     const textEl = document.getElementById('text');
     const refEl = document.getElementById('ref');
@@ -1000,3 +1004,59 @@ window.addEventListener('resize', () => {
         }
     }, 120);
 });
+
+// ── Orateur du jour (photo sans arrière-plan + nom, à côté du bandeau) ──
+
+function speakerActive(badge, payload) {
+    if (!badge || !payload || payload.hidden) return false;
+    const mode = badge.mode || 'off';
+    if (mode === 'off') return false;
+    if (!(payload.text && payload.text.trim())) return false;
+    if (mode === 'sermon' && payload.source !== 'sermon') return false;
+    return !!(badge.photo || badge.name || badge.title);
+}
+
+function updateSpeaker(payload) {
+    if (payload !== undefined) lastSpeakerSlide = payload;
+    const el = document.getElementById('speaker');
+    const rootEl = document.getElementById('root');
+    const root = document.documentElement;
+    if (!el || !rootEl) return;
+    const badge = (currentConfig && currentConfig.speaker_badge) || null;
+    const active = speakerActive(badge, lastSpeakerSlide);
+    const onLeft = !!(badge && badge.side === 'left');
+    rootEl.classList.toggle('speaker-right', active && !onLeft);
+    rootEl.classList.toggle('speaker-left', active && onLeft);
+    el.classList.toggle('left', onLeft);
+    if (!active) {
+        el.classList.remove('visible');
+        root.style.setProperty('--speaker-reserve', '0px');
+        return;
+    }
+    const size = Math.max(15, Math.min(70, Number(badge.size || 34)));
+    root.style.setProperty('--speaker-h', `${size}vh`);
+    const img = document.getElementById('speaker-photo');
+    const baseUrl = window.location.protocol === 'file:' ? 'http://127.0.0.1:8080' : '';
+    const wanted = badge.photo ? `${baseUrl}/api/speaker-photo?v=${encodeURIComponent(badge.photo)}` : '';
+    if (img) {
+        if (img.dataset.src !== wanted) {
+            img.dataset.src = wanted;
+            if (wanted) img.src = wanted; else img.removeAttribute('src');
+        }
+        img.classList.toggle('empty', !wanted);
+        img.onload = () => reserveSpeakerSpace();
+    }
+    document.getElementById('speaker-title').textContent = badge.title || '';
+    document.getElementById('speaker-name').textContent = badge.name || '';
+    document.getElementById('speaker-caption').classList.toggle(
+        'empty', !(badge.title || badge.name));
+    el.classList.add('visible');
+    reserveSpeakerSpace();
+}
+
+function reserveSpeakerSpace() {
+    const el = document.getElementById('speaker');
+    if (!el || !el.classList.contains('visible')) return;
+    const width = el.getBoundingClientRect().width;
+    document.documentElement.style.setProperty('--speaker-reserve', `${Math.ceil(width + 24)}px`);
+}

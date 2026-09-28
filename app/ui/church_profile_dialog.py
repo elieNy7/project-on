@@ -207,6 +207,22 @@ class ChurchProfileDialog(QDialog):
         self.speaker_slides_size.setSuffix(" %")
         self.speaker_slides_size.setValue(self._profile.speaker_slides_size)
         speaker.addRow("Hauteur de la photo", self.speaker_slides_size, "Part de la hauteur de l'écran")
+        self.speaker_on_broadcast = QComboBox()
+        self.speaker_on_broadcast.addItem("Tous les textes", "all")
+        self.speaker_on_broadcast.addItem("Prédications seulement", "sermon")
+        self.speaker_on_broadcast.addItem("Non", "off")
+        self.speaker_on_broadcast.setCurrentIndex(
+            max(0, self.speaker_on_broadcast.findData(self._profile.speaker_on_broadcast)))
+        speaker.addRow(
+            "Sur OBS, NDI et HDMI", self.speaker_on_broadcast,
+            "À côté du bandeau sur la caméra (même côté que les slides)",
+        )
+        self.speaker_broadcast_size = QSpinBox()
+        self.speaker_broadcast_size.setRange(15, 70)
+        self.speaker_broadcast_size.setSuffix(" %")
+        self.speaker_broadcast_size.setValue(self._profile.speaker_broadcast_size)
+        speaker.addRow("Hauteur sur OBS / HDMI", self.speaker_broadcast_size,
+                       "Part de la hauteur de l'image diffusée")
         layout.addWidget(speaker)
         for key in self._photos:
             self._refresh_thumb(key)
@@ -342,10 +358,12 @@ class ChurchProfileDialog(QDialog):
         for button in (self.primary, self.accent, self.text):
             button.colorChanged.connect(self._debounce.start)
         for combo in (self.font, self.qr_target, self.background_mode, self.quote_style,
-                      self.speaker_on_slides, self.speaker_slides_side):
+                      self.speaker_on_slides, self.speaker_slides_side,
+                      self.speaker_on_broadcast):
             combo.currentIndexChanged.connect(self._debounce.start)
         self.background_dim.valueChanged.connect(self._debounce.start)
         self.speaker_slides_size.valueChanged.connect(self._debounce.start)
+        self.speaker_broadcast_size.valueChanged.connect(self._debounce.start)
         for box in (self.show_socials_welcome, self.show_socials_quotes):
             box.toggled.connect(self._debounce.start)
         self._render_preview()
@@ -380,6 +398,8 @@ class ChurchProfileDialog(QDialog):
             speaker_on_slides=str(self.speaker_on_slides.currentData() or "all"),
             speaker_slides_side=str(self.speaker_slides_side.currentData() or "right"),
             speaker_slides_size=self.speaker_slides_size.value(),
+            speaker_on_broadcast=str(self.speaker_on_broadcast.currentData() or "all"),
+            speaker_broadcast_size=self.speaker_broadcast_size.value(),
         ).sanitized()
 
     def _emit(self) -> None:

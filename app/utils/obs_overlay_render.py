@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import threading
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 # Vert chroma standard (#00B140) : couleur supprimée par le chroma key
@@ -987,7 +988,11 @@ def render_obs_overlay(
     # Zone utile : root padding = marge de bord + zone sûre (obs-script.js)
     safe_margin = int(round(min(width, height) * cfg.safe_area_percent / 100))
     inset = max(0, int(cfg.edge_margin)) + safe_margin
-    available_w = max(160, width - inset * 2)
+    # Orateur du jour : sa photo occupe un côté ; le bandeau prend le reste.
+    speaker = _speaker_overlay(cfg_payload, slide, width, height)
+    speaker_reserve = speaker["reserve"] if speaker else 0
+    speaker_left = bool(speaker) and speaker["side"] == "left"
+    available_w = max(160, width - inset * 2 - speaker_reserve)
     available_h = max(120, height - inset * 2)
 
     # Largeur du bandeau : `width: var(--max-width)` (page OBS), plancher 390 px,
@@ -1177,12 +1182,16 @@ def render_obs_overlay(
         band_h = max(band_h, min(int(height * 0.52), 560))
 
     band_align = str(cfg.band_align).lower()
+    free_left = inset + (speaker_reserve if speaker_left else 0)
+    free_right = width - inset - (0 if speaker_left else speaker_reserve)
     if layout_mode == "side_panel":
-        band_x = width - band_w - inset if cfg.panel_side == "right" else inset
+        band_x = free_right - band_w if cfg.panel_side == "right" else free_left
     elif band_align == "left":
-        band_x = inset
+        band_x = free_left
     elif band_align == "right":
-        band_x = width - band_w - inset
+        band_x = free_right - band_w
+    elif speaker_reserve:
+        band_x = int(free_left + (free_right - free_left - band_w) / 2)
     else:
         band_x = int((width - band_w) / 2)
 
@@ -1459,6 +1468,8 @@ def render_obs_overlay(
         ImageChops.multiply(band_layer.getchannel("A"), mask)
     )
     img.alpha_composite(band_layer, (band_x, band_y))
+    if speaker:
+        _draw_speaker_overlay(img, speaker, cfg, key_rgb, accent)
 
     if key_rgb is not None:
         # Mode clé chroma : aucune opacité globale — elle réintroduirait
@@ -1469,6 +1480,112 @@ def render_obs_overlay(
         alpha_img = img.getchannel("A").point(lambda a: int(a * opacity))
         img.putalpha(alpha_img)
     return img
+
+
+_SPEAKER_PHOTO_CACHE: dict[tuple[str, float], Any] = {}
+
+
+def _speaker_overlay(cfg_payload, slide, width: int, height: int) -> dict | None:
+    """Orateur du jour à afficher près du bandeau (config « speaker_badge »).
+
+    ``mode`` : all (tous les textes) | sermon (prédications) | off. Photo
+    importée sans arrière-plan (PNG transparent) ; hauteur en % du cadre.
+    """
+    from PIL import Image  # type: ignore
+
+    badge = (cfg_payload or {}).get("speaker_badge") if isinstance(cfg_payload, dict) else None
+    if not isinstance(badge, dict) or not slide:
+        return None
+    mode = str(badge.get("mode") or "off")
+    if mode == "off" or (mode == "sermon" and str(slide.get("source") or "") != "sermon"):
+        return None
+    if not str(slide.get("text") or "").strip():
+        return None
+    title = str(badge.get("title") or "").strip()
+    name = str(badge.get("name") or "").strip()
+    photo = None
+    path = str(badge.get("photo") or "")
+    if path:
+        try:
+            mtime = Path(path).stat().st_mtime
+            key = (path, mtime)
+            photo = _SPEAKER_PHOTO_CACHE.get(key)
+            if photo is None:
+                photo = Image.open(path).convert("RGBA")
+                _SPEAKER_PHOTO_CACHE.clear()
+                _SPEAKER_PHOTO_CACHE[key] = photo
+        except Exception:
+            photo = None
+    if photo is None and not (title or name):
+        return None
+    size = max(15, min(70, int(badge.get("size") or 34)))
+    photo_h = int(height * size / 100)
+    photo_w = 0
+    if photo is not None:
+        photo_w = int(photo_h * photo.width / max(1, photo.height))
+        if photo_w > int(width * 0.28):
+            photo_h = int(photo_h * width * 0.28 / photo_w)
+            photo_w = int(width * 0.28)
+    unit = min(width, height) / 1080
+    caption_w = int(300 * unit) if (title or name) else 0
+    return {
+        "side": "left" if badge.get("side") == "left" else "right",
+        "photo": photo, "photo_w": photo_w, "photo_h": photo_h,
+        "title": title, "name": name, "unit": unit,
+        "block_w": max(photo_w, caption_w),
+        "reserve": max(photo_w, caption_w) + int(24 * unit),
+        "width": width, "height": height,
+    }
+
+
+def _draw_speaker_overlay(img, speaker: dict, cfg, key_rgb, accent) -> None:
+    """Photo au pied du cadre et cartouche « titre + nom » de l'orateur."""
+    from PIL import Image, ImageDraw  # type: ignore
+
+    width, height, unit = speaker["width"], speaker["height"], speaker["unit"]
+    block_w = speaker["block_w"]
+    margin = int(20 * unit)
+    x = margin if speaker["side"] == "left" else width - margin - block_w
+    photo = speaker["photo"]
+    if photo is not None and speaker["photo_w"]:
+        resized = photo.resize((speaker["photo_w"], speaker["photo_h"]), Image.LANCZOS)
+        if key_rgb is not None:
+            # Clé chroma : contour franc, sinon le détourage se mélangerait
+            # à la couleur de clé (liseré vert supprimé par le mélangeur).
+            resized.putalpha(resized.getchannel("A").point(lambda a: 255 if a >= 128 else 0))
+        img.alpha_composite(
+            resized, (x + (block_w - resized.width) // 2, height - resized.height)
+        )
+    title, name = speaker["title"], speaker["name"]
+    if not (title or name):
+        return
+    family = cfg.font_family
+    title_font = _cached_truetype(_font_file(family, "bold") or "DejaVuSans.ttf", int(22 * unit)) \
+        or _cached_truetype("DejaVuSans.ttf", int(22 * unit))
+    name_font = _cached_truetype(_font_file(family, "bold") or "DejaVuSans.ttf", int(32 * unit)) \
+        or _cached_truetype("DejaVuSans.ttf", int(32 * unit))
+    if title_font is None or name_font is None:
+        return
+    draw = ImageDraw.Draw(img)
+    name_w = int(draw.textlength(name, font=name_font)) if name else 0
+    box_w = max(block_w, name_w + int(36 * unit))
+    title_h = int(30 * unit) if title else 0
+    name_h = int(42 * unit) if name else 0
+    box_h = title_h + name_h + int(18 * unit)
+    box_x = x + (block_w - box_w) // 2
+    box_y = height - box_h - int(16 * unit)
+    # Clé chroma : cartouche opaque (aucun mélange avec la couleur de clé).
+    fill = (8, 12, 22, 255) if key_rgb is not None else (0, 0, 0, 160)
+    draw.rounded_rectangle((box_x, box_y, box_x + box_w, box_y + box_h),
+                           radius=int(12 * unit), fill=fill)
+    cx = box_x + box_w // 2
+    top = box_y + int(9 * unit)
+    if title:
+        draw.text((cx, top), title.upper(), font=title_font,
+                  fill=(accent[0], accent[1], accent[2], 255), anchor="ma")
+        top += title_h
+    if name:
+        draw.text((cx, top), name, font=name_font, fill=(255, 255, 255, 255), anchor="ma")
 
 
 def _flatten_layer(layer, base_rgb, opacity: float):
