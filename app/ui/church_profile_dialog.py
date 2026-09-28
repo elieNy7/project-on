@@ -35,7 +35,7 @@ from PySide6.QtWidgets import (
 
 from app.ui.obs_output_settings_dialog import DIALOG_STYLE, ColorPickerButton
 from app.ui.setting_cards import PageHeader, SettingSection
-from app.ui.theme import Colors
+from app.ui.theme import Colors, Typography
 from app.utils.church_graphics import (
     FORMATS,
     SOCIAL_PLATFORMS,
@@ -73,6 +73,14 @@ def _to_pixmap_rgba(image) -> QPixmap:
     data = rgba.tobytes()
     qimage = QImage(data, rgba.width, rgba.height, rgba.width * 4, QImage.Format.Format_RGBA8888)
     return QPixmap.fromImage(qimage.copy())
+
+
+def _muted_style() -> str:
+    """Secondary hint text; read from the theme at call time so it follows light/dark."""
+    return (
+        f"color: {Colors.TEXT_MUTED}; font-size: {Typography.SIZE_META}px;"
+        " background: transparent; border: none;"
+    )
 
 
 def _hex(color: str) -> str:
@@ -340,7 +348,7 @@ class ChurchProfileDialog(QDialog):
             "composent le fond des miniatures YouTube."
         )
         gallery_hint.setWordWrap(True)
-        gallery_hint.setStyleSheet("color: #9aa4b2; font-size: 11px; background: transparent;")
+        gallery_hint.setStyleSheet(_muted_style())
         gallery_section.addWidget(gallery_hint)
         self.gallery = ChurchPhotoGallery(
             self._profile.photos,
@@ -761,20 +769,20 @@ class ChurchPhotoGallery(QWidget):
         self.list.setMaximumHeight(200)
         self.list.itemChanged.connect(self._on_item_changed)
         self.list.setStyleSheet(
-            "QListWidget::item:selected { background: rgba(240, 190, 100, 0.25);"
+            f"QListWidget::item:selected {{ background: {Colors.ACCENT_GLOW_STRONG};"
             " border-radius: 6px; }"
             "QListWidget::indicator { width: 18px; height: 18px; border-radius: 4px; }"
-            "QListWidget::indicator:unchecked { background: #2b2f36;"
-            " border: 1px solid #8a93a0; }"
-            "QListWidget::indicator:checked { background: #F0BE64;"
-            " border: 1px solid #F0BE64; }"
+            f"QListWidget::indicator:unchecked {{ background: {Colors.BG_INPUT};"
+            f" border: 1px solid {Colors.TEXT_MUTED}; }}"
+            f"QListWidget::indicator:checked {{ background: {Colors.ACCENT_PRIMARY};"
+            f" border: 1px solid {Colors.ACCENT_PRIMARY}; }}"
         )
         add = QPushButton("Ajouter des photos…")
         add.clicked.connect(self._add)
         self.remove_btn = QPushButton("Retirer")
         self.remove_btn.clicked.connect(self._remove_selected)
         self.count_label = QLabel()
-        self.count_label.setStyleSheet("color: #9aa4b2; font-size: 11px;")
+        self.count_label.setStyleSheet(_muted_style())
         buttons = QHBoxLayout()
         buttons.addWidget(add)
         buttons.addWidget(self.remove_btn)
@@ -983,7 +991,7 @@ class ThumbnailDialog(QDialog):
         form.addWidget(self.title)
         hint = QLabel("Mettez un mot entre *astérisques* pour l'écrire en couleur d'accent.")
         hint.setWordWrap(True)
-        hint.setStyleSheet("color: #9aa4b2; font-size: 11px;")
+        hint.setStyleSheet(_muted_style())
         form.addWidget(hint)
         grid = QHBoxLayout()
         left, right = QVBoxLayout(), QVBoxLayout()
@@ -1008,7 +1016,7 @@ class ThumbnailDialog(QDialog):
             "dans Réglages → Profil de l'église."
         )
         note.setWordWrap(True)
-        note.setStyleSheet("color: #9aa4b2; font-size: 11px;")
+        note.setStyleSheet(_muted_style())
         form.addWidget(note)
         form.addStretch(1)
 
