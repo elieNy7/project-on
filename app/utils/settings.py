@@ -797,6 +797,7 @@ class SplitSettings:
     hymn_enabled: bool = True
     hymn_max_lines: int = 2  # vers par slide : 1..12 (2 = deux lignes)
     hymn_keep_couplets: bool = True  # vers 1-2, 3-4… restent ensemble
+    hymn_repeat_chorus: bool = True  # strophe → refrain → strophe → refrain
     show_part_counter: bool = True  # « (1/2) » dans la référence
 
     def sanitized(self) -> SplitSettings:
@@ -813,6 +814,7 @@ class SplitSettings:
             hymn_enabled=bool(self.hymn_enabled),
             hymn_max_lines=_int(self.hymn_max_lines, 2, 1, 12),
             hymn_keep_couplets=bool(self.hymn_keep_couplets),
+            hymn_repeat_chorus=bool(self.hymn_repeat_chorus),
             show_part_counter=bool(self.show_part_counter),
         )
 

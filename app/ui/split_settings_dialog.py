@@ -119,6 +119,10 @@ class SplitSettingsDialog(QDialog):
         )
         self._hymn_couplets = QCheckBox("Garder les vers deux par deux (rimes)")
         hymn_section.addWidget(self._hymn_couplets)
+        self._hymn_repeat_chorus = QCheckBox(
+            "Répéter le refrain après chaque strophe (cantique entier)"
+        )
+        hymn_section.addWidget(self._hymn_repeat_chorus)
         layout.addWidget(hymn_section)
 
         # ═══════ Affichage ═══════
@@ -169,6 +173,7 @@ class SplitSettingsDialog(QDialog):
             self._keep_line_breaks,
             self._hymn_enabled,
             self._hymn_couplets,
+            self._hymn_repeat_chorus,
             self._show_counter,
         ):
             box.toggled.connect(self._on_change)
@@ -190,6 +195,7 @@ class SplitSettingsDialog(QDialog):
         self._hymn_enabled.setChecked(settings.hymn_enabled)
         self._hymn_max_lines.setValue(settings.hymn_max_lines)
         self._hymn_couplets.setChecked(settings.hymn_keep_couplets)
+        self._hymn_repeat_chorus.setChecked(settings.hymn_repeat_chorus)
         self._show_counter.setChecked(settings.show_part_counter)
 
     def read_settings(self) -> SplitSettings:
@@ -200,6 +206,7 @@ class SplitSettingsDialog(QDialog):
             hymn_enabled=self._hymn_enabled.isChecked(),
             hymn_max_lines=self._hymn_max_lines.value(),
             hymn_keep_couplets=self._hymn_couplets.isChecked(),
+            hymn_repeat_chorus=self._hymn_repeat_chorus.isChecked(),
             show_part_counter=self._show_counter.isChecked(),
         ).sanitized()
 

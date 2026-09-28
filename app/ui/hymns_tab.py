@@ -54,6 +54,9 @@ class HymnsTab(QFrame):
     importScanRequested = Signal()
     deleteRequested = Signal(int)
     deleteAllRequested = Signal()
+    newHymnRequested = Signal()
+    editHymnRequested = Signal(int)
+    importSongFilesRequested = Signal()  # OpenLyrics, OpenSong, CCLI
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -84,12 +87,33 @@ class HymnsTab(QFrame):
         action_pptx_folder = import_menu.addAction("Importer un dossier PowerPoint")
         import_menu.addSeparator()
         action_pdf = import_menu.addAction("Importer un fichier PDF")
+        import_menu.addSeparator()
+        action_songs = import_menu.addAction(
+            "Importer OpenLyrics, OpenSong ou CCLI SongSelect…"
+        )
+        action_songs.triggered.connect(self.importSongFilesRequested.emit)
 
         action_pptx_file.triggered.connect(self.importPptxFileRequested.emit)
         action_pptx_folder.triggered.connect(self.importPptxFolderRequested.emit)
         action_pdf.triggered.connect(self.importPdfFileRequested.emit)
 
         self.import_btn.setMenu(import_menu)
+
+        # Nouveau / modifier (éditeur de cantique)
+        self.edit_btn = QPushButton(self)
+        self.edit_btn.setIcon(app_icon("pencil.svg"))
+        self.edit_btn.setIconSize(QSize(12, 12))
+        self.edit_btn.setFixedHeight(28)
+        self.edit_btn.setToolTip("Créer ou modifier un cantique")
+        self.edit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.edit_btn.setStyleSheet(get_compact_button_style())
+        edit_menu = QMenu(self)
+        edit_menu.setStyleSheet(get_menu_style())
+        edit_menu.addAction("Nouveau cantique…").triggered.connect(self.newHymnRequested.emit)
+        edit_menu.addAction("Modifier le cantique…").triggered.connect(
+            self._on_edit_clicked
+        )
+        self.edit_btn.setMenu(edit_menu)
 
         # Labels (Consistency with Bible design)
         hymns_label = QLabel(tr("hymns"), self)
@@ -162,6 +186,7 @@ class HymnsTab(QFrame):
         left_header.setSpacing(Spacing.MD)
         left_header.addWidget(hymns_label)
         left_header.addStretch()
+        left_header.addWidget(self.edit_btn)
         left_header.addWidget(self.import_btn)
 
         # Layouts
@@ -356,6 +381,18 @@ class HymnsTab(QFrame):
     def _on_delete_clicked(self) -> None:
         if self._current_hymn_id is not None:
             self.deleteRequested.emit(self._current_hymn_id)
+
+    def current_hymn_id(self) -> int | None:
+        item = self.hymns_list.currentItem()
+        if item is None:
+            return None
+        value = item.data(Qt.ItemDataRole.UserRole)
+        return int(value) if value is not None else None
+
+    def _on_edit_clicked(self) -> None:
+        hymn_id = self.current_hymn_id()
+        if hymn_id is not None:
+            self.editHymnRequested.emit(hymn_id)
 
     def _on_delete_all_clicked(self) -> None:
         self.deleteAllRequested.emit()

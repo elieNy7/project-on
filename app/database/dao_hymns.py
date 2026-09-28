@@ -309,6 +309,86 @@ class HymnsDao:
 
             return hymn_id  # type: ignore
 
+    def save_hymn(
+        self,
+        hymn_id: int | None,
+        title: str,
+        stanzas: list[tuple[str, bool]],
+        number: str | None = None,
+        language: str = "fr",
+    ) -> int:
+        """Crée ou remplace un cantique (éditeur) ; renvoie son identifiant.
+
+        ``stanzas`` : (texte, est_refrain). Le refrain est marqué
+        explicitement par l'opérateur, sans dépendre du mot « Refrain » en
+        tête de texte. Tout se fait dans une transaction, index compris.
+        """
+        title = str(title or "").strip() or "Sans titre"
+        stanzas = [(str(t).strip(), bool(c)) for t, c in stanzas if str(t).strip()]
+        if not stanzas:
+            raise ValueError("Un cantique doit avoir au moins une strophe.")
+        with self._db.connect() as conn:
+            hymn_cols = [r[1] for r in conn.execute("PRAGMA table_info(hymn)").fetchall()]
+            canonical_title = Database._clean_hymn_title_for_canonical(title)
+            fields = {"title": title, "number": number, "language": language,
+                      "sort_key": title.lower()}
+            if "canonical_title" in hymn_cols:
+                fields["canonical_title"] = canonical_title
+            if "title_search" in hymn_cols:
+                fields["title_search"] = Database._search_key(
+                    " ".join(str(p or "") for p in (canonical_title, title, number, language))
+                )
+            if hymn_id is None:
+                cursor = conn.execute(
+                    f"INSERT INTO hymn ({', '.join(fields)}) "
+                    f"VALUES ({', '.join('?' for _ in fields)})",
+                    tuple(fields.values()),
+                )
+                hymn_id = int(cursor.lastrowid)
+            else:
+                conn.execute(
+                    f"UPDATE hymn SET {', '.join(f'{k} = ?' for k in fields)} WHERE id = ?",
+                    (*fields.values(), int(hymn_id)),
+                )
+                conn.execute("DELETE FROM hymn_stanza WHERE hymn_id = ?", (int(hymn_id),))
+
+            stanza_cols = [
+                r[1] for r in conn.execute("PRAGMA table_info(hymn_stanza)").fetchall()
+            ]
+            verse_no = chorus_no = 0
+            for index, (text, is_chorus) in enumerate(stanzas, start=1):
+                # Même convention que les cantiques importés : un refrain
+                # commence par « Refrain » (retiré à la projection). La
+                # maintenance de la base, qui relit les textes, le garde ainsi.
+                if is_chorus and not self._detect_chorus(text):
+                    text = f"Refrain\n{text}"
+                elif not is_chorus and self._detect_chorus(text):
+                    from app.utils.text_utils import strip_hymn_projection_label
+
+                    text = strip_hymn_projection_label(text) or text
+                if is_chorus:
+                    chorus_no += 1
+                    label = "Refrain" if chorus_no == 1 else f"Refrain {chorus_no}"
+                else:
+                    verse_no += 1
+                    label = f"Strophe {verse_no}"
+                columns = ["hymn_id", "stanza_no", "text"]
+                values: list[Any] = [hymn_id, index, text]
+                if "label" in stanza_cols:
+                    columns.append("label")
+                    values.append(label)
+                if "is_chorus" in stanza_cols:
+                    columns.append("is_chorus")
+                    values.append(1 if is_chorus else 0)
+                conn.execute(
+                    f"INSERT INTO hymn_stanza ({', '.join(columns)}) "
+                    f"VALUES ({', '.join('?' for _ in columns)})",
+                    tuple(values),
+                )
+            self._rebuild_fts(conn)
+            conn.commit()
+        return int(hymn_id)
+
     @staticmethod
     def _identity_text(value: str) -> str:
         import unicodedata

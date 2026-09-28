@@ -277,6 +277,13 @@ class LibraryController(QObject):
             self._hymns_tab.clearAllHymnsRequested.connect(self.on_clear_all_hymns)
         if hasattr(self._hymns_tab, "importPdfFileRequested"):
             self._hymns_tab.importPdfFileRequested.connect(self.on_import_pdf_file)
+        for name, slot in (
+            ("newHymnRequested", self.on_new_hymn),
+            ("editHymnRequested", self.on_edit_hymn),
+        ):
+            signal = getattr(self._hymns_tab, name, None)
+            if hasattr(signal, "connect"):
+                signal.connect(slot)
 
         # Single click: prepare the item in the preview monitor (never live).
         cue_wiring = (
@@ -1027,6 +1034,63 @@ class LibraryController(QObject):
         ).strip(" -")
         self._hymns_tab.set_stanzas(prepared)
 
+    def _hymn_program_entries(self, prepared: list[dict[str, Any]]) -> list[tuple[str, str]]:
+        """Entrées projetées d'un cantique (refrain répété si demandé)."""
+        split = getattr(self._project, "split_settings", None)
+        if split is not None and getattr(split, "hymn_repeat_chorus", False):
+            prepared = expand_hymn_chorus(prepared)
+        return [(p["reference"], self._clean_text(p["text"])) for p in prepared]
+
+    def on_new_hymn(self) -> None:
+        self._open_hymn_editor(None)
+
+    def on_edit_hymn(self, hymn_id: int) -> None:
+        self._open_hymn_editor(int(hymn_id))
+
+    def _open_hymn_editor(self, hymn_id: int | None) -> None:
+        from app.ui.hymn_editor_dialog import HymnEditorDialog
+
+        kwargs: dict[str, Any] = {}
+        if hymn_id is not None:
+            hymn = self._hymns_dao.get_hymn(hymn_id) or {}
+            from app.utils.text_utils import strip_hymn_projection_label
+
+            kwargs = {
+                "title": str(hymn.get("original_title") or hymn.get("title") or ""),
+                "number": str(hymn.get("number") or ""),
+                "language": str(hymn.get("language") or "fr"),
+                "stanzas": [
+                    (
+                        strip_hymn_projection_label(s["text"]) if s.get("is_chorus") else str(s["text"]),
+                        bool(s.get("is_chorus")),
+                    )
+                    for s in self._hymns_dao.list_stanzas(hymn_id)
+                ],
+            }
+        dialog = HymnEditorDialog(self._hymns_tab.window(), **kwargs)
+        if dialog.exec() != HymnEditorDialog.DialogCode.Accepted:
+            return
+        values = dialog.values()
+        saved_id = self._hymns_dao.save_hymn(
+            hymn_id, values["title"], values["stanzas"],
+            number=values["number"], language=values["language"],
+        )
+        self._after_hymn_saved(saved_id)
+
+    def _after_hymn_saved(self, hymn_id: int) -> None:
+        """Recharge la liste puis sélectionne le cantique enregistré."""
+
+        def _fetch():
+            return self._hymns_dao.list_hymns()
+
+        def _on_done(hymns):
+            self._hymns_tab.set_hymns(hymns or [])
+            if hasattr(self._hymns_tab, "select_hymn"):
+                self._hymns_tab.select_hymn(int(hymn_id))
+            self.on_hymn_selected(int(hymn_id))
+
+        self._submit_latest("hymns", _fetch, _on_done)
+
     def _prepare_hymn_stanzas(
         self, stanzas: list[dict[str, Any]], hymn_number: str, hymn_title: str
     ) -> list[dict[str, Any]]:
@@ -1065,7 +1129,7 @@ class LibraryController(QObject):
     def on_hymn_stanza_activated(self, reference: str, text: str, target: str = "live") -> None:
         """Projette tout le cantique courant depuis la strophe cliquée."""
         ref = self._clean_text(reference)
-        entries = [(p["reference"], p["text"]) for p in self._current_stanzas]
+        entries = self._hymn_program_entries(self._current_stanzas)
         focus = self._find_entry_index(entries, ref)
         if not entries:
             entries = [(ref, self._clean_text(text))]
@@ -1096,10 +1160,7 @@ class LibraryController(QObject):
         self._current_stanzas = self._prepare_hymn_stanzas(stanzas, hymn_number, hymn_title)
         self._current_hymn_program_title = program_title
 
-        entries = [
-            (p["reference"], self._clean_text(p["text"]))
-            for p in self._current_stanzas
-        ]
+        entries = self._hymn_program_entries(self._current_stanzas)
         self._deliver("live", ProgramCue("hymn", program_title or "Cantique", self._entries(entries)))
 
     def on_import_pptx_file(self) -> None:
@@ -1937,3 +1998,24 @@ class LibraryController(QObject):
         if self._current_playlist_folder_id == int(folder_id):
             self._refresh_playlist_items()
         self.refresh_playlists(select_id=int(folder_id))
+
+
+def expand_hymn_chorus(prepared: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Répète le refrain après chaque strophe (strophe → refrain → strophe…).
+
+    Seulement pour un cantique au refrain unique écrit une seule fois : un
+    cantique qui a plusieurs refrains, ou qui répète déjà le sien, reste tel
+    quel. Un refrain placé avant la 1re strophe ouvre aussi le chant.
+    """
+    choruses = [i for i, p in enumerate(prepared) if p.get("is_chorus")]
+    verses = [p for p in prepared if not p.get("is_chorus")]
+    if len(choruses) != 1 or len(verses) < 2:
+        return list(prepared)
+    chorus = prepared[choruses[0]]
+    out: list[dict[str, Any]] = []
+    if choruses[0] == 0:
+        out.append(chorus)
+    for verse in verses:
+        out.append(verse)
+        out.append(chorus)
+    return out
