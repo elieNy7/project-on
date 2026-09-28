@@ -34,6 +34,7 @@ from app.utils.church_graphics import (
     SOCIAL_PLATFORMS,
     ChurchProfile,
     render_quote,
+    render_pastor,
     render_socials,
     render_welcome,
     social_badge,
@@ -69,6 +70,7 @@ class ChurchProfileDialog(QDialog):
     profileChanged = Signal(ChurchProfile)
     welcomeRequested = Signal()  # projeter l'écran d'accueil
     socialsRequested = Signal()  # projeter l'écran « Réseaux sociaux »
+    pastorRequested = Signal()  # projeter l'écran du prédicateur
     quoteRequested = Signal()  # créer une image de citation
 
     def __init__(self, profile: ChurchProfile, parent=None, embedded: bool = False,
@@ -108,6 +110,7 @@ class ChurchProfileDialog(QDialog):
         self.preview_kind = QComboBox()
         self.preview_kind.addItem("Écran d'accueil", "welcome")
         self.preview_kind.addItem("Écran « Réseaux sociaux »", "socials")
+        self.preview_kind.addItem("Écran du prédicateur", "pastor")
         self.preview_kind.addItem("Image de citation", "quote")
         self.preview_kind.currentIndexChanged.connect(self._render_preview)
         preview_section.addRow("Afficher", self.preview_kind)
@@ -151,6 +154,47 @@ class ChurchProfileDialog(QDialog):
         logo_row.addWidget(clear)
         identity.addRow("Logo", logo_box, "PNG à fond transparent conseillé")
         layout.addWidget(identity)
+
+        # ── Pasteur ──
+        self._pastor_photo = self._profile.pastor_photo
+        pastor = SettingSection("Pasteur", "users.svg")
+        self.pastor_title = QComboBox()
+        self.pastor_title.setEditable(True)
+        for title in ("Pasteur", "Révérend", "Apôtre", "Évêque", "Prophète",
+                      "Évangéliste", "Docteur", "Frère", "Diacre"):
+            self.pastor_title.addItem(title)
+        self.pastor_title.setCurrentText(self._profile.pastor_title)
+        pastor.addRow("Titre", self.pastor_title, "Choisissez ou tapez le vôtre")
+        self.pastor_name = QLineEdit(self._profile.pastor_name)
+        self.pastor_name.setPlaceholderText("Prénom et nom")
+        pastor.addRow("Nom du pasteur", self.pastor_name)
+        photo_box = QWidget()
+        photo_box.setStyleSheet("background: transparent;")
+        photo_row = QHBoxLayout(photo_box)
+        photo_row.setContentsMargins(0, 0, 0, 0)
+        self.pastor_thumb = QLabel()
+        self.pastor_thumb.setFixedSize(56, 56)
+        self.pastor_thumb.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        choose = QPushButton("Choisir une photo…")
+        choose.clicked.connect(self._choose_pastor_photo)
+        remove = QPushButton("Retirer")
+        remove.clicked.connect(self._clear_pastor_photo)
+        photo_row.addWidget(self.pastor_thumb)
+        photo_row.addWidget(choose)
+        photo_row.addWidget(remove)
+        pastor.addRow("Photo sans arrière-plan", photo_box,
+                      "L'arrière-plan est retiré automatiquement")
+        self.pastor_message = QLineEdit(self._profile.pastor_message)
+        self.pastor_message.setPlaceholderText("Titre du message du jour (facultatif)")
+        pastor.addRow("Message du jour", self.pastor_message, "Affiché sur l'écran du prédicateur")
+        self.show_pastor_welcome = QCheckBox("Pasteur sur l'écran d'accueil")
+        self.show_pastor_welcome.setChecked(self._profile.show_pastor_welcome)
+        pastor.addWidget(self.show_pastor_welcome)
+        self.show_pastor_quotes = QCheckBox("Signature et photo du pasteur sur les citations")
+        self.show_pastor_quotes.setChecked(self._profile.show_pastor_quotes)
+        pastor.addWidget(self.show_pastor_quotes)
+        layout.addWidget(pastor)
+        self._refresh_pastor_thumb()
 
         # ── Réseaux sociaux ──
         socials = SettingSection("Réseaux sociaux et contacts", "globe.svg")
@@ -243,6 +287,10 @@ class ChurchProfileDialog(QDialog):
         welcome_btn = QPushButton("Projeter")
         welcome_btn.clicked.connect(self.welcomeRequested.emit)
         use.addRow("Écran d'accueil", welcome_btn, "Avant le culte · Ctrl+Shift+W")
+        pastor_btn = QPushButton("Projeter")
+        pastor_btn.clicked.connect(self.pastorRequested.emit)
+        use.addRow("Écran du prédicateur", pastor_btn,
+                   "Photo et nom du pasteur avant la prédication · Ctrl+Shift+P")
         socials_btn = QPushButton("Projeter")
         socials_btn.clicked.connect(self.socialsRequested.emit)
         use.addRow("Écran « Réseaux sociaux »", socials_btn, "En fin de culte · Ctrl+Shift+R")
@@ -259,7 +307,7 @@ class ChurchProfileDialog(QDialog):
 
         # Champs assez larges pour lire une adresse entière, début visible.
         for edit in (self.name, self.welcome_title, self.motto, self.contact,
-                     *self.social_edits.values()):
+                     self.pastor_name, self.pastor_message, *self.social_edits.values()):
             edit.setMinimumWidth(260)
             edit.setCursorPosition(0)
         self.service_times.setMinimumWidth(260)
@@ -269,15 +317,17 @@ class ChurchProfileDialog(QDialog):
         self._debounce.setInterval(300)
         self._debounce.timeout.connect(self._emit)
         for edit in (self.name, self.welcome_title, self.motto, self.contact,
-                     *self.social_edits.values()):
+                     self.pastor_name, self.pastor_message, *self.social_edits.values()):
             edit.textChanged.connect(self._debounce.start)
+        self.pastor_title.currentTextChanged.connect(self._debounce.start)
         self.service_times.textChanged.connect(self._debounce.start)
         for button in (self.primary, self.accent, self.text):
             button.colorChanged.connect(self._debounce.start)
         for combo in (self.font, self.qr_target, self.background_mode, self.quote_style):
             combo.currentIndexChanged.connect(self._debounce.start)
         self.background_dim.valueChanged.connect(self._debounce.start)
-        for box in (self.show_socials_welcome, self.show_socials_quotes):
+        for box in (self.show_socials_welcome, self.show_socials_quotes,
+                    self.show_pastor_welcome, self.show_pastor_quotes):
             box.toggled.connect(self._debounce.start)
         self._render_preview()
 
@@ -301,6 +351,12 @@ class ChurchProfileDialog(QDialog):
             show_socials_quotes=self.show_socials_quotes.isChecked(),
             qr_target=str(self.qr_target.currentData() or ""),
             quote_style=str(self.quote_style.currentData() or "classic"),
+            pastor_name=self.pastor_name.text(),
+            pastor_title=self.pastor_title.currentText(),
+            pastor_photo=self._pastor_photo,
+            pastor_message=self.pastor_message.text(),
+            show_pastor_welcome=self.show_pastor_welcome.isChecked(),
+            show_pastor_quotes=self.show_pastor_quotes.isChecked(),
         ).sanitized()
 
     def _emit(self) -> None:
@@ -313,6 +369,8 @@ class ChurchProfileDialog(QDialog):
         kind = self.preview_kind.currentData()
         if kind == "socials":
             image = render_socials(profile, 960, 540)
+        elif kind == "pastor":
+            image = render_pastor(profile, 960, 540, subtitle=profile.pastor_message)
         elif kind == "quote":
             image = render_quote(
                 profile, "Car Dieu a tant aimé le monde qu'il a donné son Fils unique.",
@@ -344,6 +402,47 @@ class ChurchProfileDialog(QDialog):
         self._logo = ""
         self.logo_label.setText("Aucun")
         self._emit()
+
+    def _refresh_pastor_thumb(self) -> None:
+        path = Path(self._pastor_photo) if self._pastor_photo else None
+        if path is not None and path.is_file():
+            pixmap = QPixmap(str(path)).scaled(
+                56, 56, Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation)
+            self.pastor_thumb.setPixmap(pixmap)
+            self.pastor_thumb.setToolTip(str(path))
+        else:
+            self.pastor_thumb.clear()
+            self.pastor_thumb.setText("—")
+
+    def _choose_pastor_photo(self) -> None:
+        from app.ui.pastor_photo_dialog import PastorPhotoDialog
+
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Photo du pasteur", "", "Images (*.png *.jpg *.jpeg *.webp)")
+        if not path:
+            return
+        folder = self._logo_folder or Path(path).parent
+        import time
+
+        target = folder / f"pasteur-{int(time.time())}.png"
+        try:
+            dialog = PastorPhotoDialog(Path(path), target, self)
+        except Exception as exc:
+            QMessageBox.warning(self, "Photo du pasteur", f"Image illisible : {exc}")
+            return
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self.set_pastor_photo(str(target))
+
+    def set_pastor_photo(self, path: str) -> None:
+        self._pastor_photo = str(path or "")
+        self._refresh_pastor_thumb()
+        if self._pastor_photo:
+            self.preview_kind.setCurrentIndex(self.preview_kind.findData("pastor"))
+        self._emit()
+
+    def _clear_pastor_photo(self) -> None:
+        self.set_pastor_photo("")
 
     def _browse_background(self) -> None:
         path, _ = QFileDialog.getOpenFileName(

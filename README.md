@@ -19,7 +19,7 @@ Sortie OBS (lower-third) · Projection plein écran cinématique · 100 % hors-l
 - **Déroulé du culte** — sections, heures prévues, avance ou retard en direct, section démarrée par son slide.
 - **Éditeur de cantiques** — création, modification, refrain répété automatiquement ; import OpenLyrics, OpenSong et CCLI SongSelect.
 - **Historique du culte** — rapport, tableur, sous-titres SRT et images transparentes pour le montage vidéo.
-- **Profil de l'église** — écran d'accueil (horaires, réseaux, QR code), écran « Réseaux sociaux » de fin de culte, images de citations (carré, story, paysage) ; fond dégradé, uni ou photo, couleurs, police et style personnalisables.
+- **Profil de l'église** — pasteur (nom, titre, photo détourée automatiquement hors-ligne), écran du prédicateur, écran d'accueil (horaires, réseaux, QR code), écran « Réseaux sociaux » de fin de culte, images de citations (carré, story, paysage) ; fond dégradé, uni ou photo, couleurs, police et style personnalisables.
 - **Fiabilité** — reprise après coupure de courant, contrôle avant culte au démarrage, mode PC modeste, mise à jour intégrée.
 - **Raccourcis configurables** — télécommande de présentation et Stream Deck.
 - **Cantiques** — bibliothèque organisée par strophes.
@@ -77,6 +77,7 @@ build_installer.bat
 - Code : voir [LICENSE.txt](LICENSE.txt).
 - Bibles fournies et catalogue : [scrollmapper/bible_databases](https://github.com/scrollmapper/bible_databases), domaine public (détail dans `licenses/BIBLES.txt`).
 - Silhouettes aigle / lion / agneau dérivées de [game-icons.net](https://game-icons.net/) (Lorc, Delapouite) — **CC BY 3.0**.
+- Détourage de la photo du pasteur : modèle « silueta » du projet [rembg](https://github.com/danielgatis/rembg) — **MIT** (`licenses/SILUETA-MIT.txt`), exécuté par ONNX Runtime.
 - Logos des réseaux sociaux : [Simple Icons](https://simpleicons.org) — **CC0** (marques de leurs propriétaires, détail dans `licenses/SIMPLE-ICONS-CC0.txt`).
 - Icônes d’interface SVG issues de [Lucide](https://lucide.dev/) — licence **ISC**, texte fourni dans `licenses/LUCIDE-ISC.txt`.
 - Interface construite avec [Qt for Python (PySide6)](https://doc.qt.io/qtforpython-6/) — licence **LGPL v3** ; les bibliothèques Qt sont livrées sous forme de DLL séparées et remplaçables.

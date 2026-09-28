@@ -961,6 +961,7 @@ class MainWindow(QMainWindow):
         dlg.profileChanged.connect(on_change)
         dlg.welcomeRequested.connect(self._project_welcome_screen)
         dlg.socialsRequested.connect(self._project_socials_screen)
+        dlg.pastorRequested.connect(self._project_pastor_screen)
         dlg.quoteRequested.connect(self._quote_from_live)
         return dlg
 
@@ -980,6 +981,16 @@ class MainWindow(QMainWindow):
 
         self._project_church_visual(
             "accueil.png", self._settings.church.name or "Accueil", render_welcome
+        )
+
+    def _project_pastor_screen(self) -> None:
+        """Écran du prédicateur : photo détourée, titre, nom, message du jour."""
+        from app.utils.church_graphics import pastor_label, render_pastor
+
+        church = self._settings.church
+        self._project_church_visual(
+            "predicateur.png", pastor_label(church) or "Prédicateur",
+            lambda profile: render_pastor(profile, subtitle=profile.pastor_message),
         )
 
     def _project_socials_screen(self) -> None:
@@ -1447,6 +1458,7 @@ class MainWindow(QMainWindow):
             "history": lambda: getattr(self, "_show_history_dialog", lambda: None)(),
             "welcome": self._project_welcome_screen,
             "socials": self._project_socials_screen,
+            "pastor": self._project_pastor_screen,
             "quote": self._quote_from_live,
             "help": self._show_shortcuts_dialog,
         }

@@ -75,6 +75,13 @@ class ChurchProfile:
     show_socials_quotes: bool = True
     qr_target: str = ""  # réseau vers lequel pointe le QR code ("" = aucun)
     quote_style: str = "classic"  # classic | minimal | framed
+    # Pasteur : nom, titre et photo détourée (PNG transparent)
+    pastor_name: str = ""
+    pastor_title: str = "Pasteur"
+    pastor_photo: str = ""
+    show_pastor_welcome: bool = True
+    show_pastor_quotes: bool = False  # signature et photo sur les citations
+    pastor_message: str = ""  # titre du message du jour (écran du prédicateur)
 
     def sanitized(self) -> ChurchProfile:
         defaults = ChurchProfile()
@@ -543,11 +550,52 @@ def render_quote(profile: ChurchProfile, text: str, reference: str = "",
         )
         draw.text((width // 2, y + int(22 * unit)), reference.replace("\n", " — "),
                   font=_font(profile.font_family, int(36 * unit)), fill=accent, anchor="ma")
+        y += int(70 * unit)
+    if profile.show_pastor_quotes and pastor_label(profile):
+        # Signature du pasteur, et sa photo détourée dans le coin inférieur.
+        draw.text((width // 2, y + int(16 * unit)), f"— {pastor_label(profile)}",
+                  font=_font(profile.font_family, int(30 * unit), bold=False),
+                  fill=(*text_rgb, 230), anchor="ma")
+        photo = _pastor_image(profile, int(width * 0.26), int(height * 0.30))
+        if photo is not None:
+            image.alpha_composite(photo, (int(margin * 0.4), height - photo.height))
     return image
 
 
+def _pastor_image(profile: ChurchProfile, max_w: int, max_h: int):
+    """Photo détourée du pasteur, redimensionnée (None si absente)."""
+    from PIL import Image
+
+    path = Path(profile.pastor_photo) if profile.pastor_photo else None
+    if path is None or not path.is_file():
+        return None
+    try:
+        photo = Image.open(path).convert("RGBA")
+    except Exception:
+        return None
+    scale = min(max_w / photo.width, max_h / photo.height)
+    size = (max(1, int(photo.width * scale)), max(1, int(photo.height * scale)))
+    return photo.resize(size, Image.LANCZOS)
+
+
+def pastor_label(profile: ChurchProfile) -> str:
+    return " ".join(p for p in (profile.pastor_title, profile.pastor_name) if p).strip()
+
+
+def _pastor_caption(draw, profile: ChurchProfile, cx: int, y: int, unit: float,
+                    accent, text_rgb) -> None:
+    """Titre (petit, couleur d'accent) puis nom du pasteur, centrés sur cx."""
+    if profile.pastor_title:
+        draw.text((cx, y), profile.pastor_title.upper(),
+                  font=_font(profile.font_family, int(24 * unit)), fill=accent, anchor="ma")
+        y += int(34 * unit)
+    if profile.pastor_name:
+        draw.text((cx, y), profile.pastor_name,
+                  font=_font(profile.font_family, int(34 * unit)), fill=text_rgb, anchor="ma")
+
+
 def render_welcome(profile: ChurchProfile, width: int = 1920, height: int = 1080):
-    """Écran d'accueil : titre, logo, nom, devise, horaires, réseaux, QR code."""
+    """Écran d'accueil : titre, logo, nom, devise, horaires, pasteur, réseaux, QR."""
     from PIL import ImageDraw
 
     profile = profile.sanitized()
@@ -556,34 +604,59 @@ def render_welcome(profile: ChurchProfile, width: int = 1920, height: int = 1080
     accent = _rgb(profile.accent_color, "#F0BE64")
     text_rgb = _rgb(profile.text_color, "#FFFFFF")
     unit = min(width, height) / 1080
+
+    # Photo du pasteur en bas à gauche : le contenu se décale vers la droite.
+    pastor = (
+        _pastor_image(profile, int(width * 0.30), int(height * 0.72))
+        if profile.show_pastor_welcome else None
+    )
+    left_reserved = 0
+    if pastor is not None:
+        px = int(40 * unit)
+        image.alpha_composite(pastor, (px, height - pastor.height))
+        left_reserved = px + pastor.width
+        if pastor_label(profile):
+            caption_top = height - int(118 * unit)
+            veil_w = max(pastor.width, int(320 * unit))
+            veil = ImageDraw.Draw(image)
+            veil.rounded_rectangle(
+                (px + pastor.width // 2 - veil_w // 2, caption_top - int(14 * unit),
+                 px + pastor.width // 2 + veil_w // 2, height - int(18 * unit)),
+                radius=int(16 * unit), fill=(0, 0, 0, 150),
+            )
+            _pastor_caption(draw, profile, px + pastor.width // 2, caption_top, unit,
+                            accent, text_rgb)
+    cx = (left_reserved + width) // 2 if pastor is not None else width // 2
+    text_w = int((width - left_reserved) * 0.86) if pastor is not None else int(width * 0.8)
+
     socials = profile.show_socials_welcome and bool(profile.social_items())
     y = int(height * (0.10 if profile.service_times or socials else 0.16))
     if profile.welcome_title:
-        draw.text((width // 2, y), profile.welcome_title.upper(),
+        draw.text((cx, y), profile.welcome_title.upper(),
                   font=_font(profile.font_family, int(34 * unit)), fill=accent, anchor="ma")
         y += int(64 * unit)
-    logo_h = _paste_logo(image, profile, width // 2, y, int(220 * unit))
+    logo_h = _paste_logo(image, profile, cx, y, int(220 * unit))
     y += logo_h + int(40 * unit) if logo_h else int(60 * unit)
     name = profile.name or "Bienvenue"
-    font, lines, size = _fit_text(draw, name, profile.font_family, int(width * 0.8),
+    font, lines, size = _fit_text(draw, name, profile.font_family, text_w,
                                   int(240 * unit), start=int(104 * unit), minimum=int(46 * unit))
     for line in lines:
-        draw.text((width // 2, y), line, font=font, fill=text_rgb, anchor="ma")
+        draw.text((cx, y), line, font=font, fill=text_rgb, anchor="ma")
         y += int(size * 1.15)
     y += int(16 * unit)
-    draw.line([(width // 2 - int(90 * unit), y), (width // 2 + int(90 * unit), y)],
+    draw.line([(cx - int(90 * unit), y), (cx + int(90 * unit), y)],
               fill=accent, width=max(2, int(5 * unit)))
     y += int(36 * unit)
     if profile.motto:
         motto_font = _font(profile.font_family, int(42 * unit), bold=False)
-        for line in _wrap(draw, profile.motto, motto_font, int(width * 0.7)):
-            draw.text((width // 2, y), line, font=motto_font, fill=(*text_rgb, 225), anchor="ma")
+        for line in _wrap(draw, profile.motto, motto_font, int(text_w * 0.88)):
+            draw.text((cx, y), line, font=motto_font, fill=(*text_rgb, 225), anchor="ma")
             y += int(56 * unit)
     if profile.service_times:
         y += int(18 * unit)
         times_font = _font(profile.font_family, int(32 * unit))
         for line in [l.strip() for l in profile.service_times.splitlines() if l.strip()][:4]:
-            draw.text((width // 2, y), line, font=times_font, fill=accent, anchor="ma")
+            draw.text((cx, y), line, font=times_font, fill=accent, anchor="ma")
             y += int(46 * unit)
 
     # Bas de l'écran : réseaux sociaux (centrés), QR code (à droite).
@@ -591,22 +664,80 @@ def render_welcome(profile: ChurchProfile, width: int = 1920, height: int = 1080
     qr = qr_image(link_url(profile.qr_target, profile.socials.get(profile.qr_target, "")),
                   int(170 * unit), profile.qr_target) if qr_platform else None
     bottom = height - int(60 * unit)
+    right_reserved = 0
     if qr is not None:
         qx, qy = width - qr.width - int(60 * unit), bottom - qr.height - int(30 * unit)
         image.alpha_composite(qr, (qx, qy))
         draw.text((qx + qr.width // 2, qy + qr.height + int(10 * unit)),
                   qr_platform.label, font=_font(profile.font_family, int(22 * unit)),
                   fill=text_rgb, anchor="ma")
+        right_reserved = qr.width + int(90 * unit)
     if socials:
-        strip_width = width - 2 * int(80 * unit) - (qr.width + int(60 * unit) if qr else 0) * 2
+        free_left = left_reserved + int(40 * unit)
+        free_right = width - right_reserved - int(40 * unit)
+        if pastor is None and qr is not None:
+            free_left = right_reserved  # rangée centrée sur l'écran
+        strip_cx = (free_left + free_right) // 2
         rows = 2 if len(profile.social_items()) > 3 else 1
-        _socials_strip(image, draw, profile, width // 2,
+        _socials_strip(image, draw, profile, strip_cx,
                        bottom - int(52 * unit) * rows - int(10 * unit),
-                       max(400, strip_width), unit, text_rgb, limit=6)
+                       max(400, free_right - free_left), unit, text_rgb, limit=6)
     elif profile.contact:
-        draw.text((width // 2, bottom - int(30 * unit)), profile.contact,
+        draw.text((cx, bottom - int(30 * unit)), profile.contact,
                   font=_font(profile.font_family, int(30 * unit), bold=False),
                   fill=accent, anchor="ma")
+    return image
+
+
+def render_pastor(profile: ChurchProfile, width: int = 1920, height: int = 1080,
+                  kicker: str = "Prédication", subtitle: str = ""):
+    """Écran du prédicateur : photo détourée en grand, titre et nom.
+
+    ``subtitle`` : titre du message du jour (facultatif).
+    """
+    from PIL import ImageDraw
+
+    profile = profile.sanitized()
+    image = _background(width, height, profile)
+    draw = ImageDraw.Draw(image)
+    accent = _rgb(profile.accent_color, "#F0BE64")
+    text_rgb = _rgb(profile.text_color, "#FFFFFF")
+    unit = min(width, height) / 1080
+    pastor = _pastor_image(profile, int(width * 0.46), int(height * 0.94))
+    if pastor is not None:
+        image.alpha_composite(pastor, (int(width * 0.27) - pastor.width // 2 + int(20 * unit),
+                                       height - pastor.height))
+        left, text_w = int(width * 0.52), int(width * 0.42)
+    else:
+        left, text_w = int(width * 0.12), int(width * 0.76)
+    y = int(height * 0.30)
+    if kicker:
+        draw.text((left, y), kicker.upper(), font=_font(profile.font_family, int(34 * unit)),
+                  fill=accent, anchor="la")
+        y += int(62 * unit)
+    if profile.pastor_title:
+        draw.text((left, y), profile.pastor_title,
+                  font=_font(profile.font_family, int(44 * unit), bold=False),
+                  fill=(*text_rgb, 220), anchor="la")
+        y += int(62 * unit)
+    font, lines, size = _fit_text(draw, profile.pastor_name or "Prédicateur",
+                                  profile.font_family, text_w, int(280 * unit),
+                                  start=int(96 * unit), minimum=int(44 * unit), line_factor=1.1)
+    for line in lines:
+        draw.text((left, y), line, font=font, fill=text_rgb, anchor="la")
+        y += int(size * 1.1)
+    y += int(20 * unit)
+    draw.line([(left, y), (left + int(140 * unit), y)], fill=accent, width=max(2, int(6 * unit)))
+    y += int(40 * unit)
+    if subtitle:
+        sub_font = _font(profile.font_family, int(40 * unit), bold=False)
+        for line in _wrap(draw, subtitle, sub_font, text_w)[:3]:
+            draw.text((left, y), line, font=sub_font, fill=text_rgb, anchor="la")
+            y += int(54 * unit)
+    if profile.name:
+        draw.text((left, height - int(110 * unit)), profile.name,
+                  font=_font(profile.font_family, int(30 * unit), bold=False),
+                  fill=(*text_rgb, 200), anchor="la")
     return image
 
 
