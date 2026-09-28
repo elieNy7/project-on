@@ -110,3 +110,16 @@ def isolate_user_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 def _ensure_dir(path: Path) -> Path:
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+@pytest.fixture(autouse=True)
+def no_background_startup_check(monkeypatch: pytest.MonkeyPatch):
+    """Le contrôle avant culte du démarrage s'afficherait au milieu d'un
+    test (minuterie de 4 s) : désactivé ici, testé directement ailleurs."""
+    try:
+        from app.ui.main_window import MainWindow
+    except Exception:  # environnement sans Qt graphique
+        yield
+        return
+    monkeypatch.setattr(MainWindow, "_run_startup_check", lambda self: None)
+    yield

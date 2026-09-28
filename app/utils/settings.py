@@ -482,6 +482,8 @@ class AppearanceSettings:
     rail_compact: bool = False  # navigation rail collapsed to icons
     # Mode PC modeste : sans animations, flou, Ken Burns, fond vidéo ni Mica.
     low_power: bool = False
+    # Contrôle avant culte lancé en arrière-plan à chaque démarrage.
+    startup_check: bool = True
 
 
 def _gs(d: dict, key: str, default: str) -> str:
@@ -1015,6 +1017,7 @@ class AppSettings:
             appearance.mica = bool(a.get("mica", appearance.mica))
             appearance.rail_compact = bool(a.get("rail_compact", appearance.rail_compact))
             appearance.low_power = bool(a.get("low_power", appearance.low_power))
+            appearance.startup_check = bool(a.get("startup_check", appearance.startup_check))
 
         hdmi = HdmiSettings()
         hm = payload.get("hdmi")

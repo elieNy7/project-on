@@ -382,6 +382,9 @@ class MainWindow(QMainWindow):
         self._obs_poll_timer.start()
         # Premier check immédiat
         QTimer.singleShot(500, self._poll_obs_status)
+        # Contrôle avant culte en arrière-plan, une fois l'interface affichée.
+        if self._settings.appearance.startup_check:
+            QTimer.singleShot(4000, self._run_startup_check)
         QTimer.singleShot(0, self._start_obs_output)
         # La sortie HDMI ne s'ouvre JAMAIS au démarrage : elle s'active à la
         # demande (Réglages → Sortie HDMI) et se quitte par Échap.
@@ -1038,12 +1041,14 @@ class MainWindow(QMainWindow):
             appearance.language,
             mica=appearance.mica if mica_supported() else None,
             low_power=appearance.low_power,
+            startup_check=appearance.startup_check,
         )
 
         def on_change() -> None:
             theme, language = dlg.get_settings()
             mica = dlg.mica_enabled()
             low_power = dlg.low_power_enabled()
+            appearance.startup_check = dlg.startup_check_enabled()
             if low_power != appearance.low_power:
                 appearance.low_power = low_power
                 self._apply_low_power()
@@ -1350,6 +1355,58 @@ class MainWindow(QMainWindow):
 
         dlg = ShortcutsDialog(self, keys=self._settings.shortcuts.effective())
         dlg.exec()
+
+    def _preflight_kwargs(self) -> dict:
+        from app.ui.preflight_dialog import PreflightDialog
+
+        ndi_arch = "x64" if sys.maxsize > 2**32 else "x86"
+        return {
+            "database_path": app_db_path(),
+            "data_directory": data_dir(),
+            "presentation_directory": self._presentation_dir,
+            "screen_count": len(QApplication.screens()),
+            "obs_mode": self._settings.obs.mode,
+            "obs_port": self._settings.obs.web_port,
+            "ndi_runtime_path": resource_root() / "ndi" / "bin"
+            / f"Processing.NDI.Lib.{ndi_arch}.dll",
+            "hdmi_info": PreflightDialog._build_hdmi_info(self._settings),
+        }
+
+    def _run_startup_check(self) -> None:
+        """Contrôle avant culte silencieux : on ne prévient qu'en cas de souci."""
+        from PySide6.QtCore import QThreadPool
+
+        from app.ui.preflight_dialog import _HealthSignals, _HealthWorker
+
+        self._startup_check_signals = _HealthSignals(self)
+        self._startup_check_signals.completed.connect(self._on_startup_check_done)
+        QThreadPool.globalInstance().start(
+            _HealthWorker(self._startup_check_signals, self._preflight_kwargs())
+        )
+
+    def _on_startup_check_done(self, report) -> None:
+        problems = [c for c in report.checks if c.status != "success"]
+        if not problems:
+            return
+        lines = "\n".join(
+            f"• {'✖' if c.status == 'error' else '⚠'} {c.title} : {c.detail}"
+            for c in problems[:6]
+        )
+        box = QMessageBox(
+            QMessageBox.Icon.Warning if report.errors else QMessageBox.Icon.Information,
+            "Contrôle avant culte",
+            f"{report.errors} erreur(s), {report.warnings} avertissement(s) :\n\n{lines}",
+            QMessageBox.StandardButton.Ignore,
+            self,
+        )
+        details = box.addButton("Voir le détail", QMessageBox.ButtonRole.AcceptRole)
+        box.buttonClicked.connect(
+            lambda button: self._show_preflight_dialog() if button is details else None
+        )
+        # Non modal : la régie reste utilisable pendant la lecture du message.
+        box.setWindowModality(Qt.WindowModality.NonModal)
+        self._startup_check_box = box
+        box.show()
 
     def _show_preflight_dialog(self) -> None:
         from app.ui.preflight_dialog import PreflightDialog

@@ -101,9 +101,11 @@ class AppearanceSettingsDialog(QDialog):
         embedded: bool = False,
         mica: bool | None = None,
         low_power: bool = False,
+        startup_check: bool = True,
     ) -> None:
         super().__init__(parent)
         self._low_power = bool(low_power)
+        self._startup_check = bool(startup_check)
         self._embedded = embedded
         # None: the Mica option is not offered (unsupported Windows).
         self._mica = mica
@@ -186,6 +188,14 @@ class AppearanceSettingsDialog(QDialog):
             self._low_power_box,
             "Sans animations, flou ni fond vidéo : fluide sur un petit ordinateur",
         )
+        self._startup_check_box = QCheckBox("Contrôle avant culte au démarrage")
+        self._startup_check_box.setChecked(self._startup_check)
+        self._startup_check_box.toggled.connect(lambda _on: self.settingsChanged.emit())
+        perf_section.addRow(
+            "Contrôle au démarrage",
+            self._startup_check_box,
+            "Vérifie base, écrans, disque, OBS et HDMI ; prévient seulement en cas de problème",
+        )
         layout.addWidget(perf_section)
 
         note = QLabel(tr("restart_required"), self)
@@ -226,6 +236,9 @@ class AppearanceSettingsDialog(QDialog):
     def get_settings(self) -> tuple[str, str]:
         """Retourne (theme, language)."""
         return self._theme, self._language
+
+    def startup_check_enabled(self) -> bool:
+        return self._startup_check_box.isChecked()
 
     def low_power_enabled(self) -> bool:
         return self._low_power_box.isChecked()
