@@ -215,3 +215,28 @@ def test_qr_code_with_logo_stays_readable() -> None:
     image = qr_image(url, 300, "youtube").convert("RGB").resize((600, 600))
     data, _points, _raw = cv2.QRCodeDetector().detectAndDecode(np.array(image)[:, :, ::-1])
     assert data == url
+
+
+def test_source_images_are_decoded_once_and_reread_when_replaced(tmp_path, monkeypatch) -> None:
+    import os
+
+    from PIL import Image
+
+    from app.utils import church_graphics
+
+    photo = tmp_path / "pasteur.png"
+    Image.new("RGBA", (40, 80), (255, 0, 0, 255)).save(photo)
+    opened: list[str] = []
+    real_open = Image.open
+    monkeypatch.setattr(Image, "open", lambda p, *a, **k: opened.append(str(p)) or real_open(p, *a, **k))
+
+    first = church_graphics._open_image(photo, "RGBA")
+    first.putpixel((0, 0), (0, 0, 0, 0))  # callers get a copy they may modify
+    again = church_graphics._open_image(photo, "RGBA")
+    assert opened == [str(photo)] and again.getpixel((0, 0)) == (255, 0, 0, 255)
+
+    Image.new("RGBA", (40, 80), (0, 0, 255, 255)).save(photo)
+    stat = photo.stat()
+    os.utime(photo, ns=(stat.st_atime_ns, stat.st_mtime_ns + 10**9))
+    assert church_graphics._open_image(photo, "RGBA").getpixel((0, 0)) == (0, 0, 255, 255)
+    assert len(opened) == 2

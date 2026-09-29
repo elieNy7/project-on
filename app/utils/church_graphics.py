@@ -14,7 +14,11 @@ postes et s'enregistrent en PNG.
 from __future__ import annotations
 
 import copy
+import functools
+import os
 import re
+import threading
+from collections import OrderedDict
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
@@ -233,6 +237,12 @@ def _rgb(value: str, fallback: str) -> tuple[int, int, int]:
 
 
 def _font(family: str, size: int, bold: bool = True):
+    return _cached_font(str(family or ""), max(8, int(size)), bool(bold))
+
+
+@functools.lru_cache(maxsize=256)
+def _cached_font(family: str, size: int, bold: bool):
+    """Police chargée une seule fois par (famille, taille, graisse)."""
     from PIL import ImageFont
 
     from app.utils.obs_overlay_render import _font_file
@@ -289,6 +299,38 @@ def _fit_text(draw, text: str, family: str, box_w: int, box_h: int,
         size = max(minimum, int(size * 0.92))
 
 
+# Images sources décodées une seule fois : la photo du pasteur (PNG de
+# plusieurs Mo), le logo et le fond servent à chaque rendu d'aperçu. La clé
+# inclut la date et la taille du fichier : une photo remplacée est relue.
+_IMAGE_CACHE: OrderedDict[tuple, Any] = OrderedDict()
+_IMAGE_CACHE_SIZE = 6
+_IMAGE_MAX_SIDE = 3840  # aucune sortie ne dépasse 1920 px (zoom ×2 compris)
+_IMAGE_LOCK = threading.Lock()
+
+
+def _open_image(path: str | Path, mode: str):
+    """Copie de l'image ``path`` convertie en ``mode`` ; lève si illisible."""
+    from PIL import Image
+
+    path = str(path)
+    stat = os.stat(path)
+    key = (path, mode, stat.st_mtime_ns, stat.st_size)
+    with _IMAGE_LOCK:
+        cached = _IMAGE_CACHE.get(key)
+        if cached is not None:
+            _IMAGE_CACHE.move_to_end(key)
+            return cached.copy()
+    with Image.open(path) as source:
+        image = source.convert(mode)
+    if max(image.size) > _IMAGE_MAX_SIDE:
+        image.thumbnail((_IMAGE_MAX_SIDE, _IMAGE_MAX_SIDE), Image.LANCZOS)
+    with _IMAGE_LOCK:
+        _IMAGE_CACHE[key] = image
+        while len(_IMAGE_CACHE) > _IMAGE_CACHE_SIZE:
+            _IMAGE_CACHE.popitem(last=False)
+    return image.copy()
+
+
 def _background(width: int, height: int, profile: ChurchProfile):
     """Fond : dégradé, couleur unie ou image assombrie (réglage de l'église)."""
     from PIL import Image
@@ -298,7 +340,7 @@ def _background(width: int, height: int, profile: ChurchProfile):
         path = Path(profile.background_image)
         if path.is_file():
             try:
-                source = Image.open(path).convert("RGB")
+                source = _open_image(path, "RGB")
                 scale = max(width / source.width, height / source.height)
                 resized = source.resize(
                     (max(1, int(source.width * scale)), max(1, int(source.height * scale)))
@@ -323,13 +365,12 @@ def _background(width: int, height: int, profile: ChurchProfile):
 
 def _paste_logo(image, profile: ChurchProfile, center_x: int, top: int, max_h: int) -> int:
     """Colle le logo centré ; renvoie la hauteur occupée (0 sans logo)."""
-    from PIL import Image
 
     path = Path(profile.logo) if profile.logo else None
     if path is None or not path.is_file():
         return 0
     try:
-        logo = Image.open(path).convert("RGBA")
+        logo = _open_image(path, "RGBA")
     except Exception:
         return 0
     logo.thumbnail((max_h * 3, max_h))
@@ -602,7 +643,7 @@ def _photo_image(photo: str, max_w: int, max_h: int):
     if path is None or not path.is_file():
         return None
     try:
-        image = Image.open(path).convert("RGBA")
+        image = _open_image(path, "RGBA")
     except Exception:
         return None
     scale = min(max_w / image.width, max_h / image.height)
@@ -1115,7 +1156,7 @@ def _cover(path: str, width: int, height: int, focus_y: float = 0.5, zoom: float
     from PIL import Image
 
     try:
-        source = Image.open(path).convert("RGB")
+        source = _open_image(path, "RGB")
     except Exception:
         return None
     scale = max(width / source.width, height / source.height) * max(1.0, zoom)
@@ -1489,7 +1530,7 @@ def render_youtube_thumbnail(profile: ChurchProfile, spec: ThumbnailSpec,
     logo = None
     if profile.logo and Path(profile.logo).is_file():
         try:
-            logo = Image.open(profile.logo).convert("RGBA")
+            logo = _open_image(profile.logo, "RGBA")
             logo.thumbnail((int(170 * unit), int(62 * unit)))
         except Exception:
             logo = None

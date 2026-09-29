@@ -4,6 +4,7 @@ import json
 import logging
 import sys
 import time
+from dataclasses import asdict
 from pathlib import Path
 
 from PySide6.QtCore import QEvent, QObject, Qt, QTimer
@@ -58,6 +59,8 @@ from app.utils.translations import set_language, tr
 from app.version import __version__
 
 log = logging.getLogger(__name__)
+
+_KEY_EVENT_TYPES = frozenset((QEvent.Type.KeyPress, QEvent.Type.ShortcutOverride))
 
 
 def _is_text_entry(widget: QWidget | None) -> bool:
@@ -320,8 +323,13 @@ class MainWindow(QMainWindow):
                 self._owner = owner
 
             def eventFilter(self, obj: QObject, event: QEvent) -> bool:
+                # Every event of the application goes through this filter
+                # (paint, mouse, layout…): leave at once unless it is a key.
+                event_type = event.type()
+                if event_type not in _KEY_EVENT_TYPES:
+                    return False
                 if (
-                    event.type() == QEvent.Type.ShortcutOverride
+                    event_type == QEvent.Type.ShortcutOverride
                     and event.key() == Qt.Key.Key_Escape
                     and _is_text_entry(QApplication.focusWidget())
                 ):
@@ -329,7 +337,7 @@ class MainWindow(QMainWindow):
                     # reach the "close projection" shortcut.
                     event.accept()
                     return False
-                if event.type() != QEvent.Type.KeyPress:
+                if event_type != QEvent.Type.KeyPress:
                     return False
 
                 key = event.key()
@@ -858,15 +866,24 @@ class MainWindow(QMainWindow):
 
     def _setup_settings_page(self) -> None:
         page = self.library_panel.settings_page
-        page.register("projection", tr("local_projection"), "monitor.svg", self._build_projection_section)
+        page.register(
+            "projection", tr("local_projection"), "monitor.svg", self._build_projection_section,
+            fingerprint=lambda: self._section_fingerprint(self._settings.projection),
+        )
         page.register("hdmi", "Sortie HDMI", "cast.svg", self._build_hdmi_section)
         page.register("split", "Découpage des textes", "file-text.svg", self._build_split_section)
         page.register("bibles", "Bibles", "book.svg", self._build_bibles_section)
         page.register("shortcuts", "Raccourcis", "zap.svg", self._build_shortcuts_section)
         page.register("update", "Mise à jour", "download.svg", self._build_update_section)
-        page.register("church", "Profil de l'église", "church.svg", self._build_church_section)
+        page.register(
+            "church", "Profil de l'église", "church.svg", self._build_church_section,
+            fingerprint=lambda: self._section_fingerprint(self._settings.church),
+        )
         page.register("obs", tr("connectivity"), "wifi.svg", self._build_obs_section)
-        page.register("obs_output", tr("lower_third_style"), "layout.svg", self._build_obs_output_section)
+        page.register(
+            "obs_output", tr("lower_third_style"), "layout.svg", self._build_obs_output_section,
+            fingerprint=lambda: self._section_fingerprint(self._settings.obs),
+        )
         page.register("appearance", tr("appearance"), "eye.svg", self._build_appearance_section)
 
         self._settings_save_timer = QTimer(self)
@@ -874,12 +891,19 @@ class MainWindow(QMainWindow):
         self._settings_save_timer.setInterval(500)
         self._settings_save_timer.timeout.connect(self._save_settings)
 
+    def _section_fingerprint(self, settings) -> tuple:
+        """What a kept settings section displays: its settings, plus the theme
+        and language its colours and texts were built with."""
+        appearance = self._settings.appearance
+        return (asdict(settings), appearance.theme, appearance.language)
+
     def _show_settings_section(self, key: str) -> None:
         self.rail.setCurrentIndex(self._SETTINGS_TAB)
         self.library_panel.settings_page.show_section(key)
 
     def _settings_changed(self) -> None:
         """A setting was applied: save soon, refresh the overview texts."""
+        self.library_panel.settings_page.sync_current()
         self._settings_save_timer.start()
         self._refresh_settings_details()
 

@@ -4,13 +4,15 @@ A section list on the left, the section on the right. Sections host the
 existing settings screens in embedded mode: there is no Apply / Cancel,
 every change takes effect immediately (the main window saves it).
 Each section is rebuilt from the current settings whenever it is shown, so
-it never displays stale values.
+it never displays stale values. Heavy sections may pass a ``fingerprint`` of
+the settings they display: they are then kept once built, and rebuilt only
+when that fingerprint changed behind their back.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable
+from typing import Any, Callable
 
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import (
@@ -46,6 +48,19 @@ HOME = "home"
 _embedded_classes: dict[type, type] = {}
 
 
+class _WidgetFlagsFirst(QDialog):
+    """Placed right before QDialog in the MRO of an embedded dialog.
+
+    The dialog's own ``super().__init__()`` lands here, so it becomes a plain
+    widget before any child exists. Switching the flags afterwards re-polishes
+    every field of the page (hundreds of them for the church profile).
+    """
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.setWindowFlags(Qt.WindowType.Widget)
+
+
 def embed_dialog(cls: type[QDialog], *args, **kwargs) -> QDialog:
     """Instantiate a settings dialog as a plain child widget.
 
@@ -56,7 +71,7 @@ def embed_dialog(cls: type[QDialog], *args, **kwargs) -> QDialog:
     if embedded_cls is None:
         embedded_cls = type(
             f"Embedded{cls.__name__}",
-            (cls,),
+            (cls, _WidgetFlagsFirst),
             {
                 "accept": lambda self: None,
                 "reject": lambda self: None,
@@ -65,7 +80,10 @@ def embed_dialog(cls: type[QDialog], *args, **kwargs) -> QDialog:
         )
         _embedded_classes[cls] = embedded_cls
     dialog = embedded_cls(*args, embedded=True, **kwargs)
-    dialog.setWindowFlags(Qt.WindowType.Widget)
+    # A dialog calling QDialog.__init__ directly skipped _WidgetFlagsFirst.
+    # (Without a parent Qt reports a Window, not a Dialog, once flags are set.)
+    if dialog.windowType() == Qt.WindowType.Dialog:
+        dialog.setWindowFlags(Qt.WindowType.Widget)
     dialog.setMinimumSize(0, 0)
     dialog.setSizeGripEnabled(False)
     return dialog
@@ -104,6 +122,12 @@ class _Section:
     icon: str
     factory: Callable[[], QWidget]
     item: RailItem
+    fingerprint: Callable[[], Any] | None = None
+    # Kept sections only: their own scroll area, widget and the fingerprint
+    # of the settings the widget currently displays.
+    host: QScrollArea | None = None
+    widget: QWidget | None = None
+    shows: Any = None
 
 
 class InfoBar(QFrame):
@@ -202,11 +226,20 @@ class SettingsPage(QWidget):
 
     # ── Sections ──
 
-    def register(self, key: str, label: str, icon: str, factory: Callable[[], QWidget]) -> None:
+    def register(
+        self,
+        key: str,
+        label: str,
+        icon: str,
+        factory: Callable[[], QWidget],
+        fingerprint: Callable[[], Any] | None = None,
+    ) -> None:
+        """Add a section. With ``fingerprint`` the built section is kept and
+        reused while ``fingerprint()`` is unchanged (see ``sync_current``)."""
         item = RailItem(label, icon, self)
         item.clicked.connect(lambda _c=False, k=key: self.show_section(k))
         self._nav_items.addWidget(item)
-        self._sections[key] = _Section(key, label, icon, factory, item)
+        self._sections[key] = _Section(key, label, icon, factory, item, fingerprint)
 
     def keys(self) -> list[str]:
         return list(self._sections)
@@ -217,7 +250,7 @@ class SettingsPage(QWidget):
     def current_widget(self) -> QWidget | None:
         return self._home if self._current == HOME else self._current_widget
 
-    def show_section(self, key: str) -> None:
+    def show_section(self, key: str, rebuild: bool = False) -> None:
         section = self._sections.get(key)
         if section is None:
             return
@@ -228,6 +261,8 @@ class SettingsPage(QWidget):
         self._current = key
         if key == HOME:
             self._stack.setCurrentWidget(self._home)
+        elif section.fingerprint is not None:
+            self._show_kept(section, rebuild)
         else:
             widget = section.factory()
             self._current_widget = widget
@@ -239,11 +274,40 @@ class SettingsPage(QWidget):
     def refresh_current(self) -> None:
         """Rebuild the visible section from the current settings."""
         if self._current is not None:
-            self.show_section(self._current)
+            self.show_section(self._current, rebuild=True)
+
+    def sync_current(self) -> None:
+        """The visible section just applied a change: what it displays is,
+        by definition, the current settings (no rebuild next time)."""
+        section = self._sections.get(self._current or "")
+        if section is not None and section.fingerprint is not None and section.widget is not None:
+            section.shows = section.fingerprint()
+
+    def _show_kept(self, section: _Section, rebuild: bool) -> None:
+        # Building a large section costs up to a second (hundreds of styled
+        # fields): reuse it while its settings did not change elsewhere.
+        current = section.fingerprint()
+        if rebuild or section.widget is None or section.shows != current:
+            if section.host is None:
+                section.host = QScrollArea(self._stack)
+                section.host.setWidgetResizable(True)
+                section.host.setFrameShape(QFrame.Shape.NoFrame)
+                section.host.setStyleSheet(get_scroll_area_style())
+                self._stack.addWidget(section.host)
+            old = section.host.takeWidget()
+            if old is not None:
+                old.hide()
+                old.deleteLater()
+            section.widget = section.factory()
+            section.host.setWidget(section.widget)
+            section.widget.show()
+            section.shows = current
+        self._current_widget = section.widget
+        self._stack.setCurrentWidget(section.host)
 
     def _drop_current(self) -> None:
         widget, self._current_widget = self._current_widget, None
-        if widget is not None:
+        if widget is not None and widget is self._host.widget():
             self._host.takeWidget()
             widget.hide()
             widget.deleteLater()

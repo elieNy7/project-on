@@ -267,3 +267,29 @@ def test_mica_switch_is_saved(window, monkeypatch) -> None:
     dlg._mica_box.setChecked(not before)
 
     assert window._settings.appearance.mica is (not before)
+
+
+def test_heavy_section_is_kept_until_its_settings_change_elsewhere(window) -> None:
+    from dataclasses import replace
+
+    page = _page(window)
+    window._show_settings_section("church")
+    first = page.current_widget()
+    page.show_section("home")
+    window._show_settings_section("church")
+    assert page.current_widget() is first  # reopened at once, not rebuilt
+
+    # A change made by the section itself keeps it.
+    first.motto.setText("Christ est la lumière")
+    first._emit()
+    page.show_section("home")
+    window._show_settings_section("church")
+    assert page.current_widget() is first
+
+    # A change made elsewhere rebuilds it with the new values.
+    window._settings.church = replace(window._settings.church, name="Autre église")
+    page.show_section("home")
+    window._show_settings_section("church")
+    rebuilt = page.current_widget()
+    assert rebuilt is not first and rebuilt.name.text() == "Autre église"
+    assert rebuilt.isVisible() and not rebuilt.isWindow()

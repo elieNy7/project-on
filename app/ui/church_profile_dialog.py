@@ -415,7 +415,13 @@ class ChurchProfileDialog(QDialog):
         self.speaker_broadcast_size.valueChanged.connect(self._debounce.start)
         for box in (self.show_socials_welcome, self.show_socials_quotes):
             box.toggled.connect(self._debounce.start)
-        self._render_preview()
+        # L'aperçu se dessine juste après l'affichage : la page s'ouvre sans
+        # attendre le rendu de l'image.
+        self._preview_timer = QTimer(self)
+        self._preview_timer.setSingleShot(True)
+        self._preview_timer.setInterval(0)
+        self._preview_timer.timeout.connect(self._render_preview)
+        self._preview_timer.start()
 
     def read_profile(self) -> ChurchProfile:
         return ChurchProfile(
@@ -458,6 +464,7 @@ class ChurchProfileDialog(QDialog):
         self.profileChanged.emit(self._profile)
 
     def _render_preview(self, *_args) -> None:
+        self._preview_timer.stop()
         profile = self.read_profile()
         kind = self.preview_kind.currentData()
         if kind == "socials":
