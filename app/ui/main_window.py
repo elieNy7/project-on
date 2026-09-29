@@ -876,20 +876,35 @@ class MainWindow(QMainWindow):
                 self._section_fingerprint(self._settings.hdmi), self._screens_fingerprint()
             ),
         )
-        page.register("split", "Découpage des textes", "file-text.svg", self._build_split_section)
-        page.register("bibles", "Bibles", "book.svg", self._build_bibles_section)
-        page.register("shortcuts", "Raccourcis", "zap.svg", self._build_shortcuts_section)
+        page.register(
+            "split", "Découpage des textes", "file-text.svg", self._build_split_section,
+            fingerprint=lambda: self._section_fingerprint(self._settings.split),
+        )
+        page.register(
+            "bibles", "Bibles", "book.svg", self._build_bibles_section,
+            fingerprint=self._bibles_fingerprint,
+        )
+        page.register(
+            "shortcuts", "Raccourcis", "zap.svg", self._build_shortcuts_section,
+            fingerprint=lambda: self._section_fingerprint(self._settings.shortcuts),
+        )
         page.register("update", "Mise à jour", "download.svg", self._build_update_section)
         page.register(
             "church", "Profil de l'église", "church.svg", self._build_church_section,
             fingerprint=lambda: self._section_fingerprint(self._settings.church),
         )
-        page.register("obs", tr("connectivity"), "wifi.svg", self._build_obs_section)
+        page.register(
+            "obs", tr("connectivity"), "wifi.svg", self._build_obs_section,
+            fingerprint=lambda: self._section_fingerprint(self._settings.obs),
+        )
         page.register(
             "obs_output", tr("lower_third_style"), "layout.svg", self._build_obs_output_section,
             fingerprint=lambda: self._section_fingerprint(self._settings.obs),
         )
-        page.register("appearance", tr("appearance"), "eye.svg", self._build_appearance_section)
+        page.register(
+            "appearance", tr("appearance"), "eye.svg", self._build_appearance_section,
+            fingerprint=lambda: self._section_fingerprint(self._settings.appearance),
+        )
 
         page.sectionShown.connect(self._on_settings_section_shown)
 
@@ -903,6 +918,17 @@ class MainWindow(QMainWindow):
         and language its colours and texts were built with."""
         appearance = self._settings.appearance
         return (asdict(settings), appearance.theme, appearance.language)
+
+    def _bibles_fingerprint(self) -> tuple:
+        """Installed Bibles (cheap: no verse count), for the kept Bibles section."""
+        try:
+            with self._db.connect() as conn:
+                rows = conn.execute(
+                    "SELECT id, module, name, shortname, lang FROM bible_translation ORDER BY id"
+                ).fetchall()
+        except Exception:
+            return (time.monotonic(),)  # unreadable: always rebuild
+        return (tuple(tuple(row) for row in rows), self._settings.appearance.language)
 
     @staticmethod
     def _screens_fingerprint() -> tuple:
@@ -1173,6 +1199,8 @@ class MainWindow(QMainWindow):
 
         dlg = embed_dialog(BibleManagerDialog, self._db)
         dlg.biblesChanged.connect(self._library_controller.refresh_bible_books)
+        # Installed or removed here: the kept section already shows it.
+        dlg.biblesChanged.connect(self.library_panel.settings_page.sync_current)
         return dlg
 
     def _build_split_section(self) -> QWidget:

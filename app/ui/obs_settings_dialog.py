@@ -381,6 +381,19 @@ class ObsSettingsDialog(QDialog):
         if timer is not None and timer.isActive():
             timer.stop()
 
+    def showEvent(self, event) -> None:
+        # La page Réglages garde cette section une fois fermée : l'état du
+        # serveur n'est interrogé que lorsqu'elle est à l'écran.
+        super().showEvent(event)
+        timer = getattr(self, "_status_timer", None)
+        if timer is not None and not timer.isActive():
+            self._update_server_status()
+            timer.start(1000)
+
+    def hideEvent(self, event) -> None:
+        super().hideEvent(event)
+        self._stop_status_timer()
+
     def closeEvent(self, event) -> None:
         self._stop_status_timer()
         super().closeEvent(event)

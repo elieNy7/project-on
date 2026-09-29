@@ -96,7 +96,8 @@ class BibleManagerDialog(QDialog):
         self._lang_filter.addItem("Toutes les langues", "")
         for lang in sorted({e.lang for e in bc.CATALOG}):
             self._lang_filter.addItem(bc.LANG_LABELS.get(lang, lang), lang)
-        self._lang_filter.currentIndexChanged.connect(self._rebuild)
+        # Changer de langue ne relit pas la base (comptage des versets).
+        self._lang_filter.currentIndexChanged.connect(lambda _i: self._rebuild(reload=False))
         self._catalog_section.addRow("Langue", self._lang_filter)
         self._layout.addWidget(self._catalog_section)
 
@@ -113,6 +114,7 @@ class BibleManagerDialog(QDialog):
         self._layout.addWidget(note)
         self._layout.addStretch(1)
 
+        self._installed_cache: dict[str, dict] | None = None
         self._dynamic_rows: list[QWidget] = []
         self._buttons: dict[str, QPushButton] = {}
         self._rebuild()
@@ -139,9 +141,11 @@ class BibleManagerDialog(QDialog):
         section._layout.addWidget(row)
         self._dynamic_rows.append(row)
 
-    def _rebuild(self, *_args) -> None:
+    def _rebuild(self, *_args, reload: bool = True) -> None:
         self._clear_rows()
-        installed = self._installed()
+        if reload or self._installed_cache is None:
+            self._installed_cache = self._installed()
+        installed = self._installed_cache
 
         for module, info in sorted(
             installed.items(), key=lambda kv: str(kv[1].get("shortname") or kv[0]).lower()

@@ -317,3 +317,33 @@ def test_kept_hdmi_section_shows_live_state_and_follows_screens(window, monkeypa
     page.show_section("home")
     window._show_settings_section("hdmi")
     assert page.current_widget() is not first
+
+
+@pytest.mark.parametrize("key", ("split", "bibles", "shortcuts", "obs", "appearance"))
+def test_other_sections_are_kept_too(window, key) -> None:
+    page = _page(window)
+    window._show_settings_section(key)
+    first = page.current_widget()
+    page.show_section("home")
+    window._show_settings_section(key)
+    assert page.current_widget() is first and first.isVisible()
+
+
+def test_hidden_connectivity_section_stops_polling(window) -> None:
+    page = _page(window)
+    window._show_settings_section("obs")
+    dlg = page.current_widget()
+    assert dlg._status_timer.isActive()
+    page.show_section("home")
+    assert not dlg._status_timer.isActive()
+    window._show_settings_section("obs")
+    assert dlg._status_timer.isActive()
+
+
+def test_bible_language_filter_does_not_reread_the_database(window, monkeypatch) -> None:
+    window._show_settings_section("bibles")
+    dlg = _page(window).current_widget()
+    reads = []
+    monkeypatch.setattr(dlg, "_installed", lambda: reads.append(1) or {})
+    dlg._lang_filter.setCurrentIndex(1)
+    assert reads == []
