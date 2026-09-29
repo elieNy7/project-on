@@ -870,7 +870,12 @@ class MainWindow(QMainWindow):
             "projection", tr("local_projection"), "monitor.svg", self._build_projection_section,
             fingerprint=lambda: self._section_fingerprint(self._settings.projection),
         )
-        page.register("hdmi", "Sortie HDMI", "cast.svg", self._build_hdmi_section)
+        page.register(
+            "hdmi", "Sortie HDMI", "cast.svg", self._build_hdmi_section,
+            fingerprint=lambda: (
+                self._section_fingerprint(self._settings.hdmi), self._screens_fingerprint()
+            ),
+        )
         page.register("split", "Découpage des textes", "file-text.svg", self._build_split_section)
         page.register("bibles", "Bibles", "book.svg", self._build_bibles_section)
         page.register("shortcuts", "Raccourcis", "zap.svg", self._build_shortcuts_section)
@@ -886,6 +891,8 @@ class MainWindow(QMainWindow):
         )
         page.register("appearance", tr("appearance"), "eye.svg", self._build_appearance_section)
 
+        page.sectionShown.connect(self._on_settings_section_shown)
+
         self._settings_save_timer = QTimer(self)
         self._settings_save_timer.setSingleShot(True)
         self._settings_save_timer.setInterval(500)
@@ -896,6 +903,20 @@ class MainWindow(QMainWindow):
         and language its colours and texts were built with."""
         appearance = self._settings.appearance
         return (asdict(settings), appearance.theme, appearance.language)
+
+    @staticmethod
+    def _screens_fingerprint() -> tuple:
+        """Connected screens: the HDMI section lists them."""
+        return tuple(
+            (screen.name(), screen.geometry().getRect()) for screen in QApplication.screens()
+        )
+
+    def _on_settings_section_shown(self, key: str) -> None:
+        # A kept HDMI section must not show the state of its last opening.
+        if key == "hdmi":
+            section = self.library_panel.settings_page.current_widget()
+            if section is not None and hasattr(section, "set_live_status"):
+                section.set_live_status(self._hdmi_live_status())
 
     def _show_settings_section(self, key: str) -> None:
         self.rail.setCurrentIndex(self._SETTINGS_TAB)

@@ -92,6 +92,7 @@ class HdmiSettingsDialog(QDialog):
         self._presentation_dir = Path(presentation_dir) if presentation_dir else None
         self._preview_slide_mtime = -1.0
         self._preview_cfg_mtime = -1.0
+        self._preview_rendered = False
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -279,9 +280,15 @@ class HdmiSettingsDialog(QDialog):
         style_section.addWidget(self._style_hint)
         layout.addWidget(style_section)
 
-        self._style_editor = HdmiStyleEditor(settings.style)
-        self._style_editor.changed.connect(self._on_change)
-        layout.addWidget(self._style_editor)
+        # L'éditeur (une quarantaine de réglages) n'est construit que le jour
+        # où l'on décoche « style de la page OBS » : la page s'ouvre plus vite.
+        self._style_editor: HdmiStyleEditor | None = None
+        self._pending_style = settings.style
+        self._style_host = QWidget()
+        self._style_host.setStyleSheet("background: transparent;")
+        style_host_layout = QVBoxLayout(self._style_host)
+        style_host_layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self._style_host)
         self._on_style_mode_changed(emit=False)
 
         # ═══════ Section: Sortie ═══════
@@ -388,13 +395,13 @@ class HdmiSettingsDialog(QDialog):
         self._debounce.setInterval(150)
         self._debounce.timeout.connect(self._emit_changed)
 
+        # Suivi de la slide seulement quand la page est visible (showEvent) :
+        # la page Réglages garde cette section en mémoire une fois fermée.
         self._preview_timer = QTimer(self)
         self._preview_timer.setInterval(1000)
         self._preview_timer.timeout.connect(self._refresh_preview_if_stale)
-        self._preview_timer.start()
 
         self._refresh_hints()
-        self._render_preview()
 
     # ── Aperçu temps réel ─────────────────────────────────────────────
 
@@ -427,7 +434,11 @@ class HdmiSettingsDialog(QDialog):
         cfg_mtime = self._mtime(
             self._presentation_dir / "obs-config.json" if self._presentation_dir else None
         )
-        if slide_mtime != self._preview_slide_mtime or cfg_mtime != self._preview_cfg_mtime:
+        if (
+            not self._preview_rendered
+            or slide_mtime != self._preview_slide_mtime
+            or cfg_mtime != self._preview_cfg_mtime
+        ):
             self._render_preview()
 
     def _render_preview(self) -> None:
@@ -476,6 +487,7 @@ class HdmiSettingsDialog(QDialog):
                 Qt.TransformationMode.SmoothTransformation,
             )
         )
+        self._preview_rendered = True
         source = "texte de démonstration" if demo else "slide en cours"
         self._preview_hint.setText(f"Aperçu fidèle de la sortie · {source}")
         if self._presentation_dir is not None:
@@ -486,6 +498,17 @@ class HdmiSettingsDialog(QDialog):
                 self._presentation_dir / "obs-config.json"
             )
 
+    def showEvent(self, event) -> None:
+        # Aperçu (rendu 1920×1080) juste après l'affichage : la page s'ouvre
+        # sans l'attendre, et rattrape la slide changée pendant son absence.
+        super().showEvent(event)
+        self._preview_timer.start()
+        QTimer.singleShot(0, self, self._refresh_preview_if_stale)
+
+    def hideEvent(self, event) -> None:
+        super().hideEvent(event)
+        self._preview_timer.stop()
+
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         # L'aperçu suit la largeur de la fenêtre (16:9 conservé au rendu) ;
@@ -493,9 +516,19 @@ class HdmiSettingsDialog(QDialog):
         if self._preview.pixmap() is not None:
             QTimer.singleShot(0, self._render_preview)
 
+    def _ensure_style_editor(self) -> HdmiStyleEditor:
+        if self._style_editor is None:
+            self._style_editor = HdmiStyleEditor(self._pending_style)
+            self._style_editor.changed.connect(self._on_change)
+            self._style_host.layout().addWidget(self._style_editor)
+        return self._style_editor
+
     def _on_style_mode_changed(self, *_args, emit: bool = True) -> None:
         custom = not self._use_obs_style.isChecked()
-        self._style_editor.setVisible(custom)
+        if custom:
+            self._ensure_style_editor()
+        if self._style_editor is not None:
+            self._style_editor.setVisible(custom)
         self._style_hint.setText(
             "Style propre à la sortie HDMI : police, tailles, couleurs, effets et "
             "animation ci-dessous ne changent pas la page OBS."
@@ -508,7 +541,10 @@ class HdmiSettingsDialog(QDialog):
 
     def _reset_overlay(self) -> None:
         self._use_obs_style.setChecked(True)
-        self._style_editor.set_style(HdmiStyle())
+        if self._style_editor is not None:
+            self._style_editor.set_style(HdmiStyle())
+        else:
+            self._pending_style = HdmiStyle()
         self._layout.setCurrentIndex(0)
         self._key_color.setCurrentIndex(0)
         self._text_scale.setValue(100)
@@ -526,7 +562,11 @@ class HdmiSettingsDialog(QDialog):
             offset_y=int(self._offset_y.value()),
             layout=str(self._layout.currentData() or "subtitle"),
             use_obs_style=self._use_obs_style.isChecked(),
-            style=self._style_editor.style(),
+            style=(
+                self._style_editor.style()
+                if self._style_editor is not None
+                else self._pending_style
+            ),
         ).sanitized()
 
     def _on_change(self, *_args) -> None:

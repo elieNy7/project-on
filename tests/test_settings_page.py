@@ -293,3 +293,27 @@ def test_heavy_section_is_kept_until_its_settings_change_elsewhere(window) -> No
     rebuilt = page.current_widget()
     assert rebuilt is not first and rebuilt.name.text() == "Autre église"
     assert rebuilt.isVisible() and not rebuilt.isWindow()
+
+
+def test_kept_hdmi_section_shows_live_state_and_follows_screens(window, monkeypatch) -> None:
+    page = _page(window)
+    window._show_settings_section("hdmi")
+    first = page.current_widget()
+    assert first._style_editor is None  # built only for a custom HDMI style
+    assert first._preview_timer.isActive()
+
+    page.show_section("home")
+    assert not first._preview_timer.isActive()  # no rendering while hidden
+    monkeypatch.setattr(window, "_hdmi_live_status", lambda: "En direct vers TEST")
+    window._show_settings_section("hdmi")
+    assert page.current_widget() is first
+    assert first._status.text() == "En direct vers TEST"
+
+    first._use_obs_style.setChecked(False)
+    assert first._style_editor is not None and not first._style_editor.isHidden()
+
+    # A screen plugged in or removed: the list of screens is rebuilt.
+    monkeypatch.setattr(type(window), "_screens_fingerprint", staticmethod(lambda: ("autre",)))
+    page.show_section("home")
+    window._show_settings_section("hdmi")
+    assert page.current_widget() is not first
