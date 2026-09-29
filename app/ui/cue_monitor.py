@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.ui.icons import app_icon
-from app.ui.theme import Colors, Radius, Typography, get_accent_button_style, get_icon_button_style
+from app.ui.theme import Colors, Radius, Typography, get_icon_button_style, get_take_button_style
 from app.utils.models import Slide
 from app.utils.project_on_controller import ProgramCue
 
@@ -141,9 +141,9 @@ class CueMonitor(QFrame):
         layout.addWidget(self._screen, 1)
 
         self._take_button = QPushButton("Envoyer au direct   F2", self)
-        self._take_button.setIcon(app_icon("cast.svg", Colors.PROJECT_BUTTON_TEXT))
+        self._take_button.setIcon(app_icon("cast.svg", Colors.LIVE_TEXT))
         self._take_button.setIconSize(QSize(16, 16))
-        self._take_button.setStyleSheet(get_accent_button_style())
+        self._take_button.setStyleSheet(get_take_button_style())
         self._take_button.setMinimumHeight(34)
         self._take_button.setToolTip("Projeter l'aperçu devant l'assemblée (F2)")
         self._take_button.clicked.connect(self.takeRequested.emit)

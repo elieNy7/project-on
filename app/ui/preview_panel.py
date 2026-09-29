@@ -158,7 +158,7 @@ class PreviewPanel(QFrame):
         self._is_light_theme = get_theme() == "light"
         if self._is_light_theme:
             self._stage_text_rgb = (23, 32, 51)
-            self._stage_ref_rgb = (183, 121, 31)
+            self._stage_ref_rgb = (194, 65, 12)
             self._stage_empty_color = "rgba(100, 116, 139, 0.38)"
             self._stage_meta_color = "rgba(71, 85, 105, 0.62)"
             self._stage_chip_bg = "rgba(20, 28, 42, 0.07)"
@@ -166,7 +166,7 @@ class PreviewPanel(QFrame):
             self._stage_border = f"1px solid {Colors.BORDER_DEFAULT}"
         else:
             self._stage_text_rgb = (248, 250, 252)
-            self._stage_ref_rgb = (240, 184, 91)
+            self._stage_ref_rgb = (255, 138, 61)
             self._stage_empty_color = "rgba(145, 162, 184, 0.42)"
             self._stage_meta_color = "rgba(203, 213, 225, 0.54)"
             self._stage_chip_bg = "rgba(203, 213, 225, 0.09)"
@@ -1043,7 +1043,7 @@ class PreviewPanel(QFrame):
         if self._is_hidden:
             text, fg, bg = tr("tally_hidden"), Colors.ACCENT_WARNING, Colors.ACCENT_WARNING_GLOW
         elif self._has_content:
-            text, fg, bg = tr("tally_live"), Colors.ACCENT_DANGER, Colors.ACCENT_DANGER_GLOW
+            text, fg, bg = tr("tally_live"), Colors.LIVE_TEXT, Colors.LIVE_RED
         else:
             text, fg, bg = tr("tally_empty"), Colors.TEXT_SECONDARY, Colors.GLASS_MEDIUM
         self._mode_badge.setText(text)

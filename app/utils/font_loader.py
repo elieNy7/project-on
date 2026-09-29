@@ -15,13 +15,20 @@ STARTUP_FONT_FILES = (
     "Poppins/Poppins-Bold.ttf",
     "Poppins/Poppins-Italic.ttf",
     "Poppins/Poppins-Light.ttf",
+    # Police de l'interface (design Pgraphics).
+    "Google_Sans/static/GoogleSans-Regular.ttf",
+    "Google_Sans/static/GoogleSans-Medium.ttf",
+    "Google_Sans/static/GoogleSans-SemiBold.ttf",
+    "Google_Sans/static/GoogleSans-Bold.ttf",
+    "Google_Sans/static/GoogleSans-Italic.ttf",
 )
 
 
 def load_fonts(core_only: bool = False) -> None:
     """Enregistre dans Qt les polices embarquées (assets/fonts).
 
-    ``core_only`` ne charge que Poppins (police de l'interface) : c'est la
+    ``core_only`` ne charge que STARTUP_FONT_FILES (Poppins et Google Sans,
+    la police de l'interface) : c'est la
     passe synchrone du démarrage. Les ~40 familles Google Fonts sont ensuite
     complétées juste après l'affichage de la fenêtre (voir main.py) — la
     liste des polices, elle, vient du manifeste et est complète aussitôt.
@@ -35,11 +42,10 @@ def load_fonts(core_only: bool = False) -> None:
 
     loaded_families: set[str] = set()
     font_files = sorted(fonts_dir.rglob("*.ttf"))
-    font_files.sort(
-        key=lambda path: (0 if path.parent.name == "Poppins" else 1, str(path))
-    )
+    startup = {(fonts_dir / name).resolve() for name in STARTUP_FONT_FILES}
+    font_files.sort(key=lambda path: (0 if path.resolve() in startup else 1, str(path)))
     if core_only:
-        font_files = [path for path in font_files if path.parent.name == "Poppins"]
+        font_files = [path for path in font_files if path.resolve() in startup]
 
     for file_path in font_files:
         font_id = QFontDatabase.addApplicationFont(str(file_path))

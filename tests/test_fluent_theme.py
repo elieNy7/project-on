@@ -30,9 +30,20 @@ def test_backdrop_survives_theme_switch() -> None:
     assert Colors.WINDOW_BG == "#f3f3f3"
 
 
-def test_fluent_corner_radii() -> None:
-    assert Radius.SM == 4  # controls
-    assert Radius.LG == 8  # cards and overlays
+def test_pgraphics_corner_radii() -> None:
+    assert Radius.SM == 6  # controls
+    assert Radius.LG == 10  # cards and overlays
+
+
+def test_pgraphics_dark_palette() -> None:
+    theme.set_theme("dark")
+    assert Colors.BG_PRIMARY == "#0f1217"
+    assert Colors.ACCENT_PRIMARY == "#ff8a3d"
+    assert Colors.LIVE_RED == "#e5383b"
+
+
+def test_both_palettes_define_the_same_tokens() -> None:
+    assert theme._DARK_PALETTE.keys() == theme._LIGHT_PALETTE.keys()
 
 
 @pytest.mark.parametrize("name", ["dark", "light"])

@@ -50,72 +50,82 @@ class Colors:
 # Opaque equivalents of the WinUI 3 alpha fills composited on the base colour,
 # so tokens stay valid inside QPainter code and nested widgets.
 _DARK_PALETTE = {
-    "WINDOW_BG": "#202020",
-    "BG_PRIMARY": "#202020",
-    "BG_SECONDARY": "#272727",
-    "BG_TERTIARY": "#2c2c2c",
-    "BG_ELEVATED": "#2c2c2c",
-    "BG_SURFACE": "#2d2d2d",
-    "BG_CARD": "#2b2b2b",
-    "BG_INPUT": "#2d2d2d",
-    "BG_INPUT_HOVER": "#323232",
-    "BG_INPUT_FOCUS": "#1f1f1f",
-    "BG_TOOLTIP": "#2c2c2c",
+    # Régie graphite de Pgraphics : un fond neutre qui laisse l'image au
+    # premier plan, l'ambre pour les actions et la sélection, rouge = direct,
+    # vert = aperçu.
+    "WINDOW_BG": "#0f1217",
+    "BG_PRIMARY": "#0f1217",
+    "BG_SECONDARY": "#151920",
+    "BG_TERTIARY": "#1a1f28",
+    "BG_ELEVATED": "#212733",
+    "BG_SURFACE": "#1f2530",
+    "BG_CARD": "#171c24",
+    "BG_INPUT": "#0b0e12",
+    "BG_INPUT_HOVER": "#131820",
+    "BG_INPUT_FOCUS": "#131820",
+    "BG_TOOLTIP": "#262d3a",
     "GLASS_LIGHT": "rgba(255, 255, 255, 0.035)",
     "GLASS_MEDIUM": "rgba(255, 255, 255, 0.06)",
     "GLASS_HEAVY": "rgba(255, 255, 255, 0.09)",
-    "GLASS_ACCENT": "rgba(240, 190, 100, 0.08)",
-    "GLASS_ACCENT_STRONG": "rgba(240, 190, 100, 0.15)",
-    "SURFACE": "#2b2b2b",
-    "SURFACE_HOVER": "#323232",
-    "SURFACE_ACTIVE": "#383838",
-    "SURFACE_RAISED": "#3c3c3c",
-    "TEXT_PRIMARY": "#ffffff",
-    "TEXT_SECONDARY": "#c8c8c8",
-    "TEXT_MUTED": "#9d9d9d",
-    "TEXT_DISABLED": "#5d5d5d",
-    "TEXT_PLACEHOLDER": "#8b8b8b",
-    "ACCENT_PRIMARY": "#f0be64",
-    "ACCENT_LIGHT": "#f7d48f",
-    "ACCENT_DARK": "#d9a441",
-    "ACCENT_GLOW": "rgba(240, 190, 100, 0.10)",
-    "ACCENT_GLOW_STRONG": "rgba(240, 190, 100, 0.20)",
-    "ACCENT_GRADIENT_START": "#f0be64",
-    "ACCENT_GRADIENT_END": "#f0be64",
-    "ACCENT_SECONDARY": "#60cdff",
-    "ACCENT_SECONDARY_GLOW": "rgba(96, 205, 255, 0.12)",
-    "ACCENT_SUCCESS": "#6ccb5f",
-    "ACCENT_SUCCESS_GLOW": "rgba(108, 203, 95, 0.12)",
-    "ACCENT_WARNING": "#fce100",
-    "ACCENT_WARNING_GLOW": "rgba(252, 225, 0, 0.12)",
-    "ACCENT_DANGER": "#ff99a4",
-    "ACCENT_DANGER_GLOW": "rgba(255, 153, 164, 0.12)",
-    "SRC_BIBLE": "#6ccb5f",
-    "SRC_SERMON": "#f7a35c",
+    "GLASS_ACCENT": "rgba(255, 138, 61, 0.08)",
+    "GLASS_ACCENT_STRONG": "rgba(255, 138, 61, 0.15)",
+    "SURFACE": "#1f2530",
+    "SURFACE_HOVER": "#29313e",
+    "SURFACE_ACTIVE": "#333c4b",
+    "SURFACE_RAISED": "#3a4455",
+    "TEXT_PRIMARY": "#eef1f5",
+    "TEXT_SECONDARY": "#a7b0bd",
+    "TEXT_MUTED": "#6d7888",
+    "TEXT_DISABLED": "#4b5563",
+    "TEXT_PLACEHOLDER": "#6d7888",
+    "ACCENT_PRIMARY": "#ff8a3d",
+    "ACCENT_LIGHT": "#ffac70",
+    "ACCENT_DARK": "#e0702a",
+    "ACCENT_GLOW": "rgba(255, 138, 61, 0.14)",
+    "ACCENT_GLOW_STRONG": "rgba(255, 138, 61, 0.24)",
+    "ACCENT_GRADIENT_START": "#ff8a3d",
+    "ACCENT_GRADIENT_END": "#ff8a3d",
+    "ACCENT_SECONDARY": "#e7c07e",
+    "ACCENT_SECONDARY_GLOW": "rgba(231, 192, 126, 0.12)",
+    "ACCENT_SUCCESS": "#34d399",
+    "ACCENT_SUCCESS_GLOW": "rgba(52, 211, 153, 0.12)",
+    "ACCENT_WARNING": "#fbbf24",
+    "ACCENT_WARNING_GLOW": "rgba(251, 191, 36, 0.12)",
+    "ACCENT_DANGER": "#f87171",
+    "ACCENT_DANGER_GLOW": "rgba(248, 113, 113, 0.12)",
+    "LIVE_RED": "#e5383b",
+    "LIVE_RED_LIGHT": "#f05256",
+    "LIVE_RED_DARK": "#b32528",
+    "LIVE_RED_GLOW": "rgba(229, 56, 59, 0.18)",
+    "PREVIEW_GREEN": "#22c55e",
+    "PREVIEW_GREEN_GLOW": "rgba(34, 197, 94, 0.16)",
+    "LIVE_TEXT": "#ffffff",
+    "SRC_BIBLE": "#34d399",
+    "SRC_SERMON": "#ff8a3d",
     "SRC_HYMN": "#c7a6ff",
-    "SRC_CUSTOM": "#60cdff",
-    "SRC_IMAGE": "#9d9d9d",
-    "BORDER_SUBTLE": "rgba(255, 255, 255, 0.055)",
-    "BORDER_DEFAULT": "rgba(255, 255, 255, 0.085)",
-    "BORDER_HOVER": "rgba(255, 255, 255, 0.16)",
-    "BORDER_FOCUS": "#f0be64",
-    "BORDER_STRONG": "rgba(255, 255, 255, 0.45)",
-    "SLIDER_THUMB": "#454545",
-    "BORDER_ACCENT": "rgba(240, 190, 100, 0.40)",
-    "SHADOW_SM": "0 2px 4px rgba(0, 0, 0, 0.26)",
-    "SHADOW_MD": "0 8px 16px rgba(0, 0, 0, 0.26)",
-    "SHADOW_LG": "0 32px 64px rgba(0, 0, 0, 0.37)",
-    "SHADOW_ACCENT": "0 4px 12px rgba(240, 190, 100, 0.15)",
-    "MAIN_GRADIENT_START": "#202020",
-    "MAIN_GRADIENT_MID": "#202020",
-    "MAIN_GRADIENT_END": "#202020",
-    "PANEL_GRADIENT_END": "#272727",
-    "SIDEBAR_GRADIENT_START": "#202020",
-    "SIDEBAR_GRADIENT_END": "#202020",
-    "CARD_GRADIENT_START": "#2b2b2b",
-    "CARD_GRADIENT_END": "#2b2b2b",
-    "SCROLLBAR_HANDLE": "rgba(255, 255, 255, 0.36)",
-    "PROJECT_BUTTON_TEXT": "#1a1a1a",
+    "SRC_CUSTOM": "#60a5fa",
+    "SRC_IMAGE": "#a7b0bd",
+    "BORDER_SUBTLE": "#252c37",
+    "BORDER_DEFAULT": "#252c37",
+    "BORDER_HOVER": "#353f4e",
+    "BORDER_FOCUS": "#ff8a3d",
+    "BORDER_STRONG": "#353f4e",
+    "SLIDER_THUMB": "#ffffff",
+    "BORDER_ACCENT": "rgba(255, 138, 61, 0.55)",
+    "SHADOW_SM": "0 2px 4px rgba(0, 0, 0, 0.35)",
+    "SHADOW_MD": "0 8px 16px rgba(0, 0, 0, 0.35)",
+    "SHADOW_LG": "0 32px 64px rgba(0, 0, 0, 0.45)",
+    "SHADOW_ACCENT": "0 4px 12px rgba(255, 138, 61, 0.15)",
+    "MAIN_GRADIENT_START": "#0f1217",
+    "MAIN_GRADIENT_MID": "#0f1217",
+    "MAIN_GRADIENT_END": "#0f1217",
+    "PANEL_GRADIENT_END": "#151920",
+    "SIDEBAR_GRADIENT_START": "#0f1217",
+    "SIDEBAR_GRADIENT_END": "#0f1217",
+    "CARD_GRADIENT_START": "#171c24",
+    "CARD_GRADIENT_END": "#171c24",
+    "SCROLLBAR_HANDLE": "#353f4e",
+    "PROJECT_BUTTON_TEXT": "#10131a",
     "APP_STYLESHEET_NAME": "dark",
 }
 
@@ -134,8 +144,8 @@ _LIGHT_PALETTE = {
     "GLASS_LIGHT": "rgba(0, 0, 0, 0.024)",
     "GLASS_MEDIUM": "rgba(0, 0, 0, 0.045)",
     "GLASS_HEAVY": "rgba(0, 0, 0, 0.075)",
-    "GLASS_ACCENT": "rgba(138, 96, 16, 0.08)",
-    "GLASS_ACCENT_STRONG": "rgba(138, 96, 16, 0.15)",
+    "GLASS_ACCENT": "rgba(194, 65, 12, 0.08)",
+    "GLASS_ACCENT_STRONG": "rgba(194, 65, 12, 0.15)",
     "SURFACE": "#fbfbfb",
     "SURFACE_HOVER": "#f0f0f0",
     "SURFACE_ACTIVE": "#e8e8e8",
@@ -145,13 +155,13 @@ _LIGHT_PALETTE = {
     "TEXT_MUTED": "#666666",
     "TEXT_DISABLED": "#a0a0a0",
     "TEXT_PLACEHOLDER": "#707070",
-    "ACCENT_PRIMARY": "#8a6010",
-    "ACCENT_LIGHT": "#76520e",
-    "ACCENT_DARK": "#6a4a0c",
-    "ACCENT_GLOW": "rgba(138, 96, 16, 0.09)",
-    "ACCENT_GLOW_STRONG": "rgba(138, 96, 16, 0.17)",
-    "ACCENT_GRADIENT_START": "#8a6010",
-    "ACCENT_GRADIENT_END": "#8a6010",
+    "ACCENT_PRIMARY": "#c2410c",
+    "ACCENT_LIGHT": "#a8380a",
+    "ACCENT_DARK": "#9a3412",
+    "ACCENT_GLOW": "rgba(194, 65, 12, 0.09)",
+    "ACCENT_GLOW_STRONG": "rgba(194, 65, 12, 0.17)",
+    "ACCENT_GRADIENT_START": "#c2410c",
+    "ACCENT_GRADIENT_END": "#c2410c",
     "ACCENT_SECONDARY": "#005fb8",
     "ACCENT_SECONDARY_GLOW": "rgba(0, 95, 184, 0.10)",
     "ACCENT_SUCCESS": "#0f7b0f",
@@ -160,6 +170,13 @@ _LIGHT_PALETTE = {
     "ACCENT_WARNING_GLOW": "rgba(157, 93, 0, 0.10)",
     "ACCENT_DANGER": "#c42b1c",
     "ACCENT_DANGER_GLOW": "rgba(196, 43, 28, 0.10)",
+    "LIVE_RED": "#d62c2f",
+    "LIVE_RED_LIGHT": "#e5383b",
+    "LIVE_RED_DARK": "#b32528",
+    "LIVE_RED_GLOW": "rgba(214, 44, 47, 0.12)",
+    "PREVIEW_GREEN": "#15803d",
+    "PREVIEW_GREEN_GLOW": "rgba(21, 128, 61, 0.12)",
+    "LIVE_TEXT": "#ffffff",
     "SRC_BIBLE": "#0f7b0f",
     "SRC_SERMON": "#9d5d00",
     "SRC_HYMN": "#6d4bac",
@@ -168,14 +185,14 @@ _LIGHT_PALETTE = {
     "BORDER_SUBTLE": "rgba(0, 0, 0, 0.058)",
     "BORDER_DEFAULT": "rgba(0, 0, 0, 0.09)",
     "BORDER_HOVER": "rgba(0, 0, 0, 0.16)",
-    "BORDER_FOCUS": "#8a6010",
+    "BORDER_FOCUS": "#c2410c",
     "BORDER_STRONG": "rgba(0, 0, 0, 0.45)",
     "SLIDER_THUMB": "#ffffff",
-    "BORDER_ACCENT": "rgba(138, 96, 16, 0.40)",
+    "BORDER_ACCENT": "rgba(194, 65, 12, 0.40)",
     "SHADOW_SM": "0 2px 4px rgba(0, 0, 0, 0.14)",
     "SHADOW_MD": "0 8px 16px rgba(0, 0, 0, 0.14)",
     "SHADOW_LG": "0 32px 64px rgba(0, 0, 0, 0.19)",
-    "SHADOW_ACCENT": "0 4px 12px rgba(138, 96, 16, 0.12)",
+    "SHADOW_ACCENT": "0 4px 12px rgba(194, 65, 12, 0.12)",
     "MAIN_GRADIENT_START": "#f3f3f3",
     "MAIN_GRADIENT_MID": "#f3f3f3",
     "MAIN_GRADIENT_END": "#f3f3f3",
@@ -231,14 +248,14 @@ class Spacing:
 
 
 class Radius:
-    """Corner radii — Fluent uses 4 px for controls and 8 px for cards/overlays."""
+    """Corner radii — as in Pgraphics: 6 px for controls, 10 px for cards."""
 
     NONE = 0
-    XS = 2
-    SM = 4
-    MD = 4
-    LG = 8
-    XL = 8
+    XS = 3
+    SM = 6
+    MD = 6
+    LG = 10
+    XL = 10
     XXL = 12
     FULL = 9999
 
@@ -251,9 +268,10 @@ class Typography:
     body copy, compact filters, and deliberately quiet numerical metadata.
     """
 
-    # Segoe UI Variable ships with Windows 11; Qt falls back to Segoe UI on 10.
-    PRIMARY_FAMILY = "'Segoe UI Variable Text', 'Segoe UI', sans-serif"
-    FAMILY = "Segoe UI Variable Text"
+    # Google Sans, comme Pgraphics (embarquée, chargée au démarrage) ; Segoe UI
+    # en secours si le fichier manque.
+    PRIMARY_FAMILY = "'Google Sans', 'Segoe UI Variable Text', 'Segoe UI', sans-serif"
+    FAMILY = "Google Sans"
 
     SIZE_2XS = 10
     SIZE_2XS_PT = 7
@@ -335,7 +353,7 @@ def _scrollbar_v() -> str:
         }}
         QScrollBar::handle:vertical {{
             background: {Colors.SCROLLBAR_HANDLE};
-            border-radius: 2px;
+            border-radius: 4px;
             min-height: 40px;
         }}
         QScrollBar::handle:vertical:hover,
@@ -360,7 +378,7 @@ def _scrollbar_h() -> str:
         }}
         QScrollBar::handle:horizontal {{
             background: {Colors.SCROLLBAR_HANDLE};
-            border-radius: 2px;
+            border-radius: 4px;
             min-width: 56px;
         }}
         QScrollBar::handle:horizontal:hover,
@@ -415,11 +433,8 @@ def item_hover_color() -> QColor:
 
 
 def item_selection_color(strong: bool = False) -> QColor:
-    # Fluent list selection is a neutral fill; the accent lives in the
-    # selection pill on the left edge, not in the background.
-    if get_theme() == "light":
-        return color_with_alpha("#000000", 18 if strong else 10)
-    return color_with_alpha("#ffffff", 24 if strong else 15)
+    # Comme Pgraphics : la sélection est un voile ambre (ACCENT_GLOW).
+    return color_with_alpha(Colors.ACCENT_PRIMARY, 48 if strong else 36)
 
 
 def item_separator_color() -> QColor:
@@ -446,13 +461,12 @@ def _join(selector: str, state: str) -> str:
 
 
 def _input_rules(selector: str, padding: str) -> str:
-    """Fluent text control: flat fill, stronger bottom stroke, and an accent
-    underline while focused."""
+    """Champ de saisie Pgraphics : fond creusé, filet fin, contour ambre
+    au focus."""
     return f"""
         {selector} {{
             background: {Colors.BG_INPUT};
             border: 1px solid {Colors.BORDER_DEFAULT};
-            border-bottom: 1px solid {Colors.BORDER_STRONG};
             border-radius: {Radius.MD}px;
             padding: {padding};
             color: {Colors.TEXT_PRIMARY};
@@ -461,40 +475,46 @@ def _input_rules(selector: str, padding: str) -> str:
         }}
         {_join(selector, ":hover")} {{
             background: {Colors.BG_INPUT_HOVER};
+            border-color: {Colors.BORDER_HOVER};
         }}
         {_join(selector, ":focus")} {{
             background: {Colors.BG_INPUT_FOCUS};
-            border-bottom: 2px solid {Colors.BORDER_FOCUS};
+            border: 1px solid {Colors.BORDER_FOCUS};
         }}
         {_join(selector, ":disabled")} {{
             color: {Colors.TEXT_DISABLED};
-            border-bottom: 1px solid {Colors.BORDER_DEFAULT};
+            background: {Colors.BG_SECONDARY};
+            border-color: {Colors.BORDER_DEFAULT};
         }}
     """
 
 
 def _button_rules(padding: str, font_size: int) -> str:
-    """Fluent standard button: flat control fill, hairline stroke, regular
-    weight, subtle hover and a dimmed pressed state."""
+    """Bouton Pgraphics : surface pleine, filet marqué, texte semi-gras."""
     return f"""
         QPushButton {{
             background: {Colors.BG_SURFACE};
-            border: 1px solid {Colors.BORDER_DEFAULT};
+            border: 1px solid {Colors.BORDER_HOVER};
             border-radius: {Radius.SM}px;
             padding: {padding};
             font-size: {font_size}px;
-            font-weight: {Typography.WEIGHT_NORMAL};
+            font-weight: {Typography.WEIGHT_SEMIBOLD};
             color: {Colors.TEXT_PRIMARY};
         }}
         QPushButton:hover {{
             background: {Colors.SURFACE_HOVER};
+            border-color: {Colors.TEXT_MUTED};
         }}
         QPushButton:pressed {{
-            background: {Colors.BG_SECONDARY};
-            color: {Colors.TEXT_SECONDARY};
+            background: {Colors.SURFACE_ACTIVE};
+        }}
+        QPushButton:checked {{
+            background: {Colors.ACCENT_GLOW};
+            border-color: {Colors.ACCENT_PRIMARY};
+            color: {Colors.ACCENT_LIGHT};
         }}
         QPushButton:disabled {{
-            background: {Colors.BG_SECONDARY};
+            background: {Colors.BG_TERTIARY};
             border: 1px solid {Colors.BORDER_SUBTLE};
             color: {Colors.TEXT_DISABLED};
         }}
@@ -518,7 +538,7 @@ def _menu_rules() -> str:
         }}
         QMenu::item:selected {{
             background: {_argb(item_selection_color())};
-            color: {Colors.TEXT_PRIMARY};
+            color: {Colors.ACCENT_LIGHT};
         }}
         QMenu::item:disabled {{
             color: {Colors.TEXT_DISABLED};
@@ -674,7 +694,7 @@ def get_combo_style() -> str:
             border: 1px solid {Colors.BORDER_DEFAULT};
             border-radius: {Radius.LG}px;
             selection-background-color: {_argb(item_selection_color())};
-            selection-color: {Colors.TEXT_PRIMARY};
+            selection-color: {Colors.ACCENT_LIGHT};
             color: {Colors.TEXT_PRIMARY};
             outline: none;
             padding: 4px;
@@ -715,6 +735,33 @@ def get_accent_button_style() -> str:
         }}
         QPushButton:disabled {{
             background: {Colors.BG_SURFACE};
+            border-color: {Colors.BORDER_SUBTLE};
+            color: {Colors.TEXT_DISABLED};
+        }}
+    """
+
+
+def get_take_button_style() -> str:
+    """Bouton TAKE de Pgraphics : rouge plein, c'est ce qui part en direct."""
+    return f"""
+        QPushButton {{
+            background: {Colors.LIVE_RED};
+            border: 1px solid {Colors.LIVE_RED_DARK};
+            border-radius: {Radius.SM}px;
+            padding: 6px {Spacing.LG}px;
+            font-size: {Typography.SIZE_CONTROL}px;
+            font-weight: {Typography.WEIGHT_EXTRABOLD};
+            letter-spacing: 0.5px;
+            color: {Colors.LIVE_TEXT};
+        }}
+        QPushButton:hover {{
+            background: {Colors.LIVE_RED_LIGHT};
+        }}
+        QPushButton:pressed {{
+            background: {Colors.LIVE_RED_DARK};
+        }}
+        QPushButton:disabled {{
+            background: {Colors.BG_TERTIARY};
             border-color: {Colors.BORDER_SUBTLE};
             color: {Colors.TEXT_DISABLED};
         }}
@@ -769,7 +816,7 @@ def get_tab_button_style(active: bool = False) -> str:
             QPushButton {{
                 background: transparent;
                 border: none;
-                border-bottom: 3px solid {Colors.ACCENT_PRIMARY};
+                border-bottom: 2px solid {Colors.ACCENT_PRIMARY};
                 border-radius: 0;
                 padding: 8px 14px;
                 font-size: {Typography.SIZE_CONTROL}px;
@@ -781,7 +828,7 @@ def get_tab_button_style(active: bool = False) -> str:
         QPushButton {{
             background: transparent;
             border: none;
-            border-bottom: 3px solid transparent;
+            border-bottom: 2px solid transparent;
             border-radius: 0;
             padding: 8px 14px;
             font-size: {Typography.SIZE_CONTROL}px;
@@ -1117,7 +1164,7 @@ def build_app_stylesheet() -> str:
         QTableView::item:selected,
         QTableWidget::item:selected {{
             background: {selected};
-            color: {Colors.TEXT_PRIMARY};
+            color: {Colors.ACCENT_LIGHT};
         }}
 
         QTabWidget::pane {{
@@ -1131,7 +1178,7 @@ def build_app_stylesheet() -> str:
             margin: 0 2px;
             color: {Colors.TEXT_SECONDARY};
             font-size: {Typography.SIZE_CONTROL}px;
-            border-bottom: 3px solid transparent;
+            border-bottom: 2px solid transparent;
         }}
 
         QTabBar::tab:hover {{
@@ -1141,7 +1188,7 @@ def build_app_stylesheet() -> str:
         QTabBar::tab:selected {{
             color: {Colors.TEXT_PRIMARY};
             font-weight: {Typography.WEIGHT_SEMIBOLD};
-            border-bottom: 3px solid {Colors.ACCENT_PRIMARY};
+            border-bottom: 2px solid {Colors.ACCENT_PRIMARY};
         }}
 
         QCheckBox,
@@ -1157,7 +1204,7 @@ def build_app_stylesheet() -> str:
             width: 18px;
             height: 18px;
             border: 1px solid {Colors.BORDER_STRONG};
-            background: {Colors.GLASS_LIGHT};
+            background: {Colors.BG_INPUT};
         }}
 
         QCheckBox::indicator {{
@@ -1171,6 +1218,7 @@ def build_app_stylesheet() -> str:
         QCheckBox::indicator:hover,
         QRadioButton::indicator:hover {{
             background: {Colors.GLASS_MEDIUM};
+            border-color: {Colors.ACCENT_PRIMARY};
         }}
 
         QCheckBox::indicator:checked {{
@@ -1233,7 +1281,7 @@ def build_app_stylesheet() -> str:
 
         QSlider::groove:horizontal {{
             height: 4px;
-            background: {Colors.BORDER_STRONG};
+            background: {Colors.SURFACE_ACTIVE};
             border-radius: 2px;
         }}
 
@@ -1243,21 +1291,25 @@ def build_app_stylesheet() -> str:
         }}
 
         QSlider::handle:horizontal {{
-            width: 10px;
-            height: 10px;
-            margin: -8px 0;
-            background: {Colors.ACCENT_PRIMARY};
-            border-radius: 10px;
-            border: 5px solid {Colors.SLIDER_THUMB};
+            width: 14px;
+            height: 14px;
+            margin: -7px 0;
+            background: {Colors.SLIDER_THUMB};
+            border-radius: 9px;
+            border: 2px solid {Colors.ACCENT_PRIMARY};
         }}
 
         QSlider::handle:horizontal:hover {{
             background: {Colors.ACCENT_LIGHT};
         }}
 
+        QSlider::handle:horizontal:pressed {{
+            background: {Colors.ACCENT_PRIMARY};
+        }}
+
         QSlider::groove:vertical {{
             width: 4px;
-            background: {Colors.BORDER_STRONG};
+            background: {Colors.SURFACE_ACTIVE};
             border-radius: 2px;
         }}
 
@@ -1267,12 +1319,12 @@ def build_app_stylesheet() -> str:
         }}
 
         QSlider::handle:vertical {{
-            width: 10px;
-            height: 10px;
-            margin: 0 -8px;
-            background: {Colors.ACCENT_PRIMARY};
-            border-radius: 10px;
-            border: 5px solid {Colors.SLIDER_THUMB};
+            width: 14px;
+            height: 14px;
+            margin: 0 -7px;
+            background: {Colors.SLIDER_THUMB};
+            border-radius: 9px;
+            border: 2px solid {Colors.ACCENT_PRIMARY};
         }}
 
         QHeaderView {{
