@@ -25,6 +25,11 @@ from app.utils.hymn_pdf_parser import (  # noqa: E402
     HymnSection,
     parse_pdf_ranges,
 )
+from tools.import_chants_de_victoire import (  # noqa: E402
+    CV_PDF,
+    EXPECTED_HYMNS as CV_EXPECTED,
+    parse_cv_pdf,
+)
 from tools.import_swahili_hymns import parse_pdf as parse_swahili_pdf  # noqa: E402
 from tools.import_cantique_adoration_folder import (  # noqa: E402
     DEFAULT_CACHE as AD_CACHE,
@@ -99,7 +104,7 @@ SPECS = [
 
 
 def parse_all() -> tuple[list[ImportHymn], list[dict[str, Any]]]:
-    expected_files = {spec.filename for spec in SPECS} | {"cantique-swahili.pdf"}
+    expected_files = {spec.filename for spec in SPECS} | {"cantique-swahili.pdf", CV_PDF.name}
     actual_files = {path.name for path in CANTIQUES_DIR.glob("*.pdf")}
     if actual_files != expected_files:
         missing = sorted(expected_files - actual_files)
@@ -162,6 +167,18 @@ def parse_all() -> tuple[list[ImportHymn], list[dict[str, Any]]]:
     ad_hymns, ad_report = parse_adoration_powerpoints(hymns)
     hymns.extend(ad_hymns)
     sources.append(ad_report)
+    # Chants de Victoire après l'Adoration : le dédoublonnage des PowerPoint
+    # se fait contre les recueils PDF ci-dessus et ne doit pas changer.
+    cv_items = [
+        ImportHymn("CV", h.number, h.title, "fr", h.sections, CV_PDF.name)
+        for h in parse_cv_pdf()
+    ]
+    if len(cv_items) != CV_EXPECTED:
+        raise RuntimeError(f"CV: {len(cv_items)} chants, attendu {CV_EXPECTED}.")
+    hymns.extend(cv_items)
+    sources.append(
+        source_report("CV", CV_PDF.name, cv_items, "Édition 1926, paroles seules; variantes a/b.")
+    )
     validate_corpus(hymns)
     return hymns, sources
 

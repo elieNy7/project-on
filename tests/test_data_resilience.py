@@ -230,6 +230,58 @@ def test_data_pack_replaces_content_and_fts_in_one_transaction(tmp_path):
         assert row is None
 
 
+_HYMN_DDL = """
+    CREATE TABLE hymn (
+        id INTEGER PRIMARY KEY, title TEXT NOT NULL, number TEXT, language TEXT,
+        sort_key TEXT, canonical_title TEXT DEFAULT '', title_search TEXT DEFAULT ''
+    );
+    CREATE TABLE hymn_stanza (
+        id INTEGER PRIMARY KEY, hymn_id INTEGER NOT NULL, stanza_no INTEGER NOT NULL,
+        text TEXT NOT NULL, label TEXT DEFAULT '', is_chorus INTEGER DEFAULT 0
+    );
+"""
+
+
+def test_data_pack_adds_new_hymnal_without_touching_user_hymns(tmp_path):
+    target = tmp_path / "target.db"
+    pack = tmp_path / "pack.db"
+    _prepare_target_db(target)
+    _prepare_pack_db(pack)
+    with sqlite3.connect(target) as conn:
+        conn.executescript(_HYMN_DDL)
+        # Cantique de l'utilisateur, et un CV qu'il a déjà (modifié) : gardés.
+        conn.execute("INSERT INTO hymn VALUES (1, 'Mon chant', 'AD-0001', 'fr', '00001', '', '')")
+        conn.execute("INSERT INTO hymn VALUES (2, 'Mon CV 1', 'CV-001', 'fr', '00002', '', '')")
+        conn.execute("INSERT INTO hymn_stanza VALUES (1, 2, 1, 'Ma version', 'Strophe 1', 0)")
+    with sqlite3.connect(pack) as conn:
+        conn.executescript(_HYMN_DDL)
+        conn.execute("INSERT INTO hymn VALUES (5, 'Grand Dieu', 'CV-001', 'fr', '00100', '', '')")
+        conn.execute("INSERT INTO hymn VALUES (6, 'Je chanterai', 'CV-002', 'fr', '00101', '', '')")
+        conn.execute("INSERT INTO hymn VALUES (7, 'Autre recueil', 'SW-001', 'sw', '00102', '', '')")
+        conn.executemany(
+            "INSERT INTO hymn_stanza (hymn_id, stanza_no, text, label, is_chorus) VALUES (?, ?, ?, ?, ?)",
+            [(5, 1, 'Version du pack', 'Strophe 1', 0),
+             (6, 1, 'Couplet', 'Strophe 1', 0), (6, 2, 'Choeur:\nRefrain', 'Refrain', 1)],
+        )
+    assert app_paths.upgrade_data_pack(target, pack)
+    with sqlite3.connect(target) as conn:
+        hymns = conn.execute("SELECT number, title, sort_key FROM hymn ORDER BY sort_key").fetchall()
+        assert hymns == [
+            ("AD-0001", "Mon chant", "00001"),
+            ("CV-001", "Mon CV 1", "00002"),
+            ("CV-002", "Je chanterai", "00003"),
+        ]
+        stanzas = conn.execute(
+            "SELECT h.number, s.stanza_no, s.text, s.is_chorus FROM hymn_stanza s "
+            "JOIN hymn h ON h.id = s.hymn_id ORDER BY h.number, s.stanza_no"
+        ).fetchall()
+        assert stanzas == [
+            ("CV-001", 1, "Ma version", 0),
+            ("CV-002", 1, "Couplet", 0),
+            ("CV-002", 2, "Choeur:\nRefrain", 1),
+        ]
+
+
 def test_data_pack_failure_rolls_back_everything(tmp_path):
     target = tmp_path / "target.db"
     pack = tmp_path / "pack.db"

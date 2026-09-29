@@ -445,11 +445,16 @@ def ensure_data_initialized() -> None:
 # 3 = sermons SHP réimportés depuis les PDF (un alinéa par ligne, paragraphes
 # sans en-tête récupérés, titre/lieu/date imprimés).
 # 4 = onglet « Livres » : deux livres et dix brochures (``BK-*``, ``TR-*``).
+# 5 = recueil « Chants de Victoire » (``CV-*``), ajouté sans toucher aux
+#     autres cantiques.
 # Incrémenter à chaque fois que le contenu embarqué doit converger vers les
 # bases déjà installées : les livres (« BK-% », « TR-% ») et les sermons SHP
 # sont alors remplacés depuis la base embarquée, une seule fois, sans toucher
 # aux cantiques, playlists et réglages de l'utilisateur.
-DATA_PACK_VERSION = 4
+DATA_PACK_VERSION = 5
+
+# Recueils de cantiques ajoutés par le pack (préfixes de ``hymn.number``).
+_PACK_HYMN_SOURCES = ("CV",)
 
 # Contenu éditorial remplacé par le pack (alias de table ``s``).
 _PACK_SCOPE = "(s.date LIKE 'BK-%' OR s.date LIKE 'TR-%' OR s.tradition = 'SHP')"
@@ -489,6 +494,55 @@ def _remove_stale_pack_backups(target_path: Path) -> None:
             leftover.unlink()
         except OSError:
             log.warning("Sauvegarde pré-pack non supprimée : %s", leftover.name)
+
+
+def _add_pack_hymns(connection: sqlite3.Connection) -> None:
+    """Ajoute les recueils de :data:`_PACK_HYMN_SOURCES` absents de la base.
+
+    Additif : les cantiques de l'utilisateur (modifiés, ajoutés, supprimés)
+    ne sont jamais touchés ; seuls les numéros du recueil encore absents sont
+    copiés, à la fin de l'ordre. L'index de recherche des cantiques est
+    reconstruit au démarrage suivant (nombre de lignes différent).
+    """
+    for schema in ("pack", "main"):
+        if not connection.execute(
+            f"SELECT 1 FROM {schema}.sqlite_master WHERE type='table' AND name='hymn_stanza'"
+        ).fetchone():
+            return
+    hymn_cols = [
+        c for c in ("title", "number", "language", "canonical_title", "title_search")
+        if c in {r[1] for r in connection.execute("PRAGMA main.table_info(hymn)")}
+        and c in {r[1] for r in connection.execute("PRAGMA pack.table_info(hymn)")}
+    ]
+    stanza_cols = [
+        c for c in ("stanza_no", "text", "label", "is_chorus")
+        if c in {r[1] for r in connection.execute("PRAGMA main.table_info(hymn_stanza)")}
+        and c in {r[1] for r in connection.execute("PRAGMA pack.table_info(hymn_stanza)")}
+    ]
+    last = connection.execute(
+        "SELECT COALESCE(MAX(CAST(sort_key AS INTEGER)), 0) FROM main.hymn"
+    ).fetchone()[0]
+    for prefix in _PACK_HYMN_SOURCES:
+        rows = connection.execute(
+            f"SELECT id, {', '.join(hymn_cols)} FROM pack.hymn h "
+            "WHERE h.number LIKE ? AND NOT EXISTS "
+            "(SELECT 1 FROM main.hymn m WHERE m.number = h.number) "
+            "ORDER BY h.sort_key, h.number",
+            (f"{prefix}-%",),
+        ).fetchall()
+        for pack_id, *values in rows:
+            last += 1
+            cursor = connection.execute(
+                f"INSERT INTO main.hymn ({', '.join(hymn_cols)}, sort_key) "
+                f"VALUES ({', '.join('?' * len(hymn_cols))}, ?)",
+                (*values, f"{last:05d}"),
+            )
+            connection.execute(
+                f"INSERT INTO main.hymn_stanza (hymn_id, {', '.join(stanza_cols)}) "
+                f"SELECT ?, {', '.join(stanza_cols)} FROM pack.hymn_stanza "
+                "WHERE hymn_id = ? ORDER BY stanza_no",
+                (cursor.lastrowid, pack_id),
+            )
 
 
 def upgrade_data_pack(target_path: Path, bundled_path: Path) -> bool:
@@ -625,6 +679,7 @@ def upgrade_data_pack(target_path: Path, bundled_path: Path) -> bool:
                 "SELECT key, title, date_prefix, tradition, sort_order, source "
                 "FROM pack.library_book"
             )
+        _add_pack_hymns(connection)
         connection.execute(
             """
             INSERT INTO app_meta (key, value) VALUES ('data_pack_version', ?)
