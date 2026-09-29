@@ -143,7 +143,9 @@ class MediaPlaybackHub(QObject):
         if enabled == self._audio_enabled:
             return
         self._audio_enabled = enabled
-        if not self.available():
+        if self._player is None:
+            # Lecteur pas encore créé : il le sera au premier média, avec ce
+            # réglage (créer QtMultimedia au démarrage coûtait ~0,3 s).
             return
         try:
             if enabled:

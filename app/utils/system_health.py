@@ -67,7 +67,7 @@ def _format_size(value: int) -> str:
     return f"{size:.1f} To"
 
 
-def _database_checks(database_path: Path) -> list[HealthCheck]:
+def _database_checks(database_path: Path, thorough: bool = True) -> list[HealthCheck]:
     if not database_path.is_file():
         return [
             HealthCheck(
@@ -83,8 +83,17 @@ def _database_checks(database_path: Path) -> list[HealthCheck]:
         with closing(
             sqlite3.connect(f"file:{database_path.as_posix()}?mode=ro", uri=True)
         ) as conn:
-            row = conn.execute("PRAGMA quick_check").fetchone()
-            integrity = str(row[0]) if row else "Aucun résultat"
+            if thorough:
+                row = conn.execute("PRAGMA quick_check").fetchone()
+                integrity = str(row[0]) if row else "Aucun résultat"
+            else:
+                # Contrôle silencieux du démarrage : quick_check lit toute la
+                # base (plusieurs dizaines de secondes de disque sur 570 Mo).
+                # L'en-tête et le schéma (lus plus bas) suffisent à repérer une
+                # base illisible ; le contrôle complet reste dans la fenêtre
+                # « Contrôle avant culte ».
+                conn.execute("PRAGMA schema_version").fetchone()
+                integrity = "ok"
             status: HealthStatus = "success" if integrity.lower() == "ok" else "error"
             checks.append(
                 HealthCheck(
@@ -194,9 +203,13 @@ def run_system_health(
     obs_port: int,
     ndi_runtime_path: Path | None = None,
     hdmi_info: dict | None = None,
+    thorough: bool = True,
 ) -> HealthReport:
-    """Run the operator preflight without changing application content."""
-    checks = _database_checks(Path(database_path))
+    """Run the operator preflight without changing application content.
+
+    ``thorough=False`` skips SQLite's full integrity scan (silent startup check).
+    """
+    checks = _database_checks(Path(database_path), thorough)
 
     data_path = Path(data_directory)
     try:

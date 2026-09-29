@@ -383,3 +383,15 @@ def test_startup_work_runs_off_ui_thread_and_reraises():
 
     with pytest.raises(RuntimeError, match="échec"):
         main._run_responsive(qapp, _boom)
+
+
+def test_bootstrap_does_not_scan_an_existing_database(tmp_path, monkeypatch):
+    """PRAGMA quick_check lit toute la base (40 s à froid sur 570 Mo) :
+    jamais au démarrage pour une base déjà présente."""
+    bundled = tmp_path / "resources" / "data" / "project_on.db"
+    _make_db(bundled, "bundled")
+    _make_db(tmp_path / "profile" / "data" / "project_on.db", "user")
+    scanned = []
+    monkeypatch.setattr(app_paths, "_sqlite_ok", lambda path: scanned.append(path) or True)
+    app_paths.ensure_data_initialized()
+    assert scanned == []

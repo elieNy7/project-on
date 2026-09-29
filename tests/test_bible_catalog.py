@@ -199,3 +199,20 @@ def test_bible_manager_dialog_lists_and_imports(db: Database, tmp_path: Path) ->
         assert dialog._buttons["KJV"].text() in ("Télécharger", "Installée")
     finally:
         dialog.close()
+
+
+def test_translation_books_are_listed_with_their_names(db) -> None:
+    from app.database.dao_bible import BibleDao
+
+    with db.connect() as conn:
+        conn.execute("INSERT INTO bible_translation (id, module, name, shortname, lang) "
+                     "VALUES (90, 'TEST', 'Test', 'TST', 'fr')")
+        conn.executemany(
+            "INSERT INTO bible_translation_verse (translation_id, book, book_name, chapter, verse, text) "
+            "VALUES (90, ?, ?, ?, ?, 'x')",
+            [(1, "Genèse", 1, 1), (1, "Genèse", 1, 2), (2, "Exode", 1, 1), (40, None, 1, 1)],
+        )
+        conn.commit()
+    assert BibleDao(db).list_translation_books(90) == [
+        {"id": 1, "name": "Genèse"}, {"id": 2, "name": "Exode"}, {"id": 40, "name": "40"},
+    ]

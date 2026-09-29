@@ -412,13 +412,21 @@ def install_bundled_bibles(db, folder: Path | None = None) -> list[str]:
         return []
     installed: list[str] = []
     with db.connect() as conn:
-        present = installed_translations(conn)
+        # EXISTS s'arrête au premier verset : compter les versets de chaque
+        # traduction (installed_translations) coûtait ~0,5 s par démarrage.
+        present = {
+            str(module)
+            for (module,) in conn.execute(
+                "SELECT t.module FROM bible_translation t WHERE EXISTS ("
+                "SELECT 1 FROM bible_translation_verse v WHERE v.translation_id = t.id)"
+            )
+        }
         removed = _removed_modules(conn)
         for path in sorted(folder.glob("*.json.gz")):
             module = path.name[: -len(".json.gz")]
             if module in removed:
                 continue
-            if module in present and present[module]["verses"] > 0:
+            if module in present:
                 continue
             try:
                 install_payload(conn, load_bible_file(path))

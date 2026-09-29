@@ -345,6 +345,18 @@ def seed_default_backgrounds() -> None:
         log.error("Error writing backgrounds marker: %s", e)
 
 
+_SQLITE_HEADER = b"SQLite format 3" + bytes(1)
+
+
+def _sqlite_header_ok(path: Path) -> bool:
+    """Le fichier commence-t-il par l'en-tête SQLite ? (lecture de 16 octets)"""
+    try:
+        with open(path, "rb") as handle:
+            return handle.read(16) == _SQLITE_HEADER
+    except OSError:
+        return False
+
+
 def _sqlite_ok(path: Path) -> bool:
     """Contrôle d'intégrité rapide d'un fichier base SQLite.
 
@@ -394,7 +406,10 @@ def ensure_data_initialized() -> None:
 
         dst_file = target_dir / src_file.name
         if dst_file.exists():
-            if _sqlite_ok(dst_file):
+            # En-tête seulement : un PRAGMA quick_check lit toute la base
+            # (40 s à froid pour 570 Mo) à chaque démarrage, alors qu'une
+            # base existante n'est de toute façon jamais remplacée ici.
+            if _sqlite_header_ok(dst_file):
                 continue
             # Base présente mais illisible : on ne sait pas distinguer un
             # fichier utilisateur corrompu d'un vestige de copie interrompue.

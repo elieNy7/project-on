@@ -61,3 +61,29 @@ def test_system_health_flags_operator_blockers(db: Database, tmp_path: Path) -> 
     assert by_key["presentation"].status == "error"
     assert by_key["screens"].status == "warning"
     assert by_key["obs"].status == "error"
+
+
+def test_silent_startup_check_skips_the_full_integrity_scan(db: Database, tmp_path: Path, monkeypatch) -> None:
+    import sqlite3
+
+    presentation = tmp_path / "presentation"
+    _presentation_assets(presentation)
+    statements: list[str] = []
+    real_connect = sqlite3.connect
+
+    def spying_connect(*args, **kwargs):
+        conn = real_connect(*args, **kwargs)
+        conn.set_trace_callback(statements.append)
+        return conn
+
+    monkeypatch.setattr(sqlite3, "connect", spying_connect)
+    kwargs = dict(
+        database_path=db.db_path, data_directory=tmp_path / "data",
+        presentation_directory=presentation, screen_count=2, obs_mode="web", obs_port=8080,
+    )
+    light = run_system_health(**kwargs, thorough=False)
+    assert not any("quick_check" in s for s in statements)
+    assert light.errors == 0 and "database" in {c.key for c in light.checks}
+
+    run_system_health(**kwargs)  # « Contrôle avant culte » ouvert par l'opérateur
+    assert any("quick_check" in s for s in statements)

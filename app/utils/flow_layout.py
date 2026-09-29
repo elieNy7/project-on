@@ -5,6 +5,10 @@ from PySide6.QtWidgets import QLayout, QStyle
 class FlowLayout(QLayout):
     def __init__(self, parent=None, margin=-1, hSpacing=-1, vSpacing=-1):
         super().__init__(parent)
+        # heightForWidth is asked many times per resize; each answer walks
+        # every item (a styled button's sizeHint is costly). Cached per width.
+        self._hfw_cache: dict[int, int] = {}
+        self._hints: list[QSize] | None = None  # item size hints, same reason
         self.itemList = []
         if margin != -1:
             self.setContentsMargins(margin, margin, margin, margin)
@@ -18,6 +22,15 @@ class FlowLayout(QLayout):
 
     def addItem(self, item):
         self.itemList.append(item)
+        self._forget_sizes()
+
+    def invalidate(self):
+        self._forget_sizes()
+        super().invalidate()
+
+    def _forget_sizes(self):
+        self._hfw_cache.clear()
+        self._hints = None
 
     def horizontalSpacing(self):
         if self.m_hSpace >= 0:
@@ -39,6 +52,7 @@ class FlowLayout(QLayout):
 
     def takeAt(self, index):
         if 0 <= index < len(self.itemList):
+            self._forget_sizes()
             return self.itemList.pop(index)
         return None
 
@@ -49,7 +63,10 @@ class FlowLayout(QLayout):
         return True
 
     def heightForWidth(self, width):
-        height = self.doLayout(QRect(0, 0, width, 0), True)
+        height = self._hfw_cache.get(width)
+        if height is None:
+            height = self.doLayout(QRect(0, 0, width, 0), True)
+            self._hfw_cache[width] = height
         return height
 
     def setGeometry(self, rect):
@@ -72,22 +89,23 @@ class FlowLayout(QLayout):
         y = rect.y()
         lineHeight = 0
 
-        for item in self.itemList:
-            item.widget()
-            spaceX = self.m_hSpace
-            spaceY = self.m_vSpace
-            nextX = x + item.sizeHint().width() + spaceX
+        spaceX = self.m_hSpace
+        spaceY = self.m_vSpace
+        if self._hints is None or len(self._hints) != len(self.itemList):
+            self._hints = [item.sizeHint() for item in self.itemList]
+        for item, hint in zip(self.itemList, self._hints):
+            nextX = x + hint.width() + spaceX
             if nextX - spaceX > rect.right() and lineHeight > 0:
                 x = rect.x()
                 y = y + lineHeight + spaceY
-                nextX = x + item.sizeHint().width() + spaceX
+                nextX = x + hint.width() + spaceX
                 lineHeight = 0
 
             if not testOnly:
-                item.setGeometry(QRect(QPoint(x, y), item.sizeHint()))
+                item.setGeometry(QRect(QPoint(x, y), hint))
 
             x = nextX
-            lineHeight = max(lineHeight, item.sizeHint().height())
+            lineHeight = max(lineHeight, hint.height())
 
         return y + lineHeight - rect.y()
 

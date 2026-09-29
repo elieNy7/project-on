@@ -1630,7 +1630,9 @@ class MainWindow(QMainWindow):
         self._startup_check_signals = _HealthSignals(self)
         self._startup_check_signals.completed.connect(self._on_startup_check_done)
         QThreadPool.globalInstance().start(
-            _HealthWorker(self._startup_check_signals, self._preflight_kwargs())
+            _HealthWorker(
+                self._startup_check_signals, {**self._preflight_kwargs(), "thorough": False}
+            )
         )
 
     def _on_startup_check_done(self, report) -> None:

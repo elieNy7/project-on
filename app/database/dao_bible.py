@@ -22,15 +22,20 @@ class BibleDao:
 
     def list_translation_books(self, translation_id: int) -> list[dict[str, Any]]:
         with self._db.connect() as conn:
+            # One verse per book (the name is the same for the whole book):
+            # grouping every verse of the translation cost up to 0.15 s.
             rows = conn.execute(
                 """
-                SELECT book AS id, MIN(COALESCE(book_name, '')) AS name
-                FROM bible_translation_verse
-                WHERE translation_id = ?
-                GROUP BY book
-                ORDER BY book
+                SELECT b.book AS id,
+                       (SELECT COALESCE(v.book_name, '')
+                          FROM bible_translation_verse v
+                         WHERE v.translation_id = ? AND v.book = b.book
+                         LIMIT 1) AS name
+                FROM (SELECT DISTINCT book FROM bible_translation_verse
+                      WHERE translation_id = ?) b
+                ORDER BY b.book
                 """,
-                (int(translation_id),),
+                (int(translation_id), int(translation_id)),
             ).fetchall()
 
             prepared: list[dict[str, Any]] = []
