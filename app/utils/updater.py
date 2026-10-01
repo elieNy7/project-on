@@ -1,7 +1,9 @@
 """Mise à jour intégrée depuis les versions publiées sur GitHub.
 
-Quand Internet est disponible, Project-On lit la dernière version publiée
-(API GitHub Releases), la compare à la sienne puis, à la demande de
+Tous les logiciels PARATECH sont publiés au même endroit : le dépôt du site
+(``elieNy7/paratech-web``), une version par étiquette ``<logiciel>-v<version>``.
+Quand Internet est disponible, Project-On lit ces versions (API GitHub
+Releases), garde la plus récente de Project-On, la compare à la sienne puis, à la demande de
 l'opérateur, télécharge l'installeur ``ProjectOn_<version>_Setup.exe`` et le
 lance. L'installeur conserve la base, les playlists et les réglages.
 
@@ -23,8 +25,10 @@ from urllib.parse import urlparse
 
 from app.version import __version__
 
-REPOSITORY = "elieNy7/project-on"
-LATEST_URL = f"https://api.github.com/repos/{REPOSITORY}/releases/latest"
+REPOSITORY = "elieNy7/paratech-web"
+RELEASES_URL = f"https://api.github.com/repos/{REPOSITORY}/releases?per_page=50"
+# Étiquette des versions de Project-On dans ce dépôt partagé : project-on-v2.7.0
+TAG_PREFIX = "project-on-v"
 _ALLOWED_HOSTS = {"github.com", "objects.githubusercontent.com",
                   "release-assets.githubusercontent.com"}
 
@@ -49,10 +53,11 @@ def is_newer(remote: str, local: str = __version__) -> bool:
 
 
 def parse_release(payload: dict) -> UpdateInfo | None:
-    """Version et installeur d'une réponse « releases/latest »."""
+    """Version et installeur d'une version publiée (réponse de l'API Releases)."""
     if not isinstance(payload, dict) or payload.get("draft") or payload.get("prerelease"):
         return None
-    version = str(payload.get("tag_name") or "").lstrip("vV")
+    tag = str(payload.get("tag_name") or "")
+    version = tag[len(TAG_PREFIX):] if tag.startswith(TAG_PREFIX) else tag.lstrip("vV")
     for asset in payload.get("assets") or []:
         name = str(asset.get("name") or "")
         if re.fullmatch(r"ProjectOn_[\d.]+_Setup\.exe", name):
@@ -72,15 +77,27 @@ def parse_release(payload: dict) -> UpdateInfo | None:
     return None
 
 
+def pick_latest(releases: list) -> UpdateInfo | None:
+    """La plus récente version de Project-On parmi celles de tous les logiciels."""
+    found = [
+        info
+        for release in releases or []
+        if isinstance(release, dict) and str(release.get("tag_name") or "").startswith(TAG_PREFIX)
+        for info in [parse_release(release)]
+        if info is not None
+    ]
+    return max(found, key=lambda info: parse_version(info.version), default=None)
+
+
 def check_latest(timeout: float = 8.0) -> UpdateInfo | None:
     """Dernière version publiée (None sans Internet ou sans installeur)."""
     request = urllib.request.Request(
-        LATEST_URL,
+        RELEASES_URL,
         headers={"Accept": "application/vnd.github+json",
                  "User-Agent": f"Project-On/{__version__}"},
     )
     with urllib.request.urlopen(request, timeout=timeout) as response:
-        return parse_release(json.loads(response.read().decode("utf-8")))
+        return pick_latest(json.loads(response.read().decode("utf-8")))
 
 
 def download(info: UpdateInfo, folder: Path,

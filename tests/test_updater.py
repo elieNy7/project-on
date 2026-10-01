@@ -44,6 +44,25 @@ def test_parse_release_picks_setup_and_rejects_foreign_hosts() -> None:
     assert updater.parse_release(dict(RELEASE, body=f"SHA-256 : {digest}")).sha256 == digest
 
 
+def _shared(tag: str, asset: str) -> dict:
+    url = f"https://github.com/elieNy7/paratech-web/releases/download/{tag}/{asset}"
+    return {"tag_name": tag, "html_url": "", "body": "", "assets": [{"name": asset, "size": 5, "browser_download_url": url}]}
+
+
+def test_pick_latest_keeps_only_project_on_in_the_shared_repository() -> None:
+    releases = [
+        _shared("pgraphics-v9.0.0", "Pgraphics_9.0.0_Setup.exe"),
+        _shared("project-on-v2.7.0", "ProjectOn_2.7.0_Setup.exe"),
+        _shared("project-on-v2.10.0", "ProjectOn_2.10.0_Setup.exe"),
+        dict(_shared("project-on-v3.0.0", "ProjectOn_3.0.0_Setup.exe"), draft=True),
+        _shared("paudio-v0.1.0", "pAudio_0.1.0_Setup.exe"),
+    ]
+    info = updater.pick_latest(releases)
+    assert info.version == "2.10.0" and info.url.endswith("ProjectOn_2.10.0_Setup.exe")
+    assert updater.pick_latest([releases[0], releases[4]]) is None
+    assert updater.pick_latest([]) is None
+
+
 class _Response(io.BytesIO):
     def __init__(self, data: bytes, url: str) -> None:
         super().__init__(data)

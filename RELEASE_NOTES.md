@@ -1,3 +1,17 @@
+# Project-On 2.7.1
+
+**Un bandeau de chaîne, sobre et lisible** 🎥 — le style par défaut des sorties OBS, NDI et HDMI est refait sur le modèle des bandeaux de Pgraphics.
+
+- **Petit et lisible** : Google Sans 40 px, trois lignes au plus, texte blanc sur un fond sombre couvrant, référence en badge doré.
+- **Zone de sécurité télé** (EBU R 95) : le bandeau reste à 5 % des bords, rien n'est rogné par un téléviseur ou un mélangeur.
+- **Lisible sur n'importe quelle vidéo** : contraste d'au moins 4,5:1 même sur une image très claire ; plus de voile sur toute l'image, plus de contour ni de majuscules forcées.
+- **Le même style partout** : la page OBS, le NDI et le HDMI (clé chroma) suivent les mêmes réglages ; le style HDMI propre est aligné sur la même famille.
+- **Entrée courte** : 420 ms, d'un bloc.
+- **Vos réglages sont gardés** : une installation existante garde son style. Pour passer au nouveau : Réglages → Bandeau OBS → **Réinitialiser** (l'image de fond du bandeau est alors retirée).
+- **Mises à jour** : Project-On cherche désormais ses nouvelles versions sur le dépôt commun des logiciels PARATECH.
+
+---
+
 # Project-On 2.7.0
 
 **Une régie professionnelle** ⛪ — Bibles libres intégrées, déroulé du culte avec avance/retard, fonds animés, éditeur de cantiques, historique et export pour le montage vidéo, reprise après coupure de courant, mise à jour intégrée… et une sortie HDMI en **sous-titre OBS**.

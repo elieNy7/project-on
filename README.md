@@ -7,7 +7,7 @@
 **Logiciel de projection pour églises — Bible, Cantiques, Prédications, Exposés.**
 Sortie OBS (lower-third) · Projection plein écran cinématique · 100 % hors-ligne.
 
-[**🌐 Site web**](https://elieny7.github.io/project-on/) · [**⬇️ Télécharger**](https://github.com/elieNy7/project-on/releases/latest) · [Captures d'écran](#aperçu)
+[**🌐 Site web**](https://elieny7.github.io/paratech-web/project-on.html) · [**⬇️ Télécharger**](https://elieny7.github.io/paratech-web/project-on.html) · [Captures d'écran](#aperçu)
 
 </div>
 
@@ -45,7 +45,7 @@ Sortie OBS (lower-third) · Projection plein écran cinématique · 100 % hors-l
 
 ## ⬇️ Installation (Windows)
 
-1. Téléchargez **`ProjectOn_2.7.0_Setup.exe`** depuis la [dernière version](https://github.com/elieNy7/project-on/releases/latest).
+1. Téléchargez **`ProjectOn_2.7.1_Setup.exe`** depuis la [page Project-On](https://elieny7.github.io/paratech-web/project-on.html).
 2. Lancez l'installeur (français). Si Windows affiche **SmartScreen**, cliquez sur « Informations complémentaires » → « Exécuter quand même ».
 3. Ouvrez **Project-On**. Tout fonctionne hors-ligne.
 

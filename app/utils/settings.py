@@ -13,63 +13,76 @@ from app.utils.shortcuts import ShortcutSettings
 
 @dataclass
 class ObsOutputSettings:
+    """Style du texte diffusé (OBS, NDI et, par défaut, HDMI).
+
+    Les valeurs par défaut sont celles d'un bandeau de chaîne sobre, comme les
+    modèles de Pgraphics : petit (40 px en 1080p, trois lignes au plus), dans
+    la zone de sécurité EBU R 95 (5 % du bord), fond sombre couvrant, texte
+    blanc, une seule couleur d'accent (or), sans contour, sans majuscules
+    forcées ni voile sur toute l'image, entrée courte d'un bloc. Le bouton
+    « Réinitialiser » de « Bandeau OBS » revient à ce style.
+    """
+
     layout_mode: str = "lower_third"  # lower_third|fullscreen|side_panel|subtitle|focus_card
-    font_family: str = "Poppins"
-    text_size: int = 48  # pixels
-    ref_size: int = 19  # pixels
-    align: str = "center"  # center|left|right (text alignment)
+    font_family: str = "Google Sans"
+    text_size: int = 40  # pixels
+    ref_size: int = 24  # pixels
+    align: str = "left"  # center|left|right (text alignment)
     show_reference: bool = True
     position: str = "bottom"  # bottom|top|center
     # Fine positioning (fully adjustable lower third)
     band_align: str = "center"  # left|center|right — horizontal placement of the band
     offset_x: int = 0  # px horizontal offset (negative = left)
     offset_y: int = 0  # px vertical offset (negative = up)
-    edge_margin: int = 64  # px distance kept from the screen edges
-    safe_area_percent: int = 5  # broadcast-safe inset as percentage of viewport
+    edge_margin: int = 0  # px kept from the screen edges, on top of the safe area
+    safe_area_percent: int = 5  # broadcast-safe inset (EBU R 95: 5 % of each edge)
     panel_side: str = "left"  # left|right, used by side_panel
     # Branding / decorations
-    show_kicker: bool = True  # source badge above the text
+    show_kicker: bool = False  # source badge above the text
     show_accent_bar: bool = True  # coloured accent bar under the band
-    accent_mode: str = "auto"  # auto (per-source colour) | custom
-    accent_color: str = "#74a7f8"  # used when accent_mode == "custom"
+    accent_mode: str = "custom"  # auto (per-source colour) | custom
+    accent_color: str = "#e7c07e"  # used when accent_mode == "custom"
     bg_enabled: bool = True  # show/hide background band
-    bg_color: str = "rgba(7, 12, 22, 0.90)"
-    bg_opacity: float = 0.88  # background-specific opacity 0.0-1.0
-    text_color: str = "rgba(255, 255, 255, 0.97)"
-    ref_color: str = "rgba(255, 247, 226, 0.94)"
+    bg_color: str = "rgba(10, 14, 22, 0.90)"
+    bg_opacity: float = 0.90  # background-specific opacity 0.0-1.0
+    text_color: str = "#ffffff"
+    ref_color: str = "#e7c07e"
     # Professional text styling
     text_shadow: bool = True
-    shadow_color: str = "rgba(0, 0, 0, 0.66)"
-    shadow_blur: int = 14  # pixels
+    shadow_color: str = "rgba(0, 0, 0, 0.45)"
+    shadow_blur: int = 10  # pixels
     text_stroke: bool = False
     stroke_color: str = "rgba(0, 0, 0, 0.8)"
     stroke_width: int = 1  # pixels
     letter_spacing: int = 0  # pixels
-    line_height: float = 1.16  # multiplier
-    padding_horizontal: int = 48  # pixels
-    padding_vertical: int = 26  # pixels
-    max_width: int = 82  # percentage of screen width
+    line_height: float = 1.25  # multiplier
+    padding_horizontal: int = 40  # pixels
+    padding_vertical: int = 22  # pixels
+    max_width: int = 84  # percentage of screen width
     auto_fit: bool = True
     uniform_text_size: bool = True  # keep the configured size across slides
-    min_text_size: int = 24
-    max_lines: int = 6
+    min_text_size: int = 26
+    max_lines: int = 3
     reference_style: str = "badge"  # badge|plain|inline
-    background_dimmer: float = 0.36  # full-canvas readability overlay
-    border_radius: int = 22  # pixels
+    background_dimmer: float = 0.0  # full-canvas overlay (0: the video stays untouched)
+    border_radius: int = 14  # pixels
     # Animation
     animation_enabled: bool = True
-    animation_type: str = "auto"  # auto|none|fade|slide|scale|blur|reveal
-    animation_duration: int = 520  # milliseconds
+    animation_type: str = "slide"  # auto|none|fade|slide|scale|blur|reveal
+    animation_duration: int = 420  # milliseconds
     # Font weight
-    font_weight: str = "bold"  # normal|bold|light
+    font_weight: str = "normal"  # normal|bold|light
     # Professional options
     text_transform: str = "none"  # none|uppercase|capitalize
-    bg_blur: bool = True  # backdrop blur (glass effect)
+    # Le flou de fond ne se voit que dans OBS : sur une clé (HDMI) ou en NDI,
+    # le bandeau se pose sur une vidéo qu'il ne connaît pas. Un fond couvrant
+    # garde la même lisibilité sur les trois sorties.
+    bg_blur: bool = False  # backdrop blur (glass effect)
     bg_blur_amount: int = 20  # px
     opacity: float = 1.0  # overall opacity 0.0-1.0
     # Gradient support
-    bg_gradient_enabled: bool = True
-    bg_color_2: str = "rgba(2, 6, 14, 0.92)"
+    bg_gradient_enabled: bool = False
+    bg_color_2: str = "rgba(10, 14, 22, 0.90)"
     bg_gradient_angle: int = 135  # degrees
     bg_mode: str = "color"  # "color" or "image" (mutually exclusive background)
     bg_image: str = ""  # background image path (used only when bg_mode == "image")
@@ -638,14 +651,14 @@ class HdmiStyle:
     par défaut donnent un sous-titre télévisé lisible sur la caméra.
     """
 
-    # Police
-    font_family: str = "Poppins"
+    # Police : la même famille que le bandeau OBS par défaut (façon Pgraphics)
+    font_family: str = "Google Sans"
     font_weight: str = "bold"
     text_transform: str = "none"
     letter_spacing: int = 0
-    line_height: float = 1.16
+    line_height: float = 1.2
     # Tailles et référence
-    text_size: int = 52
+    text_size: int = 44
     ref_size: int = 22
     show_reference: bool = True
     reference_style: str = "badge"
@@ -654,18 +667,18 @@ class HdmiStyle:
     # Position
     position: str = "bottom"
     align: str = "center"
-    edge_margin: int = 64
-    max_width: int = 82
+    edge_margin: int = 54  # 5 % de 1080 : zone de sécurité EBU R 95
+    max_width: int = 84
     # Arrière-plan (toujours opaque sur la clé chroma : une transparence
     # mélangerait le panneau à la couleur supprimée par le mélangeur)
     bg_enabled: bool = True
-    bg_color: str = "rgba(7, 12, 22, 0.92)"
+    bg_color: str = "rgba(10, 14, 22, 0.94)"
     bg_gradient_enabled: bool = False
-    bg_color_2: str = "rgba(2, 6, 14, 0.94)"
-    border_radius: int = 18
+    bg_color_2: str = "rgba(10, 14, 22, 0.94)"
+    border_radius: int = 14
     # Couleurs
-    text_color: str = "rgba(255, 255, 255, 0.98)"
-    ref_color: str = "rgba(255, 247, 226, 0.94)"
+    text_color: str = "#ffffff"
+    ref_color: str = "#e7c07e"
     # Effets
     text_shadow: bool = True
     shadow_color: str = "rgba(0, 0, 0, 0.70)"
@@ -676,8 +689,8 @@ class HdmiStyle:
     # Habillage
     show_kicker: bool = False
     show_accent_bar: bool = True
-    accent_mode: str = "auto"
-    accent_color: str = "#74a7f8"
+    accent_mode: str = "custom"
+    accent_color: str = "#e7c07e"
     # Animation d'entrée
     animation_enabled: bool = True
     animation_type: str = "fade"
