@@ -264,19 +264,6 @@ class ObsWebServer:
                     else:
                         self.send_error(404)
 
-                elif path == "api/speaker-photo":
-                    # Photo de l'orateur du jour (PNG sans arrière-plan).
-                    with server_ref._data_lock:
-                        badge = server_ref._config.get("speaker_badge") or {}
-                    photo = str(badge.get("photo") or "") if isinstance(badge, dict) else ""
-                    target = Path(photo) if photo else None
-                    if target is not None and target.is_file() and target.suffix.lower() in (
-                        ".png", ".webp", ".jpg", ".jpeg"
-                    ):
-                        self._file(target)
-                    else:
-                        self.send_error(404)
-
                 elif path.startswith("assets/"):
                     # Serve assets from project root (parent of presentation dir)
                     # This allows fonts.css (which uses ../assets) to resolve correctly

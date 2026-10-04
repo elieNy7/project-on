@@ -1,3 +1,7 @@
+# Project-On 2.7.2
+
+- **Plus d'orateur du jour sur OBS, NDI et HDMI** : la photo et le nom de l'orateur ne s'affichent plus à côté du bandeau sur le direct ; le bandeau reprend toute la largeur. Les réglages « Sur OBS, NDI et HDMI » et « Hauteur sur OBS / HDMI » sont retirés. L'orateur reste disponible sur les slides de projection et les visuels de l'église.
+
 # Project-On 2.7.1
 
 **Un bandeau de chaîne, sobre et lisible** 🎥 — le style par défaut des sorties OBS, NDI et HDMI est refait sur le modèle des bandeaux de Pgraphics.

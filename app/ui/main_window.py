@@ -103,9 +103,6 @@ class MainWindow(QMainWindow):
         )
         self._project_controller.set_split_settings(self._settings.split)
         self._obs = ObsController(settings=self._settings.obs)
-        from app.utils.church_graphics import speaker_broadcast_badge
-
-        self._obs.set_speaker_badge(speaker_broadcast_badge(self._settings.church))
         if self._settings.appearance.low_power:
             self._obs.set_low_power(True)
         # Lecteur vidéo partagé : l'aperçu, le mixeur HDMI et le NDI lisent les
@@ -801,10 +798,6 @@ class MainWindow(QMainWindow):
         out.media_backdrop = projection.media_backdrop
         out.media_backdrop_dim = projection.media_backdrop_dim
         cfg = self._settings.obs.to_full_obs_config()
-        from app.utils.church_graphics import speaker_broadcast_badge
-
-        # Orateur du jour à côté du bandeau : lu par le NDI et la sortie HDMI.
-        cfg["speaker_badge"] = speaker_broadcast_badge(self._settings.church)
         if self._settings.appearance.low_power:
             cfg.update(low_power_obs_overrides())
             for scene in (cfg.get("scenes") or {}).values():
@@ -1037,13 +1030,9 @@ class MainWindow(QMainWindow):
 
         def on_change(profile) -> None:
             self._settings.church = profile
-            # L'orateur du jour s'affiche sur les slides, OBS, NDI et HDMI :
-            # mise à jour immédiate de toutes les sorties.
+            # L'orateur du jour s'affiche sur les slides de projection :
+            # mise à jour immédiate.
             self._apply_projection_config()
-            self._write_obs_config()
-            from app.utils.church_graphics import speaker_broadcast_badge
-
-            self._obs.set_speaker_badge(speaker_broadcast_badge(profile))
             self._settings_changed()
 
         dlg.profileChanged.connect(on_change)

@@ -97,11 +97,6 @@ class ObsController:
 
         self.start()
 
-    def set_speaker_badge(self, badge: dict | None) -> None:
-        """Orateur du jour à côté du bandeau de la page OBS."""
-        self._speaker_badge = dict(badge or {})
-        self._apply_output_config()
-
     def set_low_power(self, enabled: bool) -> None:
         """Mode PC modeste : page OBS sans animation ni flou."""
         self._low_power = bool(enabled)
@@ -120,9 +115,6 @@ class ObsController:
         """
         try:
             config = self._settings.to_full_obs_config()
-            badge = getattr(self, "_speaker_badge", None)
-            if badge:
-                config["speaker_badge"] = dict(badge)
             if getattr(self, "_low_power", False):
                 light = {"animation_enabled": False, "animation_type": "none", "bg_blur": False}
                 config.update(light)
