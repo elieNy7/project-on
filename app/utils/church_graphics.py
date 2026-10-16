@@ -595,6 +595,51 @@ def _fit_tracked(draw, text: str, family: str, size: int, minimum: int,
         size = max(minimum, int(size * 0.92))
 
 
+def _wrap_tracked(draw, text: str, font, spacing: float, max_w: int) -> list[str]:
+    """Coupe un texte espacé en lignes ; entre deux références (« — ») d'abord."""
+    lines: list[str] = []
+
+    def fits(value: str) -> bool:
+        return _tracked_width(draw, value, font, spacing) <= max_w
+
+    for part in [p.strip() for p in text.split(" — ") if p.strip()]:
+        candidate = f"{lines[-1]} — {part}" if lines else part
+        if lines and fits(candidate):
+            lines[-1] = candidate
+            continue
+        if fits(part):
+            lines.append(part)
+            continue
+        current = ""
+        for word in part.split():  # une seule référence trop longue
+            trial = f"{current} {word}".strip()
+            if current and not fits(trial):
+                lines.append(current)
+                current = word
+            else:
+                current = trial
+        if current:
+            lines.append(current)
+    return lines
+
+
+def _reference_layout(draw, text: str, family: str, max_w: int, unit: float):
+    """(police, espacement, lignes, interligne) : la référence entière, sans débord.
+
+    Taille réduite jusqu'à tenir sur deux lignes (trois au plus petit) ;
+    une très longue liste garde toutes ses lignes plutôt que d'être coupée.
+    """
+    size = int(24 * unit)
+    minimum = int(15 * unit)
+    while True:
+        font = _font(family, size)
+        spacing = size * (0.14 if size > minimum else 0.08)
+        lines = _wrap_tracked(draw, text, font, spacing, max_w)
+        if len(lines) <= 2 or size <= minimum:
+            return font, spacing, lines, int(size * 1.55)
+        size = max(minimum, int(size * 0.9))
+
+
 def _avatar(photo: str, diameter: int, ring_rgb, disc_rgb):
     """Médaillon rond (tête et épaules) tiré d'une photo détourée ; None si absente."""
     from PIL import Image, ImageDraw
@@ -813,8 +858,16 @@ def render_quote(profile: ChurchProfile, text: str, reference: str = "",
     text_w = min(x1 - x0 - (int(36 * unit) if style == "minimal" else 0), int(1440 * unit))
     marks = {"classic": 96, "elegant": 64, "poster": 130, "portrait": 44}
     mark_h = int(marks.get(style, 0) * unit)
-    ref_text = reference.replace("\n", " — ").strip().upper()
-    ref_h = int(88 * unit) if ref_text else 0
+    ref_text = " ".join(reference.replace("\n", " — ").split()).upper()
+    ref_lines: list[str] = []
+    ref_h = 0
+    if ref_text:
+        # Référence entière, sur plusieurs lignes s'il le faut : sa hauteur
+        # est réservée avant d'ajuster le texte, rien ne déborde.
+        ref_font, ref_spacing, ref_lines, ref_lh = _reference_layout(
+            draw, ref_text, family, text_w - 2 * pad, unit)
+        ref_h = int((30 if align == "left" else 50) * unit) + ref_lh * len(ref_lines) \
+            + int(8 * unit)
     font, lines, size = _fit_text(
         draw, text, text_family, text_w - 2 * pad,
         area_bottom - area_top - mark_h - ref_h - 2 * pad,
@@ -877,17 +930,18 @@ def render_quote(profile: ChurchProfile, text: str, reference: str = "",
         else:
             draw.text((cx, y), line, font=font, fill=ink, anchor="ma")
         y += line_h
-    if ref_text:
-        ref_font, spacing = _fit_tracked(draw, ref_text, family, int(26 * unit),
-                                         int(16 * unit), text_w - 2 * pad)
+    if ref_lines:
         if align == "left":
-            _draw_tracked(draw, tx, y + int(30 * unit), ref_text, ref_font, detail,
-                          spacing, align="left")
+            y += int(30 * unit)
         else:
             y += int(26 * unit)
             draw.line([(cx - int(28 * unit), y), (cx + int(28 * unit), y)],
                       fill=accent, width=max(2, int(3 * unit)))
-            _draw_tracked(draw, cx, y + int(24 * unit), ref_text, ref_font, detail, spacing)
+            y += int(24 * unit)
+        for ref_line in ref_lines:
+            _draw_tracked(draw, tx if align == "left" else cx, y, ref_line, ref_font, detail,
+                          ref_spacing, align=align)
+            y += ref_lh
     return image
 
 

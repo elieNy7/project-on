@@ -59,6 +59,21 @@ def test_every_quote_model_renders(tmp_path: Path) -> None:
     assert ChurchProfile.from_payload({"quote_style": "card"}).quote_style == "card"
 
 
+def test_long_reference_wraps_without_overflow() -> None:
+    from PIL import Image, ImageDraw
+
+    from app.utils.church_graphics import _reference_layout, _tracked_width
+
+    draw = ImageDraw.Draw(Image.new("RGB", (10, 10)))
+    ref = ("JEAN 3:16 (LOUIS SEGOND 1910) — ROMAINS 5:8 — 1 JEAN 4:9-10 — "
+           "ÉPHÉSIENS 2:4-8 — 2 CORINTHIENS 5:17-21 — APOCALYPSE 21:1-4")
+    font, spacing, lines, _lh = _reference_layout(draw, ref, "Poppins", 600, 1.0)
+    assert len(lines) > 1
+    assert all(_tracked_width(draw, line, font, spacing) <= 600 for line in lines)
+    # Rien n'est perdu : toutes les références restent affichées.
+    assert " — ".join(lines).split() == ref.split()
+
+
 def test_join_references() -> None:
     assert join_references(["Jean 3:16"]) == "Jean 3:16"
     assert join_references(["Jean 3:16", "Jean 3:17", "Jean 3:18"]) == "Jean 3:16-18"

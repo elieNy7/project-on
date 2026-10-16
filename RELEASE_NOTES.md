@@ -6,6 +6,7 @@
 - **8 modèles au choix** : Classique, Minimal, Encadré, Élégant, Carte claire, Affiche (couleur d'accent), Photo de l'église en fond et Portrait du pasteur. Modèle par défaut dans Réglages → Profil de l'église, changeable dans la fenêtre de citation avec aperçu en direct.
 - **Partage depuis la playlist** : clic droit sur un slide → « Créer une image de citation… ».
 - **Copier l'image** : un bouton pour la coller directement dans WhatsApp, Facebook…
+- **Références longues** : plusieurs versets s'affichent en entier, sur deux lignes ou plus, en plus petit, sans jamais déborder sur le texte, la photo ou le pied.
 
 # Project-On 2.7.2
 
