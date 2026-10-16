@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import json
 import os
+from dataclasses import replace
 from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from app.ui.bible_tab import join_references
-from app.utils.church_graphics import ChurchProfile, render_quote, render_welcome
+from app.utils.church_graphics import QUOTE_STYLES, ChurchProfile, render_quote, render_welcome
 from app.utils.settings import AppSettings
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -38,6 +39,24 @@ def test_quote_formats_and_colors() -> None:
     assert all(abs(a - b) <= 1 for a, b in zip(corner[:3], (16, 32, 48)))
     welcome = render_welcome(profile, 960, 540)
     assert welcome.size == (960, 540)
+
+
+def test_every_quote_model_renders(tmp_path: Path) -> None:
+    from PIL import Image
+
+    photo = tmp_path / "culte.png"
+    Image.new("RGB", (800, 600), (200, 40, 40)).save(photo)
+    profile = ChurchProfile(name="Église", pastor_name="Elie", photos=[str(photo)],
+                            socials={"youtube": "@Eglise"})
+    for style in QUOTE_STYLES:
+        for fmt in ("square", "story", "landscape"):
+            image = render_quote(replace(profile, quote_style=style),
+                                 "Dieu est amour. " * 12, "1 Jean 4:8", fmt)
+            assert image.size[0] in (1080, 1920), (style, fmt)
+    # Affiche : fond à la couleur d'accent.
+    poster = render_quote(replace(profile, quote_style="poster"), "Court", "", "square")
+    assert poster.getpixel((2, 2))[:3] == (0xF0, 0xBE, 0x64)
+    assert ChurchProfile.from_payload({"quote_style": "card"}).quote_style == "card"
 
 
 def test_join_references() -> None:

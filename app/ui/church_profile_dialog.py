@@ -38,6 +38,7 @@ from app.ui.setting_cards import PageHeader, SettingSection
 from app.ui.theme import Colors, Typography
 from app.utils.church_graphics import (
     FORMATS,
+    QUOTE_STYLES,
     SOCIAL_PLATFORMS,
     ChurchProfile,
     BUILTIN_THUMBNAIL_MODELS,
@@ -318,11 +319,10 @@ class ChurchProfileDialog(QDialog):
         self.font.setCurrentIndex(max(index, 0))
         look.addRow("Police", self.font)
         self.quote_style = QComboBox()
-        self.quote_style.addItem("Classique (grand guillemet)", "classic")
-        self.quote_style.addItem("Minimal", "minimal")
-        self.quote_style.addItem("Encadré", "framed")
+        for key, label in QUOTE_STYLES.items():
+            self.quote_style.addItem(label, key)
         self.quote_style.setCurrentIndex(max(0, self.quote_style.findData(self._profile.quote_style)))
-        look.addRow("Style des citations", self.quote_style)
+        look.addRow("Modèle des citations", self.quote_style)
         layout.addWidget(look)
 
         # ── Photos de l'église ──
@@ -625,11 +625,17 @@ class QuoteImageDialog(QDialog):
         self.format = QComboBox()
         for key, (label, _w, _h) in FORMATS.items():
             self.format.addItem(label, key)
+        self.style = QComboBox()
+        for key, label in QUOTE_STYLES.items():
+            self.style.addItem(label, key)
+        self.style.setCurrentIndex(max(0, self.style.findData(profile.quote_style)))
         form = QVBoxLayout()
         form.addWidget(QLabel("Texte"))
         form.addWidget(self.text, 1)
         form.addWidget(QLabel("Référence"))
         form.addWidget(self.reference)
+        form.addWidget(QLabel("Modèle"))
+        form.addWidget(self.style)
         form.addWidget(QLabel("Format"))
         form.addWidget(self.format)
         if not profile.name:
@@ -665,11 +671,13 @@ class QuoteImageDialog(QDialog):
         self.text.textChanged.connect(self._debounce.start)
         self.reference.textChanged.connect(self._debounce.start)
         self.format.currentIndexChanged.connect(self._render)
+        self.style.currentIndexChanged.connect(self._render)
         self._render()
 
     def image(self):
+        profile = replace(self._profile, quote_style=str(self.style.currentData() or "classic"))
         return render_quote(
-            self._profile, self.text.toPlainText().strip(), self.reference.text().strip(),
+            profile, self.text.toPlainText().strip(), self.reference.text().strip(),
             str(self.format.currentData() or "square"),
         )
 

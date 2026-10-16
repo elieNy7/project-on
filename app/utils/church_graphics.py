@@ -53,7 +53,17 @@ SOCIAL_PLATFORMS: tuple[SocialPlatform, ...] = (
 PLATFORM_BY_KEY = {p.key: p for p in SOCIAL_PLATFORMS}
 
 BACKGROUND_MODES = ("gradient", "solid", "image")
-QUOTE_STYLES = ("classic", "minimal", "framed")
+# Modèles des images de citation (Réglages → Profil de l'église).
+QUOTE_STYLES: dict[str, str] = {
+    "classic": "Classique (grand guillemet)",
+    "minimal": "Minimal (aligné à gauche)",
+    "framed": "Encadré",
+    "elegant": "Élégant (police à empattements)",
+    "card": "Carte claire",
+    "poster": "Affiche (couleur d'accent)",
+    "photo": "Photo de l'église en fond",
+    "portrait": "Portrait du pasteur",
+}
 
 
 @dataclass
@@ -79,7 +89,7 @@ class ChurchProfile:
     show_socials_welcome: bool = True
     show_socials_quotes: bool = True
     qr_target: str = ""  # réseau vers lequel pointe le QR code ("" = aucun)
-    quote_style: str = "classic"  # classic | minimal | framed
+    quote_style: str = "classic"  # voir QUOTE_STYLES
     # Pasteur : visage de l'église, présent sur toutes ses publications.
     # La photo est importée déjà sans arrière-plan (PNG transparent).
     pastor_name: str = ""
@@ -636,29 +646,59 @@ def _main_handle(profile: ChurchProfile) -> str:
     return max(handles, key=lambda h: (handles.count(h), -handles.index(h)))
 
 
+def _quote_background(profile: ChurchProfile, width: int, height: int, style: str):
+    """Fond du modèle : couleur d'accent (affiche), photo de l'église ou fond habituel."""
+    from PIL import Image, ImageFilter
+
+    if style == "poster":
+        return Image.new("RGBA", (width, height),
+                         (*_rgb(profile.accent_color, "#F0BE64"), 255))
+    if style == "photo":
+        for path in (*profile.photos, profile.background_image):
+            photo = _cover(path, width, height) if path and Path(path).is_file() else None
+            if photo is None:
+                continue
+            # Léger flou : la photo reste reconnaissable, le texte lisible.
+            photo = photo.filter(ImageFilter.GaussianBlur(max(1, min(width, height) // 270)))
+            # Voile à la couleur de l'église, plus dense en haut et en bas.
+            ramp = Image.new("L", (1, height))
+            for y in range(height):
+                t = abs(y / max(1, height - 1) - 0.5) * 2
+                ramp.putpixel((0, y), int(175 + 70 * t * t))
+            shade = Image.new("RGBA", (width, height),
+                              (*_rgb(profile.primary_color, "#0B1E3F"), 255))
+            shade.putalpha(ramp.resize((width, height)))
+            return Image.alpha_composite(photo, shade)
+    return _background(width, height, profile)
+
+
 def render_quote(profile: ChurchProfile, text: str, reference: str = "",
                  fmt: str = "square"):
     """Image de citation (verset, paragraphe) aux couleurs de l'église.
 
     Le texte occupe l'essentiel de l'image ; l'église signe discrètement :
-    logo et nom en tête, médaillon du pasteur et réseaux en pied.
+    logo et nom en tête, médaillon du pasteur et réseaux en pied. Le modèle
+    (``profile.quote_style``, voir QUOTE_STYLES) change le fond et le corps.
     """
-    from PIL import Image, ImageDraw
+    from PIL import Image, ImageDraw, ImageFilter
 
     profile = profile.sanitized()
     _label, width, height = FORMATS.get(fmt, FORMATS["square"])
-    image = _background(width, height, profile)
+    style = profile.quote_style
+    image = _quote_background(profile, width, height, style)
     draw = ImageDraw.Draw(image)
     # Traits et textes semi-transparents : sur un calque, fondu ensuite.
     veil = Image.new("RGBA", (width, height), (0, 0, 0, 0))
     soft = ImageDraw.Draw(veil)
+    primary = _rgb(profile.primary_color, "#0B1E3F")
     accent = _rgb(profile.accent_color, "#F0BE64")
     text_rgb = _rgb(profile.text_color, "#FFFFFF")
-    primary = _rgb(profile.primary_color, "#0B1E3F")
+    if style == "poster":
+        # Fond à la couleur d'accent : texte et détails à la couleur de l'église.
+        accent = text_rgb = primary
     unit = min(width, height) / 1080
     margin = int(min(width, height) * 0.075)
     family = profile.font_family
-    style = profile.quote_style
 
     if style == "framed":
         inset = int(margin * 0.42)
@@ -679,16 +719,26 @@ def render_quote(profile: ChurchProfile, text: str, reference: str = "",
                       (*text_rgb, 215), spacing)
         header_bottom = y + int(24 * unit)
 
-    # Pied : médaillon et nom du pasteur à gauche, réseaux à droite.
     footer_h = int(78 * unit)
     footer_bottom = height - int(margin * 0.85)
     footer_top = footer_bottom - footer_h
     rule_y = footer_top - int(26 * unit)
+    # Portrait : le pasteur en grand, posé sur le filet du pied.
+    portrait = None
+    if style == "portrait":
+        if height > width:
+            portrait = _photo_image(profile.pastor_photo, int(width * 0.62), int(height * 0.40))
+        else:
+            portrait = _photo_image(profile.pastor_photo, int(width * 0.42),
+                                    rule_y - header_bottom - int(20 * unit))
+
+    # Pied : médaillon et nom du pasteur à gauche, réseaux à droite.
     soft.line([(margin, rule_y), (width - margin, rule_y)],
               fill=(*text_rgb, 50), width=max(1, int(1.5 * unit)))
     left_end = margin
-    avatar = _avatar(profile.pastor_photo, footer_h, accent,
-                     tuple(min(255, int(c * 1.6) + 18) for c in primary))
+    avatar = None if portrait is not None else _avatar(
+        profile.pastor_photo, footer_h, accent,
+        tuple(min(255, int(c * 1.6) + 18) for c in primary))
     if avatar is not None:
         image.alpha_composite(avatar, (margin, footer_top))
         left_end = margin + avatar.width + int(16 * unit)
@@ -739,54 +789,105 @@ def render_quote(profile: ChurchProfile, text: str, reference: str = "",
     # Corps : le texte, le plus grand possible, entre l'en-tête et le pied.
     area_top = header_bottom + int(50 * unit)
     area_bottom = rule_y - int(50 * unit)
-    text_w = min(width - 2 * margin - (int(36 * unit) if style == "minimal" else 0),
-                 int(1440 * unit))
-    mark_h = int(96 * unit) if style == "classic" else 0
+    x0, x1 = margin, width - margin
+    if portrait is not None:
+        px = width - portrait.width - int(margin * 0.5)
+        py = rule_y - portrait.height
+        glow = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+        d = int(portrait.width * 0.9)
+        gx, gy = px + portrait.width // 2, py + int(portrait.height * 0.42)
+        ImageDraw.Draw(glow).ellipse((gx - d // 2, gy - d // 2, gx + d // 2, gy + d // 2),
+                                     fill=(*accent, 70))
+        image.alpha_composite(glow.filter(ImageFilter.GaussianBlur(int(50 * unit))))
+        image.alpha_composite(portrait, (px, py))
+        if height > width:
+            area_bottom = py - int(30 * unit)
+        else:
+            x1 = px - int(20 * unit)
+    elif style == "portrait":
+        style = "minimal"  # sans photo du pasteur
+
+    align = "left" if style in ("minimal", "poster", "portrait") else "center"
+    text_family = "Playfair Display" if style == "elegant" else family
+    pad = int(60 * unit) if style == "card" else 0
+    text_w = min(x1 - x0 - (int(36 * unit) if style == "minimal" else 0), int(1440 * unit))
+    marks = {"classic": 96, "elegant": 64, "poster": 130, "portrait": 44}
+    mark_h = int(marks.get(style, 0) * unit)
     ref_text = reference.replace("\n", " — ").strip().upper()
     ref_h = int(88 * unit) if ref_text else 0
     font, lines, size = _fit_text(
-        draw, text, family, text_w, area_bottom - area_top - mark_h - ref_h,
+        draw, text, text_family, text_w - 2 * pad,
+        area_bottom - area_top - mark_h - ref_h - 2 * pad,
         start=int(86 * unit), minimum=int(24 * unit), line_factor=1.3,
     )
     line_h = int(size * 1.3)
     block_h = mark_h + line_h * len(lines) + ref_h
-    y = area_top + max(0, (area_bottom - area_top - block_h) // 2)
+    y = area_top + pad + max(0, (area_bottom - area_top - 2 * pad - block_h) // 2)
+    cx = (x0 + x1) // 2
+    tx = x0 + (int(36 * unit) if style == "minimal" else 0)
+    ink, detail = text_rgb, accent
 
-    if style == "minimal":
-        # Aligné à gauche, filet vertical à la couleur d'accent.
-        x = (width - text_w) // 2 + int(18 * unit)
-        bar_x = x - int(30 * unit)
+    if style == "card":
+        # Carte claire et ombrée ; pastille du guillemet à cheval sur le bord.
+        ink = detail = primary
+        card = (cx - text_w // 2, y - pad, cx + text_w // 2, y + block_h + pad - int(20 * unit))
+        radius = int(28 * unit)
+        shadow = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+        ImageDraw.Draw(shadow).rounded_rectangle(
+            (card[0], card[1] + int(14 * unit), card[2], card[3] + int(14 * unit)),
+            radius=radius, fill=(0, 0, 0, 110))
+        image.alpha_composite(shadow.filter(ImageFilter.GaussianBlur(int(22 * unit))))
+        draw.rounded_rectangle(card, radius=radius, fill=(250, 249, 246, 255))
+        r = int(38 * unit)
+        draw.ellipse((cx - r, card[1] - r, cx + r, card[1] + r), fill=(*accent, 255))
+        mark = _font("Playfair Display", int(110 * unit))
+        box = draw.textbbox((0, 0), "“", font=mark, anchor="la")
+        draw.text((cx - (box[0] + box[2]) / 2, card[1] - (box[1] + box[3]) / 2 + int(4 * unit)),
+                  "“", font=mark, fill=primary, anchor="la")
+    elif style == "classic":
+        draw.text((cx, y - int(30 * unit)), "“",
+                  font=_font("Playfair Display", int(170 * unit)), fill=accent, anchor="ma")
+    elif style == "elegant":
+        mid_y = y + int(18 * unit)
+        s = int(8 * unit)
+        draw.polygon([(cx, mid_y - s), (cx + s, mid_y), (cx, mid_y + s), (cx - s, mid_y)],
+                     fill=accent)
+        for sign in (-1, 1):
+            draw.line([(cx + sign * int(22 * unit), mid_y), (cx + sign * int(90 * unit), mid_y)],
+                      fill=accent, width=max(1, int(2 * unit)))
+    elif style == "poster":
+        draw.text((tx - int(8 * unit), y - int(40 * unit)), "“",
+                  font=_font("Playfair Display", int(260 * unit)),
+                  fill=_mix(primary, _rgb(profile.accent_color, "#F0BE64"), 0.35), anchor="la")
+    elif style == "portrait":
+        draw.rounded_rectangle((tx, y + int(8 * unit), tx + int(64 * unit), y + int(14 * unit)),
+                               radius=int(3 * unit), fill=accent)
+    elif style == "minimal":
+        bar_x = tx - int(30 * unit)
         draw.rounded_rectangle(
             (bar_x, y + int(size * 0.18), bar_x + max(3, int(6 * unit)),
              y + line_h * len(lines) - int(size * 0.18)),
             radius=int(3 * unit), fill=accent,
         )
-        for line in lines:
-            draw.text((x, y), line, font=font, fill=text_rgb, anchor="la")
-            y += line_h
-        if ref_text:
-            ref_font, spacing = _fit_tracked(draw, ref_text, family, int(26 * unit),
-                                             int(16 * unit), text_w)
-            _draw_tracked(draw, x, y + int(30 * unit), ref_text, ref_font, accent,
-                          spacing, align="left")
-        return image
+    y += mark_h
 
-    if style == "classic":
-        draw.text((width // 2, y - int(30 * unit)), "“",
-                  font=_font("Playfair Display", int(170 * unit)),
-                  fill=(*accent, 210), anchor="ma")
-        y += mark_h
     for line in lines:
-        draw.text((width // 2, y), line, font=font, fill=text_rgb, anchor="ma")
+        if align == "left":
+            draw.text((tx, y), line, font=font, fill=ink, anchor="la")
+        else:
+            draw.text((cx, y), line, font=font, fill=ink, anchor="ma")
         y += line_h
     if ref_text:
-        y += int(26 * unit)
-        draw.line([(width // 2 - int(28 * unit), y), (width // 2 + int(28 * unit), y)],
-                  fill=accent, width=max(2, int(3 * unit)))
         ref_font, spacing = _fit_tracked(draw, ref_text, family, int(26 * unit),
-                                         int(16 * unit), text_w)
-        _draw_tracked(draw, width / 2, y + int(24 * unit), ref_text, ref_font, accent,
-                      spacing)
+                                         int(16 * unit), text_w - 2 * pad)
+        if align == "left":
+            _draw_tracked(draw, tx, y + int(30 * unit), ref_text, ref_font, detail,
+                          spacing, align="left")
+        else:
+            y += int(26 * unit)
+            draw.line([(cx - int(28 * unit), y), (cx + int(28 * unit), y)],
+                      fill=accent, width=max(2, int(3 * unit)))
+            _draw_tracked(draw, cx, y + int(24 * unit), ref_text, ref_font, detail, spacing)
     return image
 
 
