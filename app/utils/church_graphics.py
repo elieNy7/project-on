@@ -555,75 +555,238 @@ def _socials_strip(image, draw, profile: ChurchProfile, center_x: int, y: int,
 # ── Visuels ────────────────────────────────────────────────────────────────
 
 
+def _tracked_width(draw, text: str, font, spacing: float) -> int:
+    return int(sum(draw.textlength(ch, font=font) for ch in text)
+               + spacing * max(0, len(text) - 1))
+
+
+def _draw_tracked(draw, x: float, y: float, text: str, font, fill, spacing: float,
+                  align: str = "center") -> int:
+    """Texte espacé (petites capitales façon magazine) ; renvoie sa largeur."""
+    total = _tracked_width(draw, text, font, spacing)
+    if align == "center":
+        x -= total / 2
+    elif align == "right":
+        x -= total
+    for ch in text:
+        draw.text((x, y), ch, font=font, fill=fill, anchor="la")
+        x += draw.textlength(ch, font=font) + spacing
+    return total
+
+
+def _fit_tracked(draw, text: str, family: str, size: int, minimum: int,
+                 max_w: int, tracking: float = 0.14):
+    """Police (et espacement) la plus grande dont le texte espacé tient en max_w."""
+    while True:
+        font = _font(family, size)
+        spacing = size * tracking
+        if _tracked_width(draw, text, font, spacing) <= max_w or size <= minimum:
+            return font, spacing
+        size = max(minimum, int(size * 0.92))
+
+
+def _avatar(photo: str, diameter: int, ring_rgb, disc_rgb):
+    """Médaillon rond (tête et épaules) tiré d'une photo détourée ; None si absente."""
+    from PIL import Image, ImageDraw
+
+    path = Path(photo) if photo else None
+    if path is None or not path.is_file() or diameter < 8:
+        return None
+    try:
+        source = _open_image(path, "RGBA")
+    except Exception:
+        return None
+    bbox = source.getchannel("A").point(lambda a: 255 if a > 24 else 0).getbbox()
+    if bbox is None:
+        return None
+    body = source.crop(bbox)
+    w, h = body.size
+    # Centre de la tête : barycentre de l'opacité dans le haut du sujet.
+    band = body.getchannel("A").crop((0, 0, w, max(1, int(h * 0.16)))).resize((w, 1), Image.BOX)
+    weights = list(band.tobytes())
+    total = sum(weights)
+    head_x = sum(i * v for i, v in enumerate(weights)) / total if total else w / 2
+    side = max(1, int(min(w, h) * (0.72 if h > w * 1.15 else 0.95)))
+    left = int(head_x - side / 2)
+    top = -int(side * 0.06) if h > w * 1.15 else (h - side) // 2
+    head = body.crop((left, top, left + side, top + side))  # hors cadre : transparent
+
+    scale = 3
+    big = diameter * scale
+    ring = max(2, int(big * 0.035))
+    inner = big - 2 * ring
+    disc = Image.new("RGBA", (inner, inner), (*disc_rgb, 255))
+    disc.alpha_composite(head.resize((inner, inner), Image.LANCZOS))
+    mask = Image.new("L", (inner, inner), 0)
+    ImageDraw.Draw(mask).ellipse((0, 0, inner - 1, inner - 1), fill=255)
+    out = Image.new("RGBA", (big, big), (0, 0, 0, 0))
+    ImageDraw.Draw(out).ellipse((0, 0, big - 1, big - 1), fill=(*ring_rgb, 255))
+    out.paste(disc, (ring, ring), mask)
+    return out.resize((diameter, diameter), Image.LANCZOS)
+
+
+def _main_handle(profile: ChurchProfile) -> str:
+    """Compte le plus partagé entre les réseaux (« @MonEglise »), sinon le premier."""
+    handles = [display_handle(p.key, v) for p, v in profile.social_items()
+               if p.key not in ("phone", "email")]
+    if not handles:
+        handles = [display_handle(p.key, v) for p, v in profile.social_items()]
+    if not handles:
+        return ""
+    return max(handles, key=lambda h: (handles.count(h), -handles.index(h)))
+
+
 def render_quote(profile: ChurchProfile, text: str, reference: str = "",
                  fmt: str = "square"):
-    """Image de citation (verset, paragraphe) aux couleurs de l'église."""
-    from PIL import ImageDraw
+    """Image de citation (verset, paragraphe) aux couleurs de l'église.
+
+    Le texte occupe l'essentiel de l'image ; l'église signe discrètement :
+    logo et nom en tête, médaillon du pasteur et réseaux en pied.
+    """
+    from PIL import Image, ImageDraw
 
     profile = profile.sanitized()
     _label, width, height = FORMATS.get(fmt, FORMATS["square"])
     image = _background(width, height, profile)
     draw = ImageDraw.Draw(image)
+    # Traits et textes semi-transparents : sur un calque, fondu ensuite.
+    veil = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    soft = ImageDraw.Draw(veil)
     accent = _rgb(profile.accent_color, "#F0BE64")
     text_rgb = _rgb(profile.text_color, "#FFFFFF")
-    margin = int(min(width, height) * 0.09)
+    primary = _rgb(profile.primary_color, "#0B1E3F")
     unit = min(width, height) / 1080
+    margin = int(min(width, height) * 0.075)
+    family = profile.font_family
+    style = profile.quote_style
 
-    if profile.quote_style == "framed":
-        inset = int(margin * 0.45)
-        draw.rounded_rectangle(
+    if style == "framed":
+        inset = int(margin * 0.42)
+        soft.rounded_rectangle(
             (inset, inset, width - inset, height - inset),
-            radius=int(28 * unit), outline=(*accent, 200), width=max(2, int(4 * unit)),
+            radius=int(22 * unit), outline=(*accent, 170), width=max(2, int(3 * unit)),
         )
 
-    # Pied : logo, nom de l'église, contact et réseaux sociaux.
-    socials = profile.show_socials_quotes and bool(profile.social_items())
-    footer_h = int((150 + (70 if socials else 0)) * unit)
-    footer_top = height - margin - footer_h
-    name_font = _font(profile.font_family, int(34 * unit))
-    small_font = _font(profile.font_family, int(24 * unit), bold=False)
-    logo_h = _paste_logo(image, profile, width // 2, footer_top, int(70 * unit))
-    y = footer_top + (logo_h + int(10 * unit) if logo_h else int(30 * unit))
+    # En-tête : petit logo et nom de l'église en capitales espacées.
+    top = int(margin * 0.85)
+    logo_h = _paste_logo(image, profile, width // 2, top, int(46 * unit))
+    header_bottom = top + logo_h
     if profile.name:
-        draw.text((width // 2, y), profile.name, font=name_font, fill=text_rgb, anchor="ma")
-        y += int(44 * unit)
-    if profile.contact:
-        draw.text((width // 2, y), profile.contact, font=small_font,
-                  fill=(*text_rgb, 190), anchor="ma")
-        y += int(36 * unit)
-    if socials:
-        _socials_strip(image, draw, profile, width // 2, y + int(6 * unit),
-                       width - 2 * margin, unit * 0.8, text_rgb, limit=3)
+        y = top + (logo_h + int(12 * unit) if logo_h else 0)
+        font, spacing = _fit_tracked(draw, profile.name.upper(), family, int(19 * unit),
+                                     int(13 * unit), width - 2 * margin)
+        _draw_tracked(soft, width / 2, y, profile.name.upper(), font,
+                      (*text_rgb, 215), spacing)
+        header_bottom = y + int(24 * unit)
 
-    # Guillemet décoratif (style classique), texte centré, filet et référence.
-    if profile.quote_style == "classic":
-        quote_font = _font("Playfair Display", int(200 * unit))
-        draw.text((width // 2, margin - int(40 * unit)), "“", font=quote_font,
-                  fill=(*accent, 150), anchor="ma")
-    area_top = margin + int((140 if profile.quote_style == "classic" else 60) * unit)
-    ref_block = int(110 * unit) if reference else 0
-    area_h = footer_top - area_top - ref_block - int(40 * unit)
+    # Pied : médaillon et nom du pasteur à gauche, réseaux à droite.
+    footer_h = int(78 * unit)
+    footer_bottom = height - int(margin * 0.85)
+    footer_top = footer_bottom - footer_h
+    rule_y = footer_top - int(26 * unit)
+    soft.line([(margin, rule_y), (width - margin, rule_y)],
+              fill=(*text_rgb, 50), width=max(1, int(1.5 * unit)))
+    left_end = margin
+    avatar = _avatar(profile.pastor_photo, footer_h, accent,
+                     tuple(min(255, int(c * 1.6) + 18) for c in primary))
+    if avatar is not None:
+        image.alpha_composite(avatar, (margin, footer_top))
+        left_end = margin + avatar.width + int(16 * unit)
+    if profile.pastor_name or profile.pastor_title:
+        name_font = _font(family, int(23 * unit))
+        title_font = _font(family, int(14 * unit))
+        mid = footer_top + footer_h // 2
+        if profile.pastor_title:
+            _draw_tracked(draw, left_end, mid - int(24 * unit), profile.pastor_title.upper(),
+                          title_font, accent, 14 * unit * 0.16, align="left")
+        name = profile.pastor_name.title() if profile.pastor_name.isupper() \
+            else profile.pastor_name
+        draw.text((left_end, mid - int(2 * unit)), name, font=name_font, fill=text_rgb,
+                  anchor="la")
+        left_end += int(max(draw.textlength(name, font=name_font),
+                            _tracked_width(draw, profile.pastor_title.upper(), title_font,
+                                           14 * unit * 0.16)))
+    elif avatar is None:
+        left_end = 0
+
+    items = profile.social_items()[:6] if profile.show_socials_quotes else []
+    if items or profile.contact:
+        icon = int(26 * unit)
+        gap = int(8 * unit)
+        handle = _main_handle(profile) if items else profile.contact
+        handle_font = _font(family, int(19 * unit), bold=False)
+        row_w = len(items) * icon + max(0, len(items) - 1) * gap
+        handle_w = int(draw.textlength(handle, font=handle_font))
+        block_w = max(row_w, handle_w)
+        centered = left_end == 0
+        room = width - margin - left_end - int(30 * unit)
+        if handle_w > room:
+            handle = ""  # pas la place : les pastilles suffisent
+            block_w = row_w
+        right = width // 2 + block_w // 2 if centered else width - margin
+        mid = footer_top + footer_h // 2
+        icons_y = mid - icon - int(4 * unit) if handle else mid - icon // 2
+        x = right - row_w if not centered else width // 2 - row_w // 2
+        for platform, _value in items:
+            _badge(image, x, icons_y, platform, icon)
+            x += icon + gap
+        if handle:
+            hx = width // 2 if centered else right
+            soft.text((hx, mid + int(8 * unit)), handle, font=handle_font,
+                      fill=(*text_rgb, 190), anchor="ma" if centered else "ra")
+    image.alpha_composite(veil)
+
+    # Corps : le texte, le plus grand possible, entre l'en-tête et le pied.
+    area_top = header_bottom + int(50 * unit)
+    area_bottom = rule_y - int(50 * unit)
+    text_w = min(width - 2 * margin - (int(36 * unit) if style == "minimal" else 0),
+                 int(1440 * unit))
+    mark_h = int(96 * unit) if style == "classic" else 0
+    ref_text = reference.replace("\n", " — ").strip().upper()
+    ref_h = int(88 * unit) if ref_text else 0
     font, lines, size = _fit_text(
-        draw, text, profile.font_family, width - 2 * margin, area_h,
-        start=int(64 * unit), minimum=int(26 * unit),
+        draw, text, family, text_w, area_bottom - area_top - mark_h - ref_h,
+        start=int(86 * unit), minimum=int(24 * unit), line_factor=1.3,
     )
-    line_h = int(size * 1.28)
-    y = area_top + max(0, (area_h - line_h * len(lines)) // 2)
+    line_h = int(size * 1.3)
+    block_h = mark_h + line_h * len(lines) + ref_h
+    y = area_top + max(0, (area_bottom - area_top - block_h) // 2)
+
+    if style == "minimal":
+        # Aligné à gauche, filet vertical à la couleur d'accent.
+        x = (width - text_w) // 2 + int(18 * unit)
+        bar_x = x - int(30 * unit)
+        draw.rounded_rectangle(
+            (bar_x, y + int(size * 0.18), bar_x + max(3, int(6 * unit)),
+             y + line_h * len(lines) - int(size * 0.18)),
+            radius=int(3 * unit), fill=accent,
+        )
+        for line in lines:
+            draw.text((x, y), line, font=font, fill=text_rgb, anchor="la")
+            y += line_h
+        if ref_text:
+            ref_font, spacing = _fit_tracked(draw, ref_text, family, int(26 * unit),
+                                             int(16 * unit), text_w)
+            _draw_tracked(draw, x, y + int(30 * unit), ref_text, ref_font, accent,
+                          spacing, align="left")
+        return image
+
+    if style == "classic":
+        draw.text((width // 2, y - int(30 * unit)), "“",
+                  font=_font("Playfair Display", int(170 * unit)),
+                  fill=(*accent, 210), anchor="ma")
+        y += mark_h
     for line in lines:
         draw.text((width // 2, y), line, font=font, fill=text_rgb, anchor="ma")
         y += line_h
-    if reference:
-        y += int(24 * unit)
-        draw.line(
-            [(width // 2 - int(60 * unit), y), (width // 2 + int(60 * unit), y)],
-            fill=accent, width=max(2, int(4 * unit)),
-        )
-        draw.text((width // 2, y + int(22 * unit)), reference.replace("\n", " — "),
-                  font=_font(profile.font_family, int(36 * unit)), fill=accent, anchor="ma")
-        y += int(70 * unit)
-    # Le visage de l'église : photo et nom du pasteur sur chaque publication.
-    _pastor_corner(image, draw, profile, unit * 0.8, accent, text_rgb,
-                   int(width * 0.24), int(height * 0.28), margin=int(margin * 0.35))
+    if ref_text:
+        y += int(26 * unit)
+        draw.line([(width // 2 - int(28 * unit), y), (width // 2 + int(28 * unit), y)],
+                  fill=accent, width=max(2, int(3 * unit)))
+        ref_font, spacing = _fit_tracked(draw, ref_text, family, int(26 * unit),
+                                         int(16 * unit), text_w)
+        _draw_tracked(draw, width / 2, y + int(24 * unit), ref_text, ref_font, accent,
+                      spacing)
     return image
 
 

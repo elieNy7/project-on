@@ -256,7 +256,7 @@ class MainWindow(QMainWindow):
             playlist_tab.slideshowRequested.connect(self._start_slideshow)
         if playlist_tab is not None:
             self._setup_service_plan(playlist_tab)
-        for tab in (self.library_panel.bible_tab, self.library_panel.sermons_tab):
+        for tab in (self.library_panel.bible_tab, self.library_panel.sermons_tab, playlist_tab):
             signal = getattr(tab, "quoteImageRequested", None)
             if hasattr(signal, "connect"):
                 signal.connect(self.open_quote_dialog)

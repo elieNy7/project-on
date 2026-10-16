@@ -268,6 +268,7 @@ class PlaylistTab(QFrame):
     itemUpdateRequested = Signal(int, str, str)  # item_id, référence, texte
     itemDeleteRequested = Signal(int)
     itemMoveRequested = Signal(int, int)  # item_id, delta (+1 / -1)
+    quoteImageRequested = Signal(str, str)  # référence, texte (image à partager)
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -713,10 +714,17 @@ class PlaylistTab(QFrame):
         menu = QMenu(self)
         act_play = menu.addAction(app_icon("cast.svg"), "Projeter à partir d'ici")
         act_edit = menu.addAction(app_icon("edit-3.svg"), "Modifier")
+        act_quote = menu.addAction(app_icon("image.svg"), "Créer une image de citation…")
+        act_quote.setEnabled(bool(str(item.data(258) or "").strip()))
+        menu.addSeparator()
         act_delete = menu.addAction(app_icon("trash.svg"), "Supprimer")
         chosen = menu.exec(self.items_list.mapToGlobal(pos))
         if chosen is act_play:
             self._on_item_double_clicked(item)
+        elif chosen is act_quote:
+            self.quoteImageRequested.emit(
+                str(item.data(257) or "").replace("\n", " — "), str(item.data(258) or "")
+            )
         elif chosen is act_edit:
             self._on_edit_item_clicked()
         elif chosen is act_delete:

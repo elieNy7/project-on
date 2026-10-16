@@ -7,7 +7,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from PySide6.QtCore import QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QIcon, QImage, QPixmap
+from PySide6.QtGui import QGuiApplication, QIcon, QImage, QPixmap
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -648,6 +648,10 @@ class QuoteImageDialog(QDialog):
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         save = buttons.addButton("Enregistrer l'image…", QDialogButtonBox.ButtonRole.AcceptRole)
         save.clicked.connect(self._save)
+        copy = buttons.addButton("Copier l'image", QDialogButtonBox.ButtonRole.ActionRole)
+        copy.setToolTip("À coller directement dans WhatsApp, Facebook…")
+        copy.clicked.connect(self._copy)
+        self._copy_button = copy
         buttons.rejected.connect(self.reject)
 
         layout = QVBoxLayout(self)
@@ -674,6 +678,11 @@ class QuoteImageDialog(QDialog):
         self.preview.setPixmap(pixmap.scaled(
             420, 420, Qt.AspectRatioMode.KeepAspectRatio,
             Qt.TransformationMode.SmoothTransformation))
+
+    def _copy(self) -> None:
+        QGuiApplication.clipboard().setPixmap(_to_pixmap(self.image()))
+        self._copy_button.setText("Image copiée ✓")
+        QTimer.singleShot(1800, lambda: self._copy_button.setText("Copier l'image"))
 
     def _save(self) -> None:
         from app.utils.montage_export import _slug
