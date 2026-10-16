@@ -1,3 +1,12 @@
+# Project-On 2.7.3
+
+**Des images de citation professionnelles** 🖼️ — le texte au premier plan, l'église signe discrètement.
+
+- **Le texte d'abord** : verset ou paragraphe en grand ; logo et nom de l'église en petit en tête, médaillon rond du pasteur et réseaux sociaux en pied, référence en capitales espacées.
+- **8 modèles au choix** : Classique, Minimal, Encadré, Élégant, Carte claire, Affiche (couleur d'accent), Photo de l'église en fond et Portrait du pasteur. Modèle par défaut dans Réglages → Profil de l'église, changeable dans la fenêtre de citation avec aperçu en direct.
+- **Partage depuis la playlist** : clic droit sur un slide → « Créer une image de citation… ».
+- **Copier l'image** : un bouton pour la coller directement dans WhatsApp, Facebook…
+
 # Project-On 2.7.2
 
 - **Plus d'orateur du jour sur OBS, NDI et HDMI** : la photo et le nom de l'orateur ne s'affichent plus à côté du bandeau sur le direct ; le bandeau reprend toute la largeur. Les réglages « Sur OBS, NDI et HDMI » et « Hauteur sur OBS / HDMI » sont retirés. L'orateur reste disponible sur les slides de projection et les visuels de l'église.
