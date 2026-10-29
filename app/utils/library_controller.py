@@ -250,10 +250,18 @@ class LibraryController(QObject):
                 self.on_media_add_to_playlist
             )
 
-        # « Ajouter à la playlist » depuis Bible / Cantiques / Sermons / Exposé.
-        for tab in (self._bible_tab, self._hymns_tab, self._sermons_tab, self._expose_tab):
+        # « Ajouter à la playlist » depuis Bible / Cantiques / Sermons / Exposé :
+        # le type d'origine est gardé (icône dans la playlist).
+        for tab, source in (
+            (self._bible_tab, "bible"),
+            (self._hymns_tab, "hymn"),
+            (self._sermons_tab, "sermon"),
+            (self._expose_tab, "expose"),
+        ):
             if tab is not None and hasattr(tab, "addToPlaylistRequested"):
-                tab.addToPlaylistRequested.connect(self.on_add_to_playlist)
+                tab.addToPlaylistRequested.connect(
+                    lambda entries, source=source: self.on_add_to_playlist(entries, source)
+                )
 
         self._hymns_tab.hymnSelected.connect(self.on_hymn_selected)
         self._hymns_tab.stanzaActivated.connect(self.on_hymn_stanza_activated)
@@ -1542,7 +1550,7 @@ class LibraryController(QObject):
 
         return AddToPlaylistDialog(folders, count, parent=self._playlist_tab)
 
-    def on_add_to_playlist(self, entries: list) -> None:
+    def on_add_to_playlist(self, entries: list, source: str = "custom") -> None:
         """Ajoute des éléments (référence, texte) à une playlist choisie.
 
         Appelé depuis les menus « Ajouter à la playlist » de la Bible, des
@@ -1567,10 +1575,14 @@ class LibraryController(QObject):
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         folder_id, new_name = dialog.selected_folder()
-        self._commit_to_playlist(folder_id, new_name, cleaned)
+        self._commit_to_playlist(folder_id, new_name, cleaned, source)
 
     def _commit_to_playlist(
-        self, folder_id: int | None, new_name: str, entries: list[tuple[str, str]]
+        self,
+        folder_id: int | None,
+        new_name: str,
+        entries: list[tuple[str, str]],
+        source: str = "custom",
     ) -> None:
         """Écrit les entrées (référence, texte) dans la playlist visée.
 
@@ -1581,7 +1593,7 @@ class LibraryController(QObject):
                 return
             folder_id = self._playlist_dao.create_folder(new_name)
         self._playlist_dao.add_items(
-            [("custom", ref, text) for ref, text in entries], folder_id=int(folder_id)
+            [(source, ref, text) for ref, text in entries], folder_id=int(folder_id)
         )
         if self._current_playlist_folder_id == int(folder_id):
             self._refresh_playlist_items()

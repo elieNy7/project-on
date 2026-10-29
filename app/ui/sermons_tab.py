@@ -656,7 +656,17 @@ class SermonsTab(QFrame):
         copy_action = menu.addAction("Copier le texte")
         add_action = menu.addAction("Projeter le paragraphe")
         solo_action = menu.addAction("Projeter cet alinéa seulement")
-        playlist_action = menu.addAction("Ajouter à la playlist")
+        # Un paragraphe à plusieurs alinéas s'ajoute ENTIER par défaut ;
+        # l'alinéa seul reste possible.
+        rows = self._paragraph_rows(self.paragraphs_list.row(item))
+        if len(rows) > 1:
+            playlist_action = menu.addAction(
+                f"Ajouter le paragraphe entier à la playlist ({len(rows)} alinéas)"
+            )
+            alinea_action = menu.addAction("Ajouter cet alinéa seulement")
+        else:
+            playlist_action = menu.addAction("Ajouter à la playlist")
+            alinea_action = None
         playlist_range_action = menu.addAction("Ajouter une plage de paragraphes…")
         menu.addSeparator()
         quote_action = menu.addAction("Créer une image de citation…")
@@ -677,12 +687,39 @@ class SermonsTab(QFrame):
             if payload is not None:
                 self.paragraphSoloRequested.emit(payload)
         elif action == playlist_action:
+            self.addToPlaylistRequested.emit([self._paragraph_entry(rows)])
+        elif alinea_action is not None and action == alinea_action:
             payload = [(str(item.data(256) or ""), str(item.data(257) or ""))]
             self.addToPlaylistRequested.emit(payload)
         elif action == playlist_range_action:
             payload = self._paragraphs_range_payload()
             if payload:
                 self.addToPlaylistRequested.emit(payload)
+
+    def _paragraph_rows(self, row: int) -> list[int]:
+        """Lignes du paragraphe contenant ``row`` : son premier alinéa puis
+        les alinéas qui le continuent (même marqueur, rôle 262)."""
+        items = self.paragraphs_list
+        if row < 0 or row >= items.count():
+            return []
+        start = row
+        while start > 0 and items.item(start).data(262):
+            start -= 1
+        end = row
+        while end + 1 < items.count() and items.item(end + 1).data(262):
+            end += 1
+        return list(range(start, end + 1))
+
+    def _paragraph_entry(self, rows: list[int]) -> tuple[str, str]:
+        """(référence, texte) du paragraphe entier, un alinéa par ligne —
+        comme en projection (LibraryController._group_alineas)."""
+        items = self.paragraphs_list
+        reference = str(items.item(rows[0]).data(256) or "")
+        text = "\n".join(
+            str(items.item(r).data(257) or "") for r in rows
+            if str(items.item(r).data(257) or "").strip()
+        )
+        return reference, text
 
     def _paragraphs_range_payload(self) -> list[tuple[str, str]]:
         """Ajout en série « paragraphes 1 à N » (positions dans la liste)."""
@@ -702,10 +739,13 @@ class SermonsTab(QFrame):
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return []
         start, end = dialog.values()
+        # Chaque paragraphe touché par la plage s'ajoute entier, une fois.
         payload = []
-        for i in range(start - 1, min(end, count)):
-            item = self.paragraphs_list.item(i)
-            payload.append((str(item.data(256) or ""), str(item.data(257) or "")))
+        row = start - 1
+        while row < min(end, count):
+            rows = self._paragraph_rows(row)
+            payload.append(self._paragraph_entry(rows))
+            row = rows[-1] + 1
         return payload
 
     # ── Paragraph global search ──────────────────────────────────────
