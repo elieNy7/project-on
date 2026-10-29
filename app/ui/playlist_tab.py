@@ -48,6 +48,9 @@ from app.ui.theme import (
 
 # Rôles des éléments de la liste des slides.
 ROLE_ID, ROLE_REF, ROLE_TEXT, ROLE_MEDIA, ROLE_KIND = 256, 257, 258, 259, 260
+# En-tête de section du déroulé (dict : id, name, duration_min, count).
+ROLE_SECTION = 261
+SECTION_HEIGHT = 34
 
 # Type d'élément → (icône, libellé).
 ITEM_KINDS = {
@@ -152,11 +155,41 @@ class PlaylistItemDelegate(QStyledItemDelegate):
             text = f"{ITEM_KINDS[kind][1]} · {media.replace(chr(92), '/').rsplit('/', 1)[-1]}"
         return ref, text
 
+    def _paint_section(self, painter: QPainter, option, section: dict) -> None:
+        rect = option.rect
+        painter.fillRect(rect, item_hover_color())
+        content = rect.adjusted(self.CARD_PADDING_H, 0, -self.CARD_PADDING_H, 0)
+        chevron = "chevron-right.svg" if section.get("collapsed") else "chevron-down.svg"
+        app_icon(chevron, self.color_accent.name()).paint(
+            painter, QRect(content.left(), rect.center().y() - 8, 16, 16)
+        )
+        content.setLeft(content.left() + 24)
+        count = int(section.get("count") or 0)
+        meta = f"{int(section.get('duration_min') or 0)} min · {count} slide{'s' if count > 1 else ''}"
+        fm = QFontMetrics(self.ref_font)
+        meta_w = fm.horizontalAdvance(meta)
+        painter.setFont(self.ref_font)
+        painter.setPen(self.color_text_dim)
+        painter.drawText(QRect(content.right() - meta_w, rect.top(), meta_w, rect.height()),
+                         int(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight), meta)
+        painter.setPen(self.color_accent)
+        name = fm.elidedText(str(section.get("name") or "").upper(),
+                             Qt.TextElideMode.ElideRight, content.width() - meta_w - 12)
+        painter.drawText(QRect(content.left(), rect.top(), content.width(), rect.height()),
+                         int(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft), name)
+        painter.setPen(self.color_accent)
+        painter.drawLine(rect.left(), rect.bottom(), rect.right(), rect.bottom())
+
     def paint(
         self, painter: QPainter, option, index: QModelIndex
     ) -> None:
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        section = index.data(ROLE_SECTION)
+        if section:
+            self._paint_section(painter, option, section)
+            painter.restore()
+            return
 
         is_sel = option.state & QStyle.StateFlag.State_Selected
         is_hover = option.state & QStyle.StateFlag.State_MouseOver
@@ -212,8 +245,14 @@ class PlaylistItemDelegate(QStyledItemDelegate):
         painter.restore()
 
     def sizeHint(self, option, index: QModelIndex) -> QSize:
+        if index.data(ROLE_SECTION):
+            return QSize(option.rect.width(), SECTION_HEIGHT)
         ref, text = self._lines(index)
-        width = max(80, option.rect.width() - 2 * self.CARD_PADDING_H - self.ICON_COLUMN)
+        # Largeur réelle de la liste : option.rect n'est pas toujours à jour
+        # quand la vue calcule les hauteurs (texte compté sur deux lignes).
+        view = option.widget
+        full = view.viewport().width() if view is not None else option.rect.width()
+        width = max(80, full - 2 * self.CARD_PADDING_H - self.ICON_COLUMN)
         fm_text = QFontMetrics(self.text_font)
         lines = len(_two_lines(text, fm_text, width)) if text.strip() else 0
         height = (
@@ -375,6 +414,8 @@ class PlaylistTab(QFrame):
     itemsCopyRequested = Signal(list, int)  # item_id, playlist de destination
     itemsMoveToFolderRequested = Signal(list, int)  # item_id, destination
     undoRequested = Signal()
+    sectionStartRequested = Signal(object, int)  # section_id (None : nouvelle), item_id
+    sectionDetachRequested = Signal(int)  # section_id
     quoteImageRequested = Signal(str, str)  # référence, texte (image à partager)
 
     def __init__(self, parent=None) -> None:
@@ -382,6 +423,8 @@ class PlaylistTab(QFrame):
         self.setStyleSheet("background: transparent;")
         self._folders: list[dict[str, Any]] = []
         self._items: list[dict[str, Any]] = []
+        self._sections: list[dict[str, Any]] = []
+        self._collapsed: set[int] = set()
         self._suppress_folder_signals = False
 
         # ── Gauche : liste des playlists ─────────────────────────────────
@@ -442,8 +485,11 @@ class PlaylistTab(QFrame):
         self.items_list.setStyleSheet(get_list_style(borderless=True))
         self.items_list.setItemDelegate(PlaylistItemDelegate(self))
         self.items_list.setVerticalScrollMode(QListWidget.ScrollMode.ScrollPerPixel)
-        # Les cartes suivent la largeur : jamais de défilement horizontal.
+        # Les cartes suivent la largeur : jamais de défilement horizontal, et
+        # les hauteurs (texte sur une ou deux lignes) sont recalculées quand
+        # la liste change de largeur.
         self.items_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.items_list.setResizeMode(QListWidget.ResizeMode.Adjust)
         # Sélection multiple (Ctrl / Maj) et réordonnancement à la souris.
         self.items_list.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.items_list.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
@@ -613,16 +659,30 @@ class PlaylistTab(QFrame):
     def selected_item_ids(self) -> list[int]:
         """Éléments sélectionnés, dans l'ordre de la liste."""
         return [
-            int(self.items_list.item(row).data(ROLE_ID))
-            for row in range(self.items_list.count())
-            if self.items_list.item(row).isSelected()
+            int(item.data(ROLE_ID))
+            for item in self._slide_items()
+            if item.isSelected()
         ]
 
     def item_ids(self) -> list[int]:
-        return [
-            int(self.items_list.item(row).data(ROLE_ID))
-            for row in range(self.items_list.count())
-        ]
+        return [int(item.data(ROLE_ID)) for item in self._slide_items()]
+
+    def _slide_items(self) -> list[QListWidgetItem]:
+        """Lignes des slides (sans les en-têtes de section)."""
+        rows = (self.items_list.item(r) for r in range(self.items_list.count()))
+        return [item for item in rows if item.data(ROLE_ID) is not None]
+
+    def set_sections(self, sections: list[dict[str, Any]]) -> None:
+        """Sections du déroulé : chacune liée à un slide devient un en-tête
+        repliable juste au-dessus de ce slide."""
+        self._sections = list(sections or [])
+        current = self.items_list.currentItem()
+        current_id = current.data(ROLE_ID) if current is not None else None
+        selected = self.selected_item_ids()
+        if current_id is not None and int(current_id) in selected:
+            selected.remove(int(current_id))
+            selected.insert(0, int(current_id))
+        self.set_items(self._items, select_ids=selected or None)
 
     def set_undo_available(self, available: bool) -> None:
         self.undo_btn.setEnabled(bool(available))
@@ -677,7 +737,17 @@ class PlaylistTab(QFrame):
         un déplacement, une copie…), sinon le premier élément est choisi."""
         self._items = items
         self.items_list.clear()
+        starts: dict[int, list[dict[str, Any]]] = {}
+        for section in self._sections:
+            if section.get("item_id") is not None:
+                starts.setdefault(int(section["item_id"]), []).append(section)
         for it in items:
+            for section in starts.get(int(it["id"]), []):
+                header = QListWidgetItem()
+                header.setData(ROLE_SECTION, {**section, "count": 0})
+                # Ni sélectionnable, ni déplaçable : seuls les slides bougent.
+                header.setFlags(Qt.ItemFlag.ItemIsEnabled)
+                self.items_list.addItem(header)
             item = QListWidgetItem()
             item.setData(ROLE_ID, int(it["id"]))
             item.setData(ROLE_REF, str(it.get("reference") or ""))
@@ -692,16 +762,41 @@ class PlaylistTab(QFrame):
                 item.setData(ROLE_MEDIA, str(it.get("background") or ""))
             self.items_list.addItem(item)
         self.info_label.setText(f"{len(items)} slide(s)")
-        wanted = {int(i) for i in select_ids or []}
-        rows = [r for r in range(self.items_list.count())
-                if int(self.items_list.item(r).data(ROLE_ID)) in wanted]
-        if rows:
-            self.items_list.setCurrentRow(rows[0])
-            for row in rows:
-                self.items_list.item(row).setSelected(True)
-            self.items_list.scrollToItem(self.items_list.item(rows[0]))
-        elif items:
-            self.items_list.setCurrentRow(0)
+        self._apply_sections()
+        wanted = [int(i) for i in select_ids or []]
+        by_id = {int(item.data(ROLE_ID)): item for item in self._slide_items()}
+        chosen = [by_id[i] for i in wanted if i in by_id]
+        if chosen:
+            self.items_list.setCurrentItem(chosen[0])
+            for item in chosen:
+                item.setSelected(True)
+            self.items_list.scrollToItem(chosen[0])
+        elif by_id:
+            self.items_list.setCurrentItem(self._slide_items()[0])
+
+    def _apply_sections(self) -> None:
+        """Compte les slides de chaque section et masque les sections repliées."""
+        header = None
+        for row in range(self.items_list.count()):
+            item = self.items_list.item(row)
+            section = item.data(ROLE_SECTION)
+            if section:
+                collapsed = int(section["id"]) in self._collapsed
+                section = {**section, "count": 0, "collapsed": collapsed}
+                item.setData(ROLE_SECTION, section)
+                header = item
+                continue
+            hidden = False
+            if header is not None:
+                data = header.data(ROLE_SECTION)
+                header.setData(ROLE_SECTION, {**data, "count": data["count"] + 1})
+                hidden = bool(data.get("collapsed"))
+            item.setHidden(hidden)
+
+    def _toggle_section(self, header: QListWidgetItem) -> None:
+        section_id = int(header.data(ROLE_SECTION)["id"])
+        self._collapsed.symmetric_difference_update({section_id})
+        self._apply_sections()
 
     def media_entries(self) -> list[dict[str, Any]]:
         """Médias du dossier courant, dans l'ordre (pour le diaporama)."""
@@ -727,7 +822,7 @@ class PlaylistTab(QFrame):
         self.folderSelected.emit(folder_id)
 
     def _on_item_selection_changed(self, current, _previous) -> None:
-        if current is None:
+        if current is None or current.data(ROLE_SECTION):
             self.preview.clear()
             return
         ref = str(current.data(257) or "")
@@ -735,6 +830,9 @@ class PlaylistTab(QFrame):
         self.preview.setPlainText(f"{ref}\n\n{text}" if ref else text)
 
     def _on_item_clicked(self, item: QListWidgetItem) -> None:
+        if item.data(ROLE_SECTION):
+            self._toggle_section(item)
+            return
         data = item.data(256)
         if data is not None:
             self.itemCued.emit(int(data))
@@ -841,7 +939,7 @@ class PlaylistTab(QFrame):
 
     def _on_edit_item_clicked(self) -> None:
         item = self.items_list.currentItem()
-        if item is None:
+        if item is None or item.data(ROLE_ID) is None:  # en-tête de section
             return
         item_id = int(item.data(256))
         dialog = _SlideDialog(
@@ -861,7 +959,8 @@ class PlaylistTab(QFrame):
         if not ids:
             return
         if len(ids) == 1:
-            ref = str(self.items_list.currentItem().data(ROLE_REF) or "")
+            selected = next(i for i in self._slide_items() if i.isSelected())
+            ref = str(selected.data(ROLE_REF) or "")
             question = f"Supprimer le slide « {ref} » ?"
         else:
             question = f"Supprimer les {len(ids)} slides sélectionnés ?"
@@ -898,9 +997,25 @@ class PlaylistTab(QFrame):
         self._reorder_pending = False
         self.itemsReordered.emit(self.item_ids())
 
+    def _on_section_context_menu(self, header: QListWidgetItem, pos) -> None:
+        section = header.data(ROLE_SECTION)
+        menu = QMenu(self)
+        act_toggle = menu.addAction("Déplier" if section.get("collapsed") else "Replier")
+        act_detach = menu.addAction(
+            app_icon("x-circle.svg"), "Retirer l'en-tête (la section reste au déroulé)"
+        )
+        chosen = menu.exec(self.items_list.mapToGlobal(pos))
+        if chosen is act_toggle:
+            self._toggle_section(header)
+        elif chosen is act_detach:
+            self.sectionDetachRequested.emit(int(section["id"]))
+
     def _on_item_context_menu(self, pos) -> None:
         item = self.items_list.itemAt(pos)
         if item is None:
+            return
+        if item.data(ROLE_SECTION):
+            self._on_section_context_menu(item, pos)
             return
         if not item.isSelected():
             self.items_list.setCurrentItem(item)
@@ -928,6 +1043,18 @@ class PlaylistTab(QFrame):
             targets[move_menu.addAction(name)] = ("move", int(folder["id"]))
         copy_menu.setEnabled(bool(others))
         move_menu.setEnabled(bool(others))
+        section_menu = menu.addMenu(app_icon("layout.svg"), "Commencer une section ici")
+        section_menu.setEnabled(not many)
+        for section in self._sections:
+            label = str(section.get("name") or "")
+            if section.get("item_id") is not None:
+                label += "  (déplacer ici)"
+            targets[section_menu.addAction(label)] = ("section", int(section["id"]))
+        if self._sections:
+            section_menu.addSeparator()
+        targets[section_menu.addAction(app_icon("plus.svg"), "Nouvelle section…")] = (
+            "section", None,
+        )
         menu.addSeparator()
         act_delete = menu.addAction(
             app_icon("trash.svg"), f"Supprimer ({len(ids)})" if many else "Supprimer"
@@ -938,7 +1065,9 @@ class PlaylistTab(QFrame):
             return
         if chosen in targets:
             action, folder_id = targets[chosen]
-            if action == "copy":
+            if action == "section":
+                self.sectionStartRequested.emit(folder_id, int(item.data(ROLE_ID)))
+            elif action == "copy":
                 self.itemsCopyRequested.emit(ids, folder_id)
             else:
                 self.itemsMoveToFolderRequested.emit(ids, folder_id)

@@ -1008,6 +1008,10 @@ class MainWindow(QMainWindow):
             ServicePlanDao(self._db), selected_item=playlist_tab.selected_item_id
         )
         playlist_tab.attach_service_panel(self.service_plan)
+        # Sections du déroulé = en-têtes repliables dans la liste des slides.
+        self.service_plan.sectionsChanged.connect(playlist_tab.set_sections)
+        playlist_tab.sectionStartRequested.connect(self.service_plan.start_section_at)
+        playlist_tab.sectionDetachRequested.connect(self.service_plan.detach_section)
         self.service_plan.sectionEntered.connect(
             lambda name: self._service_log.record("section", reference=name)
         )

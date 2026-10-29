@@ -155,3 +155,86 @@ def test_delete_key_removes_every_selected_item(monkeypatch) -> None:
     tab.itemsDeleteRequested.connect(deleted.append)
     tab._on_delete_item_clicked()
     assert deleted == [[1, 3]]
+
+
+SECTIONS = [
+    {"id": 10, "name": "Louange", "duration_min": 15, "item_id": 1},
+    {"id": 11, "name": "Prédication", "duration_min": 40, "item_id": 4},
+    {"id": 12, "name": "Annonces", "duration_min": 5, "item_id": None},  # sans slide
+]
+
+
+def _sectioned_tab() -> PlaylistTab:
+    QApplication.instance() or QApplication([])
+    tab = PlaylistTab()
+    tab.set_items([{"id": i, "reference": r, "text": ""} for i, r in enumerate("ABCDE", 1)])
+    tab.set_sections(SECTIONS)
+    return tab
+
+
+def _rows(tab: PlaylistTab) -> list[str]:
+    from app.ui.playlist_tab import ROLE_REF, ROLE_SECTION
+
+    out = []
+    for row in range(tab.items_list.count()):
+        item = tab.items_list.item(row)
+        section = item.data(ROLE_SECTION)
+        label = f"[{section['name']} {section['count']}]" if section else item.data(ROLE_REF)
+        out.append(label + (" (masqué)" if item.isHidden() else ""))
+    return out
+
+
+def test_sections_become_headers_above_their_first_slide() -> None:
+    tab = _sectioned_tab()
+    assert _rows(tab) == ["[Louange 3]", "A", "B", "C", "[Prédication 2]", "D", "E"]
+    assert tab.item_ids() == [1, 2, 3, 4, 5]  # les en-têtes ne comptent pas
+    assert tab.items_list.currentItem().data(256) == 1  # jamais un en-tête
+
+
+def test_clicking_a_header_folds_its_section() -> None:
+    from app.ui.playlist_tab import ROLE_SECTION
+
+    tab = _sectioned_tab()
+    header = tab.items_list.item(0)
+    tab._on_item_clicked(header)
+    assert _rows(tab)[:4] == ["[Louange 3]", "A (masqué)", "B (masqué)", "C (masqué)"]
+    assert header.data(ROLE_SECTION)["collapsed"]
+    # Le repli survit à un rechargement (nouvel ordre, autre sélection…).
+    tab.set_items([{"id": i, "reference": r, "text": ""} for i, r in enumerate("ABCDE", 1)])
+    assert _rows(tab)[1] == "A (masqué)"
+    tab._on_item_clicked(tab.items_list.item(0))
+    assert "masqué" not in " ".join(_rows(tab))
+
+
+def test_section_signals_and_safe_actions_on_headers() -> None:
+    tab = _sectioned_tab()
+    tab.items_list.setCurrentRow(0)  # en-tête courant
+    edits = []
+    tab.itemUpdateRequested.connect(lambda *a: edits.append(a))
+    tab._on_edit_item_clicked()
+    assert edits == []
+    assert tab.selected_item_id() is None
+    assert tab.media_entries() == []
+
+
+def test_service_plan_panel_publishes_and_links_sections(tmp_path) -> None:
+    from app.database.dao_service_plan import ServicePlanDao
+    from app.ui.service_plan_panel import ServicePlanPanel
+
+    QApplication.instance() or QApplication([])
+    db = Database(DatabaseConfig(db_path=tmp_path / "t.db"))
+    db.initialize()
+    dao = PlaylistDao(db=db)
+    folder = dao.create_folder("Culte")
+    _a, b = _fill(dao, folder, "AB")
+    plan = ServicePlanDao(db)
+    section = plan.add_section(folder, "Louange", 10)
+    panel = ServicePlanPanel(plan)
+    published = []
+    panel.sectionsChanged.connect(published.append)
+    panel.set_folder(folder)
+    assert published[-1][0]["item_id"] is None
+    panel.start_section_at(section, b)
+    assert published[-1][0]["item_id"] == b
+    panel.detach_section(section)
+    assert published[-1][0]["item_id"] is None

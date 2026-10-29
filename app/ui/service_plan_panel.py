@@ -77,6 +77,9 @@ class ServicePlanPanel(QFrame):
 
     sectionEntered = Signal(str)  # nom de la section (historique du culte)
     historyRequested = Signal()
+    # Sections du dossier courant, à chaque rechargement : la liste des
+    # slides en fait des en-têtes repliables.
+    sectionsChanged = Signal(list)
 
     def __init__(
         self,
@@ -252,6 +255,43 @@ class ServicePlanPanel(QFrame):
             for s in self._sections
         ]
         self._refresh()
+        self.sectionsChanged.emit([dict(s) for s in self._sections])
+
+    def start_section_at(self, section_id: object, item_id: int) -> None:
+        """Fait commencer une section (``None`` : une nouvelle) au slide
+        donné — menu « Commencer une section ici » de la liste des slides."""
+        if self._folder_id is None:
+            return
+        if section_id is None:
+            dialog = SectionDialog(self, can_link=True, linked=True)
+            dialog.link.hide()
+            if dialog.exec() != QDialog.DialogCode.Accepted or not dialog.name.text().strip():
+                return
+            self._dao.add_section(
+                self._folder_id, dialog.name.text().strip(), dialog.duration.value(),
+                int(item_id),
+            )
+        else:
+            section = next(
+                (s for s in self._sections if int(s["id"]) == int(section_id)), None
+            )
+            if section is None:
+                return
+            self._dao.update_section(
+                int(section["id"]), str(section["name"]), int(section["duration_min"]),
+                int(item_id),
+            )
+        self._reload()
+
+    def detach_section(self, section_id: int) -> None:
+        """La section ne démarre plus avec un slide (son en-tête disparaît)."""
+        section = next((s for s in self._sections if int(s["id"]) == int(section_id)), None)
+        if section is None:
+            return
+        self._dao.update_section(
+            int(section["id"]), str(section["name"]), int(section["duration_min"]), None
+        )
+        self._reload()
 
     def _reference_start(self) -> datetime | None:
         parsed = parse_start_time(self.start_edit.text())
