@@ -1523,10 +1523,12 @@ def _paint_band_image_build(cfg: OverlayStyleConfig, size):
     except Exception:
         return False
     width, height = int(size[0]), int(size[1])
+    from app.utils import fast_image
+
     if str(cfg.bg_image_fit).lower() == "contain":
-        fitted = ImageOps.contain(image, (width, height), Image.LANCZOS)
+        fitted = fast_image.contain(image, (width, height))
     else:
-        fitted = ImageOps.fit(image, (width, height), Image.LANCZOS)
+        fitted = fast_image.fit(image, (width, height))
     layer = Image.new("RGBA", (width, height), (0, 0, 0, 255))
     layer.paste(fitted, ((width - fitted.width) // 2, (height - fitted.height) // 2))
     # `.lt-body.has-bg-image` : fond sombre + voile d'assombrissement réglable
@@ -1925,11 +1927,13 @@ def _scaled_layer(layer, scale: float):
     """Zoom d'un calque autour de son centre (aspect conservé)."""
     from PIL import Image  # type: ignore
 
+    from app.utils import fast_image
+
     if abs(scale - 1.0) < 0.002:
         return layer
     width, height = layer.size
     new_size = (max(1, int(width * scale)), max(1, int(height * scale)))
-    zoomed = layer.resize(new_size, Image.LANCZOS)
+    zoomed = fast_image.resize(layer, new_size)
     canvas = Image.new("RGBA", layer.size, (0, 0, 0, 0))
     canvas.alpha_composite(
         zoomed, ((width - new_size[0]) // 2, (height - new_size[1]) // 2)

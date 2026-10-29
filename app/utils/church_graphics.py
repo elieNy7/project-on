@@ -310,19 +310,23 @@ _IMAGE_MAX_SIDE = 3840  # aucune sortie ne dépasse 1920 px (zoom ×2 compris)
 _IMAGE_LOCK = threading.Lock()
 
 
-def _open_image(path: str | Path, mode: str):
-    """Copie de l'image ``path`` convertie en ``mode`` ; lève si illisible."""
-    from PIL import Image
-
+def _file_key(path: str | Path, *extra) -> tuple:
     path = str(path)
     stat = os.stat(path)
-    key = (path, mode, stat.st_mtime_ns, stat.st_size)
+    return (path, stat.st_mtime_ns, stat.st_size, *extra)
+
+
+def _cached_source(path: str | Path, mode: str):
+    """Image ``path`` en ``mode``, partagée : ne pas la modifier ; lève si illisible."""
+    from PIL import Image
+
+    key = _file_key(path, mode)
     with _IMAGE_LOCK:
         cached = _IMAGE_CACHE.get(key)
         if cached is not None:
             _IMAGE_CACHE.move_to_end(key)
-            return cached.copy()
-    with Image.open(path) as source:
+            return cached
+    with Image.open(str(path)) as source:
         image = source.convert(mode)
     if max(image.size) > _IMAGE_MAX_SIDE:
         image.thumbnail((_IMAGE_MAX_SIDE, _IMAGE_MAX_SIDE), Image.LANCZOS)
@@ -330,7 +334,51 @@ def _open_image(path: str | Path, mode: str):
         _IMAGE_CACHE[key] = image
         while len(_IMAGE_CACHE) > _IMAGE_CACHE_SIZE:
             _IMAGE_CACHE.popitem(last=False)
+    return image
+
+
+def _open_image(path: str | Path, mode: str):
+    """Copie de l'image ``path`` convertie en ``mode`` ; lève si illisible."""
+    return _cached_source(path, mode).copy()
+
+
+# Photos réduites : chaque aperçu (une frappe dans le titre) refait les mêmes
+# réductions des mêmes grandes photos (jusqu'à 1706 × 2560). Le résultat est
+# gardé tel quel : l'image rendue ne change pas.
+_RESIZED_CACHE: OrderedDict[tuple, Any] = OrderedDict()
+_RESIZED_CACHE_SIZE = 8
+
+
+def _memo_image(cache: OrderedDict, limit: int, key: tuple, build):
+    """Copie de l'image ``build()`` gardée sous ``key`` ; None n'est pas gardé."""
+    with _IMAGE_LOCK:
+        cached = cache.get(key)
+        if cached is not None:
+            cache.move_to_end(key)
+            return cached.copy()
+    image = build()
+    if image is None:
+        return None
+    with _IMAGE_LOCK:
+        cache[key] = image
+        while len(cache) > limit:
+            cache.popitem(last=False)
     return image.copy()
+
+
+def _files_key(paths) -> tuple:
+    """Identité (chemin, date, taille) des fichiers existants de ``paths``."""
+    return tuple(_file_key(p) for p in paths if p and Path(p).is_file())
+
+
+def _resized_source(path: str | Path, mode: str, size: tuple[int, int]):
+    """Copie de l'image ``path`` en ``mode`` redimensionnée (Lanczos) à ``size``."""
+    from app.utils import fast_image
+
+    return _memo_image(
+        _RESIZED_CACHE, _RESIZED_CACHE_SIZE, _file_key(path, mode, tuple(size)),
+        lambda: fast_image.resize(_cached_source(path, mode), size),
+    )
 
 
 def _background(width: int, height: int, profile: ChurchProfile):
@@ -640,15 +688,30 @@ def _reference_layout(draw, text: str, family: str, max_w: int, unit: float):
         size = max(minimum, int(size * 0.9))
 
 
+_AVATAR_CACHE: OrderedDict[tuple, Any] = OrderedDict()
+_AVATAR_CACHE_SIZE = 8
+
+
 def _avatar(photo: str, diameter: int, ring_rgb, disc_rgb):
     """Médaillon rond (tête et épaules) tiré d'une photo détourée ; None si absente."""
-    from PIL import Image, ImageDraw
-
     path = Path(photo) if photo else None
     if path is None or not path.is_file() or diameter < 8:
         return None
     try:
-        source = _open_image(path, "RGBA")
+        key = _file_key(path, diameter, tuple(ring_rgb), tuple(disc_rgb))
+    except OSError:
+        return None
+    return _memo_image(_AVATAR_CACHE, _AVATAR_CACHE_SIZE, key,
+                       lambda: _draw_avatar(path, diameter, ring_rgb, disc_rgb))
+
+
+def _draw_avatar(path: Path, diameter: int, ring_rgb, disc_rgb):
+    from PIL import Image, ImageDraw
+
+    from app.utils import fast_image
+
+    try:
+        source = _cached_source(path, "RGBA")
     except Exception:
         return None
     bbox = source.getchannel("A").point(lambda a: 255 if a > 24 else 0).getbbox()
@@ -671,13 +734,27 @@ def _avatar(photo: str, diameter: int, ring_rgb, disc_rgb):
     ring = max(2, int(big * 0.035))
     inner = big - 2 * ring
     disc = Image.new("RGBA", (inner, inner), (*disc_rgb, 255))
-    disc.alpha_composite(head.resize((inner, inner), Image.LANCZOS))
+    disc.alpha_composite(fast_image.resize(head, (inner, inner)))
     mask = Image.new("L", (inner, inner), 0)
     ImageDraw.Draw(mask).ellipse((0, 0, inner - 1, inner - 1), fill=255)
     out = Image.new("RGBA", (big, big), (0, 0, 0, 0))
     ImageDraw.Draw(out).ellipse((0, 0, big - 1, big - 1), fill=(*ring_rgb, 255))
     out.paste(disc, (ring, ring), mask)
-    return out.resize((diameter, diameter), Image.LANCZOS)
+    return fast_image.resize(out, (diameter, diameter))
+
+
+@functools.lru_cache(maxsize=8)
+def _soft_glow(width: int, height: int, box: tuple[int, int, int, int],
+               rgba: tuple[int, int, int, int], blur: int):
+    """Calque transparent portant une ellipse floutée (halo derrière l'orateur).
+
+    Gardé tel quel d'un aperçu à l'autre : à ne pas modifier.
+    """
+    from PIL import Image, ImageDraw, ImageFilter
+
+    glow = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    ImageDraw.Draw(glow).ellipse(box, fill=rgba)
+    return glow.filter(ImageFilter.GaussianBlur(blur))
 
 
 def _main_handle(profile: ChurchProfile) -> str:
@@ -691,8 +768,24 @@ def _main_handle(profile: ChurchProfile) -> str:
     return max(handles, key=lambda h: (handles.count(h), -handles.index(h)))
 
 
+# Fonds gardés d'un aperçu à l'autre : ils ne dépendent pas des textes, donc
+# taper la citation ou le titre ne refait plus photos, flous et traitements.
+_BACKGROUND_CACHE: OrderedDict[tuple, Any] = OrderedDict()
+_BACKGROUND_CACHE_SIZE = 6
+
+
 def _quote_background(profile: ChurchProfile, width: int, height: int, style: str):
     """Fond du modèle : couleur d'accent (affiche), photo de l'église ou fond habituel."""
+    try:
+        key = ("quote", repr(asdict(profile)), width, height, style,
+               _files_key((*profile.photos, profile.background_image)))
+    except OSError:
+        return _draw_quote_background(profile, width, height, style)
+    return _memo_image(_BACKGROUND_CACHE, _BACKGROUND_CACHE_SIZE, key,
+                       lambda: _draw_quote_background(profile, width, height, style))
+
+
+def _draw_quote_background(profile: ChurchProfile, width: int, height: int, style: str):
     from PIL import Image, ImageFilter
 
     if style == "poster":
@@ -838,12 +931,11 @@ def render_quote(profile: ChurchProfile, text: str, reference: str = "",
     if portrait is not None:
         px = width - portrait.width - int(margin * 0.5)
         py = rule_y - portrait.height
-        glow = Image.new("RGBA", (width, height), (0, 0, 0, 0))
         d = int(portrait.width * 0.9)
         gx, gy = px + portrait.width // 2, py + int(portrait.height * 0.42)
-        ImageDraw.Draw(glow).ellipse((gx - d // 2, gy - d // 2, gx + d // 2, gy + d // 2),
-                                     fill=(*accent, 70))
-        image.alpha_composite(glow.filter(ImageFilter.GaussianBlur(int(50 * unit))))
+        image.alpha_composite(_soft_glow(
+            width, height, (gx - d // 2, gy - d // 2, gx + d // 2, gy + d // 2),
+            (*accent, 70), int(50 * unit)))
         image.alpha_composite(portrait, (px, py))
         if height > width:
             area_bottom = py - int(30 * unit)
@@ -947,18 +1039,16 @@ def render_quote(profile: ChurchProfile, text: str, reference: str = "",
 
 def _photo_image(photo: str, max_w: int, max_h: int):
     """Photo importée (PNG transparent conseillé), redimensionnée ; None si absente."""
-    from PIL import Image
-
     path = Path(photo) if photo else None
     if path is None or not path.is_file():
         return None
     try:
-        image = _open_image(path, "RGBA")
+        image = _cached_source(path, "RGBA")
+        scale = min(max_w / image.width, max_h / image.height)
+        size = (max(1, int(image.width * scale)), max(1, int(image.height * scale)))
+        return _resized_source(path, "RGBA", size)
     except Exception:
         return None
-    scale = min(max_w / image.width, max_h / image.height)
-    size = (max(1, int(image.width * scale)), max(1, int(image.height * scale)))
-    return image.resize(size, Image.LANCZOS)
 
 
 def _pastor_image(profile: ChurchProfile, max_w: int, max_h: int):
@@ -1454,16 +1544,15 @@ def _cover(path: str, width: int, height: int, focus_y: float = 0.5, zoom: float
 
     ``focus_y`` : partie gardée en hauteur (0 = haut, 1 = bas) ; ``zoom`` ≥ 1.
     """
-    from PIL import Image
-
     try:
-        source = _open_image(path, "RGB")
+        source = _cached_source(path, "RGB")
+        scale = max(width / source.width, height / source.height) * max(1.0, zoom)
+        resized = _resized_source(
+            path, "RGB",
+            (max(1, int(source.width * scale)), max(1, int(source.height * scale))),
+        )
     except Exception:
         return None
-    scale = max(width / source.width, height / source.height) * max(1.0, zoom)
-    resized = source.resize(
-        (max(1, int(source.width * scale)), max(1, int(source.height * scale))), Image.LANCZOS
-    )
     left = (resized.width - width) // 2
     upper = int((resized.height - height) * max(0.0, min(1.0, focus_y)))
     return resized.crop((left, upper, left + width, upper + height)).convert("RGBA")
@@ -1711,12 +1800,28 @@ def _mosaic_fade(paths: list[str], width: int, height: int, spec: ThumbnailSpec)
     return canvas
 
 
+# Champs de texte de la miniature, sans effet sur le fond.
+_THUMBNAIL_TEXT_FIELDS = frozenset({"title", "label", "date", "reference"})
+
+
 def thumbnail_background(profile: ChurchProfile, spec: ThumbnailSpec,
                          width: int, height: int):
     """Fond de miniature composé des photos de l'église (ou fond uni)."""
+    spec = spec.sanitized()
+    look = {k: v for k, v in asdict(spec).items() if k not in _THUMBNAIL_TEXT_FIELDS}
+    try:
+        key = ("thumbnail", repr(asdict(profile)), repr(look), width, height,
+               _files_key((*thumbnail_photos(profile, spec), profile.background_image)))
+    except OSError:
+        return _draw_thumbnail_background(profile, spec, width, height)
+    return _memo_image(_BACKGROUND_CACHE, _BACKGROUND_CACHE_SIZE, key,
+                       lambda: _draw_thumbnail_background(profile, spec, width, height))
+
+
+def _draw_thumbnail_background(profile: ChurchProfile, spec: ThumbnailSpec,
+                               width: int, height: int):
     from PIL import Image, ImageDraw, ImageEnhance
 
-    spec = spec.sanitized()
     unit = height / 720
     paths = thumbnail_photos(profile, spec)
     vignette = int(spec.vignette * 2.5)
@@ -1791,14 +1896,11 @@ def render_youtube_thumbnail(profile: ChurchProfile, spec: ThumbnailSpec,
     if photo is not None:
         px = margin // 2 if on_left else width - photo.width - margin // 2
     if photo is not None and spec.glow:
-        glow = Image.new("RGBA", (width, height), (0, 0, 0, 0))
         radius = int(min(photo.width, photo.height) * 0.46)
         cx, cy = px + photo.width // 2, height - int(photo.height * 0.52)
-        ImageDraw.Draw(glow).ellipse(
-            (cx - radius, cy - radius, cx + radius, cy + radius),
-            fill=(*accent, int(spec.glow * 2.5)),
-        )
-        image.alpha_composite(glow.filter(ImageFilter.GaussianBlur(int(60 * unit))))
+        image.alpha_composite(_soft_glow(
+            width, height, (cx - radius, cy - radius, cx + radius, cy + radius),
+            (*accent, int(spec.glow * 2.5)), int(60 * unit)))
     if photo is not None:
         if on_left:
             text_left = px + photo.width + int(10 * unit)

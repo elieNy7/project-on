@@ -15,6 +15,8 @@ from typing import Any
 
 from PIL import Image, ImageFilter, ImageOps
 
+from app.utils import fast_image
+
 __all__ = [
     "load_media_image",
     "compose_media_frame",
@@ -107,9 +109,9 @@ def compose_media_frame(
         base = Image.new("RGB", (width, height), tone)
 
     if fit == "cover":
-        picture = ImageOps.fit(source, (width, height), Image.LANCZOS)
+        picture = fast_image.fit(source, (width, height))
     else:
-        picture = ImageOps.contain(source, (width, height), Image.LANCZOS)
+        picture = fast_image.contain(source, (width, height))
     frame = base.copy()
     frame.paste(
         picture,
@@ -123,10 +125,10 @@ def _blurred_backdrop(
     source: Image.Image, width: int, height: int, dim: float
 ) -> Image.Image:
     """Copie « cover » de l'image, floutée puis assombrie, à la taille voulue."""
-    small = ImageOps.fit(source, (_BACKDROP_EDGE, _BACKDROP_EDGE), Image.LANCZOS)
+    small = fast_image.fit(source, (_BACKDROP_EDGE, _BACKDROP_EDGE))
     radius = max(1.0, _BACKDROP_BLUR_1080 * small.width / 1920.0)
     small = small.filter(ImageFilter.GaussianBlur(radius))
-    backdrop = small.resize((width, height), Image.LANCZOS)
+    backdrop = fast_image.resize(small, (width, height))
     if dim > 0:
         backdrop = Image.blend(backdrop, Image.new("RGB", backdrop.size, (0, 0, 0)), dim)
     return backdrop

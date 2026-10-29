@@ -4,6 +4,7 @@
 //! rend EXACTEMENT le même résultat que sa version Python
 //! (`app.utils.text_utils`), qui reste le repli quand le module manque.
 
+mod image_ops;
 mod sqlite_ext;
 
 use std::sync::OnceLock;
@@ -133,6 +134,7 @@ fn fold_many(py: Python<'_>, texts: &Bound<'_, PyList>) -> PyResult<Vec<String>>
 fn project_on_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(unaccent, m)?)?;
     m.add_function(wrap_pyfunction!(fold_many, m)?)?;
+    m.add_function(wrap_pyfunction!(image_ops::resize_lanczos, m)?)?;
     Ok(())
 }
 

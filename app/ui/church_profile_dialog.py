@@ -34,6 +34,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.ui.obs_output_settings_dialog import DIALOG_STYLE, ColorPickerButton
+from app.ui.preview_renderer import PreviewRenderer
 from app.ui.setting_cards import PageHeader, SettingSection
 from app.ui.theme import Colors, Typography
 from app.utils.church_graphics import (
@@ -397,8 +398,10 @@ class ChurchProfileDialog(QDialog):
         self.speaker_slides_size.valueChanged.connect(self._debounce.start)
         for box in (self.show_socials_welcome, self.show_socials_quotes):
             box.toggled.connect(self._debounce.start)
-        # L'aperçu se dessine juste après l'affichage : la page s'ouvre sans
-        # attendre le rendu de l'image.
+        # L'aperçu se dessine juste après l'affichage, hors du fil de
+        # l'interface : la page s'ouvre et reste fluide pendant le rendu.
+        self._renderer = PreviewRenderer(self)
+        self._renderer.ready.connect(self._show_preview)
         self._preview_timer = QTimer(self)
         self._preview_timer.setSingleShot(True)
         self._preview_timer.setInterval(0)
@@ -447,22 +450,10 @@ class ChurchProfileDialog(QDialog):
         self._preview_timer.stop()
         profile = self.read_profile()
         kind = self.preview_kind.currentData()
-        if kind == "socials":
-            image = render_socials(profile, 960, 540)
-        elif kind == "pastor":
-            image = render_speaker(profile, 960, 540)
-        elif kind == "quote":
-            image = render_quote(
-                profile, "Car Dieu a tant aimé le monde qu'il a donné son Fils unique.",
-                "Jean 3:16", "square",
-            )
-        elif kind == "thumbnail":
-            image = render_youtube_thumbnail(profile, ThumbnailSpec(
-                title="Le *vrai* repos de l'âme", date=french_date(), reference="Matthieu 11:28",
-            ))
-        else:
-            image = render_welcome(profile, 960, 540)
-        self.preview.setPixmap(_to_pixmap(image).scaledToHeight(
+        self._renderer.request(lambda: _profile_preview(profile, kind))
+
+    def _show_preview(self, image: QImage) -> None:
+        self.preview.setPixmap(QPixmap.fromImage(image).scaledToHeight(
             220, Qt.TransformationMode.SmoothTransformation))
 
     def _copy_into_folder(self, source: Path, stem: str) -> Path:
@@ -585,10 +576,29 @@ class ChurchProfileDialog(QDialog):
         folder = QFileDialog.getExistingDirectory(self, "Dossier des visuels")
         if not folder:
             return
+        self._renderer.wait_idle()
         written = export_visuals(self.read_profile(), Path(folder))
         QMessageBox.information(
             self, "Visuels", "Enregistrés :\n" + "\n".join(p.name for p in written)
         )
+
+
+def _profile_preview(profile: ChurchProfile, kind: str):
+    """Image d'aperçu de la page Église (dessinée hors du fil de l'interface)."""
+    if kind == "socials":
+        return render_socials(profile, 960, 540)
+    if kind == "pastor":
+        return render_speaker(profile, 960, 540)
+    if kind == "quote":
+        return render_quote(
+            profile, "Car Dieu a tant aimé le monde qu'il a donné son Fils unique.",
+            "Jean 3:16", "square",
+        )
+    if kind == "thumbnail":
+        return render_youtube_thumbnail(profile, ThumbnailSpec(
+            title="Le *vrai* repos de l'âme", date=french_date(), reference="Matthieu 11:28",
+        ))
+    return render_welcome(profile, 960, 540)
 
 
 def export_visuals(profile: ChurchProfile, folder: Path) -> list[Path]:
@@ -664,6 +674,8 @@ class QuoteImageDialog(QDialog):
         layout.addLayout(body, 1)
         layout.addWidget(buttons)
 
+        self._renderer = PreviewRenderer(self)
+        self._renderer.ready.connect(self._show)
         self._debounce = QTimer(self)
         self._debounce.setSingleShot(True)
         self._debounce.setInterval(250)
@@ -674,16 +686,22 @@ class QuoteImageDialog(QDialog):
         self.style.currentIndexChanged.connect(self._render)
         self._render()
 
-    def image(self):
+    def _image_job(self):
+        """Rendu des champs actuels, lus ici (fil de l'interface)."""
         profile = replace(self._profile, quote_style=str(self.style.currentData() or "classic"))
-        return render_quote(
-            profile, self.text.toPlainText().strip(), self.reference.text().strip(),
-            str(self.format.currentData() or "square"),
-        )
+        text, reference = self.text.toPlainText().strip(), self.reference.text().strip()
+        fmt = str(self.format.currentData() or "square")
+        return lambda: render_quote(profile, text, reference, fmt)
+
+    def image(self):
+        self._renderer.wait_idle()
+        return self._image_job()()
 
     def _render(self) -> None:
-        pixmap = _to_pixmap(self.image())
-        self.preview.setPixmap(pixmap.scaled(
+        self._renderer.request(self._image_job())
+
+    def _show(self, image: QImage) -> None:
+        self.preview.setPixmap(QPixmap.fromImage(image).scaled(
             420, 420, Qt.AspectRatioMode.KeepAspectRatio,
             Qt.TransformationMode.SmoothTransformation))
 
@@ -1103,6 +1121,8 @@ class ThumbnailDialog(QDialog):
         layout.addLayout(body, 1)
         layout.addWidget(buttons)
 
+        self._renderer = PreviewRenderer(self)
+        self._renderer.ready.connect(self._show)
         self._debounce = QTimer(self)
         self._debounce.setSingleShot(True)
         self._debounce.setInterval(200)
@@ -1285,12 +1305,17 @@ class ThumbnailDialog(QDialog):
         return [] if len(checked) == len(self.gallery.photos()) else checked
 
     def image(self):
+        self._renderer.wait_idle()
         return render_youtube_thumbnail(self._profile, self.spec())
 
     def _render(self, *_args) -> None:
         if self._loading:
             return
-        self.preview.setPixmap(_to_pixmap(self.image()).scaled(
+        profile, spec = self._profile, self.spec()
+        self._renderer.request(lambda: render_youtube_thumbnail(profile, spec))
+
+    def _show(self, image: QImage) -> None:
+        self.preview.setPixmap(QPixmap.fromImage(image).scaled(
             640, 360, Qt.AspectRatioMode.KeepAspectRatio,
             Qt.TransformationMode.SmoothTransformation))
 
