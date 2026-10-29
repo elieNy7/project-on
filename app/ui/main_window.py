@@ -1725,6 +1725,12 @@ class MainWindow(QMainWindow):
         if self._projection_window is None:
             self._projection_window = ProjectionWindow(self._presentation_dir)
             self._projection_window._low_power = self._settings.appearance.low_power
+            writer = self._project_controller.slide_writer
+            notify = self._projection_window.notify_slide_written
+            writer.add_listener(notify)
+            self._projection_window.destroyed.connect(
+                lambda: writer.remove_listener(notify)
+            )
             # Fin de vidéo : le diaporama enchaîne sur le média suivant.
             self._projection_window.videoFinished.connect(
                 lambda: self._slideshow.on_video_finished()

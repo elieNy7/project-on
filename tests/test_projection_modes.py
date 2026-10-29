@@ -226,7 +226,10 @@ def test_local_projection_main_text_size_has_visible_effect(tmp_path) -> None:
     app = QApplication.instance() or QApplication([])
     window = ProjectionWindow(tmp_path)
     window.resize(1280, 720)
-    slide = {"text": "La foi transforme notre vie.", "reference": "Romains 10:17"}
+    # Texte très court : en « remplir l'écran », la taille réglée fixe le
+    # plafond de croissance (FILL_CEILING ×) ; un texte plus long remplit
+    # le bloc quelle que soit la taille réglée.
+    slide = {"text": "Amen.", "reference": "Romains 10:17"}
 
     small_cfg = ProjectionSettings(
         text_size=32,
@@ -248,10 +251,10 @@ def test_local_projection_main_text_size_has_visible_effect(tmp_path) -> None:
     window._render_slide_content(slide)
     large = window.text_label.font().pixelSize()
 
-    # Auto-fit : le texte court grossit (jusqu'à 1,75× la taille configurée)
-    # sans jamais descendre sous la taille demandée quand elle tient.
+    # Remplir l'écran : le texte court grossit (jusqu'à FILL_CEILING × la
+    # taille configurée) sans jamais descendre sous la taille demandée.
     assert small >= 32
-    assert small <= 32 * 1.75 + 1
+    assert small <= 32 * ProjectionWindow.FILL_CEILING + 1
     assert large >= 84
     assert small < large
     window.close()
@@ -306,8 +309,8 @@ def test_local_projection_fits_long_text_powerpoint_style(tmp_path) -> None:
     assert 18 <= long_size < 64
     assert short_size > long_size
     # Croissance : le verset court grossit au-delà de la taille configurée
-    # (pleine place) sans dépasser le plafond 1,75×.
-    assert 64 < short_size <= round(64 * 1.75)
+    # (remplir l'écran) sans dépasser le plafond FILL_CEILING ×.
+    assert 64 < short_size <= round(64 * ProjectionWindow.FILL_CEILING)
 
     # Le bloc texte ne déborde jamais de sa zone.
     window._main_layout.activate()

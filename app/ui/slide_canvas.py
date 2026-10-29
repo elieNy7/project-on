@@ -8,13 +8,14 @@ from typing import Any
 
 log = logging.getLogger(__name__)
 
-from PySide6.QtCore import QPoint, QPointF, QRectF, Qt
+from PySide6.QtCore import QPoint, QPointF, QRectF, QSize, Qt
 from PySide6.QtGui import (
     QBrush,
     QColor,
     QFont,
     QFontDatabase,
     QFontMetrics,
+    QFontMetricsF,
     QImage,
     QLinearGradient,
     QPainter,
@@ -67,6 +68,99 @@ class ShadowTextLabel(QLabel):
         self._shadow_cache_key: tuple | None = None
         self._shadow_cache = QPixmap()
         self._rendering_shadow = False
+        self._line_height = 1.0
+        self._text_cache_key: tuple | None = None
+        self._text_cache = QPixmap()
+
+    def set_line_height(self, factor: float) -> None:
+        """Interligne (1.0 = celui de la police) ; QLabel n'en a pas."""
+        factor = max(0.8, min(2.0, float(factor or 1.0)))
+        if abs(factor - self._line_height) > 1e-3:
+            self._line_height = factor
+            self._shadow_cache_key = None
+            self.updateGeometry()
+            self.update()
+
+    def _spaced(self) -> bool:
+        return abs(self._line_height - 1.0) > 1e-3 and "\n" in self.text()
+
+    def _extra_leading(self) -> int:
+        """Hauteur ajoutée (ou retirée) par l'interligne réglé."""
+        if not self._spaced():
+            return 0
+        step = QFontMetrics(self.font()).lineSpacing()
+        return round(self.text().count("\n") * step * (self._line_height - 1.0))
+
+    def sizeHint(self) -> QSize:
+        hint = super().sizeHint()
+        return QSize(hint.width(), hint.height() + self._extra_leading())
+
+    def minimumSizeHint(self) -> QSize:
+        hint = super().minimumSizeHint()
+        return QSize(hint.width(), hint.height() + self._extra_leading())
+
+    def heightForWidth(self, width: int) -> int:
+        return super().heightForWidth(width) + self._extra_leading()
+
+    def _paint_text(self, event) -> None:
+        """Texte du label, dessiné une fois dans une image puis recopié.
+
+        Aux tailles de projection (> 100 px), Qt ne garde plus les lettres en
+        cache et les redessine en vecteur à chaque image : ~35 ms par image,
+        de quoi saccader un fondu ou un fond animé.
+        """
+        if not self.text():
+            return
+        ratio = self.devicePixelRatioF()
+        key = (
+            self.text(),
+            self.width(),
+            self.height(),
+            self.font().toString(),
+            self.palette().color(self.foregroundRole()).rgba(),
+            self.alignment().value,
+            self._line_height,
+            ratio,
+            self.contentsRect().getRect(),
+        )
+        if key != self._text_cache_key:
+            pixmap = QPixmap(QSize(max(1, round(self.width() * ratio)),
+                                   max(1, round(self.height() * ratio))))
+            pixmap.setDevicePixelRatio(ratio)
+            pixmap.fill(Qt.GlobalColor.transparent)
+            cache_painter = QPainter(pixmap)
+            self._draw_lines(cache_painter)
+            cache_painter.end()
+            self._text_cache, self._text_cache_key = pixmap, key
+        painter = QPainter(self)
+        painter.drawPixmap(0, 0, self._text_cache)
+        painter.end()
+
+    def _draw_lines(self, painter: QPainter) -> None:
+        """Lignes posées une à une (le texte arrive déjà découpé, une ligne
+        par « \\n »), avec l'interligne réglé."""
+        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
+        painter.setFont(self.font())
+        painter.setPen(self.palette().color(self.foregroundRole()))
+        rect = QRectF(self.contentsRect())
+        metrics = QFontMetrics(self.font())
+        step = metrics.lineSpacing() * self._line_height
+        lines = self.text().split("\n")
+        block = metrics.height() + step * (len(lines) - 1)
+        align = self.alignment()
+        if align & Qt.AlignmentFlag.AlignTop:
+            top = rect.top()
+        elif align & Qt.AlignmentFlag.AlignBottom:
+            top = rect.bottom() - block
+        else:
+            top = rect.top() + (rect.height() - block) / 2
+        horizontal = align & Qt.AlignmentFlag.AlignHorizontal_Mask
+        for index, line in enumerate(lines):
+            painter.drawText(
+                QRectF(rect.left(), top + index * step, rect.width(), metrics.height()),
+                int(horizontal | Qt.AlignmentFlag.AlignTop | Qt.TextFlag.TextDontClip),
+                line,
+            )
 
     def set_shadow(self, color: QColor | None, blur: int = 18, dy: int = 2) -> None:
         self._shadow_color = color
@@ -88,7 +182,7 @@ class ShadowTextLabel(QLabel):
             # On peint alors le texte nu, sans ombre.
             or not self.isVisible()
         ):
-            super().paintEvent(event)
+            self._paint_text(event)
             return
 
         key = (
@@ -99,6 +193,7 @@ class ShadowTextLabel(QLabel):
             self._shadow_dy,
             self._shadow_color.rgba(),
             self.font().toString(),
+            self._line_height,
         )
         if key != self._shadow_cache_key:
             try:
@@ -131,13 +226,13 @@ class ShadowTextLabel(QLabel):
                 self._shadow_cache_key = key
             except Exception:
                 # Aucun texte perdu sur une défaillance du cache d'ombre.
-                super().paintEvent(event)
+                self._paint_text(event)
                 return
 
         shadow_painter = QPainter(self)
         shadow_painter.drawPixmap(0, self._shadow_dy, self._shadow_cache)
         shadow_painter.end()
-        super().paintEvent(event)
+        self._paint_text(event)
 
 
 class SlideCanvas(QWidget):
@@ -151,6 +246,13 @@ class SlideCanvas(QWidget):
 
     RENDER_WIDTH = 1920
     RENDER_HEIGHT = 1080
+
+    # Zone de sécurité minimale autour du contenu, de chaque côté : les
+    # vidéoprojecteurs rognent souvent les bords de l'image (standard TV).
+    SAFE_AREA = 0.05
+    # Plafond de croissance d'un texte court (« remplir l'écran ») par
+    # rapport à la taille réglée.
+    FILL_CEILING = 4.0
 
     # Côté long maximal d'un visuel média chargé : une photo 24 Mpx n'apporte
     # rien à l'écran et coûte cher à redessiner à chaque répétition.
@@ -195,6 +297,12 @@ class SlideCanvas(QWidget):
         self._speaker_pixmap = QPixmap()
         self._speaker_pixmap_path = ""
         self._speaker_reserve_applied = 0
+        # Fond composé (image, voiles, vignette, orateur) gardé tel quel tant
+        # que rien ne le change : une transition redessine l'écran à chaque
+        # image, et recomposer le fond coûtait ~36 ms par image (saccades).
+        self._config_serial = 0
+        self._bg_cache = QPixmap()
+        self._bg_cache_key: tuple[Any, ...] | None = None
 
         self._main_layout = QVBoxLayout(self)
         self._main_layout.setContentsMargins(0, 0, 0, 0)
@@ -307,6 +415,7 @@ class SlideCanvas(QWidget):
         except (TypeError, ValueError):
             cfg["padding"] = 0
         self._config = cfg
+        self._config_serial += 1
 
         self._apply_layout_metrics(cfg)
         self._update_shell_style(cfg)
@@ -440,10 +549,50 @@ class SlideCanvas(QWidget):
     def paintEvent(self, event) -> None:
         """Draw a clean full-screen slide, close to a PowerPoint presentation."""
         painter = QPainter(self)
+        rect = self.rect()
+        moving = (
+            (self._bg_video_path and not self._bg_video_frame.isNull())
+            or self._kb_zoom != 1.0
+            or self._kb_pan != QPointF(0.0, 0.0)
+        )
+        if moving:  # fond animé : il change à chaque image
+            self._paint_background(painter, rect)
+            return
+        key = self._background_key()
+        if key != self._bg_cache_key or self._bg_cache.isNull():
+            ratio = self.devicePixelRatioF()
+            cache = QPixmap(QSize(round(rect.width() * ratio), round(rect.height() * ratio)))
+            cache.setDevicePixelRatio(ratio)
+            cache.fill(Qt.GlobalColor.transparent)
+            cache_painter = QPainter(cache)
+            self._paint_background(cache_painter, rect)
+            cache_painter.end()
+            self._bg_cache, self._bg_cache_key = cache, key
+        painter.drawPixmap(0, 0, self._bg_cache)
+
+    def _background_key(self) -> tuple[Any, ...]:
+        """Tout ce dont dépend le dessin du fond (voir _paint_background)."""
+        slide = self._current_slide
+        return (
+            self.width(),
+            self.height(),
+            self.devicePixelRatioF(),
+            self._config_serial,
+            self._background_pixmap.cacheKey(),
+            self._media_backdrop_pixmap.cacheKey(),
+            self._speaker_pixmap.cacheKey(),
+            self._media_content,
+            self._media_caption,
+            bool(str(slide.get("text") or "").strip()),
+            bool(str(slide.get("reference") or "").strip()),
+            str(slide.get("source") or ""),
+            self._speaker_badge_active(),
+            self._stage_accent.rgba(),
+        )
+
+    def _paint_background(self, painter: QPainter, rect) -> None:
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
-
-        rect = self.rect()
         cfg = self._config
 
         bg_color = self._parse_color(cfg.get("bg_color") or "#000000", 1.0)
@@ -949,14 +1098,17 @@ class SlideCanvas(QWidget):
         sh = self.height() if self.height() > 100 else 1080
 
         edge_guard = max(0, min(240, int(cfg.get("safe_margin") or 0)))
+        # La marge réglée s'ajoute à la zone de sécurité, jamais en dessous.
+        guard_x = max(edge_guard, round(sw * self.SAFE_AREA))
+        guard_y = max(edge_guard, round(sh * self.SAFE_AREA))
         # Orateur du jour : son côté de l'écran est réservé, le texte ne
         # passe jamais sous sa photo.
         reserve = self._speaker_reserve(sw, sh)
         self._speaker_reserve_applied = reserve
         on_left = self._speaker_badge().get("side") == "left"
         self._main_layout.setContentsMargins(
-            edge_guard + (reserve if on_left else 0), edge_guard,
-            edge_guard + (0 if on_left else reserve), edge_guard,
+            guard_x + (reserve if on_left else 0), guard_y,
+            guard_x + (0 if on_left else reserve), guard_y,
         )
         sw -= reserve
 
@@ -970,7 +1122,7 @@ class SlideCanvas(QWidget):
             # (moins la marge de sécurité et la zone référence épinglée).
             # Les anciens pourcentages (content_width/content_height) ne
             # s'appliquent plus à ce mode.
-            stage_h = max(240, sh - edge_guard * 2)
+            stage_h = max(240, sh - guard_y * 2)
             ref_zone_h = self._ref_zone_height(cfg, sh) if pinned_ref else 0
             gap = int(sh * 0.03) if pinned_ref else 0
             self._stage_layout.setSpacing(gap)
@@ -989,7 +1141,7 @@ class SlideCanvas(QWidget):
                 )
             else:
                 self._stage_layout.setContentsMargins(0, 0, 0, 0)
-            available_width = max(320, sw - edge_guard * 2)
+            available_width = max(320, sw - guard_x * 2)
             if pinned_ref:
                 self._ref_zone.setFixedHeight(ref_zone_h)
             else:
@@ -1014,11 +1166,11 @@ class SlideCanvas(QWidget):
                 width_pct = min(width_pct, 72)
                 height_pct = min(height_pct, 62)
             available_width = max(
-                320, int((sw - (edge_guard * 2)) * width_pct / 100)
+                320, int((sw - (guard_x * 2)) * width_pct / 100)
             )
             available_height = max(
                 240,
-                int((sh - (edge_guard * 2)) * height_pct / 100),
+                int((sh - (guard_y * 2)) * height_pct / 100),
             )
 
         self._available_content_width = available_width
@@ -1167,13 +1319,35 @@ class SlideCanvas(QWidget):
         v = str(value or "").strip().lower()
         return v if v in allowed else fallback
 
-    @staticmethod
-    def _wrap_lines(value: str, font: QFont, width: int) -> list[str]:
+    # Ponctuation française précédée d'une espace insécable : jamais en début
+    # de ligne (« aujourd'hui ; »), et « ouvrant jamais seul en fin de ligne.
+    _GLUE_TO_PREVIOUS = re.compile(r"^[;:!?»…]+[.,]?$")
+
+    @classmethod
+    def _words(cls, paragraph: str) -> list[str]:
+        """Mots d'un paragraphe, la ponctuation française restant collée."""
+        words: list[str] = []
+        opening = ""
+        for token in paragraph.split():
+            if opening:
+                token, opening = f"{opening} {token}", ""
+            if token == "«":
+                opening = token
+            elif words and cls._GLUE_TO_PREVIOUS.match(token):
+                words[-1] = f"{words[-1]} {token}"
+            else:
+                words.append(token)
+        if opening:
+            words.append(opening)
+        return words
+
+    @classmethod
+    def _wrap_lines(cls, value: str, font: QFont, width: int) -> list[str]:
         """Découpe un texte en lignes ≤ width, sans jamais couper un mot."""
         metrics = QFontMetrics(font)
         wrapped: list[str] = []
         for paragraph in value.splitlines() or [value]:
-            words = paragraph.split()
+            words = cls._words(paragraph)
             if not words:
                 wrapped.append("")
                 continue
@@ -1189,6 +1363,99 @@ class SlideCanvas(QWidget):
                 wrapped.append(current)
         return wrapped
 
+    @classmethod
+    def _balanced_lines(cls, value: str, font: QFont, width: int) -> list[str]:
+        """Même nombre de lignes que la découpe gloutonne, mais de longueurs
+        voisines : pas de mot seul sur la dernière ligne (« veuve »)."""
+        balanced: list[str] = []
+        metrics = QFontMetrics(font)
+        for paragraph in value.splitlines() or [value]:
+            lines = cls._wrap_lines(paragraph, font, width)
+            words = cls._words(paragraph)
+            if len(lines) < 2:
+                balanced.extend(lines)
+                continue
+            even = cls._even_split(
+                words, [metrics.horizontalAdvance(w) for w in words],
+                metrics.horizontalAdvance(" "), width, len(lines),
+            )
+            # Mesure réelle (crénage) : au moindre dépassement, la découpe
+            # gloutonne, sûre, reste en place.
+            if even and all(metrics.horizontalAdvance(line) <= width for line in even):
+                lines = even
+            balanced.extend(lines)
+        return balanced
+
+    @staticmethod
+    def _even_split(
+        words: list[str], advances: list[int], space: int, width: int, count: int
+    ) -> list[str] | None:
+        """Répartit ``words`` sur ``count`` lignes de largeur ≤ ``width``, les
+        plus égales possible (écarts à la largeur moyenne au carré) ; None si
+        c'est impossible."""
+        n = len(words)
+        prefix = [0]
+        for advance in advances:
+            prefix.append(prefix[-1] + advance)
+
+        def line_width(i: int, j: int) -> int:  # mots i..j-1
+            return prefix[j] - prefix[i] + space * (j - i - 1)
+
+        target = line_width(0, n) / count
+        inf = float("inf")
+        best = [[inf] * (n + 1) for _ in range(count + 1)]
+        cut = [[0] * (n + 1) for _ in range(count + 1)]
+        best[0][0] = 0.0
+        for k in range(1, count + 1):
+            for j in range(k, n + 1):
+                for i in range(j - 1, k - 2, -1):
+                    w = line_width(i, j)
+                    if w > width:
+                        break  # plus de mots ne ferait qu'élargir la ligne
+                    cost = best[k - 1][i] + (w - target) ** 2
+                    if cost < best[k][j]:
+                        best[k][j], cut[k][j] = cost, i
+        if best[count][n] == inf:
+            return None
+        lines, j = [], n
+        for k in range(count, 0, -1):
+            i = cut[k][j]
+            lines.append(" ".join(words[i:j]))
+            j = i
+        return lines[::-1]
+
+    @staticmethod
+    def _largest_unbroken_size(
+        lines: list[str],
+        base_font: QFont,
+        wrap_width: int,
+        box_height: int,
+        ceiling: int,
+        floor_size: int,
+        line_height: float,
+    ) -> int:
+        """Plus grande taille où chaque ligne tient sur UNE ligne (vers d'un
+        cantique) et où le bloc tient en hauteur ; 0 si aucune."""
+
+        def fits(size: int) -> bool:
+            font = QFont(base_font)
+            font.setPixelSize(size)
+            metrics = QFontMetrics(font)
+            step = metrics.lineSpacing() * line_height
+            height = (metrics.lineSpacing() + step * (len(lines) - 1)) * 1.08
+            return height <= box_height and all(
+                metrics.horizontalAdvance(line) <= wrap_width for line in lines
+            )
+
+        lo, hi, best = floor_size, ceiling, 0
+        while lo <= hi:
+            mid = (lo + hi) // 2
+            if fits(mid):
+                best, lo = mid, mid + 1
+            else:
+                hi = mid - 1
+        return best
+
     def _fit_text_size(
         self,
         text: str,
@@ -1197,6 +1464,7 @@ class SlideCanvas(QWidget):
         box_height: int,
         target_size: int,
         floor_size: int,
+        line_height: float = 1.0,
     ) -> tuple[int, str]:
         """Auto-fit façon PowerPoint : la plus grande taille ≤ plafond dont le
         texte wrappé tient entièrement dans le bloc.
@@ -1217,32 +1485,77 @@ class SlideCanvas(QWidget):
             lines = self._wrap_lines(text, font, wrap_width)
             # 8 % de réserve : le rendu réel des lignes (interligne du moteur
             # de texte) peut dépasser légèrement lineSpacing().
-            height = int(len(lines) * metrics.lineSpacing() * 1.08)
+            step = metrics.lineSpacing() * line_height
+            height = int((metrics.lineSpacing() + step * (len(lines) - 1)) * 1.08)
+            # Un mot plus large que le bloc ne tient pas, quelle que soit la
+            # hauteur : la taille doit baisser.
+            if any(metrics.horizontalAdvance(line) > wrap_width for line in lines):
+                height = box_height + 1
             return lines, height
 
-        lines, height = measure(target_size)
-        if height <= box_height:
-            return target_size, "\n".join(lines)
-
+        # Recherche sur une estimation : les mots sont mesurés UNE fois à une
+        # taille de référence puis mis à l'échelle. Mesurer à chaque taille
+        # essayée rechargeait les métriques de la police (~65 ms par slide).
+        estimate = self._scaled_fit(text, base_font, wrap_width, line_height)
         floor_size = min(floor_size, target_size)
         lo, hi = floor_size, target_size
-        best_size: int | None = None
-        best_lines: list[str] = []
+        best_size = floor_size
         while lo <= hi:
             mid = (lo + hi) // 2
-            mid_lines, mid_height = measure(mid)
-            if mid_height <= box_height:
-                best_size, best_lines = mid, mid_lines
-                lo = mid + 1
+            if estimate(mid) <= box_height:
+                best_size, lo = mid, mid + 1
             else:
                 hi = mid - 1
-        if best_size is None:
-            # Cas extrême (texte bien plus long que le bloc même au plancher) :
-            # la découpe du contrôleur limite la longueur des slides, ce cas
-            # ne survient qu'en force brute — on affiche tout au plancher.
-            best_size = floor_size
-            best_lines, _ = measure(floor_size)
-        return best_size, "\n".join(best_lines)
+        # Vérification avec la vraie mesure ; l'estimation peut différer d'un
+        # pixel par lettre (lissage des polices) : on descend alors un peu.
+        while True:
+            lines, height = measure(best_size)
+            if height <= box_height or best_size <= floor_size:
+                # Cas extrême (texte bien plus long que le bloc même au
+                # plancher) : tout est affiché au plancher.
+                return best_size, "\n".join(lines)
+            best_size = max(floor_size, min(best_size - 1, int(best_size * 0.98)))
+
+    _MEASURE_SIZE = 100
+
+    def _scaled_fit(self, text: str, base_font: QFont, wrap_width: int,
+                    line_height: float):
+        """Hauteur estimée du texte découpé pour une taille donnée (trop
+        grande si un mot dépasse la largeur), sans remesurer le texte."""
+        font = QFont(base_font)
+        font.setPixelSize(self._MEASURE_SIZE)
+        spacing = font.letterSpacing()  # absolue, en px : ne grandit pas
+        font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 0.0)
+        metrics = QFontMetricsF(font)
+        paragraphs = [
+            [(metrics.horizontalAdvance(w), len(w)) for w in self._words(paragraph)]
+            for paragraph in text.splitlines() or [text]
+        ]
+        space = metrics.horizontalAdvance(" ")
+        line_spacing = metrics.lineSpacing()
+        limit = wrap_width * 0.99  # marge pour l'écart estimation / mesure
+
+        def height(size: int) -> float:
+            k = size / self._MEASURE_SIZE
+            count = 0
+            for words in paragraphs:
+                count += 1
+                current = -1.0
+                for advance, letters in words:
+                    width = advance * k + spacing * letters
+                    if width > limit:
+                        return float("inf")
+                    if current < 0:
+                        current = width
+                    elif current + space * k + spacing + width <= limit:
+                        current += space * k + spacing + width
+                    else:
+                        count += 1
+                        current = width
+            step = line_spacing * k
+            return (step + step * line_height * (count - 1)) * 1.08
+
+        return height
 
     def _render_slide_content(self, slide: dict[str, Any]) -> None:
         slide = dict(slide)
@@ -1379,11 +1692,11 @@ class SlideCanvas(QWidget):
         floor_size = max(
             10, int(round(float(cfg.get("min_text_size") or 18) * size_scale))
         )
-        # Croissance maîtrisée : un texte court grossit pour occuper l'espace
-        # (pleine place), jusqu'à 1,75× la taille configurée — le curseur
-        # opérateur reste le maître de la grandeur. Un texte long, lui,
-        # rétrécit juste ce qu'il faut pour tenir entièrement.
-        fit_ceiling = int(round(target_size * 1.75))
+        # Remplir l'écran : un texte court grossit pour occuper l'espace,
+        # jusqu'à FILL_CEILING × la taille réglée (qui reste la référence).
+        # Un texte long, lui, rétrécit juste ce qu'il faut pour tenir.
+        fit_ceiling = int(round(target_size * self.FILL_CEILING))
+        line_height = max(0.8, min(2.0, float(cfg.get("line_height") or 1.0)))
 
         base_font = QFont(font_family)
         base_font.setWeight(self._font_weight_to_qt(font_weight))
@@ -1391,9 +1704,25 @@ class SlideCanvas(QWidget):
             QFont.SpacingType.AbsoluteSpacing, float(letter_spacing)
         )
 
-        text_size, wrapped_text = self._fit_text_size(
-            text, base_font, wrap_width, box_height, fit_ceiling, floor_size
+        text_size, _greedy = self._fit_text_size(
+            text, base_font, wrap_width, box_height, fit_ceiling, floor_size,
+            line_height,
         )
+        # Même nombre de lignes (donc même hauteur), longueurs équilibrées.
+        balance_font = QFont(base_font)
+        balance_font.setPixelSize(text_size)
+        wrapped_lines = self._balanced_lines(text, balance_font, wrap_width)
+        source_lines = [line.strip() for line in text.strip().splitlines()]
+        if len(source_lines) > 1 and len(wrapped_lines) > len(source_lines):
+            # Vers coupés (cantique, strophe) : un peu plus petit, chaque vers
+            # sur sa ligne — tant que la taille réglée est respectée.
+            unbroken = self._largest_unbroken_size(
+                source_lines, base_font, wrap_width, box_height,
+                text_size, floor_size, line_height,
+            )
+            if unbroken >= min(target_size, text_size):
+                text_size, wrapped_lines = unbroken, source_lines
+        wrapped_text = "\n".join(wrapped_lines)
 
         text_color = str(cfg.get("text_color") or "#ffffff")
         ref_color = str(cfg.get("ref_color") or "rgba(255,255,255,0.75)")
@@ -1452,6 +1781,7 @@ class SlideCanvas(QWidget):
             self.text_label.set_shadow(None)
             self.ref_label.set_shadow(None)
 
+        self.text_label.set_line_height(line_height)
         self.text_label.setText(wrapped_text)
         self.ref_label.setText(wrapped_ref if has_ref else "")
         # Refined divider between text and reference whenever a reference shows.

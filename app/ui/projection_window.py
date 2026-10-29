@@ -299,6 +299,11 @@ class ProjectionWindow(SlideCanvas):
             log.exception("Échec de la sélection de l'écran de projection")
             self.showFullScreen()
 
+    def notify_slide_written(self) -> None:
+        """slide.json vient d'être écrit (même processus) : lu au prochain
+        tour de boucle, sans attendre la lecture périodique."""
+        QTimer.singleShot(0, self, self._tick)
+
     def _read_json(self, path: Path) -> dict[str, Any] | None:
         try:
             if not path.exists() or not path.is_file():

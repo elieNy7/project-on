@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import json
+import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
 from app.utils.models import Slide
 from app.utils.text_utils import strip_hymn_projection_label
+
+log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -28,6 +32,17 @@ class SlideWriter:
         self._video_playing = False
         self._video_reset = False
         self._video_loop = False
+        # Prévenus après chaque écriture : la projection locale, dans le même
+        # processus, n'attend plus son prochain passage de lecture (250 ms).
+        self._listeners: list[Callable[[], None]] = []
+
+    def add_listener(self, callback: Callable[[], None]) -> None:
+        if callback not in self._listeners:
+            self._listeners.append(callback)
+
+    def remove_listener(self, callback: Callable[[], None]) -> None:
+        if callback in self._listeners:
+            self._listeners.remove(callback)
 
     @property
     def slide_path(self) -> Path:
@@ -143,8 +158,13 @@ class SlideWriter:
         for attempt in range(5):
             try:
                 tmp_path.replace(self._slide_path)
-                return
+                break
             except PermissionError:
                 if attempt == 4:
                     raise
                 time.sleep(0.05)
+        for callback in list(self._listeners):
+            try:
+                callback()
+            except Exception:
+                log.exception("Écouteur de slide.json en échec")

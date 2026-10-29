@@ -74,10 +74,14 @@ def test_photo_and_name_painted_and_text_moved_aside(canvas, tmp_path: Path) -> 
     image = canvas.grab().toImage()
     # Photo à droite. Le cartouche du nom suit la police, qui change la position
     # exacte de la photo : on la cherche sur une ligne au lieu d'un pixel fixe.
-    row = [image.pixelColor(x, 1080 - 110).green() for x in range(1920 - 480, 1920)]
-    assert any(green > 150 for green in row)
-    assert all(green < 150 for green in [image.pixelColor(x, 1080 - 110).green()
-                                         for x in range(0, 960)])  # rien à gauche
+    # Le texte (blanc) remplit l'écran jusqu'à cette hauteur : on reconnaît la
+    # photo à sa couleur (vert franc, peu de rouge), pas à sa seule luminosité.
+    def is_photo(x: int) -> bool:
+        color = image.pixelColor(x, 1080 - 110)
+        return color.green() > 150 and color.red() < 100
+
+    assert any(is_photo(x) for x in range(1920 - 480, 1920))
+    assert not any(is_photo(x) for x in range(0, 960))  # rien à gauche
 
     # Média plein écran : pas d'orateur par-dessus l'image.
     canvas.set_slide({"text": "", "image": str(tmp_path / "o.png"), "source": "image"})
