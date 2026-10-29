@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from PySide6.QtCore import QModelIndex, QRect, QSize, Qt, Signal
@@ -44,11 +45,77 @@ from app.ui.theme import (
 )
 
 
-class PlaylistItemDelegate(QStyledItemDelegate):
-    """Carte de slide de playlist : référence (accent) au-dessus du texte."""
+# Rôles des éléments de la liste des slides.
+ROLE_ID, ROLE_REF, ROLE_TEXT, ROLE_MEDIA, ROLE_KIND = 256, 257, 258, 259, 260
 
-    CARD_PADDING_V = 7
-    CARD_PADDING_H = 12
+# Type d'élément → (icône, libellé).
+ITEM_KINDS = {
+    "bible": ("book.svg", "Bible"),
+    "hymn": ("music.svg", "Cantique"),
+    "sermon": ("mic.svg", "Sermon"),
+    "expose": ("book-open.svg", "Exposé"),
+    "image": ("image.svg", "Image"),
+    "video": ("play.svg", "Vidéo"),
+    "powerpoint": ("layout.svg", "PowerPoint"),
+    "custom": ("type.svg", "Slide"),
+}
+
+_SERMON_REF = re.compile(r"^\d{2}-\d{4}[A-Z]?\b|\bE-\d+\b|§")
+_EXPOSE_REF = re.compile(r"·\s*Page\s+\d+|^Page\s+\d+\s*§")
+_HYMN_REF = re.compile(r"cantique|strophe|refrain|ch(?:oe|œ)ur|chant", re.IGNORECASE)
+_BIBLE_REF = re.compile(r"\b\d+\s*:\s*\d+")
+
+
+def item_kind(source: str, reference: str = "", background: str = "") -> str:
+    """Type d'un élément de playlist (clé de ITEM_KINDS).
+
+    Les éléments ajoutés avant que le type soit enregistré portent tous
+    « custom » : leur type est deviné d'après la référence.
+    """
+    source = str(source or "").strip().lower()
+    if source == "media":
+        from app.utils.media_utils import media_kind
+
+        return media_kind(background)
+    if source in ITEM_KINDS:
+        if source != "custom":
+            return source
+    reference = str(reference or "")
+    if _EXPOSE_REF.search(reference):
+        return "expose"
+    if _SERMON_REF.search(reference):
+        return "sermon"
+    if _HYMN_REF.search(reference):
+        return "hymn"
+    if _BIBLE_REF.search(reference):
+        return "bible"
+    return "custom"
+
+
+def _two_lines(text: str, metrics: QFontMetrics, width: int) -> list[str]:
+    """Deux lignes au plus : la première coupée entre deux mots, la seconde
+    terminée par « … » si le texte continue."""
+    words = " ".join(text.split()).split(" ")
+    first = ""
+    index = 0
+    for index, word in enumerate(words):
+        candidate = f"{first} {word}".strip()
+        if first and metrics.horizontalAdvance(candidate) > width:
+            break
+        first = candidate
+    else:
+        return [first] if first else []
+    rest = " ".join(words[index:])
+    return [first, metrics.elidedText(rest, Qt.TextElideMode.ElideRight, width)]
+
+
+class PlaylistItemDelegate(QStyledItemDelegate):
+    """Carte d'un élément : icône du type, référence, puis deux lignes de texte."""
+
+    CARD_PADDING_V = 8
+    CARD_PADDING_H = 10
+    ICON_SIZE = 18
+    ICON_COLUMN = 30
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -66,15 +133,29 @@ class PlaylistItemDelegate(QStyledItemDelegate):
         self.color_text = QColor(Colors.TEXT_PRIMARY)
         self.color_text_dim = QColor(Colors.TEXT_MUTED)
         self.color_accent = QColor(Colors.ACCENT_PRIMARY)
+        self._icons: dict[tuple[str, str], Any] = {}
+
+    def _icon(self, kind: str, color: QColor):
+        key = (kind, color.name())
+        if key not in self._icons:
+            name = ITEM_KINDS.get(kind, ITEM_KINDS["custom"])[0]
+            self._icons[key] = app_icon(name, color.name())
+        return self._icons[key]
+
+    def _lines(self, index: QModelIndex) -> tuple[str, list[str]]:
+        ref = str(index.data(ROLE_REF) or "").replace("\n", " · ")
+        kind = str(index.data(ROLE_KIND) or "custom")
+        text = str(index.data(ROLE_TEXT) or "")
+        if not text.strip() and kind in ("image", "video", "powerpoint"):
+            media = str(index.data(ROLE_MEDIA) or "")
+            text = f"{ITEM_KINDS[kind][1]} · {media.replace(chr(92), '/').rsplit('/', 1)[-1]}"
+        return ref, text
 
     def paint(
         self, painter: QPainter, option, index: QModelIndex
     ) -> None:
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-
-        ref = str(index.data(256) or "")
-        text = str(index.data(257) or "").replace("\n", " ")
 
         is_sel = option.state & QStyle.StateFlag.State_Selected
         is_hover = option.state & QStyle.StateFlag.State_MouseOver
@@ -95,33 +176,51 @@ class PlaylistItemDelegate(QStyledItemDelegate):
             -self.CARD_PADDING_V,
         )
 
+        # Icône du type
+        kind = str(index.data(ROLE_KIND) or "custom")
+        icon_color = self.color_accent if is_sel else self.color_text_dim
+        self._icon(kind, icon_color).paint(
+            painter,
+            QRect(content.left(), content.top() + 1, self.ICON_SIZE, self.ICON_SIZE),
+        )
+        content.setLeft(content.left() + self.ICON_COLUMN)
+
+        ref, text = self._lines(index)
+        fm_ref = QFontMetrics(self.ref_font)
+        fm_text = QFontMetrics(self.text_font)
+
         # Référence / titre
         painter.setFont(self.ref_font)
-        painter.setPen(self.color_accent if is_sel else self.color_text_dim)
-        fm_ref = QFontMetrics(self.ref_font)
-        ref_elided = fm_ref.elidedText(ref, Qt.TextElideMode.ElideRight, content.width())
+        painter.setPen(self.color_accent if is_sel else self.color_text)
         painter.drawText(
             content.left(),
-            content.top() + fm_ref.ascent() + 2,
-            ref_elided,
+            content.top() + fm_ref.ascent(),
+            fm_ref.elidedText(ref, Qt.TextElideMode.ElideRight, content.width()),
         )
 
-        # Texte (une ligne, élidée)
+        # Texte : deux lignes au plus
         painter.setFont(self.text_font)
-        painter.setPen(self.color_text)
-        fm_text = QFontMetrics(self.text_font)
-        text_y = content.top() + fm_ref.ascent() + fm_text.ascent() + 8
-        text_elided = fm_text.elidedText(
-            text, Qt.TextElideMode.ElideRight, content.width()
-        )
-        painter.drawText(content.left(), text_y, text_elided)
+        painter.setPen(self.color_text_dim)
+        y = content.top() + fm_ref.height() + 3 + fm_text.ascent()
+        for line in _two_lines(text, fm_text, content.width()):
+            painter.drawText(content.left(), y, line)
+            y += fm_text.lineSpacing()
 
         painter.setPen(self.color_separator if not is_sel else Qt.PenStyle.NoPen)
         painter.drawLine(rect.bottomLeft(), rect.bottomRight())
         painter.restore()
 
     def sizeHint(self, option, index: QModelIndex) -> QSize:
-        return QSize(option.rect.width(), 52)
+        ref, text = self._lines(index)
+        width = max(80, option.rect.width() - 2 * self.CARD_PADDING_H - self.ICON_COLUMN)
+        fm_text = QFontMetrics(self.text_font)
+        lines = len(_two_lines(text, fm_text, width)) if text.strip() else 0
+        height = (
+            2 * self.CARD_PADDING_V
+            + QFontMetrics(self.ref_font).height()
+            + (3 + lines * fm_text.lineSpacing() if lines else 0)
+        )
+        return QSize(option.rect.width(), max(40, height))
 
 
 class AddToPlaylistDialog(QDialog):
@@ -335,6 +434,8 @@ class PlaylistTab(QFrame):
         self.items_list.setStyleSheet(get_list_style(borderless=True))
         self.items_list.setItemDelegate(PlaylistItemDelegate(self))
         self.items_list.setVerticalScrollMode(QListWidget.ScrollMode.ScrollPerPixel)
+        # Les cartes suivent la largeur : jamais de défilement horizontal.
+        self.items_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.items_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.items_list.customContextMenuRequested.connect(self._on_item_context_menu)
 
@@ -526,13 +627,17 @@ class PlaylistTab(QFrame):
         self.items_list.clear()
         for it in items:
             item = QListWidgetItem()
-            item.setData(256, int(it["id"]))
-            item.setData(257, str(it.get("reference") or ""))
-            item.setData(258, str(it.get("text") or ""))
+            item.setData(ROLE_ID, int(it["id"]))
+            item.setData(ROLE_REF, str(it.get("reference") or ""))
+            item.setData(ROLE_TEXT, str(it.get("text") or ""))
+            item.setData(ROLE_KIND, item_kind(
+                str(it.get("source") or ""), str(it.get("reference") or ""),
+                str(it.get("background") or ""),
+            ))
             # Média rattaché (item « media ») : chemin conservé pour pouvoir
             # lancer le dossier en diaporama.
             if str(it.get("source") or "") == "media":
-                item.setData(259, str(it.get("background") or ""))
+                item.setData(ROLE_MEDIA, str(it.get("background") or ""))
             self.items_list.addItem(item)
         self.info_label.setText(f"{len(items)} slide(s)")
         if items:
