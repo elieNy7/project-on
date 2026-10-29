@@ -173,12 +173,12 @@ class Database:
 
     @contextlib.contextmanager
     def connect(self) -> Iterator[sqlite3.Connection]:
-        from app.utils.text_utils import unaccent
+        from app.utils.text_utils import install_unaccent
 
         conn = sqlite3.connect(self.db_path, timeout=30.0)
         try:
             conn.row_factory = sqlite3.Row
-            conn.create_function("unaccent", 1, unaccent)
+            install_unaccent(conn)
             conn.execute("PRAGMA foreign_keys = ON;")
             conn.execute("PRAGMA busy_timeout = 30000;")
             conn.execute("PRAGMA journal_mode = WAL;")

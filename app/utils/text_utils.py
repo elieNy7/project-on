@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import html
 import re
+import sqlite3
 import unicodedata
 
 from app.utils import constants
@@ -83,12 +84,57 @@ def format_hymn_reference_for_obs(value: object) -> str:
     return reference.strip(" -")
 
 
-def unaccent(text: str) -> str:
+def _py_unaccent(text: str) -> str:
     """Strip accents and lowercase for accent-insensitive comparison."""
     if not text:
         return ""
     nfkd = unicodedata.normalize("NFKD", str(text))
     return "".join(c for c in nfkd if unicodedata.category(c) != "Mn").lower()
+
+
+def _py_unaccent_many(texts: list) -> list[str]:
+    return [_py_unaccent(t) for t in texts]
+
+
+# Module natif (rust/project_on_core) : même résultat, ~20x plus rapide. Sans
+# lui (poste de dev non compilé), la version Python prend le relais.
+try:
+    from project_on_core import fold_many as _native_unaccent_many
+    from project_on_core import project_on_core as _native_module
+    from project_on_core import unaccent as _native_unaccent
+except ImportError:
+    unaccent = _py_unaccent
+    unaccent_many = _py_unaccent_many
+    NATIVE_TEXT = False
+    _NATIVE_SQLITE_EXTENSION = None
+else:
+    unaccent = _native_unaccent
+    unaccent_many = _native_unaccent_many
+    NATIVE_TEXT = True
+    # Le même fichier est aussi une extension SQLite chargeable.
+    _NATIVE_SQLITE_EXTENSION = _native_module.__file__
+
+
+def install_unaccent(conn) -> None:
+    """Déclare la fonction SQL `unaccent()` sur une connexion SQLite.
+
+    Les recherches par sous-chaîne l'appellent sur chaque ligne (568 000
+    paragraphes de sermons) : en extension native, SQLite lit le texte sur
+    place au lieu de créer une chaîne Python par ligne (60 s → 3 s).
+    """
+    if _NATIVE_SQLITE_EXTENSION is not None:
+        try:
+            conn.enable_load_extension(True)
+            try:
+                conn.load_extension(
+                    _NATIVE_SQLITE_EXTENSION, entrypoint="sqlite3_projectoncore_init"
+                )
+                return
+            finally:
+                conn.enable_load_extension(False)
+        except (AttributeError, sqlite3.Error):
+            pass  # SQLite sans chargement d'extensions : repli ci-dessous
+    conn.create_function("unaccent", 1, unaccent, deterministic=True)
 
 
 # ── Slide text splitting ────────────────────────────────────────────────────

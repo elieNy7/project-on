@@ -183,6 +183,8 @@ a = Analysis(
         'pythoncom',
         'qrcode',
         'qrcode.image.pil',
+        # Module natif Rust (rust/project_on_core), importé sous try/except.
+        'project_on_core',
     ],
     hookspath=[],
     hooksconfig={},

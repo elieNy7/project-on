@@ -9,6 +9,7 @@ rem    build_installer.bat
 rem    build_installer.bat --no-clean
 rem    build_installer.bat --skip-pyinstaller
 rem    build_installer.bat --skip-installer
+rem    build_installer.bat --skip-native
 rem    build_installer.bat --help
 rem
 rem  Optional environment variables:
@@ -29,6 +30,10 @@ set "INNO_LOG=%LOG_DIR%\inno_setup.log"
 set "DO_CLEAN=1"
 set "RUN_PYINSTALLER=1"
 set "RUN_INNO=1"
+set "RUN_NATIVE=1"
+set "NATIVE_CRATE=rust\project_on_core"
+set "NATIVE_WHEEL_DIR=build\native"
+set "NATIVE_LOG=%LOG_DIR%\native.log"
 set "DO_SIGN=1"
 set "PYTHON_ARGS="
 set "SIGN_PS1=installer\sign.ps1"
@@ -40,6 +45,7 @@ for %%A in (%*) do (
     if /I "%%~A"=="--skip-pyinstaller" set "RUN_PYINSTALLER=0"
     if /I "%%~A"=="--skip-installer" set "RUN_INNO=0"
     if /I "%%~A"=="--no-sign" set "DO_SIGN=0"
+    if /I "%%~A"=="--skip-native" set "RUN_NATIVE=0"
 )
 
 pushd "%ROOT_DIR%" || (
@@ -108,6 +114,15 @@ if "%RUN_PYINSTALLER%"=="1" (
         goto :fail
     )
 
+    if "%RUN_NATIVE%"=="1" (
+        echo       Module natif Rust project_on_core...
+        echo       Log: %NATIVE_LOG%
+        call :build_native
+        if errorlevel 1 goto :fail
+    ) else (
+        echo [SKIP] Module natif ignore: --skip-native. Les recherches seront plus lentes.
+    )
+
     echo [2/2] Build de l'application avec PyInstaller...
     echo       Log: %PYINSTALLER_LOG%
     "%PYTHON_EXE%" %PYTHON_ARGS% -m PyInstaller --noconfirm --clean "%SPEC_FILE%" > "%PYINSTALLER_LOG%" 2>&1
@@ -168,6 +183,7 @@ echo   --no-clean           Ne supprime pas build\ et dist\
 echo   --skip-pyinstaller   Reutilise dist\Project-On deja genere
 echo   --skip-installer     Genere seulement dist\Project-On
 echo   --no-sign            Ne signe pas l'application ni l'installeur
+echo   --skip-native        N'embarque pas le module natif Rust ^(recherche plus lente^)
 echo   --help               Affiche cette aide
 echo.
 echo Variables optionnelles:
@@ -228,6 +244,37 @@ if "!SIGN_RC!"=="0" (
         exit /b 1
     )
     echo [WARN] !SIGN_LABEL! : signature non appliquee, rc=!SIGN_RC!, build poursuivi.
+)
+exit /b 0
+
+:build_native
+rem Compile rust\project_on_core et l'installe dans ce Python, pour que
+rem PyInstaller l'embarque. Sans lui, l'appli retombe sur la version Python.
+where cargo >nul 2>&1
+if errorlevel 1 (
+    echo [ERROR] Rust/cargo introuvable. Installe Rust depuis https://rustup.rs
+    echo         ou relance avec --skip-native.
+    exit /b 1
+)
+"%PYTHON_EXE%" %PYTHON_ARGS% -m maturin --version >nul 2>&1
+if errorlevel 1 (
+    echo [ERROR] maturin n'est pas installe pour ce Python:
+    echo         "%PYTHON_EXE%" %PYTHON_ARGS% -m pip install maturin
+    exit /b 1
+)
+if exist "%NATIVE_WHEEL_DIR%" rmdir /s /q "%NATIVE_WHEEL_DIR%"
+"%PYTHON_EXE%" %PYTHON_ARGS% -m maturin build --release -m "%NATIVE_CRATE%\Cargo.toml" --out "%NATIVE_WHEEL_DIR%" > "%NATIVE_LOG%" 2>&1
+if errorlevel 1 (
+    echo [ERROR] La compilation Rust a echoue. Dernieres lignes du log:
+    powershell -NoProfile -Command "Get-Content -Tail 40 '%NATIVE_LOG%'" 2>nul
+    exit /b 1
+)
+for %%W in ("%NATIVE_WHEEL_DIR%\*.whl") do (
+    "%PYTHON_EXE%" %PYTHON_ARGS% -m pip install --force-reinstall --no-deps "%%~W" >> "%NATIVE_LOG%" 2>&1
+    if errorlevel 1 (
+        echo [ERROR] Installation du module natif impossible. Voir %NATIVE_LOG%
+        exit /b 1
+    )
 )
 exit /b 0
 
@@ -317,6 +364,14 @@ exit /b 0
 :audit_dist
 set "RESOURCE_DIR=%APP_DIR%"
 if exist "%APP_DIR%\_internal" set "RESOURCE_DIR=%APP_DIR%\_internal"
+
+if "%RUN_NATIVE%"=="1" (
+    if not exist "%RESOURCE_DIR%\project_on_core\project_on_core*.pyd" (
+        echo [ERROR] Module natif absent du build: project_on_core
+        echo         Verifie le log %NATIVE_LOG% ou relance avec --skip-native.
+        exit /b 1
+    )
+)
 
 for %%D in (
     "bible_json"

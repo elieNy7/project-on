@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 from app.utils.bible_reference import _REFERENCE, parse_reference
-from app.utils.text_utils import unaccent
+from app.utils.text_utils import unaccent, unaccent_many
 
 log = logging.getLogger(__name__)
 
@@ -84,9 +84,10 @@ def _verses_for(db, translation_id: int) -> list[tuple[int, int, int, str, str]]
                 """,
                 (int(translation_id),),
             ).fetchall()
+        texts = [str(r[3] or "") for r in rows]
         index = [
-            (int(r[0]), int(r[1]), int(r[2]), str(r[3] or ""), unaccent(str(r[3] or "")).lower())
-            for r in rows
+            (int(r[0]), int(r[1]), int(r[2]), text, folded)
+            for r, text, folded in zip(rows, texts, unaccent_many(texts))
         ]
         _verse_index[translation_id] = index
         return index

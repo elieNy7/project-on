@@ -66,7 +66,15 @@ py -3 main.py
 
 > La base de données fournie (`data/project_on.db`) et les binaires NDI sont distribués via l'installeur — ils ne sont pas versionnés ici (taille). Tests : `py -3 -m pytest tests -q`.
 
-Construire l'installeur (PyInstaller + Inno Setup) :
+Module natif Rust (`rust/project_on_core`, facultatif en développement) : il accélère la recherche sans accents (×20 sur les sermons). Sans lui, l'application utilise la version Python, avec les mêmes résultats. Il demande [Rust](https://rustup.rs) et `maturin` :
+
+```bash
+py -3 -m pip install maturin
+py -3 -m maturin build --release -m rust/project_on_core/Cargo.toml --out build/native
+py -3 -m pip install --force-reinstall build/native/project_on_core-0.1.0-cp310-abi3-win_amd64.whl
+```
+
+Construire l'installeur (Rust + PyInstaller + Inno Setup ; `--skip-native` pour s'en passer) :
 
 ```bat
 build_installer.bat
