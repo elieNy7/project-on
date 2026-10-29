@@ -1,3 +1,34 @@
+# Project-On 2.8.0
+
+**Plus rapide, plus lisible, mieux organisé** ⚡ — un moteur Rust pour la recherche et les images, une projection qui remplit l'écran, et une playlist qu'on organise à la souris.
+
+## Projection
+
+- **Le texte remplit l'écran** : un verset court s'affiche en grand (jusqu'à 4× la taille réglée), un long paragraphe rétrécit juste ce qu'il faut. La taille réglée sert de base.
+- **Zone de sécurité de 5 %** sur chaque bord : plus rien n'est rogné par le vidéoprojecteur.
+- **Lignes équilibrées** : plus de mot seul sur la dernière ligne ; un vers de cantique reste sur sa ligne ; « ; », « : », « ! », « ? » et « » » ne commencent jamais une ligne.
+- **L'interligne réglé est appliqué** (il était ignoré).
+- **Changement de slide immédiat** : la projection n'attend plus jusqu'à un quart de seconde avant d'afficher le slide suivant.
+- **Fondus fluides** : le fond et le texte ne sont plus redessinés à chaque image de la transition (une image coûte 3 fois moins).
+
+## Playlist
+
+- **Glisser-déposer** à la souris et **sélection multiple** (Ctrl / Maj) ; les flèches déplacent toute la sélection.
+- **Dupliquer** (Ctrl+D), **copier** ou **déplacer** vers une autre playlist (clic droit), **supprimer** plusieurs slides (Suppr).
+- **Annuler** (Ctrl+Z ou bouton ↶) : toute modification de playlist s'annule, jusqu'à 30 étapes, y compris un ajout depuis la Bible, les cantiques ou les sermons.
+- **Sections du déroulé dans la liste** : Louange, Prédication… deviennent des en-têtes repliables avec leur durée et leur nombre de slides. Clic droit sur un slide → « Commencer une section ici ».
+- **Chaque slide montre son type** (Bible, cantique, sermon, Exposé, image, vidéo, PowerPoint) et deux lignes de son texte. Corrigé : la liste affichait un numéro interne à la place de la référence.
+
+## Sermons
+
+- **« Ajouter à la playlist » prend le paragraphe entier** quand il a plusieurs alinéas ; « Ajouter cet alinéa seulement » reste au menu. La plage de paragraphes ajoute aussi des paragraphes entiers.
+
+## Vitesse
+
+- **Recherche sans accents en Rust** 🦀 : une recherche dans les sermons qui ne trouvait rien dans l'index prenait jusqu'à 60 s ; elle prend maintenant moins de 3 s, avec exactement les mêmes résultats. La recherche globale dans la Bible démarre 20 fois plus vite.
+- **Images de citation et miniatures YouTube** : l'aperçu se dessine sans figer la fenêtre pendant la frappe, et 4 à 10 fois plus vite.
+- **Photos redimensionnées en Rust** (projection d'images, bandeau OBS / HDMI, visuels) : jusqu'à 2 fois plus rapide.
+
 # Project-On 2.7.3
 
 **Des images de citation professionnelles** 🖼️ — le texte au premier plan, l'église signe discrètement.
