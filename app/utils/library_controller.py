@@ -231,6 +231,16 @@ class LibraryController(QObject):
             self._playlist_tab.itemUpdateRequested.connect(self.on_playlist_item_update)
             self._playlist_tab.itemDeleteRequested.connect(self.on_playlist_item_delete)
             self._playlist_tab.itemMoveRequested.connect(self.on_playlist_item_move)
+            for signal, slot in (
+                ("itemsReordered", self.on_playlist_items_reordered),
+                ("itemsDeleteRequested", self.on_playlist_items_delete),
+                ("itemsDuplicateRequested", self.on_playlist_items_duplicate),
+                ("itemsCopyRequested", self.on_playlist_items_copy),
+                ("itemsMoveToFolderRequested", self.on_playlist_items_move_to_folder),
+                ("undoRequested", self.on_playlist_undo),
+            ):
+                if hasattr(self._playlist_tab, signal):
+                    getattr(self._playlist_tab, signal).connect(slot)
             self._playlist_tab.folderExportRequested.connect(
                 self.on_playlist_folder_export
             )
@@ -1473,8 +1483,9 @@ class LibraryController(QObject):
 
         self._submit_latest("folders", _fetch, _on_done)
 
-    def _refresh_playlist_items(self) -> None:
-        """Recharge les slides du dossier de playlist courant."""
+    def _refresh_playlist_items(self, select_ids: list[int] | None = None) -> None:
+        """Recharge les slides du dossier de playlist courant ; ``select_ids``
+        resélectionne ces éléments."""
         folder_id = self._current_playlist_folder_id
         if self._playlist_tab is None:
             return
@@ -1488,7 +1499,12 @@ class LibraryController(QObject):
             if items is None:
                 items = []
             if hasattr(self._playlist_tab, "set_items"):
-                self._playlist_tab.set_items(items)
+                if select_ids:
+                    self._playlist_tab.set_items(items, select_ids=select_ids)
+                else:
+                    self._playlist_tab.set_items(items)
+            if hasattr(self._playlist_tab, "set_undo_available"):
+                self._playlist_tab.set_undo_available(bool(self._undo_stack))
 
         self._submit_latest("items", _fetch, _on_done)
 
@@ -1513,13 +1529,16 @@ class LibraryController(QObject):
         self.refresh_playlists(select_id=int(folder_id))
 
     def on_playlist_folder_delete(self, folder_id: int) -> None:
-        # Les items du dossier partent avec lui (FK ON DELETE CASCADE).
+        # Les items du dossier partent avec lui (FK ON DELETE CASCADE) ; les
+        # annulations qui le concernent ne peuvent plus s'appliquer.
+        self._undo_stack[:] = [s for s in self._undo_stack if int(folder_id) not in s]
         self._playlist_dao.delete_folder(int(folder_id))
         if self._current_playlist_folder_id == int(folder_id):
             self._current_playlist_folder_id = None
         self.refresh_playlists()
 
     def on_playlist_item_create(self, folder_id: int, reference: str, text: str) -> None:
+        self._remember_playlists([folder_id])
         self._playlist_dao.add_item(
             "custom", self._clean_text(reference), self._clean_text(text),
             folder_id=int(folder_id),
@@ -1527,12 +1546,14 @@ class LibraryController(QObject):
         self._refresh_playlist_items()
 
     def on_playlist_item_update(self, item_id: int, reference: str, text: str) -> None:
+        self._remember_playlists([self._current_playlist_folder_id])
         self._playlist_dao.update_item(
             int(item_id), self._clean_text(reference), self._clean_text(text)
         )
-        self._refresh_playlist_items()
+        self._refresh_playlist_items(select_ids=[int(item_id)])
 
     def on_playlist_item_delete(self, item_id: int) -> None:
+        self._remember_playlists([self._current_playlist_folder_id])
         self._playlist_dao.delete_item(int(item_id))
         self._refresh_playlist_items()
 
@@ -1541,8 +1562,85 @@ class LibraryController(QObject):
         folder_id = self._current_playlist_folder_id
         if folder_id is None:
             return
+        self._remember_playlists([folder_id])
         self._playlist_dao.move_item(int(item_id), int(delta), folder_id)
+        self._refresh_playlist_items(select_ids=[int(item_id)])
+
+    # ── Organisation de plusieurs éléments + Annuler ──────────────────────
+
+    _UNDO_DEPTH = 30
+
+    @property
+    def _undo_stack(self) -> list[dict[int, list[dict[str, Any]]]]:
+        """Instantanés des playlists avant chaque modification (Ctrl+Z)."""
+        return self.__dict__.setdefault("_playlist_undo", [])
+
+    def _remember_playlists(self, folder_ids: list[Any]) -> None:
+        """Garde l'état des playlists touchées, juste avant de les modifier."""
+        ids = sorted({int(f) for f in folder_ids if f is not None})
+        if not ids:
+            return
+        stack = self._undo_stack
+        stack.append(self._playlist_dao.snapshot_folders(ids))
+        del stack[: max(0, len(stack) - self._UNDO_DEPTH)]
+
+    def on_playlist_undo(self) -> None:
+        """Remet les playlists dans l'état d'avant la dernière modification."""
+        stack = self._undo_stack
+        while stack:
+            snapshot = stack.pop()
+            if not self._playlist_dao.restore_folders(snapshot):
+                continue  # playlist supprimée depuis : instantané inutilisable
+            self._refresh_playlist_items()
+            self.refresh_playlists(select_id=self._current_playlist_folder_id)
+            return
+        if self._playlist_tab is not None and hasattr(self._playlist_tab, "set_undo_available"):
+            self._playlist_tab.set_undo_available(False)
+
+    def on_playlist_items_reordered(self, ordered_ids: list) -> None:
+        folder_id = self._current_playlist_folder_id
+        if folder_id is None:
+            return
+        selected = self._selected_playlist_ids()
+        self._remember_playlists([folder_id])
+        if not self._playlist_dao.reorder_items(folder_id, list(ordered_ids)):
+            self._undo_stack.pop()  # ordre périmé : rien n'a changé
+        self._refresh_playlist_items(select_ids=selected)
+
+    def on_playlist_items_delete(self, item_ids: list) -> None:
+        if not item_ids:
+            return
+        self._remember_playlists([self._current_playlist_folder_id])
+        self._playlist_dao.delete_items([int(i) for i in item_ids])
         self._refresh_playlist_items()
+
+    def on_playlist_items_duplicate(self, item_ids: list) -> None:
+        if not item_ids:
+            return
+        self._remember_playlists([self._current_playlist_folder_id])
+        copies = self._playlist_dao.duplicate_items([int(i) for i in item_ids])
+        self._refresh_playlist_items(select_ids=copies)
+
+    def on_playlist_items_copy(self, item_ids: list, folder_id: int) -> None:
+        if not item_ids:
+            return
+        self._remember_playlists([folder_id])
+        self._playlist_dao.copy_items([int(i) for i in item_ids], int(folder_id))
+        self.refresh_playlists(select_id=self._current_playlist_folder_id)
+
+    def on_playlist_items_move_to_folder(self, item_ids: list, folder_id: int) -> None:
+        if not item_ids:
+            return
+        self._remember_playlists([self._current_playlist_folder_id, folder_id])
+        self._playlist_dao.move_items_to_folder([int(i) for i in item_ids], int(folder_id))
+        self._refresh_playlist_items()
+        self.refresh_playlists(select_id=self._current_playlist_folder_id)
+
+    def _selected_playlist_ids(self) -> list[int]:
+        tab = self._playlist_tab
+        if tab is None or not hasattr(tab, "selected_item_ids"):
+            return []
+        return tab.selected_item_ids()
 
     def _show_add_to_playlist_dialog(self, folders: list, count: int):
         """Ouvre le dialogue de destination (couture de test : sous-classer)."""
@@ -1592,6 +1690,7 @@ class LibraryController(QObject):
             if not new_name:
                 return
             folder_id = self._playlist_dao.create_folder(new_name)
+        self._remember_playlists([folder_id])
         self._playlist_dao.add_items(
             [(source, ref, text) for ref, text in entries], folder_id=int(folder_id)
         )

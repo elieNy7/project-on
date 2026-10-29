@@ -240,3 +240,152 @@ class PlaylistDao:
                 (reference, text, item_id),
             )
             return cursor.rowcount > 0
+
+    # ── Organisation : plusieurs éléments à la fois ───────────────────────
+
+    _ITEM_COLUMNS = "id, folder_id, source, reference, text, sort_order, background, created_at"
+
+    @staticmethod
+    def _ordered_ids(conn, folder_id: int) -> list[int]:
+        return [r[0] for r in conn.execute(
+            "SELECT id FROM playlist_item WHERE folder_id IS ? ORDER BY sort_order, id",
+            (folder_id,),
+        ).fetchall()]
+
+    @staticmethod
+    def _renumber(conn, ids: list[int]) -> None:
+        conn.executemany(
+            "UPDATE playlist_item SET sort_order = ? WHERE id = ?",
+            [(rank, ident) for rank, ident in enumerate(ids, 1)],
+        )
+
+    def reorder_items(self, folder_id: int, ordered_ids: list[int]) -> bool:
+        """Applique l'ordre donné (glisser-déposer). Refuse un ordre qui ne
+        contient pas exactement les éléments du dossier."""
+        with self._db.connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            current = self._ordered_ids(conn, folder_id)
+            ordered = [int(i) for i in ordered_ids]
+            if sorted(current) != sorted(ordered):
+                return False
+            self._renumber(conn, ordered)
+            return True
+
+    def delete_items(self, item_ids: list[int]) -> int:
+        """Supprime plusieurs éléments ; renvoie le nombre supprimé."""
+        with self._db.connect() as conn:
+            cursor = conn.executemany(
+                "DELETE FROM playlist_item WHERE id = ?", [(int(i),) for i in item_ids]
+            )
+            return cursor.rowcount
+
+    def duplicate_items(self, item_ids: list[int]) -> list[int]:
+        """Copie chaque élément juste après l'original ; renvoie les copies."""
+        wanted = {int(i) for i in item_ids}
+        with self._db.connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            rows = conn.execute(
+                f"SELECT {self._ITEM_COLUMNS} FROM playlist_item WHERE id IN "
+                f"({','.join('?' * len(wanted))})",
+                tuple(wanted),
+            ).fetchall() if wanted else []
+            copies: list[int] = []
+            by_folder: dict[Any, dict[int, int]] = {}
+            for row in rows:
+                new_id = conn.execute(
+                    "INSERT INTO playlist_item (folder_id, source, reference, text, sort_order,"
+                    " background) VALUES (?, ?, ?, ?, ?, ?)",
+                    (row["folder_id"], row["source"], row["reference"], row["text"],
+                     row["sort_order"], row["background"] or ""),
+                ).lastrowid
+                copies.append(int(new_id))
+                by_folder.setdefault(row["folder_id"], {})[int(row["id"])] = int(new_id)
+            for folder_id, pairs in by_folder.items():
+                order = [i for i in self._ordered_ids(conn, folder_id)
+                         if i not in pairs.values()]
+                placed: list[int] = []
+                for ident in order:
+                    placed.append(ident)
+                    if ident in pairs:
+                        placed.append(pairs[ident])
+                self._renumber(conn, placed)
+            return copies
+
+    def copy_items(self, item_ids: list[int], folder_id: int) -> list[int]:
+        """Copie les éléments (dans leur ordre) à la fin d'une autre playlist."""
+        with self._db.connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            rows = self._rows_in_order(conn, item_ids)
+            start = conn.execute(
+                "SELECT COALESCE(MAX(sort_order), 0) FROM playlist_item WHERE folder_id = ?",
+                (folder_id,),
+            ).fetchone()[0]
+            return [int(conn.execute(
+                "INSERT INTO playlist_item (folder_id, source, reference, text, sort_order,"
+                " background) VALUES (?, ?, ?, ?, ?, ?)",
+                (folder_id, row["source"], row["reference"], row["text"], start + rank,
+                 row["background"] or ""),
+            ).lastrowid) for rank, row in enumerate(rows, 1)]
+
+    def move_items_to_folder(self, item_ids: list[int], folder_id: int) -> int:
+        """Déplace les éléments (dans leur ordre) à la fin d'une autre playlist."""
+        with self._db.connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            rows = self._rows_in_order(conn, item_ids)
+            start = conn.execute(
+                "SELECT COALESCE(MAX(sort_order), 0) FROM playlist_item WHERE folder_id = ?",
+                (folder_id,),
+            ).fetchone()[0]
+            conn.executemany(
+                "UPDATE playlist_item SET folder_id = ?, sort_order = ? WHERE id = ?",
+                [(folder_id, start + rank, row["id"]) for rank, row in enumerate(rows, 1)],
+            )
+            return len(rows)
+
+    def _rows_in_order(self, conn, item_ids: list[int]) -> list[Any]:
+        wanted = [int(i) for i in item_ids]
+        if not wanted:
+            return []
+        rows = conn.execute(
+            f"SELECT {self._ITEM_COLUMNS} FROM playlist_item WHERE id IN "
+            f"({','.join('?' * len(wanted))}) ORDER BY folder_id, sort_order, id",
+            tuple(wanted),
+        ).fetchall()
+        return list(rows)
+
+    # ── Annuler : instantané puis restauration exacte ─────────────────────
+
+    def snapshot_folders(self, folder_ids: list[int]) -> dict[int, list[dict[str, Any]]]:
+        """Contenu complet (identifiants compris) des playlists données."""
+        out: dict[int, list[dict[str, Any]]] = {}
+        with self._db.connect() as conn:
+            for folder_id in folder_ids:
+                out[int(folder_id)] = [dict(r) for r in conn.execute(
+                    f"SELECT {self._ITEM_COLUMNS} FROM playlist_item WHERE folder_id = ?"
+                    " ORDER BY sort_order, id",
+                    (int(folder_id),),
+                ).fetchall()]
+        return out
+
+    def restore_folders(self, snapshot: dict[int, list[dict[str, Any]]]) -> bool:
+        """Remet les playlists exactement dans l'état de l'instantané, avec
+        les mêmes identifiants (le déroulé du culte s'y réfère). Refuse si
+        une des playlists a été supprimée entre-temps."""
+        with self._db.connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            for folder_id in snapshot:
+                if conn.execute(
+                    "SELECT 1 FROM playlist_folder WHERE id = ?", (int(folder_id),)
+                ).fetchone() is None:
+                    conn.rollback()
+                    return False
+            for folder_id, rows in snapshot.items():
+                conn.execute("DELETE FROM playlist_item WHERE folder_id = ?", (int(folder_id),))
+                conn.executemany(
+                    "INSERT OR REPLACE INTO playlist_item (id, folder_id, source, reference,"
+                    " text, sort_order, background, created_at)"
+                    " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    [(r["id"], int(folder_id), r["source"], r["reference"], r["text"],
+                      r["sort_order"], r["background"] or "", r["created_at"]) for r in rows],
+                )
+            return True

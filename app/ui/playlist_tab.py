@@ -3,9 +3,10 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from PySide6.QtCore import QModelIndex, QRect, QSize, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter
+from PySide6.QtCore import QModelIndex, QRect, QSize, Qt, QTimer, Signal
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QKeySequence, QPainter, QShortcut
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -367,6 +368,13 @@ class PlaylistTab(QFrame):
     itemUpdateRequested = Signal(int, str, str)  # item_id, référence, texte
     itemDeleteRequested = Signal(int)
     itemMoveRequested = Signal(int, int)  # item_id, delta (+1 / -1)
+    # Organisation de plusieurs éléments (sélection multiple) :
+    itemsReordered = Signal(list)  # tous les item_id du dossier, nouvel ordre
+    itemsDeleteRequested = Signal(list)  # item_id
+    itemsDuplicateRequested = Signal(list)  # item_id
+    itemsCopyRequested = Signal(list, int)  # item_id, playlist de destination
+    itemsMoveToFolderRequested = Signal(list, int)  # item_id, destination
+    undoRequested = Signal()
     quoteImageRequested = Signal(str, str)  # référence, texte (image à partager)
 
     def __init__(self, parent=None) -> None:
@@ -436,6 +444,12 @@ class PlaylistTab(QFrame):
         self.items_list.setVerticalScrollMode(QListWidget.ScrollMode.ScrollPerPixel)
         # Les cartes suivent la largeur : jamais de défilement horizontal.
         self.items_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        # Sélection multiple (Ctrl / Maj) et réordonnancement à la souris.
+        self.items_list.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        self.items_list.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
+        self.items_list.setDefaultDropAction(Qt.DropAction.MoveAction)
+        self.items_list.model().rowsMoved.connect(self._on_rows_moved)
+        self._reorder_pending = False
         self.items_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.items_list.customContextMenuRequested.connect(self._on_item_context_menu)
 
@@ -490,6 +504,12 @@ class PlaylistTab(QFrame):
         self.down_btn.setToolTip("Descendre le slide")
         self.down_btn.clicked.connect(lambda: self._move_selected(1))
 
+        self.undo_btn = QPushButton(self)
+        self.undo_btn.setIcon(app_icon("undo.svg"))
+        self.undo_btn.setToolTip("Annuler la dernière modification de la playlist (Ctrl+Z)")
+        self.undo_btn.setEnabled(False)
+        self.undo_btn.clicked.connect(self.undoRequested.emit)
+
         self.play_btn = QPushButton(tr("project"), self)
         self.play_btn.setIcon(app_icon("cast.svg"))
         self.play_btn.setIconSize(QSize(12, 12))
@@ -506,6 +526,7 @@ class PlaylistTab(QFrame):
             self.delete_item_btn,
             self.up_btn,
             self.down_btn,
+            self.undo_btn,
         ):
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.setIconSize(QSize(12, 12))
@@ -521,6 +542,7 @@ class PlaylistTab(QFrame):
         actions.addWidget(self.delete_item_btn)
         actions.addWidget(self.up_btn)
         actions.addWidget(self.down_btn)
+        actions.addWidget(self.undo_btn)
         actions.addStretch(1)
         actions.addWidget(self.play_btn)
 
@@ -561,6 +583,15 @@ class PlaylistTab(QFrame):
         self.items_list.currentItemChanged.connect(self._on_item_selection_changed)
         self.play_btn.clicked.connect(self._on_play_clicked)
 
+        for keys, slot in (
+            (QKeySequence.StandardKey.Delete, self._on_delete_item_clicked),
+            (QKeySequence("Ctrl+D"), self._duplicate_selected),
+            (QKeySequence.StandardKey.Undo, self.undoRequested.emit),
+        ):
+            shortcut = QShortcut(keys, self.items_list)
+            shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+            shortcut.activated.connect(slot)
+
     # ── Public API ────────────────────────────────────────────────────────
 
     def attach_service_panel(self, panel: QWidget) -> None:
@@ -578,6 +609,23 @@ class PlaylistTab(QFrame):
             return None
         data = item.data(256)
         return int(data) if data is not None else None
+
+    def selected_item_ids(self) -> list[int]:
+        """Éléments sélectionnés, dans l'ordre de la liste."""
+        return [
+            int(self.items_list.item(row).data(ROLE_ID))
+            for row in range(self.items_list.count())
+            if self.items_list.item(row).isSelected()
+        ]
+
+    def item_ids(self) -> list[int]:
+        return [
+            int(self.items_list.item(row).data(ROLE_ID))
+            for row in range(self.items_list.count())
+        ]
+
+    def set_undo_available(self, available: bool) -> None:
+        self.undo_btn.setEnabled(bool(available))
 
     def selected_item_id(self) -> int | None:
         item = self.items_list.currentItem()
@@ -622,7 +670,11 @@ class PlaylistTab(QFrame):
         if self.current_folder_id() != previous:
             self._on_folder_changed(self.folders_list.currentItem(), None)
 
-    def set_items(self, items: list[dict[str, Any]]) -> None:
+    def set_items(
+        self, items: list[dict[str, Any]], select_ids: list[int] | None = None
+    ) -> None:
+        """Remplit la liste ; ``select_ids`` resélectionne ces éléments (après
+        un déplacement, une copie…), sinon le premier élément est choisi."""
         self._items = items
         self.items_list.clear()
         for it in items:
@@ -640,7 +692,15 @@ class PlaylistTab(QFrame):
                 item.setData(ROLE_MEDIA, str(it.get("background") or ""))
             self.items_list.addItem(item)
         self.info_label.setText(f"{len(items)} slide(s)")
-        if items:
+        wanted = {int(i) for i in select_ids or []}
+        rows = [r for r in range(self.items_list.count())
+                if int(self.items_list.item(r).data(ROLE_ID)) in wanted]
+        if rows:
+            self.items_list.setCurrentRow(rows[0])
+            for row in rows:
+                self.items_list.item(row).setSelected(True)
+            self.items_list.scrollToItem(self.items_list.item(rows[0]))
+        elif items:
             self.items_list.setCurrentRow(0)
 
     def media_entries(self) -> list[dict[str, Any]]:
@@ -797,33 +857,92 @@ class PlaylistTab(QFrame):
         self.itemUpdateRequested.emit(item_id, reference, text)
 
     def _on_delete_item_clicked(self) -> None:
-        item = self.items_list.currentItem()
-        if item is None:
+        ids = self.selected_item_ids()
+        if not ids:
             return
-        item_id = int(item.data(256))
-        ref = str(item.data(257) or "")
-        if self._confirm_delete(f"Supprimer le slide « {ref} » ?"):
-            self.itemDeleteRequested.emit(item_id)
+        if len(ids) == 1:
+            ref = str(self.items_list.currentItem().data(ROLE_REF) or "")
+            question = f"Supprimer le slide « {ref} » ?"
+        else:
+            question = f"Supprimer les {len(ids)} slides sélectionnés ?"
+        if self._confirm_delete(f"{question}\n\n(Ctrl+Z pour annuler)"):
+            self.itemsDeleteRequested.emit(ids)
 
     def _move_selected(self, delta: int) -> None:
-        item_id = self.selected_item_id()
-        if item_id is None:
+        """Monte / descend d'un cran tous les éléments sélectionnés."""
+        order = self.item_ids()
+        chosen = set(self.selected_item_ids())
+        if not chosen:
             return
-        self.itemMoveRequested.emit(item_id, delta)
+        positions = range(len(order)) if delta < 0 else range(len(order) - 1, -1, -1)
+        for i in positions:
+            j = i + (-1 if delta < 0 else 1)
+            if order[i] in chosen and 0 <= j < len(order) and order[j] not in chosen:
+                order[i], order[j] = order[j], order[i]
+        if order != self.item_ids():
+            self.itemsReordered.emit(order)
+
+    def _duplicate_selected(self) -> None:
+        ids = self.selected_item_ids()
+        if ids:
+            self.itemsDuplicateRequested.emit(ids)
+
+    def _on_rows_moved(self, *_args) -> None:
+        # Un glisser-déposer de plusieurs éléments déplace plusieurs lignes :
+        # l'ordre final est envoyé une seule fois, après la dernière.
+        if not self._reorder_pending:
+            self._reorder_pending = True
+            QTimer.singleShot(0, self._emit_reorder)
+
+    def _emit_reorder(self) -> None:
+        self._reorder_pending = False
+        self.itemsReordered.emit(self.item_ids())
 
     def _on_item_context_menu(self, pos) -> None:
         item = self.items_list.itemAt(pos)
         if item is None:
             return
-        self.items_list.setCurrentItem(item)
+        if not item.isSelected():
+            self.items_list.setCurrentItem(item)
+        ids = self.selected_item_ids()
+        many = len(ids) > 1
         menu = QMenu(self)
         act_play = menu.addAction(app_icon("cast.svg"), "Projeter à partir d'ici")
         act_edit = menu.addAction(app_icon("edit-3.svg"), "Modifier")
+        act_edit.setEnabled(not many)
         act_quote = menu.addAction(app_icon("image.svg"), "Créer une image de citation…")
-        act_quote.setEnabled(bool(str(item.data(258) or "").strip()))
+        act_quote.setEnabled(not many and bool(str(item.data(258) or "").strip()))
         menu.addSeparator()
-        act_delete = menu.addAction(app_icon("trash.svg"), "Supprimer")
+        act_duplicate = menu.addAction(
+            app_icon("copy.svg"), f"Dupliquer ({len(ids)})" if many else "Dupliquer"
+        )
+        act_duplicate.setShortcut(QKeySequence("Ctrl+D"))
+        current = self.current_folder_id()
+        others = [f for f in self._folders if int(f["id"]) != current]
+        copy_menu = menu.addMenu(app_icon("copy.svg"), "Copier vers")
+        move_menu = menu.addMenu(app_icon("move.svg"), "Déplacer vers")
+        targets: dict[Any, tuple[str, int]] = {}
+        for folder in others:
+            name = str(folder.get("name", ""))
+            targets[copy_menu.addAction(name)] = ("copy", int(folder["id"]))
+            targets[move_menu.addAction(name)] = ("move", int(folder["id"]))
+        copy_menu.setEnabled(bool(others))
+        move_menu.setEnabled(bool(others))
+        menu.addSeparator()
+        act_delete = menu.addAction(
+            app_icon("trash.svg"), f"Supprimer ({len(ids)})" if many else "Supprimer"
+        )
         chosen = menu.exec(self.items_list.mapToGlobal(pos))
+        if chosen is act_duplicate:
+            self.itemsDuplicateRequested.emit(ids)
+            return
+        if chosen in targets:
+            action, folder_id = targets[chosen]
+            if action == "copy":
+                self.itemsCopyRequested.emit(ids, folder_id)
+            else:
+                self.itemsMoveToFolderRequested.emit(ids, folder_id)
+            return
         if chosen is act_play:
             self._on_item_double_clicked(item)
         elif chosen is act_quote:
