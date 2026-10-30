@@ -1629,17 +1629,23 @@ class MainWindow(QMainWindow):
         )
 
     def _on_startup_check_done(self, report) -> None:
-        problems = [c for c in report.checks if c.status != "success"]
+        # Pas de fenêtre pour un écran externe absent au démarrage : on
+        # prépare souvent sur un portable seul, le projecteur est branché
+        # plus tard. Le contrôle complet (Réglages) le signale toujours.
+        problems = [
+            c for c in report.checks if c.status != "success" and c.key != "screens"
+        ]
         if not problems:
             return
+        errors = sum(1 for c in problems if c.status == "error")
         lines = "\n".join(
             f"• {'✖' if c.status == 'error' else '⚠'} {c.title} : {c.detail}"
             for c in problems[:6]
         )
         box = QMessageBox(
-            QMessageBox.Icon.Warning if report.errors else QMessageBox.Icon.Information,
+            QMessageBox.Icon.Warning if errors else QMessageBox.Icon.Information,
             "Contrôle avant culte",
-            f"{report.errors} erreur(s), {report.warnings} avertissement(s) :\n\n{lines}",
+            f"{errors} erreur(s), {len(problems) - errors} avertissement(s) :\n\n{lines}",
             QMessageBox.StandardButton.Ignore,
             self,
         )

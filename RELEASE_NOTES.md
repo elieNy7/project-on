@@ -9,6 +9,7 @@
 - **Lignes équilibrées** : plus de mot seul sur la dernière ligne ; un vers de cantique reste sur sa ligne ; « ; », « : », « ! », « ? » et « » » ne commencent jamais une ligne.
 - **L'interligne réglé est appliqué** (il était ignoré).
 - **Changement de slide immédiat** : la projection n'attend plus jusqu'à un quart de seconde avant d'afficher le slide suivant.
+- **Plus de message « Un seul écran détecté » au démarrage** : on peut préparer le culte sur un portable seul et brancher le projecteur ensuite. Le contrôle avant culte (Réglages) le signale toujours.
 - **Fondus fluides** : le fond et le texte ne sont plus redessinés à chaque image de la transition (une image coûte 3 fois moins).
 
 ## Playlist

@@ -42,13 +42,23 @@ def test_only_problems_are_reported(tmp_path: Path, monkeypatch) -> None:
         window._on_startup_check_done(ok)
         assert getattr(window, "_startup_check_box", None) is None
 
-        bad = HealthReport(
+        # Un seul écran au démarrage : aucune fenêtre (projecteur branché plus tard).
+        single = HealthReport(
             (HealthCheck("screens", "Écrans détectés", "warning", "Un seul écran"),),
+            datetime.now(),
+        )
+        window._on_startup_check_done(single)
+        assert getattr(window, "_startup_check_box", None) is None
+
+        bad = HealthReport(
+            (HealthCheck("screens", "Écrans détectés", "warning", "Un seul écran"),
+             HealthCheck("disk", "Espace disque", "warning", "Disque presque plein")),
             datetime.now(),
         )
         window._on_startup_check_done(bad)
         box = window._startup_check_box
-        assert "Un seul écran" in box.text() and not box.isModal()
+        assert "Disque presque plein" in box.text() and not box.isModal()
+        assert "Un seul écran" not in box.text()
         box.close()
         assert window._preflight_kwargs()["screen_count"] >= 0
     finally:
