@@ -1,0 +1,4 @@
+# Le runtime C de Microsoft est lié dans l'exécutable : Pgraphics démarre sur un Windows neuf, sans
+# « VCRUNTIME140.dll introuvable » (l'installateur ne livre pas le Visual C++ Redistributable).
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]

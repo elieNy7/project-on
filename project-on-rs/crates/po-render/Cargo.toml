@@ -1,0 +1,16 @@
+[package]
+name = "po-render"
+description = "Project-On : le dessin d'une liste d'affichage en image (NDI, HDMI, aperçus, captures)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+po-layout.workspace = true
+cosmic-text.workspace = true
+tiny-skia.workspace = true
+swash = "0.2.10"
+
+[lints]
+workspace = true

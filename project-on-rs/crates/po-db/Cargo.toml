@@ -1,0 +1,16 @@
+[package]
+name = "po-db"
+description = "Project-On : la base SQLite (sermons, Bible, cantiques, playlists) — même schéma que la 2.x"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+po-text.workspace = true
+thiserror.workspace = true
+# SQLite intégré (FTS5 compris) : pas de dépendance à la version installée sur le poste.
+rusqlite = { version = "0.41.1", features = ["bundled", "functions"] }
+
+[lints]
+workspace = true

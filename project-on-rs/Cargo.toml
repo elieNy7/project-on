@@ -1,0 +1,68 @@
+# Project-On en Rust natif — l'espace de travail.
+#
+# Phase 0 de la refonte (voir AUDIT_ET_ARCHITECTURE_RUST_2026-11-09.md, § 8) : un prototype qui
+# valide la pile technique avant toute migration. La version livrée reste la 2.8 (Python) jusqu'à
+# la bascule 3.0.
+
+[workspace]
+resolver = "3"
+members = [
+    "crates/po-text",
+    "crates/po-db",
+    "crates/po-layout",
+    "crates/po-render",
+    "crates/po-web",
+    "crates/project-on",
+    "crates/po-mesures",
+]
+
+[workspace.package]
+version = "0.0.1"
+edition = "2024"
+license = "MIT"
+authors = ["PARATECH SARL"]
+
+[workspace.dependencies]
+po-text = { path = "crates/po-text" }
+po-db = { path = "crates/po-db" }
+po-layout = { path = "crates/po-layout" }
+po-render = { path = "crates/po-render" }
+po-web = { path = "crates/po-web" }
+project-on = { path = "crates/project-on" }
+anyhow = "1.0"
+thiserror = "2.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+cosmic-text = "0.19.0"
+tiny-skia = "0.12.0"
+image = { version = "0.25", default-features = false, features = ["png"] }
+egui = "0.37.0"
+egui_kittest = { version = "0.37.0", features = ["wgpu", "snapshot"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "sync", "time", "fs", "io-util"] }
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+
+[workspace.lints.clippy]
+# Pas de `unwrap()` dans le code livré : une erreur se traite ou se remonte. Les tests en ont le droit.
+unwrap_used = "warn"
+too_many_arguments = "allow"
+
+[profile.release]
+debug = 1          # des piles d'appel lisibles si l'application plante chez un client
+codegen-units = 4  # 8 Go de mémoire : une compilation moins gourmande
+
+# Les dépendances lourdes (wgpu, cosmic-text, SQLite) optimisées même en développement : sinon les
+# mesures en mode debug n'auraient aucun sens.
+[profile.dev.package."*"]
+opt-level = 2
+
+# SQLite (code C compilé par cl.exe) sans informations de débogage : avec `-Z7`, cl.exe de Visual
+# Studio 2026 échoue sur ce poste quand Cargo le lance (« D8050 : impossible d'exécuter c1.dll :
+# échec de l'obtention de la ligne de commande dans les enregistrements de débogage »), alors que la
+# même commande passe dans l'invite de Visual Studio. Les piles d'appel Rust n'en souffrent pas.
+[profile.dev.package.libsqlite3-sys]
+debug = false
+
+[profile.release.package.libsqlite3-sys]
+debug = false

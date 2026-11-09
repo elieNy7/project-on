@@ -1,0 +1,2 @@
+# Les tests ont le droit de faire `unwrap()` (le code livré, non : voir Cargo.toml).
+allow-unwrap-in-tests = true

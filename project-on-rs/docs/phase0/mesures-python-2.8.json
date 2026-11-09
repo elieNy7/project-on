@@ -1,0 +1,47 @@
+{
+  "native": true,
+  "queries": {
+    "liste_sermons": {
+      "ms_first": 85.8,
+      "ms_best": 22.1,
+      "count": 2815,
+      "first": "La Foi Est une Ferme Assurance"
+    },
+    "liste_titre_foi": {
+      "ms_first": 18.6,
+      "ms_best": 7.8,
+      "count": 111,
+      "first": "La Foi Est une Ferme Assurance"
+    },
+    "fts_grace": {
+      "ms_first": 1241.7,
+      "ms_best": 101.6,
+      "count": 100,
+      "first": "61-0827 - Le Message De Grâce - §165"
+    },
+    "fts_ferme_assurance": {
+      "ms_first": 74.5,
+      "ms_best": 18.6,
+      "count": 100,
+      "first": "47-0412 - La Foi Est une Ferme Assurance - §50"
+    },
+    "fts_expression": {
+      "ms_first": 362.9,
+      "ms_best": 76.0,
+      "count": 100,
+      "first": "53-0509 - La Colonne De Feu - §53"
+    },
+    "sous_chaine_ernel_die": {
+      "ms_first": 2842.4,
+      "ms_best": 2838.0,
+      "count": 100,
+      "first": "47-1123 - Les Enfants dans le désert - E-76"
+    },
+    "sous_chaine_absente": {
+      "ms_first": 2044.8,
+      "ms_best": 2012.9,
+      "count": 0,
+      "first": ""
+    }
+  }
+}

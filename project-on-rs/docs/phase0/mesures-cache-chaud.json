@@ -1,0 +1,100 @@
+{
+  "interface": {
+    "apercu_d_un_paragraphe_ms": 11.5,
+    "image_egui_cpu": {
+      "max_ms": 1.11,
+      "mediane_ms": 0.44,
+      "n": 60,
+      "p95_ms": 0.72
+    },
+    "ouverture_base_et_liste_ms": 9.0,
+    "premiere_image_ms": 646.0,
+    "rendu_gpu_et_lecture": {
+      "max_ms": 326.55,
+      "mediane_ms": 286.06,
+      "n": 10,
+      "p95_ms": 326.55
+    },
+    "sermons_affiches": 2815
+  },
+  "mise_en_page": {
+    "chargement_polices_ms": 0.4,
+    "mise_en_page_1080p": {
+      "max_ms": 1.37,
+      "mediane_ms": 0.59,
+      "n": 1347,
+      "p95_ms": 0.75
+    },
+    "paragraphes": 1347,
+    "premiere_mise_en_page_ms": 0.9,
+    "rendu_1920x1080": {
+      "max_ms": 20.03,
+      "mediane_ms": 12.04,
+      "n": 135,
+      "p95_ms": 15.62
+    },
+    "rendu_moniteur_960x540": {
+      "max_ms": 8.66,
+      "mediane_ms": 5.41,
+      "n": 135,
+      "p95_ms": 6.7
+    }
+  },
+  "ouverture_base_ms": 3.2,
+  "recherche": {
+    "fts_expression": {
+      "count": 100,
+      "first": "53-0509 - La Colonne De Feu - §53",
+      "ms_best": 50.4,
+      "ms_first": 50.4
+    },
+    "fts_ferme_assurance": {
+      "count": 100,
+      "first": "47-0412 - La Foi Est une Ferme Assurance - §50",
+      "ms_best": 14.7,
+      "ms_first": 22.0
+    },
+    "fts_grace": {
+      "count": 100,
+      "first": "61-0827 - Le Message De Grâce - §165",
+      "ms_best": 75.5,
+      "ms_first": 75.5
+    },
+    "liste_sermons": {
+      "count": 2815,
+      "first": "La Foi Est une Ferme Assurance",
+      "ms_best": 5.7,
+      "ms_first": 6.9
+    },
+    "liste_titre_foi": {
+      "count": 111,
+      "first": "La Foi Est une Ferme Assurance",
+      "ms_best": 2.9,
+      "ms_first": 3.7
+    },
+    "sous_chaine_absente": {
+      "count": 0,
+      "first": "",
+      "ms_best": 1934.2,
+      "ms_first": 2134.5
+    },
+    "sous_chaine_ernel_die": {
+      "count": 100,
+      "first": "47-1123 - Les Enfants dans le désert - E-76",
+      "ms_best": 2593.3,
+      "ms_first": 2618.7
+    }
+  },
+  "web": {
+    "ecrans": 3,
+    "images_envoyees": 100,
+    "images_recues": 300,
+    "latence": {
+      "max_ms": 4.88,
+      "mediane_ms": 1.75,
+      "n": 300,
+      "p95_ms": 3.88
+    },
+    "reconnexion_jusqu_a_l_image_ms": 1.4
+  }
+}

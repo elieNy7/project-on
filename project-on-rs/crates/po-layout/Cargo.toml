@@ -1,0 +1,18 @@
+[package]
+name = "po-layout"
+description = "Project-On : la mise en page des slides (texte qui remplit l'écran) en liste d'affichage"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+po-text.workspace = true
+cosmic-text.workspace = true
+serde.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[lints]
+workspace = true

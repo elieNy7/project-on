@@ -1,0 +1,28 @@
+[package]
+name = "project-on"
+description = "Project-On : l'application (régie, bibliothèque, playlist, aperçu / direct)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "project-on"
+path = "src/main.rs"
+
+[dependencies]
+po-db.workspace = true
+po-layout.workspace = true
+po-render.workspace = true
+po-web.workspace = true
+egui.workspace = true
+eframe = { version = "0.37.0", default-features = false, features = ["wgpu", "default_fonts"] }
+
+[dev-dependencies]
+egui_kittest.workspace = true
+
+[lints]
+workspace = true

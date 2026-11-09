@@ -1,0 +1,25 @@
+[package]
+name = "po-mesures"
+description = "Project-On : les mesures de la phase 0 (base, mise en page, rendu, Web, interface) — jamais livré"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+publish = false
+
+[dependencies]
+po-db.workspace = true
+po-layout.workspace = true
+po-render.workspace = true
+po-web.workspace = true
+project-on.workspace = true
+egui.workspace = true
+egui_kittest.workspace = true
+image.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tokio-tungstenite = "0.30.0"
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
+
+[lints]
+workspace = true
