@@ -13,17 +13,25 @@ use axum::http::{StatusCode, header};
 use axum::response::{Html, IntoResponse, Response};
 use axum::routing::get;
 use futures_util::{SinkExt, StreamExt};
-use po_layout::{Fonts, SlideContent, SlideStyle, layout_slide};
+use po_design::{RoomDesign, SlideSource};
+use po_layout::{DisplayList, Fonts, Item, Slide, layout_room};
+use po_render::Renderer;
 use tokio::sync::{oneshot, watch};
 
 use crate::protocol::{ClientMessage, PROTOCOL_VERSION, ServerMessage};
 
 /// Ce qui est au direct.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct Program {
     pub seq: u64,
-    pub content: SlideContent,
-    pub style: SlideStyle,
+    pub slide: Slide,
+    pub design: RoomDesign,
+}
+
+impl Default for Program {
+    fn default() -> Self {
+        Program { seq: 0, slide: Slide::new("", "", SlideSource::Custom), design: RoomDesign::default() }
+    }
 }
 
 /// Un fichier de police servi aux navigateurs.
@@ -38,7 +46,12 @@ struct FontFace {
 pub struct Hub {
     program: watch::Sender<Arc<Program>>,
     fonts: Mutex<Fonts>,
+    /// Sonde la luminosité des fonds (couleur de l'identification).
+    renderer: Mutex<Renderer>,
     faces: Vec<FontFace>,
+    /// Les images de fond servies aux navigateurs (`/images/{n}`) : seulement celles des slides
+    /// mis au direct, jamais un chemin choisi par un navigateur.
+    images: Mutex<Vec<std::path::PathBuf>>,
     clients: AtomicUsize,
 }
 
@@ -51,8 +64,10 @@ impl Hub {
             .faces()
             .filter_map(|face| {
                 let path = match &face.source {
-                    cosmic_text_fontdb::Source::File(path) => path.clone(),
-                    _ => return None,
+                    cosmic_text_fontdb::Source::File(path) | cosmic_text_fontdb::Source::SharedFile(path, _) => {
+                        path.clone()
+                    }
+                    cosmic_text_fontdb::Source::Binary(_) => return None,
                 };
                 Some(FontFace {
                     family: face.families.first()?.0.clone(),
@@ -63,14 +78,40 @@ impl Hub {
             })
             .collect();
         let (program, _) = watch::channel(Arc::new(Program::default()));
-        Arc::new(Hub { program, fonts: Mutex::new(fonts), faces, clients: AtomicUsize::new(0) })
+        Arc::new(Hub {
+            program,
+            fonts: Mutex::new(fonts),
+            renderer: Mutex::new(Renderer::new()),
+            faces,
+            images: Mutex::new(Vec::new()),
+            clients: AtomicUsize::new(0),
+        })
     }
 
     /// Met un slide au direct : tous les écrans le reçoivent. Renvoie son numéro.
-    pub fn publish(&self, content: SlideContent, style: SlideStyle) -> u64 {
+    pub fn publish(&self, slide: Slide, design: RoomDesign) -> u64 {
         let seq = self.program.borrow().seq + 1;
-        self.program.send_replace(Arc::new(Program { seq, content, style }));
+        self.program.send_replace(Arc::new(Program { seq, slide, design }));
         seq
+    }
+
+    /// Les chemins des images deviennent des adresses `/images/{n}` servies par le serveur.
+    fn share_images(&self, items: &mut [Item]) {
+        for item in items {
+            match item {
+                Item::Image { path, .. } => {
+                    let mut images = self.images.lock().unwrap_or_else(|e| e.into_inner());
+                    let file = std::path::PathBuf::from(&*path);
+                    let n = images.iter().position(|p| *p == file).unwrap_or_else(|| {
+                        images.push(file);
+                        images.len() - 1
+                    });
+                    *path = format!("/images/{n}");
+                }
+                Item::Group(group) => self.share_images(&mut group.items),
+                _ => {}
+            }
+        }
     }
 
     /// Le nombre d'écrans connectés.
@@ -79,11 +120,15 @@ impl Hub {
     }
 
     fn frame(&self, program: &Program, width: f32, height: f32) -> String {
-        let list = {
+        let mut list = {
             // Un fil qui a paniqué en tenant le verrou ne doit pas éteindre les écrans.
             let mut fonts = self.fonts.lock().unwrap_or_else(|e| e.into_inner());
-            layout_slide(&mut fonts, &program.content, &program.style, width, height)
+            let mut renderer = self.renderer.lock().unwrap_or_else(|e| e.into_inner());
+            let mut probe = |list: &DisplayList, zone: [f32; 4]| renderer.backdrop_luminance(list, zone);
+            layout_room(&mut fonts, &program.slide, &program.design, width, height, &mut probe)
         };
+        self.share_images(&mut list.backdrop);
+        self.share_images(&mut list.items);
         serde_json::to_string(&ServerMessage::Frame { seq: program.seq, list }).unwrap_or_default()
     }
 
@@ -138,6 +183,7 @@ pub fn start(hub: Arc<Hub>, addr: SocketAddr) -> std::io::Result<Server> {
         .route("/ecran.js", get(screen_js))
         .route("/polices.css", get(fonts_css))
         .route("/polices/{id}", get(font_file))
+        .route("/images/{id}", get(image_file))
         .route("/ws/{screen}", get(ws))
         .with_state(hub);
     let thread = std::thread::Builder::new().name("po-web".into()).spawn(move || {
@@ -175,6 +221,22 @@ async fn font_file(State(hub): State<Arc<Hub>>, Path(id): Path<usize>) -> Respon
         Ok(bytes) => {
             ([(header::CONTENT_TYPE, "font/ttf"), (header::CACHE_CONTROL, "max-age=86400")], bytes).into_response()
         }
+        Err(_) => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
+async fn image_file(State(hub): State<Arc<Hub>>, Path(id): Path<usize>) -> Response {
+    let Some(path) = hub.images.lock().unwrap_or_else(|e| e.into_inner()).get(id).cloned() else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let kind = match path.extension().map(|e| e.to_string_lossy().to_lowercase()).as_deref() {
+        Some("png") => "image/png",
+        Some("jpg" | "jpeg") => "image/jpeg",
+        Some("webp") => "image/webp",
+        _ => "application/octet-stream",
+    };
+    match tokio::fs::read(&path).await {
+        Ok(bytes) => ([(header::CONTENT_TYPE, kind), (header::CACHE_CONTROL, "max-age=3600")], bytes).into_response(),
         Err(_) => StatusCode::NOT_FOUND.into_response(),
     }
 }
@@ -265,7 +327,7 @@ mod tests {
         let hub = hub();
         let server = start(hub.clone(), "127.0.0.1:0".parse().unwrap()).unwrap();
         let url = format!("ws://{}/ws/salle", server.addr);
-        hub.publish(SlideContent { text: "Premier".into(), reference: String::new() }, SlideStyle::default());
+        hub.publish(Slide::new("Premier", "", SlideSource::Custom), RoomDesign::default());
 
         // Deux écrans de tailles différentes.
         let (mut wide, _) = tokio_tungstenite::connect_async(&url).await.unwrap();
@@ -280,11 +342,10 @@ mod tests {
 
         // Un changement du direct arrive vite chez les deux.
         let sent = Instant::now();
-        let seq =
-            hub.publish(SlideContent { text: "Deuxième".into(), reference: "Jean 3:16".into() }, SlideStyle::default());
+        let seq = hub.publish(Slide::new("Deuxième", "Jean 3:16", SlideSource::Bible), RoomDesign::default());
         let (got, list) = next_frame(&mut wide).await;
         assert_eq!(got, seq);
-        assert!(list.text_lines().any(|l| l.text == "DEUXIÈME"));
+        assert!(list.text_lines().any(|l| l.text == "Deuxième"));
         assert_eq!(next_frame(&mut square).await.0, seq);
         assert!(sent.elapsed() < Duration::from_millis(500));
 
@@ -296,7 +357,7 @@ mod tests {
 
         // Une « commande » envoyée par un écran ne change rien.
         again.send(WsMessage::Text(r#"{"type":"take"}"#.into())).await.unwrap();
-        hub.publish(SlideContent { text: "Troisième".into(), reference: String::new() }, SlideStyle::default());
+        hub.publish(Slide::new("Troisième", "", SlideSource::Custom), RoomDesign::default());
         assert_eq!(next_frame(&mut again).await.0, seq + 1);
     }
 

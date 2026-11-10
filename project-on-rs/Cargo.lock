@@ -1306,7 +1306,15 @@ dependencies = [
  "moxcms",
  "num-traits",
  "png",
+ "zune-core",
+ "zune-jpeg",
 ]
+
+[[package]]
+name = "imagesize"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "65b27460c2c92b037f3f94c538ed9a3342f3fdf923606781629ccb35f82d042a"
 
 [[package]]
 name = "indexmap"
@@ -2196,13 +2204,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "po-design"
+version = "0.0.1"
+dependencies = [
+ "po-settings",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "po-layout"
 version = "0.0.1"
 dependencies = [
  "cosmic-text",
+ "imagesize",
+ "po-design",
  "po-text",
  "serde",
  "serde_json",
+ "windows",
 ]
 
 [[package]]
@@ -2214,13 +2234,16 @@ dependencies = [
  "futures-util",
  "image",
  "po-db",
+ "po-design",
  "po-layout",
  "po-render",
+ "po-settings",
  "po-text",
  "po-web",
  "project-on",
  "rusqlite",
  "serde_json",
+ "tiny-skia",
  "tokio",
  "tokio-tungstenite 0.30.0",
 ]
@@ -2231,6 +2254,8 @@ version = "0.0.1"
 dependencies = [
  "anyhow",
  "po-db",
+ "po-design",
+ "po-layout",
  "po-settings",
  "po-text",
  "rusqlite",
@@ -2243,7 +2268,10 @@ name = "po-render"
 version = "0.0.1"
 dependencies = [
  "cosmic-text",
+ "image",
+ "po-design",
  "po-layout",
+ "serde_json",
  "swash",
  "tiny-skia",
 ]
@@ -2274,7 +2302,9 @@ version = "0.0.1"
 dependencies = [
  "axum",
  "futures-util",
+ "po-design",
  "po-layout",
+ "po-render",
  "serde",
  "serde_json",
  "tokio",
@@ -2372,8 +2402,10 @@ dependencies = [
  "egui",
  "egui_kittest",
  "po-db",
+ "po-design",
  "po-layout",
  "po-render",
+ "po-settings",
  "po-text",
  "po-web",
 ]
@@ -4006,3 +4038,18 @@ name = "zmij"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"
+
+[[package]]
+name = "zune-core"
+version = "0.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d56377fd46368984a170bc5aac5567e52ca5da874caa60bea39fcbca78fb658b"
+
+[[package]]
+name = "zune-jpeg"
+version = "0.5.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "27bc9d5b815bc103f142aa054f561d9187d191692ec7c2d1e2b4737f8dbd7296"
+dependencies = [
+ "zune-core",
+]

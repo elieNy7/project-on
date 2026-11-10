@@ -6,6 +6,7 @@
 //! po-mesures servir <base.db> <port>              un écran Web de démonstration (Ctrl+C pour arrêter)
 //! po-mesures recherche <base.db> <sortie.json>    la recherche seule (comparaison à froid, phase 1)
 //! po-mesures trigramme <base.db> <dossier>        l'essai d'un index trigramme (phase 1)
+//! po-mesures captures <références> <dossier>     les captures de référence (phase 2)
 //! ```
 //!
 //! Aucune fenêtre ne s'ouvre : l'interface est rendue hors écran (egui_kittest + wgpu).
@@ -13,11 +14,13 @@
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
+mod captures;
 mod trigramme;
 
 use futures_util::{SinkExt, StreamExt};
 use po_db::{Database, Mode, ParagraphSearch, SermonFilter};
-use po_layout::{Fonts, SlideContent, SlideStyle, layout_slide};
+use po_design::{ReferencePosition, Rgba, RoomDesign, SlideSource};
+use po_layout::{DisplayList, Fonts, Slide, layout_room};
 use po_render::{Renderer, encode_png};
 use serde_json::{Value, json};
 use tokio_tungstenite::tungstenite::Message;
@@ -30,7 +33,37 @@ fn fonts_dir() -> PathBuf {
 
 fn projection_fonts() -> Fonts {
     let dir = fonts_dir();
-    Fonts::from_files(&[dir.join("Passion One/PassionOne-Bold.ttf"), dir.join("Passion One/PassionOne-Regular.ttf")])
+    Fonts::from_files(&[
+        dir.join("Passion One/PassionOne-Bold.ttf"),
+        dir.join("Passion One/PassionOne-Regular.ttf"),
+        dir.join("Spectral/Spectral-Regular.ttf"),
+        dir.join("Lato/Lato-Regular.ttf"),
+        dir.join("Lato/Lato-Bold.ttf"),
+    ])
+}
+
+/// Le style mesuré depuis la phase 0 : celui de presentation/config.json (Passion One 45,
+/// capitales, référence en haut, fond uni sombre).
+fn design() -> RoomDesign {
+    let mut d = RoomDesign::default();
+    d.text.family = "Passion One".into();
+    d.text.weight = 700;
+    d.text.size = 45.0;
+    d.text.uppercase = true;
+    d.text.line_height = 1.18;
+    d.text.color = Rgba::new(255, 255, 255, 234);
+    d.reference.size = 33.0;
+    d.reference.position = ReferencePosition::Top;
+    d.reference.color = Rgba::new(255, 255, 255, 198);
+    d.shadow = None;
+    d.background.color = Rgba::rgb(12, 15, 20);
+    d
+}
+
+/// Une prédication mise en page (l'identification de Branham comprise), fond sombre.
+fn lay(fonts: &mut Fonts, text: &str, reference: &str, style: &RoomDesign, w: f32, h: f32) -> DisplayList {
+    let slide = Slide::new(text, reference, SlideSource::Sermon);
+    layout_room(fonts, &slide, style, w, h, &mut |_: &DisplayList, _: [f32; 4]| 0.02)
 }
 
 pub(crate) fn ms(d: Duration) -> f64 {
@@ -113,26 +146,20 @@ fn sample_paragraphs(db: &Database) -> Result<Vec<String>> {
 }
 
 fn measure_layout(paragraphs: &[String], out_dir: &Path) -> Result<Value> {
-    let style = SlideStyle::default();
+    let style = design();
     let reference = "63-0317M - Le Dévoilement de Dieu - ¶12".to_string();
     let cold = Instant::now();
     let mut fonts = projection_fonts();
     let fonts_ms = ms(cold.elapsed());
     let first = Instant::now();
-    let _ = layout_slide(
-        &mut fonts,
-        &SlideContent { text: paragraphs[0].clone(), reference: reference.clone() },
-        &style,
-        1920.0,
-        1080.0,
-    );
+    let _ = lay(&mut fonts, &paragraphs[0], &reference, &style, 1920.0, 1080.0);
     let first_ms = ms(first.elapsed());
 
     let mut layout_times = Vec::new();
     for text in paragraphs {
-        let content = SlideContent { text: text.clone(), reference: reference.clone() };
+        let content = text.clone();
         let start = Instant::now();
-        let _ = layout_slide(&mut fonts, &content, &style, 1920.0, 1080.0);
+        let _ = lay(&mut fonts, &content, &reference, &style, 1920.0, 1080.0);
         layout_times.push(start.elapsed().as_secs_f64() * 1000.0);
     }
 
@@ -141,15 +168,24 @@ fn measure_layout(paragraphs: &[String], out_dir: &Path) -> Result<Value> {
     let mut render_hd = Vec::new();
     let mut render_monitor = Vec::new();
     for text in paragraphs.iter().step_by(10) {
-        let content = SlideContent { text: text.clone(), reference: reference.clone() };
-        let list = layout_slide(&mut fonts, &content, &style, 1920.0, 1080.0);
+        let content = text.clone();
+        let list = lay(&mut fonts, &content, &reference, &style, 1920.0, 1080.0);
         let start = Instant::now();
         renderer.render(&mut fonts, &list, 1920, 1080)?;
         render_hd.push(start.elapsed().as_secs_f64() * 1000.0);
-        let list = layout_slide(&mut fonts, &content, &style, 960.0, 540.0);
+        let list = lay(&mut fonts, &content, &reference, &style, 960.0, 540.0);
         let start = Instant::now();
         renderer.render(&mut fonts, &list, 960, 540)?;
         render_monitor.push(start.elapsed().as_secs_f64() * 1000.0);
+    }
+    // Les réglages par défaut de la 2.x : ombre portée, dégradé, voile « cinéma ».
+    let shadowed = RoomDesign::default();
+    let mut render_shadow = Vec::new();
+    for text in paragraphs.iter().step_by(10) {
+        let list = lay(&mut fonts, text, &reference, &shadowed, 1920.0, 1080.0);
+        let start = Instant::now();
+        renderer.render(&mut fonts, &list, 1920, 1080)?;
+        render_shadow.push(start.elapsed().as_secs_f64() * 1000.0);
     }
 
     // Les images de référence : le plus long et le plus court des paragraphes, et un verset.
@@ -165,7 +201,7 @@ fn measure_layout(paragraphs: &[String], out_dir: &Path) -> Result<Value> {
         ("slide-court.png", shortest, reference.clone()),
         ("slide-verset.png", "Car Dieu a tant aimé le monde qu'il a donné son Fils unique, afin que quiconque croit en lui ne périsse point, mais qu'il ait la vie éternelle.".to_string(), "Jean 3:16".to_string()),
     ] {
-        let list = layout_slide(&mut fonts, &SlideContent { text, reference }, &style, 1920.0, 1080.0);
+        let list = lay(&mut fonts, &text, &reference, &style, 1920.0, 1080.0);
         std::fs::write(out_dir.join(name), encode_png(&renderer.render(&mut fonts, &list, 1920, 1080)?)?)?;
     }
     Ok(json!({
@@ -175,6 +211,7 @@ fn measure_layout(paragraphs: &[String], out_dir: &Path) -> Result<Value> {
         "mise_en_page_1080p": stats(layout_times),
         "rendu_1920x1080": stats(render_hd),
         "rendu_moniteur_960x540": stats(render_monitor),
+        "rendu_1920x1080_reglages_par_defaut": stats(render_shadow),
     }))
 }
 
@@ -199,7 +236,7 @@ fn measure_web(paragraphs: &[String]) -> Result<Value> {
     let url = format!("ws://{}/ws/salle", server.addr);
     let runtime = tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build()?;
     runtime.block_on(async move {
-        hub.publish(SlideContent { text: "Bienvenue".into(), reference: String::new() }, SlideStyle::default());
+        hub.publish(Slide::new("Bienvenue", "", SlideSource::Custom), design());
         let sizes = [(1920, 1080), (1280, 720), (1024, 768)];
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<(u64, Instant)>();
         let mut tasks = Vec::new();
@@ -215,10 +252,10 @@ fn measure_web(paragraphs: &[String]) -> Result<Value> {
             }));
         }
         let mut sent = std::collections::HashMap::new();
-        let style = SlideStyle::default();
+        let style = design();
         for text in paragraphs.iter().take(100) {
             let at = Instant::now();
-            let seq = hub.publish(SlideContent { text: text.clone(), reference: "Référence".into() }, style.clone());
+            let seq = hub.publish(Slide::new(text.clone(), "Référence", SlideSource::Sermon), style.clone());
             sent.insert(seq, at);
             tokio::time::sleep(Duration::from_millis(30)).await;
         }
@@ -275,6 +312,14 @@ fn measure_ui(db_path: &Path, out_dir: &Path) -> Result<Value> {
     let preview = Instant::now();
     harness.state_mut().preview_paragraph(&ctx, 3);
     let preview_ms = ms(preview.elapsed());
+    // Les clics suivants (polices, lettres et fond déjà en cache).
+    let mut next_previews = Vec::new();
+    let count = harness.state().paragraph_count();
+    for index in 4..count.min(24) {
+        let t = Instant::now();
+        harness.state_mut().preview_paragraph(&ctx, index);
+        next_previews.push(t.elapsed().as_secs_f64() * 1000.0);
+    }
     harness.state_mut().take(&ctx);
     harness.run_ok();
 
@@ -300,6 +345,7 @@ fn measure_ui(db_path: &Path, out_dir: &Path) -> Result<Value> {
         "ouverture_base_et_liste_ms": built,
         "premiere_image_ms": first_frame,
         "apercu_d_un_paragraphe_ms": preview_ms,
+        "apercus_suivants": stats(next_previews),
         "image_egui_cpu": stats(steps),
         "rendu_gpu_et_lecture": stats(renders),
     }))
@@ -365,10 +411,14 @@ fn servir(db_path: &Path, port: u16) -> Result<()> {
     let hub = po_web::Hub::new(projection_fonts());
     let server = po_web::start(hub.clone(), ([127, 0, 0, 1], port).into())?;
     println!("Écran : http://{}/ecran/salle", server.addr);
+    // Un fond image (servi aux navigateurs) et l'identification de Branham.
+    let mut room = design();
+    room.background.image =
+        Some(po_layout::bundled_backgrounds_dir().join("bg-bleu-nuit_16x9.png").to_string_lossy().into_owned());
     for (i, text) in paragraphs.iter().cycle().step_by(7).enumerate() {
         hub.publish(
-            SlideContent { text: text.clone(), reference: format!("Paragraphe d'essai n° {}", i + 1) },
-            SlideStyle::default(),
+            Slide::new(text.clone(), format!("Paragraphe d'essai n° {}", i + 1), SlideSource::Sermon),
+            room.clone(),
         );
         std::thread::sleep(Duration::from_secs(4));
     }
@@ -382,6 +432,7 @@ fn main() -> Result<()> {
         ["demarrage", db] => demarrage(Path::new(db)),
         ["servir", db, port] => servir(Path::new(db), port.parse()?),
         ["recherche", db, out] => recherche(Path::new(db), Path::new(out)),
+        ["captures", refs, out] => captures::run(Path::new(refs), Path::new(out)),
         ["trigramme", db, out] => {
             let report = trigramme::evaluate(Path::new(db), Path::new(out))?;
             std::fs::write(Path::new(out).join("trigramme.json"), serde_json::to_string_pretty(&report)?)?;
@@ -389,7 +440,7 @@ fn main() -> Result<()> {
         }
         _ => {
             eprintln!(
-                "usage : po-mesures tout <base.db> <dossier> | demarrage <base.db> | servir <base.db> <port> | recherche <base.db> <sortie.json> | trigramme <base.db> <dossier>"
+                "usage : po-mesures tout <base.db> <dossier> | demarrage <base.db> | servir <base.db> <port> | recherche <base.db> <sortie.json> | trigramme <base.db> <dossier> | captures <références 2.8> <dossier>"
             );
             std::process::exit(2);
         }

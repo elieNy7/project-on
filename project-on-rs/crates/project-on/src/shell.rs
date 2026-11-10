@@ -7,14 +7,15 @@ use egui::{
     vec2,
 };
 use po_db::{Database, Paragraph, Sermon, SermonFilter};
-use po_layout::{Fonts, SlideContent, SlideStyle, layout_slide};
+use po_design::{RoomDesign, SlideSource};
+use po_layout::{DisplayList, Fonts, Slide, layout_room};
 use po_render::Renderer;
 
 use crate::theme;
 
 /// Une image de moniteur (Aperçu ou Direct) et ce qu'elle montre.
 struct Monitor {
-    content: SlideContent,
+    content: Slide,
     texture: TextureHandle,
 }
 
@@ -23,7 +24,8 @@ pub struct Shell {
     db: Option<Database>,
     fonts: Fonts,
     renderer: Renderer,
-    style: SlideStyle,
+    /// Le design de la salle (les réglages « Projection » de la 2.x).
+    pub design: RoomDesign,
     sermons: Vec<Sermon>,
     filter: String,
     selected: Option<usize>,
@@ -32,7 +34,7 @@ pub struct Shell {
     preview: Option<Monitor>,
     live: Option<Monitor>,
     /// Ce qui vient de passer au direct, à diffuser aux écrans (Web, projection).
-    pub taken: Option<SlideContent>,
+    pub taken: Option<Slide>,
     /// Le nombre d'écrans Web connectés (affiché dans la barre).
     pub web_screens: usize,
     error: Option<String>,
@@ -41,13 +43,18 @@ pub struct Shell {
 /// La taille des images des moniteurs (16:9, nette sur un moniteur de ~480 px de large).
 const MONITOR_SIZE: (u32, u32) = (960, 540);
 
+/// La taille de l'écran de projection sur laquelle le slide est mis en page. Les moniteurs montrent
+/// ce slide réduit, comme la 2.8 : mêmes coupures de lignes, même taille relative que dans la salle.
+/// (Phase 3 : la taille de l'écran de projection choisi.)
+const PROJECTION_SIZE: (f32, f32) = (1920.0, 1080.0);
+
 impl Shell {
     pub fn new(db: Option<Database>, fonts: Fonts) -> Self {
         let mut shell = Shell {
             db,
             fonts,
             renderer: Renderer::new(),
-            style: SlideStyle::default(),
+            design: RoomDesign::default(),
             sermons: Vec::new(),
             filter: String::new(),
             selected: None,
@@ -66,6 +73,11 @@ impl Shell {
     /// Le nombre de sermons de la liste affichée.
     pub fn sermon_count(&self) -> usize {
         self.sermons.len()
+    }
+
+    /// Le nombre de paragraphes du sermon choisi.
+    pub fn paragraph_count(&self) -> usize {
+        self.paragraphs.len()
     }
 
     fn refresh_list(&mut self) {
@@ -99,9 +111,13 @@ impl Shell {
         }
     }
 
-    fn render(&mut self, ctx: &egui::Context, name: &str, content: &SlideContent) -> Option<TextureHandle> {
+    fn render(&mut self, ctx: &egui::Context, name: &str, content: &Slide) -> Option<TextureHandle> {
         let (w, h) = MONITOR_SIZE;
-        let list = layout_slide(&mut self.fonts, content, &self.style, w as f32, h as f32);
+        let list = {
+            let renderer = &mut self.renderer;
+            let mut probe = |list: &DisplayList, zone: [f32; 4]| renderer.backdrop_luminance(list, zone);
+            layout_room(&mut self.fonts, content, &self.design, PROJECTION_SIZE.0, PROJECTION_SIZE.1, &mut probe)
+        };
         match self.renderer.render(&mut self.fonts, &list, w, h) {
             Ok(pixmap) => {
                 let image = ColorImage::from_rgba_premultiplied([w as usize, h as usize], pixmap.data());
@@ -123,7 +139,7 @@ impl Shell {
         };
         let date = sermon.date.as_deref().unwrap_or("");
         let reference = po_text::format_reference(date, &sermon.title, &paragraph.marker);
-        let content = SlideContent { text: paragraph.text.clone(), reference };
+        let content = Slide::new(paragraph.text.clone(), reference, SlideSource::of_sermon_date(date));
         self.previewed = Some(index);
         if let Some(texture) = self.render(ctx, "apercu", &content) {
             self.preview = Some(Monitor { content, texture });
@@ -161,7 +177,7 @@ impl Shell {
     fn command_bar(&mut self, ui: &mut Ui) {
         ui.horizontal_centered(|ui| {
             ui.label(RichText::new("Project-On").font(theme::semibold(16.0)).color(theme::TEXT));
-            ui.label(RichText::new("3.0 · phase 1").font(theme::regular(11.5)).color(theme::FAINT));
+            ui.label(RichText::new("3.0 · phase 2").font(theme::regular(11.5)).color(theme::FAINT));
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 let web = self.web_screens;
                 pill(ui, &format!("Web · {web}"), if web > 0 { theme::PREVIEW } else { theme::FAINT });

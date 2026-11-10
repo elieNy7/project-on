@@ -5,8 +5,10 @@
 - **Statut** : les décisions du § 9 ont été prises le 9 novembre. **Phase 0 terminée : GO**
   ([rapport](project-on-rs/docs/phase0/RAPPORT_PHASE0.md)). **Phase 1 terminée le 10 novembre** :
   1 131 437 cas comparés à la 2.8, 0 différence ([rapport](project-on-rs/docs/phase1/RAPPORT_PHASE1.md)).
-  La phase 2 attend votre feu vert. Le code de la 2.8 n'a pas été modifié ; seul son module natif
-  est rebranché sur `po-text`.
+  **Phase 2 terminée le 10 novembre** : mise en page identique à la 2.8 sur 2 208 slides,
+  identification de Branham en 4 styles lisibles sur tous les fonds essayés
+  ([rapport](project-on-rs/docs/phase2/RAPPORT_PHASE2.md)). La phase 3 attend votre feu vert. Le
+  code de la 2.8 n'a pas été modifié ; seul son module natif est rebranché sur `po-text`.
 - Cette demande remplace le choix du 29 octobre 2026 (« Rust hybride, pas de réécriture complète ») :
   la logique et l'interface passent toutes les deux en Rust.
 

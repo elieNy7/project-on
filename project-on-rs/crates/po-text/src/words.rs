@@ -12,7 +12,7 @@ fn glues_to_previous(token: &str) -> bool {
 pub fn words(paragraph: &str) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     let mut opening: Option<String> = None;
-    for raw in paragraph.split_whitespace() {
+    for raw in crate::py::split(paragraph) {
         let token = match opening.take() {
             Some(open) => format!("{open} {raw}"),
             None => raw.to_string(),

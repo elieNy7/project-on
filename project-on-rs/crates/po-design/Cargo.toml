@@ -1,0 +1,17 @@
+[package]
+name = "po-design"
+description = "Project-On : les designs — le style de la salle, l'identification de Branham, les animations"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+po-settings = { path = "../po-settings" }
+serde.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[lints]
+workspace = true

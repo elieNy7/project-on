@@ -9,6 +9,9 @@ publish = false
 
 [dependencies]
 po-db.workspace = true
+po-design.workspace = true
+po-settings = { path = "../po-settings" }
+tiny-skia.workspace = true
 po-text.workspace = true
 rusqlite = { version = "0.41.1", features = ["bundled"] }
 po-layout.workspace = true

@@ -2,13 +2,16 @@
 //! (`outils/references_28.py`) et compare tout, cas par cas.
 //!
 //! ```text
-//! po-parite <dossier des références>
+//! po-parite <dossier des références>       les fondations (phase 1)
+//! po-parite projection <dossier>           la mise en page de la projection (phase 2)
+//! po-parite comparer <a.db> <b.db>         deux bases
 //! ```
 //!
 //! Sort avec le code 1 à la première différence, après avoir tout comparé ; le détail est dans
 //! `rapport.json`, à côté des références.
 
 mod compare;
+mod projection;
 mod requests;
 mod v28;
 
@@ -172,8 +175,17 @@ fn main() -> Result<()> {
         println!("{}", section.summary());
         std::process::exit(i32::from(section.failures > 0));
     }
-    let dir =
-        PathBuf::from(args.first().context("usage : po-parite <dossier des références> | comparer <a.db> <b.db>")?);
+    // `po-parite projection <dossier>` : la mise en page de la projection (phase 2).
+    if let [command, dir] = args.as_slice()
+        && command == "projection"
+    {
+        let identical = projection::compare(Path::new(dir))?;
+        std::process::exit(i32::from(!identical));
+    }
+    let dir = PathBuf::from(
+        args.first()
+            .context("usage : po-parite <dossier des références> | comparer <a.db> <b.db> | projection <dossier>")?,
+    );
     let manifest = read_json(&dir, "manifeste.json")?;
     let bible_json = PathBuf::from(s(&manifest["bible_json"]));
     println!(

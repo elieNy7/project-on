@@ -1,4 +1,4 @@
-//! Project-On 3.0 (phase 0) : la coque de validation dans une vraie fenêtre.
+//! Project-On 3.0 (phase 2) : la coque de validation dans une vraie fenêtre.
 //!
 //! La base est ouverte en LECTURE SEULE : ce prototype n'écrit jamais dans les données. Le serveur
 //! Web écoute sur 127.0.0.1:8090 (la 2.8 garde le port 8080).
@@ -8,7 +8,8 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use po_layout::{Fonts, SlideStyle};
+use po_design::RoomDesign;
+use po_layout::Fonts;
 use project_on::{Shell, theme};
 
 /// La base de la 2.x : `PROJECT_ON_DB`, sinon `%APPDATA%\Project-On\data\project_on.db`.
@@ -28,8 +29,19 @@ fn fonts_dir() -> PathBuf {
         .unwrap_or_else(po_layout::bundled_fonts_dir)
 }
 
+/// Toutes les polices de Project-On : celle des réglages et celles de l'identification.
 fn projection_fonts(dir: &std::path::Path) -> Fonts {
-    Fonts::from_files(&[dir.join("Passion One/PassionOne-Bold.ttf"), dir.join("Passion One/PassionOne-Regular.ttf")])
+    Fonts::from_dirs(&[dir])
+}
+
+/// Le design de la salle lu dans les réglages de la 2.x (lecture seule).
+fn room_design() -> RoomDesign {
+    let path =
+        std::env::var_os("APPDATA").map(|d| PathBuf::from(d).join("Project-On").join("data").join("settings.json"));
+    match path {
+        Some(path) => RoomDesign::from_projection(&po_settings::Settings::load(&path).settings.projection),
+        None => RoomDesign::default(),
+    }
 }
 
 struct App {
@@ -42,8 +54,8 @@ impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         self.shell.web_screens = self.hub.connected();
         self.shell.ui(ui);
-        if let Some(content) = self.shell.taken.take() {
-            self.hub.publish(content, SlideStyle::default());
+        if let Some(slide) = self.shell.taken.take() {
+            self.hub.publish(slide, self.shell.design.clone());
         }
         // Le nombre d'écrans Web connectés se rafraîchit même sans clic.
         ui.ctx().request_repaint_after(std::time::Duration::from_secs(1));
@@ -57,7 +69,7 @@ fn main() -> eframe::Result {
     let server = po_web::start(hub.clone(), ([127, 0, 0, 1], 8090).into()).ok();
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_title("Project-On 3.0 — phase 0")
+            .with_title("Project-On 3.0 — phase 2")
             .with_inner_size([1500.0, 900.0])
             .with_min_inner_size([1100.0, 650.0]),
         renderer: eframe::Renderer::Wgpu,
@@ -68,7 +80,9 @@ fn main() -> eframe::Result {
         options,
         Box::new(move |cc| {
             theme::install(&cc.egui_ctx, &fonts);
-            Ok(Box::new(App { shell: Shell::new(db, projection_fonts(&fonts)), hub, _server: server }))
+            let mut shell = Shell::new(db, projection_fonts(&fonts));
+            shell.design = room_design();
+            Ok(Box::new(App { shell, hub, _server: server }))
         }),
     )
 }

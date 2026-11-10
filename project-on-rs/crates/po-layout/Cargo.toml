@@ -7,9 +7,14 @@ license.workspace = true
 authors.workspace = true
 
 [dependencies]
+po-design.workspace = true
+imagesize = "0.15.0"
 po-text.workspace = true
 cosmic-text.workspace = true
 serde.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = ["Win32_Graphics_DirectWrite", "Win32_Foundation"] }
 
 [dev-dependencies]
 serde_json.workspace = true

@@ -3,8 +3,10 @@
 La refonte de Project-On en Rust, décidée le 9 novembre 2026 : architecture, décisions et plan dans
 [`../AUDIT_ET_ARCHITECTURE_RUST_2026-11-09.md`](../AUDIT_ET_ARCHITECTURE_RUST_2026-11-09.md).
 
-**État : phase 1 terminée (fondations).** Phase 0 : [`docs/phase0/RAPPORT_PHASE0.md`](docs/phase0/RAPPORT_PHASE0.md) ;
-phase 1 : [`docs/phase1/RAPPORT_PHASE1.md`](docs/phase1/RAPPORT_PHASE1.md). La version livrée reste la
+**État : phase 2 terminée (moteur de projection et couche 1).** Phase 0 :
+[`docs/phase0/RAPPORT_PHASE0.md`](docs/phase0/RAPPORT_PHASE0.md) ; phase 1 :
+[`docs/phase1/RAPPORT_PHASE1.md`](docs/phase1/RAPPORT_PHASE1.md) ; phase 2 :
+[`docs/phase2/RAPPORT_PHASE2.md`](docs/phase2/RAPPORT_PHASE2.md). La version livrée reste la
 2.8 (Python) jusqu'à la bascule 3.0. Ce code ne touche jamais aux vraies données : les essais et les
 mesures travaillent sur des copies.
 
@@ -16,11 +18,12 @@ mesures travaillent sur des copies.
 | `po-text` | le texte : sans accents, nettoyage, clés et requêtes de recherche, découpage en parties, strophes, références bibliques, titres et repères |
 | `po-settings` | les réglages, lus dans le `settings.json` de la 2.x avec les mêmes règles ; écriture atomique et `.bak` |
 | `po-db` | la base SQLite de la 2.x, sans conversion : schéma et migrations, Bible, cantiques, prédications, livres, Exposé, playlists, déroulé, médias, copie cohérente |
-| `po-layout` | la mise en page d'un slide (texte qui remplit l'écran, zone de sécurité, lignes équilibrées) en **liste d'affichage** |
-| `po-render` | le dessin d'une liste d'affichage en image (NDI, HDMI, aperçus, captures) |
+| `po-design` | le style de la salle (`RoomDesign`), lu depuis les réglages « Projection » de la 2.x ; couleurs et contraste ; genre d'un slide |
+| `po-layout` | la mise en page plein écran de la 2.8, au pixel près (métriques de Qt, largeurs DirectWrite), le fond, l'identification de Branham et les transitions, en **liste d'affichage** (fond, contenu, surcouche) |
+| `po-render` | le dessin d'une liste d'affichage en image (moniteurs, NDI, HDMI, captures) : dégradés, images, ombres et halos, groupes animés |
 | `po-web` | la projection Web : serveur local en lecture seule (axum), WebSocket, client navigateur (`web/`) |
 | `project-on` | l'application egui (thème repris de Pgraphics) ; en phase 0, une coque de validation |
-| `po-mesures` | les mesures des phases 0 et 1 (jamais livré) |
+| `po-mesures` | les mesures et les planches de captures des phases 0 à 2 (jamais livré) |
 | `po-parite` | les tests dorés : la 3.0 rejoue les références de la 2.8 et compare (jamais livré) |
 
 ## Construire et vérifier
@@ -47,6 +50,17 @@ extrait d'un paquet `build/native/*.whl`) :
 python project-on-rs\outils\references_28.py <copie\project_on.db> project-on-rs\target\parite <module natif>
 cd project-on-rs
 cargo run --release -p po-parite -- target\parite
+```
+
+La mise en page de la projection (phase 2) se compare de la même façon. Le script fait mettre en
+page de vrais slides par le `SlideCanvas` de la 2.8, sans jamais l'afficher ; il faut le Python qui
+a PySide6 (`py -3.14` sur le poste de développement) :
+
+```powershell
+py -3.14 project-on-rs\outils\references_projection_28.py <copie\project_on.db> project-on-rs\target\phase2\ref28
+cd project-on-rs
+cargo run --release -p po-parite -- projection target\phase2\ref28
+cargo run --release -p po-mesures -- captures target\phase2\ref28 target\phase2\captures
 ```
 
 Les références contiennent des textes de la base : elles restent dans `target\` (non versionné).
@@ -76,7 +90,12 @@ par le cache de Windows.
 - **Code repris de Pgraphics** : `crates/project-on/src/theme.rs` (en-tête d'origine) et le journal
   (`crates/po-core/src/journal.rs`), publiés sous MIT dans Project-On.
 - **Dossier temporaire** : sur certains postes, le dossier temporaire de Windows est fermé en
-  écriture aux programmes de test ; les tests écrivent donc dans `target	mp`.
+  écriture aux programmes de test ; les tests écrivent donc dans `target\tmp`.
 - **Le module natif de la 2.8** (`../rust/project_on_core`) n'est plus qu'une enveloppe de `po-text`.
+- **DirectWrite** : sous Windows, `po-layout` prend les largeurs des lettres à DirectWrite, comme
+  Qt dans la 2.8 (`crates/po-layout/src/dwrite.rs`, le seul module avec du code `unsafe`, limité
+  aux appels Windows). Ailleurs, il utilise les largeurs de la police.
+- **Identification de Branham** : « Reverend William Marrion Branham », sur les prédications,
+  l'Exposé et les brochures seulement (`po_design::SlideSource::shows_identification`).
 - **Entités HTML** : `crates/po-text/src/entities.rs` est généré par `outils/generer_entites.py`
   depuis la table de Python, pour décoder le HTML exactement comme la 2.8.

@@ -1,0 +1,112 @@
+{
+  "ouverture_base_ms": 2.3,
+  "recherche": {
+    "liste_sermons": {
+      "ms_first": 7.8,
+      "ms_best": 6.1,
+      "count": 2815,
+      "first": "La Foi Est une Ferme Assurance"
+    },
+    "liste_titre_foi": {
+      "ms_first": 5.2,
+      "ms_best": 2.4,
+      "count": 111,
+      "first": "La Foi Est une Ferme Assurance"
+    },
+    "fts_grace": {
+      "ms_first": 81.0,
+      "ms_best": 24.2,
+      "count": 100,
+      "first": "61-0827 - Le Message De Grâce - §165"
+    },
+    "fts_ferme_assurance": {
+      "ms_first": 7.4,
+      "ms_best": 5.3,
+      "count": 100,
+      "first": "47-0412 - La Foi Est une Ferme Assurance - §50"
+    },
+    "fts_expression": {
+      "ms_first": 35.4,
+      "ms_best": 19.2,
+      "count": 100,
+      "first": "53-0509 - La Colonne De Feu - §53"
+    },
+    "sous_chaine_ernel_die": {
+      "ms_first": 9977.5,
+      "ms_best": 2722.0,
+      "count": 100,
+      "first": "47-1123 - Les Enfants dans le désert - E-76"
+    },
+    "sous_chaine_absente": {
+      "ms_first": 1871.0,
+      "ms_best": 1855.5,
+      "count": 0,
+      "first": ""
+    }
+  },
+  "mise_en_page": {
+    "paragraphes": 1347,
+    "chargement_polices_ms": 0.7,
+    "premiere_mise_en_page_ms": 15.4,
+    "mise_en_page_1080p": {
+      "n": 1347,
+      "mediane_ms": 1.21,
+      "p95_ms": 3.67,
+      "max_ms": 18.68
+    },
+    "rendu_1920x1080": {
+      "n": 135,
+      "mediane_ms": 15.16,
+      "p95_ms": 19.66,
+      "max_ms": 65.72
+    },
+    "rendu_moniteur_960x540": {
+      "n": 135,
+      "mediane_ms": 6.71,
+      "p95_ms": 8.92,
+      "max_ms": 18.95
+    },
+    "rendu_1920x1080_reglages_par_defaut": {
+      "n": 135,
+      "mediane_ms": 38.12,
+      "p95_ms": 47.08,
+      "max_ms": 74.56
+    }
+  },
+  "web": {
+    "ecrans": 3,
+    "images_envoyees": 100,
+    "images_recues": 300,
+    "latence": {
+      "n": 300,
+      "mediane_ms": 4.02,
+      "p95_ms": 8.93,
+      "max_ms": 21.96
+    },
+    "reconnexion_jusqu_a_l_image_ms": 1.9
+  },
+  "interface": {
+    "sermons_affiches": 2815,
+    "ouverture_base_et_liste_ms": 15.4,
+    "premiere_image_ms": 858.3,
+    "apercu_d_un_paragraphe_ms": 108.2,
+    "apercus_suivants": {
+      "n": 4,
+      "mediane_ms": 79.76,
+      "p95_ms": 91.04,
+      "max_ms": 91.04
+    },
+    "image_egui_cpu": {
+      "n": 60,
+      "mediane_ms": 0.33,
+      "p95_ms": 0.75,
+      "max_ms": 1.35
+    },
+    "rendu_gpu_et_lecture": {
+      "n": 10,
+      "mediane_ms": 301.58,
+      "p95_ms": 503.77,
+      "max_ms": 503.77
+    }
+  }
+}

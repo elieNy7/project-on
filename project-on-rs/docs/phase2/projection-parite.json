@@ -1,0 +1,122 @@
+{
+  "par_groupe": {
+    "poppins_gauche / bible": {
+      "cas": 172,
+      "meme_taille_pct": 100.0,
+      "memes_lignes_pct": 100.0,
+      "meme_place_pct": 100.0,
+      "meme_reference_pct": 100.0,
+      "meme_filet_pct": 100.0,
+      "ecart_max_px": 1.0
+    },
+    "poppins_gauche / court": {
+      "cas": 4,
+      "meme_taille_pct": 100.0,
+      "memes_lignes_pct": 100.0,
+      "meme_place_pct": 100.0,
+      "meme_reference_pct": 100.0,
+      "meme_filet_pct": 100.0,
+      "ecart_max_px": 1.0
+    },
+    "poppins_gauche / hymn": {
+      "cas": 275,
+      "meme_taille_pct": 100.0,
+      "memes_lignes_pct": 100.0,
+      "meme_place_pct": 100.0,
+      "meme_reference_pct": 100.0,
+      "meme_filet_pct": 100.0,
+      "ecart_max_px": 1.0
+    },
+    "poppins_gauche / sermon": {
+      "cas": 285,
+      "meme_taille_pct": 100.0,
+      "memes_lignes_pct": 100.0,
+      "meme_place_pct": 100.0,
+      "meme_reference_pct": 100.0,
+      "meme_filet_pct": 100.0,
+      "ecart_max_px": 1.0
+    },
+    "reference_bas_ombre / bible": {
+      "cas": 172,
+      "meme_taille_pct": 100.0,
+      "memes_lignes_pct": 100.0,
+      "meme_place_pct": 100.0,
+      "meme_reference_pct": 100.0,
+      "meme_filet_pct": 100.0,
+      "ecart_max_px": 1.0
+    },
+    "reference_bas_ombre / court": {
+      "cas": 4,
+      "meme_taille_pct": 100.0,
+      "memes_lignes_pct": 100.0,
+      "meme_place_pct": 100.0,
+      "meme_reference_pct": 100.0,
+      "meme_filet_pct": 100.0,
+      "ecart_max_px": 1.0
+    },
+    "reference_bas_ombre / hymn": {
+      "cas": 275,
+      "meme_taille_pct": 100.0,
+      "memes_lignes_pct": 100.0,
+      "meme_place_pct": 100.0,
+      "meme_reference_pct": 100.0,
+      "meme_filet_pct": 100.0,
+      "ecart_max_px": 1.0
+    },
+    "reference_bas_ombre / sermon": {
+      "cas": 285,
+      "meme_taille_pct": 100.0,
+      "memes_lignes_pct": 100.0,
+      "meme_place_pct": 100.0,
+      "meme_reference_pct": 100.0,
+      "meme_filet_pct": 100.0,
+      "ecart_max_px": 1.0
+    },
+    "utilisateur / bible": {
+      "cas": 172,
+      "meme_taille_pct": 100.0,
+      "memes_lignes_pct": 100.0,
+      "meme_place_pct": 100.0,
+      "meme_reference_pct": 100.0,
+      "meme_filet_pct": 100.0,
+      "ecart_max_px": 1.0
+    },
+    "utilisateur / court": {
+      "cas": 4,
+      "meme_taille_pct": 100.0,
+      "memes_lignes_pct": 100.0,
+      "meme_place_pct": 100.0,
+      "meme_reference_pct": 100.0,
+      "meme_filet_pct": 100.0,
+      "ecart_max_px": 1.0
+    },
+    "utilisateur / hymn": {
+      "cas": 275,
+      "meme_taille_pct": 100.0,
+      "memes_lignes_pct": 100.0,
+      "meme_place_pct": 100.0,
+      "meme_reference_pct": 100.0,
+      "meme_filet_pct": 100.0,
+      "ecart_max_px": 1.0
+    },
+    "utilisateur / sermon": {
+      "cas": 285,
+      "meme_taille_pct": 100.0,
+      "memes_lignes_pct": 100.0,
+      "meme_place_pct": 100.0,
+      "meme_reference_pct": 100.0,
+      "meme_filet_pct": 100.0,
+      "ecart_max_px": 1.0
+    }
+  },
+  "total": {
+    "cas": 2208,
+    "meme_taille_pct": 100.0,
+    "memes_lignes_pct": 100.0,
+    "meme_place_pct": 100.0,
+    "meme_reference_pct": 100.0,
+    "meme_filet_pct": 100.0,
+    "ecart_max_px": 1.0
+  },
+  "exemples": []
+}

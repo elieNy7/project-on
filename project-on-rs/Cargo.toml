@@ -11,6 +11,7 @@ members = [
     "crates/po-text",
     "crates/po-settings",
     "crates/po-db",
+    "crates/po-design",
     "crates/po-layout",
     "crates/po-render",
     "crates/po-web",
@@ -28,6 +29,7 @@ authors = ["PARATECH SARL"]
 [workspace.dependencies]
 po-text = { path = "crates/po-text" }
 po-db = { path = "crates/po-db" }
+po-design = { path = "crates/po-design" }
 po-layout = { path = "crates/po-layout" }
 po-render = { path = "crates/po-render" }
 po-web = { path = "crates/po-web" }
