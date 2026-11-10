@@ -7,7 +7,9 @@ use po_db::{Book, BookChapter, BookHit, Database, Paragraph};
 use po_design::SlideSource;
 use po_program::{Cue, Entry, book_entries, book_reference};
 
-use super::{Action, ENTRY_ROW, ITEM_ROW, Marks, Origin, Prepared, entry_row, item_row, scroll_offset};
+use super::{
+    Action, ENTRY_ROW, ITEM_ROW, Marks, Origin, Prepared, choice_action, entry_menu, entry_row, item_row, scroll_offset,
+};
 use crate::search::{Request, SearchThread};
 use crate::theme::*;
 use crate::widgets;
@@ -15,6 +17,21 @@ use crate::widgets;
 /// Les ouvrages de la page Exposé et de la page Livres.
 pub const EXPOSE_KEYS: [&str; 2] = ["ages-vgr", "ages-shp"];
 pub const BOOK_KEYS: [&str; 3] = ["sent", "pvsa", "brochures"];
+
+/// La référence d'un paragraphe d'ouvrage dans une playlist (`_playlist_reference` de la 2.8) :
+/// « titre du chapitre · Page 3 §2 ».
+pub fn playlist_reference(chapter: &str, raw_ref: &str) -> String {
+    let raw = raw_ref.trim();
+    let page_par = raw.split_once('-').filter(|(a, b)| {
+        !a.is_empty() && !b.is_empty() && a.chars().all(|c| c.is_ascii_digit()) && b.chars().all(|c| c.is_ascii_digit())
+    });
+    match (page_par, chapter.is_empty()) {
+        (Some((page, n)), false) => format!("{chapter} · Page {page} §{n}"),
+        (Some((page, n)), true) => format!("Page {page} §{n}"),
+        (None, false) => chapter.to_string(),
+        (None, true) => raw.to_string(),
+    }
+}
 
 pub struct BooksView {
     keys: &'static [&'static str],
@@ -268,6 +285,7 @@ impl BooksView {
         ui.add_space(8.0);
         let origin = Origin::BookChapter(chapter.id);
         let mut clicked = None;
+        let mut menu = None;
         let mut area = ScrollArea::vertical().id_salt(("paragraphes-ouvrage", chapter.id)).auto_shrink([false, false]);
         if let Some(row) = self.scroll_entry.take() {
             area = area.vertical_scroll_offset(scroll_offset(ui, row, ENTRY_ROW));
@@ -282,15 +300,48 @@ impl BooksView {
                     .map_or_else(|| format!("p. {page}"), str::to_string);
                 let (preview, live) = marks.of(&origin, i);
                 let r = entry_row(ui, &marker, &self.entries[i].text, preview, live);
+                let entry = || {
+                    Entry::new(playlist_reference(&chapter.title, p.raw_ref.as_deref().unwrap_or("")), p.text.clone())
+                };
+                if let Some(c) = entry_menu(&r, i, entry, "", "Ajouter une plage de paragraphes…") {
+                    menu = Some(c);
+                }
                 if r.clicked() || r.double_clicked() {
                     clicked = Some((i, r));
                 }
             }
         });
+        if let Some(choice) = menu {
+            let all = || {
+                self.paragraphs
+                    .iter()
+                    .map(|(_, p)| {
+                        Entry::new(
+                            playlist_reference(&chapter.title, p.raw_ref.as_deref().unwrap_or("")),
+                            p.text.clone(),
+                        )
+                    })
+                    .collect()
+            };
+            return choice_action(choice, |i| self.prepare(i), all, "expose");
+        }
         let (index, response) = clicked?;
         Action::from_click(&response, || {
             self.prepare(index)
                 .unwrap_or(Prepared { cue: Cue::new(SlideSource::Expose, "", Vec::new(), 0), origin: origin.clone() })
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::playlist_reference;
+
+    #[test]
+    fn playlist_references_like_the_2x() {
+        assert_eq!(playlist_reference("L'Âge d'Éphèse", "40-3"), "L'Âge d'Éphèse · Page 40 §3");
+        assert_eq!(playlist_reference("", " 40-3 "), "Page 40 §3");
+        assert_eq!(playlist_reference("Le Signe", "BK 40-3"), "Le Signe");
+        assert_eq!(playlist_reference("", "E-12"), "E-12");
     }
 }

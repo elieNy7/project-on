@@ -28,6 +28,7 @@ eframe = { version = "0.37.0", default-features = false, features = ["wgpu", "de
 resvg = { version = "0.48.1", default-features = false }
 tiny-skia.workspace = true
 serde_json.workspace = true
+regex = "1"
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_UI_WindowsAndMessaging", "Win32_System_SystemInformation"] }

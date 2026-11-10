@@ -6,7 +6,9 @@ use po_db::{Database, Hymn, HymnHit};
 use po_design::SlideSource;
 use po_program::{Cue, PreparedStanza, hymn_entries, prepare_stanzas, program_title};
 
-use super::{Action, ENTRY_ROW, ITEM_ROW, Marks, Origin, Prepared, entry_row, item_row, scroll_offset};
+use super::{
+    Action, ENTRY_ROW, ITEM_ROW, Marks, Origin, Prepared, choice_action, entry_menu, entry_row, item_row, scroll_offset,
+};
 use crate::search::{Request, SearchThread};
 use crate::theme::*;
 use crate::widgets;
@@ -186,6 +188,7 @@ impl HymnsView {
         // Les marques portent sur les entrées du programme (refrain répété) : on les ramène aux strophes.
         let entries = hymn_entries(&self.stanzas, repeat_chorus);
         let mut clicked = None;
+        let mut menu = None;
         ScrollArea::vertical().id_salt(("strophes", hymn.id)).auto_shrink([false, false]).show_rows(
             ui,
             ENTRY_ROW,
@@ -199,12 +202,21 @@ impl HymnsView {
                         })
                     };
                     let r = entry_row(ui, &s.label, &s.text, marked(&marks.preview), marked(&marks.live));
+                    let entry = || po_program::Entry::new(s.reference.clone(), s.text.clone());
+                    if let Some(c) = entry_menu(&r, i, entry, "Ajouter tout le cantique", "") {
+                        menu = Some(c);
+                    }
                     if r.clicked() || r.double_clicked() {
                         clicked = Some((i, r));
                     }
                 }
             },
         );
+        if let Some(choice) = menu {
+            let all =
+                || self.stanzas.iter().map(|s| po_program::Entry::new(s.reference.clone(), s.text.clone())).collect();
+            return choice_action(choice, |i| self.prepare(i, repeat_chorus), all, "hymn");
+        }
         let (index, response) = clicked?;
         Action::from_click(&response, || {
             self.prepare(index, repeat_chorus)

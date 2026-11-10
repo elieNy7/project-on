@@ -7,7 +7,9 @@ use po_design::SlideSource;
 use po_program::{Cue, Entry, find_entry, program_title, sermon_entries};
 use po_text::fold;
 
-use super::{Action, ENTRY_ROW, ITEM_ROW, Marks, Origin, Prepared, entry_row, item_row, scroll_offset};
+use super::{
+    Action, ENTRY_ROW, ITEM_ROW, Marks, Origin, Prepared, choice_action, entry_menu, entry_row, item_row, scroll_offset,
+};
 use crate::search::{Request, SearchThread};
 use crate::theme::*;
 use crate::widgets;
@@ -314,6 +316,7 @@ impl SermonsView {
         let visible: Vec<usize> =
             (0..self.entries.len()).filter(|&i| matches_filter(&self.entries[i], &self.filter)).collect();
         let mut clicked = None;
+        let mut menu = None;
         let mut area = ScrollArea::vertical().id_salt(("paragraphes", sermon.id)).auto_shrink([false, false]);
         if let Some(entry) = self.scroll_entry.take()
             && let Some(row) = visible.iter().position(|&i| i == entry)
@@ -326,11 +329,18 @@ impl SermonsView {
                 let entry = &self.entries[i];
                 let (preview, live) = marks.of(&origin, i);
                 let r = entry_row(ui, marker_of(&entry.reference), &entry.text, preview, live);
+                // « Ajouter à la playlist » prend le paragraphe entier (ses alinéas, un par ligne).
+                if let Some(c) = entry_menu(&r, i, || entry.clone(), "", "Ajouter une plage de paragraphes…") {
+                    menu = Some(c);
+                }
                 if r.clicked() || r.double_clicked() {
                     clicked = Some((i, r));
                 }
             }
         });
+        if let Some(choice) = menu {
+            return choice_action(choice, |i| self.prepare(i), || self.entries.clone(), "sermon");
+        }
         let (index, response) = clicked?;
         Action::from_click(&response, || self.prepare(index).unwrap_or_else(|| unreachable_prepared(&origin)))
     }

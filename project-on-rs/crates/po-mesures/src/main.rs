@@ -407,6 +407,47 @@ fn measure_ui(db_path: &Path, out_dir: &Path) -> Result<Value> {
     }))
 }
 
+/// La page Playlist, capturée sur une base qui a des playlists (celle des références de la
+/// phase 4) : la playlist « Culte complet », une section du déroulé, un slide au direct.
+fn capture_playlist(db_path: &Path, out_dir: &Path) -> Result<()> {
+    std::fs::create_dir_all(out_dir)?;
+    let mut harness = ui_harness(ui_config(db_path, out_dir));
+    harness.run_ok();
+    let app = harness.state_mut().app();
+    app.page = project_on::library::Page::Playlist;
+    harness.step();
+    let app = harness.state_mut().app();
+    let folder = app
+        .database()
+        .and_then(|db| db.list_folders().ok())
+        .and_then(|f| f.into_iter().find(|f| f.name == "Culte complet"))
+        .map(|f| f.id);
+    let Some(folder) = folder else { return Err("playlist « Culte complet » introuvable".into()) };
+    app.apply_playlist(vec![project_on::library::playlist::PlaylistAction::SelectFolder(folder)]);
+    let ids: Vec<i64> = app.playlist.items.iter().map(|i| i.id).collect();
+    if app.playlist.sections.is_empty() && ids.len() > 13 {
+        use project_on::library::playlist::PlaylistAction as A;
+        app.apply_playlist(vec![
+            A::StartSectionAt { section: None, item: ids[0], name: "Louange".into(), duration: 25 },
+            A::StartSectionAt { section: None, item: ids[9], name: "Cantiques".into(), duration: 15 },
+            A::StartSectionAt { section: None, item: ids[13], name: "Prédication".into(), duration: 45 },
+            A::SetStartTime("9:30".into()),
+        ]);
+    }
+    app.playlist.show_plan = true;
+    let start = ids.get(14).copied().unwrap_or(ids[0]);
+    app.play_playlist(start, true);
+    until(&mut harness, |a| !a.rendering() && a.live_frame().is_some());
+    harness.state_mut().app().playlist.selected = vec![start];
+    for _ in 0..5 {
+        harness.step();
+    }
+    let image = harness.render()?;
+    image.save(out_dir.join("playlist.png"))?;
+    println!("Capture : {}", out_dir.join("playlist.png").display());
+    Ok(())
+}
+
 /// Le démarrage, mesuré de l'intérieur jusqu'à la première image de l'interface.
 fn demarrage(db_path: &Path) -> Result<()> {
     let start = Instant::now();
@@ -482,6 +523,7 @@ fn main() -> Result<()> {
         ["servir", db, port] => servir(Path::new(db), port.parse()?),
         ["recherche", db, out] => recherche(Path::new(db), Path::new(out)),
         ["captures", refs, out] => captures::run(Path::new(refs), Path::new(out)),
+        ["playlist", db, out] => capture_playlist(Path::new(db), Path::new(out)),
         ["trigramme", db, out] => {
             let report = trigramme::evaluate(Path::new(db), Path::new(out))?;
             std::fs::write(Path::new(out).join("trigramme.json"), serde_json::to_string_pretty(&report)?)?;
@@ -489,7 +531,7 @@ fn main() -> Result<()> {
         }
         _ => {
             eprintln!(
-                "usage : po-mesures tout <base.db> <dossier> | demarrage <base.db> | servir <base.db> <port> | recherche <base.db> <sortie.json> | trigramme <base.db> <dossier> | captures <références 2.8> <dossier>"
+                "usage : po-mesures tout <base.db> <dossier> | demarrage <base.db> | servir <base.db> <port> | recherche <base.db> <sortie.json> | trigramme <base.db> <dossier> | captures <références 2.8> <dossier> | playlist <base.db> <dossier>"
             );
             std::process::exit(2);
         }

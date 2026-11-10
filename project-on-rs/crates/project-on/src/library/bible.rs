@@ -7,7 +7,9 @@ use po_design::SlideSource;
 use po_program::{Cue, Entry, bible_entries, bible_title};
 use po_text::parse_reference;
 
-use super::{Action, ENTRY_ROW, ITEM_ROW, Marks, Origin, Prepared, entry_row, item_row, scroll_offset};
+use super::{
+    Action, ENTRY_ROW, ITEM_ROW, Marks, Origin, Prepared, choice_action, entry_menu, entry_row, item_row, scroll_offset,
+};
 use crate::search::{Hit, Request, SearchThread, Target};
 use crate::theme::*;
 use crate::widgets;
@@ -292,6 +294,7 @@ impl BibleView {
         ui.add_space(4.0);
         let origin = Origin::Chapter { translation: t, book, chapter };
         let mut clicked = None;
+        let mut menu = None;
         let mut area = ScrollArea::vertical().id_salt(("versets", t, book, chapter)).auto_shrink([false, false]);
         if let Some(row) = self.scroll_verse.take() {
             area = area.vertical_scroll_offset(scroll_offset(ui, row, ENTRY_ROW));
@@ -302,11 +305,19 @@ impl BibleView {
                 let verse = e.reference.rsplit(':').next().unwrap_or("");
                 let (preview, live) = marks.of(&origin, i);
                 let r = entry_row(ui, verse, &e.text, preview, live);
+                if let Some(c) =
+                    entry_menu(&r, i, || e.clone(), "Ajouter tout le chapitre", "Ajouter une plage de versets…")
+                {
+                    menu = Some(c);
+                }
                 if r.clicked() || r.double_clicked() {
                     clicked = Some((i, r));
                 }
             }
         });
+        if let Some(choice) = menu {
+            return choice_action(choice, |i| self.prepare(i), || self.entries.clone(), "bible");
+        }
         if let Some((index, response)) = clicked
             && let Some(a) = Action::from_click(&response, || {
                 self.prepare(index).unwrap_or(Prepared {

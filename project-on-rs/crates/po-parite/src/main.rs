@@ -5,6 +5,7 @@
 //! po-parite <dossier des références>       les fondations (phase 1)
 //! po-parite projection <dossier>           la mise en page de la projection (phase 2)
 //! po-parite programme <dossier> <copie.db>  le programme : entrées, slides (phase 3)
+//! po-parite playlist <dossier>             les playlists : programme, genre des éléments (phase 4)
 //! po-parite comparer <a.db> <b.db>         deux bases
 //! ```
 //!
@@ -12,6 +13,7 @@
 //! `rapport.json`, à côté des références.
 
 mod compare;
+mod playlist;
 mod programme;
 mod projection;
 mod requests;
@@ -182,6 +184,13 @@ fn main() -> Result<()> {
         && command == "projection"
     {
         let identical = projection::compare(Path::new(dir))?;
+        std::process::exit(i32::from(!identical));
+    }
+    // `po-parite playlist <dossier>` : les playlists (phase 4).
+    if let [command, dir] = args.as_slice()
+        && command == "playlist"
+    {
+        let identical = playlist::compare(Path::new(dir))?;
         std::process::exit(i32::from(!identical));
     }
     // `po-parite programme <dossier> <copie.db>` : le programme (phase 3).

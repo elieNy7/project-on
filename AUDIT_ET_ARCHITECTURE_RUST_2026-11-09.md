@@ -10,8 +10,10 @@
   ([rapport](project-on-rs/docs/phase2/RAPPORT_PHASE2.md)). **Phase 3 terminée le 11 novembre** :
   première bêta (régie, bibliothèques, Aperçu / Direct, projection sur la carte graphique, recherche
   globale, raccourcis), qui s'installe à côté de la 2.8 et travaille sur une copie des données ; programme identique à
-  la 2.8 sur 936 programmes ([rapport](project-on-rs/docs/phase3/RAPPORT_PHASE3.md)). La phase 4
-  attend votre feu vert. Le code de la 2.8 n'a pas été modifié ; seul son module natif est rebranché
+  la 2.8 sur 936 programmes ([rapport](project-on-rs/docs/phase3/RAPPORT_PHASE3.md)). **Phase 4
+  terminée le 11 novembre** : playlist et déroulé du culte de la 2.8 dans la bêta 2, identiques à la
+  2.8 sur 30 playlists ([rapport](project-on-rs/docs/phase4/RAPPORT_PHASE4.md), essai guidé à faire).
+  La phase 5 attend votre feu vert. Le code de la 2.8 n'a pas été modifié ; seul son module natif est rebranché
   sur `po-text`.
 - Cette demande remplace le choix du 29 octobre 2026 (« Rust hybride, pas de réécriture complète ») :
   la logique et l'interface passent toutes les deux en Rust.

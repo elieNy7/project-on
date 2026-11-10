@@ -3,9 +3,10 @@
 La refonte de Project-On en Rust, décidée le 9 novembre 2026 : architecture, décisions et plan dans
 [`../AUDIT_ET_ARCHITECTURE_RUST_2026-11-09.md`](../AUDIT_ET_ARCHITECTURE_RUST_2026-11-09.md).
 
-**État : phase 3 terminée — première bêta (régie et bibliothèque).** Rapports :
+**État : phase 4 terminée — bêta 2 (playlist et déroulé du culte).** Rapports :
 [phase 0](docs/phase0/RAPPORT_PHASE0.md), [phase 1](docs/phase1/RAPPORT_PHASE1.md),
-[phase 2](docs/phase2/RAPPORT_PHASE2.md), [phase 3](docs/phase3/RAPPORT_PHASE3.md). La version livrée reste la
+[phase 2](docs/phase2/RAPPORT_PHASE2.md), [phase 3](docs/phase3/RAPPORT_PHASE3.md),
+[phase 4](docs/phase4/RAPPORT_PHASE4.md) ([essai guidé](docs/phase4/ESSAI_GUIDE.md)). La version livrée reste la
 2.8 (Python) jusqu'à la bascule 3.0. Ce code ne touche jamais aux vraies données : les essais et les
 mesures travaillent sur des copies.
 
@@ -22,7 +23,7 @@ mesures travaillent sur des copies.
 | `po-render` | le dessin d'une liste d'affichage en image (moniteurs, NDI, HDMI, captures) : dégradés, images, ombres et halos, groupes animés ; les trois couches d'un slide pour la carte graphique |
 | `po-program` | le programme : ce qu'un clic prépare (tout le sermon, le chapitre, le cantique), découpé en slides « réf (i/n) » comme la 2.8 |
 | `po-web` | la projection Web : serveur local en lecture seule (axum), WebSocket, client navigateur (`web/`) |
-| `project-on` | l'application egui : rail, bibliothèques (Bible, Cantiques, Prédications, Exposé, Livres), Aperçu / Direct, projection native sur la carte graphique, recherche globale, raccourcis ; données de la bêta (copie de la 2.x) |
+| `project-on` | l'application egui : rail, bibliothèques (Bible, Cantiques, Prédications, Exposé, Livres), playlist et déroulé du culte, Aperçu / Direct, projection native sur la carte graphique, recherche globale, raccourcis ; données de la bêta (copie de la 2.x) |
 | `po-mesures` | les mesures et les planches de captures des phases 0 à 2 (jamais livré) |
 | `po-parite` | les tests dorés : la 3.0 rejoue les références de la 2.8 et compare (jamais livré) |
 
@@ -70,6 +71,15 @@ entiers, puis `po-parite` refait tout en Rust :
 py -3.14 project-on-rs\outils\references_programme_28.py <copie\project_on.db> project-on-rs\target\phase3\ref28
 cd project-on-rs
 cargo run --release -p po-parite -- programme target\phase3\ref28 <copie\project_on.db>
+```
+
+Les playlists (phase 4) : la 2.8 crée des playlists sur une copie de la base et prépare leurs
+programmes, puis `po-parite` refait tout :
+
+```powershell
+py -3.14 project-on-rs\outils\references_playlist_28.py <copie\project_on.db> project-on-rs\target\phase4\ref28
+cd project-on-rs
+cargo run --release -p po-parite -- playlist target\phase4\ref28
 ```
 
 Les références contiennent des textes de la base : elles restent dans `target\` (non versionné).

@@ -20,9 +20,12 @@ use po_settings::{Settings, SplitSettings};
 use crate::data::{CopyReport, Locations};
 use crate::icons::{self, Icon};
 use crate::library::books::{BOOK_KEYS, BooksView, EXPOSE_KEYS};
+use crate::library::playlist::{PlaylistAction, PlaylistMarks, PlaylistView};
 use crate::library::{Action, Marks, Origin, Page, Prepared, bible::BibleView, hymns::HymnsView, sermons::SermonsView};
+use crate::playlist::Playlists;
 use crate::projector::Projector;
 use crate::search::{self, Hit, Kind, Request, Response, SearchThread};
+use crate::service::{self, Tracker};
 use crate::shortcuts::{self, Action as Key2, Shortcuts};
 use crate::stage::{Frame, Stage};
 use crate::theme::*;
@@ -34,6 +37,25 @@ use crate::worker::{Job, Target, Worker};
 pub struct Shown {
     pub program: Program,
     pub origin: Origin,
+    /// Pour une playlist : l'élément d'origine de chaque entrée du programme.
+    pub items: Vec<i64>,
+}
+
+impl Shown {
+    /// L'élément de playlist du slide montré.
+    pub fn item(&self) -> Option<i64> {
+        self.items.get(self.program.current_entry()).copied()
+    }
+}
+
+/// « Ajouter à la playlist » : les entrées proposées et la playlist choisie.
+struct AddDialog {
+    entries: Vec<po_program::Entry>,
+    source: &'static str,
+    /// Pour « une plage… » : le premier et le dernier rang ajoutés.
+    range: Option<(usize, usize)>,
+    folder: Option<i64>,
+    new_name: String,
 }
 
 /// Le démarrage : la copie des données de la 2.x au premier lancement.
@@ -83,6 +105,12 @@ pub struct App {
     pub hymns: HymnsView,
     pub expose: BooksView,
     pub books: BooksView,
+    pub playlist: PlaylistView,
+    pub playlists: Playlists,
+    /// Le déroulé du culte et la playlist qu'il suit.
+    pub tracker: Tracker,
+    tracker_folder: Option<i64>,
+    add: Option<AddDialog>,
     pub preview: Option<Shown>,
     pub live: Option<Shown>,
     preview_stage: Stage,
@@ -134,6 +162,11 @@ impl App {
             hymns: HymnsView::default(),
             expose: BooksView::new(&EXPOSE_KEYS),
             books: BooksView::new(&BOOK_KEYS),
+            playlist: PlaylistView::default(),
+            playlists: Playlists::default(),
+            tracker: Tracker::default(),
+            tracker_folder: None,
+            add: None,
             preview: None,
             live: None,
             preview_stage: Stage::default(),
@@ -184,8 +217,18 @@ impl App {
         self.shortcuts = Shortcuts::from_settings(loaded.other.get("shortcuts"));
     }
 
+    /// Ouvre la base de la bêta (sa copie : la 2.x n'est jamais ouverte en écriture). Une copie
+    /// d'une 2.x plus ancienne reçoit les migrations (additives) ; sinon, rien n'est réécrit.
     fn open_database(&mut self, path: PathBuf) {
-        match Database::open(&path, Mode::ReadOnly) {
+        let opened = Database::open(&path, Mode::ReadWrite).and_then(|db| {
+            if db.schema_version()? < po_db::SCHEMA_VERSION {
+                drop(db);
+                Database::open_and_initialize(&path, &po_db::InitOptions::default()).map(|(db, _)| db)
+            } else {
+                Ok(db)
+            }
+        });
+        match opened {
             Ok(db) => {
                 self.bible.ensure_loaded(&db);
                 self.db = Some(db);
@@ -226,15 +269,26 @@ impl App {
         if target == Target::Live {
             self.taken = Some(slide.clone());
             self.follow_live = true;
+            // Un slide de playlist passe au direct : la section qui commence par lui démarre.
+            if let Some(item) = shown.item()
+                && self.tracker.enter_item(item, service::now_seconds())
+                && let Some(s) = self.tracker.current.and_then(|i| self.tracker.sections.get(i))
+            {
+                po_core::journal::line(&format!("déroulé : section « {} »", s.name));
+            }
         }
         self.worker.submit(Job { target, id, slide, design: self.design.clone(), width, height, blur });
     }
 
     /// Prépare un programme dans l'Aperçu.
     pub fn cue(&mut self, prepared: Prepared) {
+        self.cue_items(prepared, Vec::new());
+    }
+
+    fn cue_items(&mut self, prepared: Prepared, items: Vec<i64>) {
         match Program::from_cue(&prepared.cue, &self.split) {
             Some(program) => {
-                self.preview = Some(Shown { program, origin: prepared.origin });
+                self.preview = Some(Shown { program, origin: prepared.origin, items });
                 self.render(Target::Preview);
             }
             None => self.status = "Rien à projeter : texte vide.".into(),
@@ -414,7 +468,332 @@ impl App {
                 self.cue(p);
                 self.take();
             }
+            Action::Add { entries, source, range } => {
+                let folder = self.playlist.folder;
+                self.add = Some(AddDialog { entries, source, range, folder, new_name: String::new() });
+            }
         }
+    }
+
+    /// Les titres des biographies (pas d'identification de Branham sur elles, même en playlist).
+    fn biographies(db: &Database) -> Vec<String> {
+        db.list_books()
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|b| crate::library::books::BOOK_KEYS[..2].contains(&b.key.as_str()))
+            .map(|b| b.title)
+            .collect()
+    }
+
+    /// Projette (ou prépare) la playlist choisie à partir de l'élément `item`.
+    pub fn play_playlist(&mut self, item: i64, take: bool) {
+        let (Some(db), Some(folder)) = (self.db.as_ref(), self.playlist.folder) else { return };
+        let items = db.list_items(Some(folder)).unwrap_or_default();
+        let name = self.playlist.folder_name();
+        let Some(program) = crate::playlist::program(&name, &items, Some(item), &Self::biographies(db)) else {
+            self.status = "Rien à projeter dans cette playlist (slides vides ou médias).".into();
+            return;
+        };
+        let prepared = Prepared { cue: program.cue, origin: Origin::Playlist(folder) };
+        self.cue_items(prepared, program.item_of_entry);
+        if take {
+            self.take();
+        }
+    }
+
+    /// Ouvre un chapitre de la Bible sur un verset et le prépare (essais, mesures).
+    pub fn open_bible(&mut self, translation: i64, book: i64, chapter: i64, verse: Option<i64>) {
+        let Some(db) = self.db.as_ref() else { return };
+        self.page = Page::Bible;
+        if let Some(p) = self.bible.open(db, translation, book, chapter, verse) {
+            self.cue(p);
+        }
+    }
+
+    /// Ajoute des entrées à la playlist choisie (essais, mesures).
+    pub fn playlists_add(&mut self, entries: &[po_program::Entry], source: &'static str) {
+        let (Some(folder), Some(db)) = (self.playlist.folder, self.db.as_mut()) else { return };
+        self.playlists.add_entries(db, Some(folder), "", entries, source);
+        self.playlist.reload(db, None);
+        self.sync_tracker();
+    }
+
+    /// Le déroulé suit la playlist choisie (sauf pendant un culte suivi sur une autre playlist).
+    fn sync_tracker(&mut self) {
+        let sections: Vec<service::PlanSection> = self
+            .playlist
+            .sections
+            .iter()
+            .map(|s| service::PlanSection {
+                id: s.id,
+                name: s.name.clone(),
+                duration_min: s.duration_min,
+                item_id: s.item_id,
+            })
+            .collect();
+        if self.tracker_folder == self.playlist.folder {
+            self.tracker.sections = sections;
+        } else if !self.tracker.running() {
+            self.tracker = Tracker::new(sections);
+            self.tracker_folder = self.playlist.folder;
+        }
+    }
+
+    /// Applique les demandes de la page Playlist, puis la recharge.
+    pub fn apply_playlist(&mut self, actions: Vec<PlaylistAction>) {
+        for action in actions {
+            let folder = self.playlist.folder;
+            let mut select = None;
+            let mut play = None;
+            let mut start = false;
+            {
+                let Some(db) = self.db.as_mut() else { return };
+                let p = &mut self.playlists;
+                match action {
+                    PlaylistAction::SelectFolder(id) => {
+                        self.playlist.folder = Some(id);
+                        self.playlist.selected.clear();
+                    }
+                    PlaylistAction::CreateFolder(name) => {
+                        if let Some(id) = p.create_folder(db, &name) {
+                            self.playlist.folder = Some(id);
+                        }
+                    }
+                    PlaylistAction::RenameFolder(id, name) => {
+                        p.rename_folder(db, id, &name);
+                    }
+                    PlaylistAction::DeleteFolder(id) => {
+                        p.delete_folder(db, id);
+                        if folder == Some(id) {
+                            self.playlist.folder = None;
+                        }
+                    }
+                    PlaylistAction::CreateItem(reference, text) => {
+                        if let Some(f) = folder {
+                            select = p.create_item(db, f, &reference, &text).map(|id| vec![id]);
+                        }
+                    }
+                    PlaylistAction::UpdateItem(id, reference, text) => {
+                        if let Some(f) = folder {
+                            p.update_item(db, f, id, &reference, &text);
+                            select = Some(vec![id]);
+                        }
+                    }
+                    PlaylistAction::Delete(ids) => {
+                        if let Some(f) = folder {
+                            let n = p.delete_items(db, f, &ids);
+                            self.playlist.say(format!("{n} slide{} supprimé{} · Ctrl+Z annule", plural(n), plural(n)));
+                        }
+                    }
+                    PlaylistAction::Duplicate(ids) => {
+                        if let Some(f) = folder {
+                            select = Some(p.duplicate(db, f, &ids));
+                        }
+                    }
+                    PlaylistAction::Reorder(order) => {
+                        if let Some(f) = folder {
+                            let keep = self.playlist.selection();
+                            p.reorder(db, f, &order);
+                            select = Some(keep);
+                        }
+                    }
+                    PlaylistAction::CopyTo(ids, destination) => {
+                        let n = p.copy_to(db, &ids, destination).len();
+                        self.playlist.say(format!("{n} slide{} copié{}", plural(n), plural(n)));
+                    }
+                    PlaylistAction::MoveTo(ids, destination) => {
+                        if let Some(f) = folder {
+                            let n = p.move_to(db, &ids, f, destination);
+                            self.playlist.say(format!("{n} slide{} déplacé{}", plural(n), plural(n)));
+                        }
+                    }
+                    PlaylistAction::Undo => {
+                        let message = if p.undo(db) { "Modification annulée" } else { "Rien à annuler" };
+                        self.playlist.say(message);
+                    }
+                    PlaylistAction::Cue(item) => play = Some((item, false)),
+                    PlaylistAction::Take(item) => play = Some((item, true)),
+                    PlaylistAction::StartSectionAt { section, item, name, duration } => {
+                        if let Some(f) = folder {
+                            match section {
+                                None => {
+                                    let _ = db.add_section(f, &name, duration, Some(item));
+                                }
+                                Some(id) => {
+                                    let _ = db.update_section(id, &name, duration, Some(item));
+                                }
+                            }
+                        }
+                    }
+                    PlaylistAction::DetachSection(id) => {
+                        if let Some(s) = self.playlist.sections.iter().find(|s| s.id == id) {
+                            let _ = db.update_section(id, &s.name, s.duration_min, None);
+                        }
+                    }
+                    PlaylistAction::AddSection { name, duration, item } => {
+                        if let Some(f) = folder {
+                            let _ = db.add_section(f, &name, duration, item);
+                        }
+                    }
+                    PlaylistAction::UpdateSection { id, name, duration, item } => {
+                        let _ = db.update_section(id, &name, duration, item);
+                    }
+                    PlaylistAction::DeleteSection(id) => {
+                        let _ = db.delete_section(id);
+                    }
+                    PlaylistAction::MoveSection(id, delta) => {
+                        let _ = db.move_section(id, delta);
+                    }
+                    PlaylistAction::SetStartTime(text) => {
+                        if let Some(f) = folder {
+                            let _ = db.set_start_time(f, &text);
+                        }
+                    }
+                    PlaylistAction::StartService => start = true,
+                    PlaylistAction::StopService => self.tracker.stop(),
+                    PlaylistAction::NextSection => {
+                        self.tracker.next(service::now_seconds());
+                    }
+                }
+                self.playlist.reload(db, select);
+            }
+            self.sync_tracker();
+            if start {
+                self.sync_tracker_now();
+                self.tracker.start(service::now_seconds());
+            }
+            if let Some((item, take)) = play {
+                self.play_playlist(item, take);
+            }
+        }
+    }
+
+    /// Le déroulé prend la playlist choisie (au démarrage du suivi).
+    fn sync_tracker_now(&mut self) {
+        self.tracker_folder = None;
+        self.tracker.stop();
+        self.sync_tracker();
+    }
+
+    /// La fenêtre « Ajouter à la playlist ».
+    fn add_window(&mut self, ui: &mut Ui) {
+        let Some(mut dialog) = self.add.take() else { return };
+        let mut keep = true;
+        let mut confirmed = false;
+        let folders = self.playlist_folders();
+        egui::Window::new("Ajouter à la playlist")
+            .collapsible(false)
+            .resizable(false)
+            .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
+            .show(ui.ctx(), |ui| {
+                ui.set_min_width(420.0);
+                let label =
+                    |e: &po_program::Entry| e.reference.rsplit(" - ").next().unwrap_or(&e.reference).to_string();
+                if let Some((from, to)) = dialog.range.as_mut() {
+                    let last = dialog.entries.len().saturating_sub(1);
+                    ui.horizontal(|ui| {
+                        ui.label("De");
+                        egui::ComboBox::from_id_salt("plage-debut")
+                            .selected_text(label(&dialog.entries[*from]))
+                            .show_ui(ui, |ui| {
+                                for (i, e) in dialog.entries.iter().enumerate() {
+                                    ui.selectable_value(from, i, label(e));
+                                }
+                            });
+                        ui.label("à");
+                        egui::ComboBox::from_id_salt("plage-fin").selected_text(label(&dialog.entries[*to])).show_ui(
+                            ui,
+                            |ui| {
+                                for (i, e) in dialog.entries.iter().enumerate() {
+                                    ui.selectable_value(to, i, label(e));
+                                }
+                            },
+                        );
+                    });
+                    *to = (*to).clamp(*from, last);
+                }
+                let count = match dialog.range {
+                    Some((a, b)) => b - a + 1,
+                    None => dialog.entries.len(),
+                };
+                ui.label(
+                    RichText::new(format!("{count} slide{} à ajouter", plural(count))).font(medium(12.5)).color(TEXT),
+                );
+                ui.add_space(6.0);
+                for (id, name) in &folders {
+                    ui.radio_value(&mut dialog.folder, Some(*id), name);
+                }
+                ui.horizontal(|ui| {
+                    ui.radio_value(&mut dialog.folder, None, "Nouvelle playlist :");
+                    let r = ui.add(
+                        egui::TextEdit::singleline(&mut dialog.new_name)
+                            .hint_text("Culte du dimanche")
+                            .desired_width(200.0),
+                    );
+                    ui.ctx().accesskit_node_builder(r.id, |n| n.set_label("Nom de la nouvelle playlist"));
+                    if r.changed() {
+                        dialog.folder = None;
+                    }
+                });
+                ui.add_space(8.0);
+                ui.horizontal(|ui| {
+                    let ready = dialog.folder.is_some() || !dialog.new_name.trim().is_empty();
+                    if widgets::button_at(ui, Size::Normal, Some(Icon::Plus), "Ajouter", Tone::Primary(ACCENT), ready)
+                        .clicked()
+                    {
+                        confirmed = true;
+                    }
+                    if widgets::button(ui, None, "Annuler", Tone::Secondary).clicked()
+                        || ui.input(|i| i.key_pressed(Key::Escape))
+                    {
+                        keep = false;
+                    }
+                });
+            });
+        if confirmed {
+            keep = false;
+            let chosen: Vec<po_program::Entry> = match dialog.range {
+                Some((a, b)) => dialog.entries[a..=b.min(dialog.entries.len().saturating_sub(1))].to_vec(),
+                None => dialog.entries.clone(),
+            };
+            if let Some(db) = self.db.as_mut()
+                && let Some((folder, ids)) =
+                    self.playlists.add_entries(db, dialog.folder, &dialog.new_name, &chosen, dialog.source)
+            {
+                let name = db.folder(folder).ok().flatten().map(|f| f.name).unwrap_or_default();
+                self.status = format!(
+                    "{} slide{} ajouté{} à « {name} » · Ctrl+Z (page Playlist) annule",
+                    ids.len(),
+                    plural(ids.len()),
+                    plural(ids.len())
+                );
+                if self.playlist.folder.is_none() || self.playlist.folder == Some(folder) {
+                    self.playlist.folder = Some(folder);
+                }
+                self.playlist.reload(db, None);
+                self.sync_tracker();
+            }
+        }
+        if keep {
+            self.add = Some(dialog);
+        }
+    }
+
+    fn playlist_folders(&self) -> Vec<(i64, String)> {
+        self.db
+            .as_ref()
+            .map(|db| db.list_folders().unwrap_or_default().into_iter().map(|f| (f.id, f.name)).collect())
+            .unwrap_or_default()
+    }
+
+    /// L'Aperçu et le direct, en éléments de playlist.
+    fn playlist_marks(&self) -> PlaylistMarks {
+        let of = |s: &Option<Shown>| {
+            s.as_ref()
+                .filter(|s| matches!(s.origin, Origin::Playlist(f) if Some(f) == self.playlist.folder))
+                .and_then(Shown::item)
+        };
+        PlaylistMarks { preview: of(&self.preview), live: of(&self.live) }
     }
 
     fn marks(&self) -> Marks {
@@ -524,7 +903,7 @@ impl App {
         }
         let typing = self.ctx.egui_wants_keyboard_input();
         // Ctrl+1 … Ctrl+5 : les pages du rail.
-        let pages = [Key::Num1, Key::Num2, Key::Num3, Key::Num4, Key::Num5];
+        let pages = [Key::Num1, Key::Num2, Key::Num3, Key::Num4, Key::Num5, Key::Num6];
         for (key, page) in pages.into_iter().zip(Page::ALL) {
             if self.ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, key)) {
                 self.page = page;
@@ -557,6 +936,7 @@ impl App {
             Page::Sermons => self.sermons.focus_search = true,
             Page::Expose => self.expose.focus_search = true,
             Page::Books => self.books.focus_search = true,
+            Page::Playlist => {}
         }
     }
 
@@ -595,6 +975,7 @@ impl App {
             .show(ui, |ui| self.monitors(ui, now));
         egui::CentralPanel::no_frame().frame(panel_frame().fill(BG)).show(ui, |ui| self.library(ui));
         self.global_results(ui);
+        self.add_window(ui);
         if self.help {
             self.help_window(ui);
         }
@@ -612,6 +993,18 @@ impl App {
     }
 
     fn library(&mut self, ui: &mut Ui) {
+        if self.page == Page::Playlist {
+            let Some(db) = self.db.as_ref() else { return };
+            let marks = self.playlist_marks();
+            let undo = self.playlists.undo.available();
+            let actions = self.playlist.ui(ui, db, marks, &self.tracker, undo);
+            if !actions.is_empty() {
+                self.apply_playlist(actions);
+            } else if self.tracker_folder != self.playlist.folder {
+                self.sync_tracker();
+            }
+            return;
+        }
         let Some(db) = self.db.as_ref() else { return };
         let marks = self.marks();
         let search = self.search.as_ref();
@@ -621,6 +1014,7 @@ impl App {
             Page::Hymns => self.hymns.ui(ui, db, &marks, search, self.split.hymn_repeat_chorus),
             Page::Expose => self.expose.ui(ui, db, &marks, search),
             Page::Books => self.books.ui(ui, db, &marks, search),
+            Page::Playlist => None,
         };
         if let Some(action) = action {
             self.apply(action);
@@ -839,7 +1233,6 @@ impl App {
         ui.add_space(10.0);
         ui.separator();
         for (label, icon, phase) in [
-            ("Playlist", Icon::ListVideo, "phase 4"),
             ("Médias", Icon::Image, "phase 7"),
             ("Designs", Icon::SwatchBook, "phase 6"),
             ("Réglages", Icon::Settings, "phase 7"),
@@ -1152,4 +1545,8 @@ impl Boot {
     pub fn get(&self) -> Option<&App> {
         self.app.as_ref()
     }
+}
+
+fn plural(n: usize) -> &'static str {
+    if n > 1 { "s" } else { "" }
 }

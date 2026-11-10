@@ -41,11 +41,14 @@ pub struct Cue {
     pub focus: usize,
     /// Découper les textes longs (toujours, sauf cas particuliers).
     pub split: bool,
+    /// Le genre de chaque entrée, quand il diffère d'une entrée à l'autre (une playlist) : il
+    /// décide de l'identification et du filet ; le découpage, lui, suit `source`. Vide : `source`.
+    pub kinds: Vec<SlideSource>,
 }
 
 impl Cue {
     pub fn new(source: SlideSource, title: impl Into<String>, entries: Vec<Entry>, focus: usize) -> Self {
-        Cue { source, title: title.into(), entries, focus, split: true }
+        Cue { source, title: title.into(), entries, focus, split: true, kinds: Vec::new() }
     }
 }
 
@@ -156,6 +159,8 @@ pub struct Program {
     pub slides: Vec<ProgramSlide>,
     /// Le premier slide de chaque entrée.
     pub starts: Vec<Option<usize>>,
+    /// Le genre de chaque entrée (vide : `source`).
+    pub kinds: Vec<SlideSource>,
     current: usize,
 }
 
@@ -168,7 +173,14 @@ impl Program {
             return None;
         }
         let current = starts.get(cue.focus).copied().flatten().or_else(|| starts.iter().flatten().next().copied())?;
-        Some(Program { source: cue.source.clone(), title: clean_text(&cue.title), slides, starts, current })
+        Some(Program {
+            source: cue.source.clone(),
+            title: clean_text(&cue.title),
+            slides,
+            starts,
+            kinds: cue.kinds.clone(),
+            current,
+        })
     }
 
     pub fn len(&self) -> usize {
@@ -190,7 +202,13 @@ impl Program {
     }
 
     pub fn slide_at(&self, row: usize) -> Option<Slide> {
-        self.slides.get(row).map(|s| presentation(&self.source, s))
+        self.slides.get(row).map(|s| {
+            let mut slide = presentation(&self.source, s);
+            if let Some(kind) = self.kinds.get(s.entry) {
+                slide.source = kind.clone();
+            }
+            slide
+        })
     }
 
     /// L'entrée du slide montré (le paragraphe, le verset…), pour la suivre dans la bibliothèque.
