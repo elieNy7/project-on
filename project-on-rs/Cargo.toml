@@ -14,6 +14,7 @@ members = [
     "crates/po-design",
     "crates/po-layout",
     "crates/po-render",
+    "crates/po-program",
     "crates/po-web",
     "crates/project-on",
     "crates/po-mesures",
@@ -21,7 +22,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.0.1"
+version = "3.0.0-beta.1"
 edition = "2024"
 license = "MIT"
 authors = ["PARATECH SARL"]
@@ -32,6 +33,7 @@ po-db = { path = "crates/po-db" }
 po-design = { path = "crates/po-design" }
 po-layout = { path = "crates/po-layout" }
 po-render = { path = "crates/po-render" }
+po-program = { path = "crates/po-program" }
 po-web = { path = "crates/po-web" }
 project-on = { path = "crates/project-on" }
 anyhow = "1.0"

@@ -48,6 +48,12 @@ fn key(text: &str) -> String {
     fold(text).to_lowercase().chars().filter(|c| c.is_ascii_digit() || c.is_ascii_lowercase()).collect()
 }
 
+/// La saisie a la forme d'une référence (« Ps 23 », « Jean 3:16 ») : la recherche plein texte dans
+/// les paragraphes n'y trouverait que du bruit (`looks_like_reference` de la 2.8).
+pub fn looks_like_reference(query: &str) -> bool {
+    REFERENCE.is_match(query)
+}
+
 /// Le livre tapé : le nom exact d'abord, puis le premier livre (dans l'ordre canonique) dont le nom
 /// commence par ce qui est tapé. Il faut au moins deux lettres.
 pub fn match_book<'a>(query: &str, books: &'a [Book]) -> Option<&'a Book> {

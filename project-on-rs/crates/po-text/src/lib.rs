@@ -17,7 +17,7 @@ mod split;
 mod titles;
 mod words;
 
-pub use bible::{BibleReference, Book, match_book, parse_reference};
+pub use bible::{BibleReference, Book, looks_like_reference, match_book, parse_reference};
 pub use clean::{clean_text, html_unescape};
 pub use fold::fold;
 pub use hymn::{is_chorus, stanza_labels, strip_hymn_projection_label};

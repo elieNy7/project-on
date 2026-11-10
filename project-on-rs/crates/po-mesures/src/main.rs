@@ -287,51 +287,104 @@ fn measure_web(paragraphs: &[String]) -> Result<Value> {
     })
 }
 
-/// L'interface rendue hors écran : démarrage, temps d'une image, capture.
+/// La configuration de l'interface pour les mesures : la copie de la base, et une copie des
+/// réglages de l'utilisateur (le fichier d'origine n'est jamais ouvert en écriture).
+fn ui_config(db_path: &Path, out_dir: &Path) -> project_on::Config {
+    let settings = std::env::var_os("APPDATA")
+        .map(|d| PathBuf::from(d).join("Project-On").join("data").join("settings.json"))
+        .filter(|p| p.is_file())
+        .and_then(|p| {
+            let copy = out_dir.join("reglages-copie.json");
+            std::fs::copy(&p, &copy).ok().map(|_| po_settings::Settings::load(&copy).settings)
+        })
+        .unwrap_or_default();
+    project_on::Config {
+        fonts_dir: fonts_dir(),
+        locations: None,
+        database: Some(db_path.to_path_buf()),
+        settings,
+        windowed_projection: true,
+    }
+}
+
+fn ui_harness(config: project_on::Config) -> egui_kittest::Harness<'static, project_on::Boot> {
+    egui_kittest::Harness::builder()
+        .with_size([1600.0, 940.0])
+        .with_accessibility_check(false)
+        .wgpu()
+        .build_ui_state(|ui, boot: &mut project_on::Boot| boot.ui(ui), project_on::Boot::new(config))
+}
+
+/// Fait tourner l'interface jusqu'à ce que `done` soit vrai (au plus 10 s) ; rend la durée en ms.
+fn until(
+    harness: &mut egui_kittest::Harness<'static, project_on::Boot>,
+    done: impl Fn(&project_on::App) -> bool,
+) -> f64 {
+    let start = Instant::now();
+    while start.elapsed() < Duration::from_secs(10) {
+        harness.step();
+        if harness.state().get().is_some_and(&done) {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(1));
+    }
+    let elapsed = ms(start.elapsed());
+    // Comme la vraie fenêtre, qui dessine chaque image : les textures partent à la carte graphique
+    // au fur et à mesure (hors du temps mesuré). Sans cela, kittest les accumule toutes.
+    let _ = harness.render();
+    elapsed
+}
+
+/// L'interface rendue hors écran : démarrage, Aperçu, direct, recherche globale, capture.
 fn measure_ui(db_path: &Path, out_dir: &Path) -> Result<Value> {
     let start = Instant::now();
-    let db = Database::open(db_path, Mode::ReadOnly)?;
-    let shell = project_on::Shell::new(Some(db), projection_fonts());
-    let built = ms(start.elapsed());
-    let dir = fonts_dir();
-    let mut harness = egui_kittest::Harness::builder()
-        .with_size([1500.0, 900.0])
-        .with_accessibility_check(false)
-        .with_context_setup(move |ctx| project_on::theme::install(ctx, &dir))
-        .wgpu()
-        .build_ui_state(|ui, shell: &mut project_on::Shell| shell.ui(ui), shell);
+    let mut harness = ui_harness(ui_config(db_path, out_dir));
     harness.run_ok();
-    let first = harness.render()?;
+    harness.render()?;
     let first_frame = ms(start.elapsed());
-    let _ = first;
 
-    // Un sermon, un paragraphe dans l'Aperçu, puis F2.
-    harness.state_mut().select_sermon(40);
-    harness.run_ok();
-    let ctx = harness.ctx.clone();
-    let preview = Instant::now();
-    harness.state_mut().preview_paragraph(&ctx, 3);
-    let preview_ms = ms(preview.elapsed());
-    // Les clics suivants (polices, lettres et fond déjà en cache).
-    let mut next_previews = Vec::new();
-    let count = harness.state().paragraph_count();
+    // Un sermon, un paragraphe dans l'Aperçu (le rendu se fait sur son fil), puis F2.
+    harness.state_mut().app().select_sermon(40);
+    harness.step();
+    harness.state_mut().app().cue_sermon_entry(3);
+    let first_preview = until(&mut harness, |a| !a.rendering() && a.preview_frame().is_some());
+    let count = harness.state_mut().app().sermons.entry_count();
+    let mut previews = Vec::new();
     for index in 4..count.min(24) {
-        let t = Instant::now();
-        harness.state_mut().preview_paragraph(&ctx, index);
-        next_previews.push(t.elapsed().as_secs_f64() * 1000.0);
+        harness.state_mut().app().cue_sermon_entry(index);
+        previews.push(until(&mut harness, |a| !a.rendering()));
     }
-    harness.state_mut().take(&ctx);
-    harness.run_ok();
-
+    harness.state_mut().app().take();
+    let take = until(&mut harness, |a| !a.rendering() && a.live_frame().is_some());
     let mut steps = Vec::new();
-    for _ in 0..60 {
+    for _ in 0..10 {
+        harness.state_mut().app().step(1);
+        steps.push(until(&mut harness, |a| !a.rendering()));
+    }
+    // L'image de l'interface pendant une transition (processeur seul : egui prépare l'image).
+    harness.state_mut().app().step(1);
+    let mut frames = Vec::new();
+    for _ in 0..30 {
         let t = Instant::now();
         harness.step();
-        steps.push(t.elapsed().as_secs_f64() * 1000.0);
+        frames.push(t.elapsed().as_secs_f64() * 1000.0);
+    }
+    // La recherche globale : une référence, puis des mots (premier appel, à froid pour l'index).
+    let mut search = serde_json::Map::new();
+    for query in ["Jean 3:16", "grâce", "ferme assurance"] {
+        harness.state_mut().app().search_everywhere(query);
+        harness.step();
+        let ms = until(&mut harness, |a| !a.global_results_now().1);
+        let hits = harness.state().get().map_or(0, |a| a.global_results_now().0.len());
+        search.insert(query.into(), json!({ "ms": ms, "resultats": hits }));
+    }
+    harness.state_mut().app().search_everywhere("");
+    for _ in 0..5 {
+        harness.step();
     }
     let mut renders = Vec::new();
     let mut image = None;
-    for _ in 0..10 {
+    for _ in 0..5 {
         harness.step();
         let t = Instant::now();
         image = Some(harness.render()?);
@@ -340,15 +393,29 @@ fn measure_ui(db_path: &Path, out_dir: &Path) -> Result<Value> {
     if let Some(image) = image {
         image.save(out_dir.join("interface.png"))?;
     }
+    let sermons = harness.state_mut().app().sermons.sermon_count();
     Ok(json!({
-        "sermons_affiches": harness.state().sermon_count(),
-        "ouverture_base_et_liste_ms": built,
+        "sermons_affiches": sermons,
         "premiere_image_ms": first_frame,
-        "apercu_d_un_paragraphe_ms": preview_ms,
-        "apercus_suivants": stats(next_previews),
-        "image_egui_cpu": stats(steps),
+        "clic_jusqu_a_l_apercu_ms": first_preview,
+        "clics_suivants_ms": stats(previews),
+        "envoi_au_direct_ms": take,
+        "slide_suivant_ms": stats(steps),
+        "image_egui_pendant_une_transition": stats(frames),
+        "recherche_globale": search,
         "rendu_gpu_et_lecture": stats(renders),
     }))
+}
+
+/// Le démarrage, mesuré de l'intérieur jusqu'à la première image de l'interface.
+fn demarrage(db_path: &Path) -> Result<()> {
+    let start = Instant::now();
+    let out = std::env::temp_dir();
+    let mut harness = ui_harness(ui_config(db_path, &out));
+    harness.run_ok();
+    harness.render()?;
+    println!("première image après {} ms", ms(start.elapsed()));
+    Ok(())
 }
 
 /// La recherche seule, du lancement du processus jusqu'au dernier résultat : sur une copie jamais
@@ -383,24 +450,6 @@ fn tout(db_path: &Path, out_dir: &Path) -> Result<()> {
     println!("{ui:#}");
     let report = json!({ "ouverture_base_ms": open_ms, "recherche": search, "mise_en_page": layout, "web": web, "interface": ui });
     std::fs::write(out_dir.join("mesures.json"), serde_json::to_string_pretty(&report)?)?;
-    Ok(())
-}
-
-/// Le démarrage, mesuré de l'intérieur jusqu'à la première image de l'interface.
-fn demarrage(db_path: &Path) -> Result<()> {
-    let start = Instant::now();
-    let db = Database::open(db_path, Mode::ReadOnly)?;
-    let shell = project_on::Shell::new(Some(db), projection_fonts());
-    let dir = fonts_dir();
-    let mut harness = egui_kittest::Harness::builder()
-        .with_size([1500.0, 900.0])
-        .with_accessibility_check(false)
-        .with_context_setup(move |ctx| project_on::theme::install(ctx, &dir))
-        .wgpu()
-        .build_ui_state(|ui, shell: &mut project_on::Shell| shell.ui(ui), shell);
-    harness.run_ok();
-    harness.render()?;
-    println!("première image après {} ms", ms(start.elapsed()));
     Ok(())
 }
 

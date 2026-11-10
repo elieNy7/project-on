@@ -226,27 +226,59 @@ impl Renderer {
         width: u32,
         height: u32,
     ) -> Result<Pixmap, RenderError> {
-        let transform = Transform::from_scale(width as f32 / list.width.max(1.0), height as f32 / list.height.max(1.0));
-        // Le fond se dessine une fois : les slides suivants le recopient tant qu'il ne change pas.
-        let key = serde_json::to_string(&(&list.backdrop, list.background, width, height, list.width, list.height))
-            .unwrap_or_default();
-        let mut pixmap = match self.backdrops.iter().position(|(cached, _)| *cached == key) {
-            Some(i) => self.backdrops[i].1.clone(),
-            None => {
-                let mut pixmap = Pixmap::new(width, height).ok_or(RenderError::BadSize { width, height })?;
-                pixmap.fill(color(list.background));
-                self.draw_items(&mut pixmap, fonts, &list.backdrop, transform);
-                if self.backdrops.len() >= 4 {
-                    self.backdrops.remove(0);
-                }
-                self.backdrops.push((key, pixmap.clone()));
-                pixmap
-            }
-        };
+        let transform = Self::transform(list, width, height);
+        let mut pixmap = self.backdrop(fonts, list, width, height)?;
         for layer in [&list.items, &list.overlay] {
             self.draw_items(&mut pixmap, fonts, layer, transform);
         }
         Ok(pixmap)
+    }
+
+    fn transform(list: &DisplayList, width: u32, height: u32) -> Transform {
+        Transform::from_scale(width as f32 / list.width.max(1.0), height as f32 / list.height.max(1.0))
+    }
+
+    /// Le fond seul, opaque. Il se dessine une fois : les slides suivants le recopient tant qu'il
+    /// ne change pas.
+    pub fn backdrop(
+        &mut self,
+        fonts: &mut Fonts,
+        list: &DisplayList,
+        width: u32,
+        height: u32,
+    ) -> Result<Pixmap, RenderError> {
+        let key = serde_json::to_string(&(&list.backdrop, list.background, width, height, list.width, list.height))
+            .unwrap_or_default();
+        if let Some(i) = self.backdrops.iter().position(|(cached, _)| *cached == key) {
+            return Ok(self.backdrops[i].1.clone());
+        }
+        let mut pixmap = Pixmap::new(width, height).ok_or(RenderError::BadSize { width, height })?;
+        pixmap.fill(color(list.background));
+        self.draw_items(&mut pixmap, fonts, &list.backdrop, Self::transform(list, width, height));
+        if self.backdrops.len() >= 4 {
+            self.backdrops.remove(0);
+        }
+        self.backdrops.push((key, pixmap.clone()));
+        Ok(pixmap)
+    }
+
+    /// Les trois couches d'un slide, pour les poser sur la carte graphique : le fond (opaque), le
+    /// contenu et la surcouche (transparents, en couleurs prémultipliées). Posées l'une sur l'autre,
+    /// elles donnent l'image de [`Renderer::render`].
+    pub fn render_layers(
+        &mut self,
+        fonts: &mut Fonts,
+        list: &DisplayList,
+        width: u32,
+        height: u32,
+    ) -> Result<Layers, RenderError> {
+        let transform = Self::transform(list, width, height);
+        let backdrop = self.backdrop(fonts, list, width, height)?;
+        let mut content = Pixmap::new(width, height).ok_or(RenderError::BadSize { width, height })?;
+        self.draw_items(&mut content, fonts, &list.items, transform);
+        let mut overlay = Pixmap::new(width, height).ok_or(RenderError::BadSize { width, height })?;
+        self.draw_items(&mut overlay, fonts, &list.overlay, transform);
+        Ok(Layers { backdrop, content, overlay })
     }
 
     /// La luminance moyenne (0 à 1) du fond de la liste (sans le texte) dans la zone (x, y, largeur,
@@ -453,6 +485,23 @@ impl Renderer {
         let p = PixmapPaint { opacity: group.opacity.clamp(0.0, 1.0), quality, ..PixmapPaint::default() };
         pixmap.draw_pixmap(0, 0, layer.as_ref(), &p, placement, mask.as_ref());
     }
+}
+
+/// Les couches d'un slide (voir [`Renderer::render_layers`]).
+#[derive(Clone)]
+pub struct Layers {
+    pub backdrop: Pixmap,
+    pub content: Pixmap,
+    pub overlay: Pixmap,
+}
+
+/// Une copie floutée d'une couche (la transition « flou » la pose en fondu avec la couche nette).
+pub fn blurred(layer: &Pixmap, radius: f32) -> Pixmap {
+    let mut out = layer.clone();
+    if let Some(all) = Rect::from_xywh(0.0, 0.0, layer.width() as f32, layer.height() as f32) {
+        blur::blur_region(&mut out, all, radius);
+    }
+    out
 }
 
 /// L'image en PNG.

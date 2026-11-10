@@ -61,51 +61,110 @@ pub fn blur_radius(animation: &Animation) -> f32 {
     (animation.duration_ms / 16).clamp(10, 40) as f32
 }
 
-/// L'image de la transition de `from` vers `to` au temps `t` (0 = début, 1 = fin).
-pub fn frame(from: &DisplayList, to: &DisplayList, animation: &Animation, t: f32) -> DisplayList {
-    let mut out = DisplayList { items: Vec::new(), overlay: Vec::new(), ..to.clone() };
+/// Le contenu dessiné par une place : celui de l'ancien slide ou celui du nouveau.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Layer {
+    From,
+    To,
+}
+
+/// Une couche de contenu posée par la transition : les réglages d'un groupe animé. Le moteur de
+/// rendu en fait des groupes ([`frame`]) ; la projection native pose directement ses textures.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Placement {
+    pub layer: Layer,
+    pub opacity: f32,
+    pub dx: f32,
+    pub dy: f32,
+    pub scale: f32,
+    /// Le centre de la mise à l'échelle.
+    pub origin: [f32; 2],
+    /// Le rayon du flou (0 = net).
+    pub blur: f32,
+    pub clip: Option<[f32; 4]>,
+}
+
+impl Placement {
+    fn plain(layer: Layer, opacity: f32) -> Self {
+        Placement { layer, opacity, dx: 0.0, dy: 0.0, scale: 1.0, origin: [0.0, 0.0], blur: 0.0, clip: None }
+    }
+}
+
+/// Les couches de contenu au temps `t` (0 = début, 1 = fin) d'une transition sur un écran
+/// `width` × `height` dont la scène est `stage`. Les places invisibles sont retirées.
+pub fn plan(stage: [f32; 4], width: f32, height: f32, animation: &Animation, t: f32) -> Vec<Placement> {
+    use Layer::{From, To};
     let e = ease(t);
     let (dx, dy) = vector(animation.direction);
-    let (w, h) = (to.width, to.height);
-    let stage = to.stage;
     let center = [stage[0] + stage[2] / 2.0, stage[1] + stage[3] / 2.0];
-    let groups: Vec<Group> = match animation.kind {
-        AnimationKind::None => vec![group(&to.items, 1.0)],
-        AnimationKind::Fade => vec![group(&from.items, 1.0 - e), group(&to.items, e)],
+    let places = match animation.kind {
+        AnimationKind::None => vec![Placement::plain(To, 1.0)],
+        AnimationKind::Fade => vec![Placement::plain(From, 1.0 - e), Placement::plain(To, e)],
         AnimationKind::Slide => vec![
-            Group { dx: dx * w * e, dy: dy * h * e, ..group(&from.items, 1.0) },
-            Group { dx: -dx * w * (1.0 - e), dy: -dy * h * (1.0 - e), ..group(&to.items, 1.0) },
+            Placement { dx: dx * width * e, dy: dy * height * e, ..Placement::plain(From, 1.0) },
+            Placement { dx: -dx * width * (1.0 - e), dy: -dy * height * (1.0 - e), ..Placement::plain(To, 1.0) },
         ],
         AnimationKind::Scale => vec![
-            Group { scale: 1.0 + 0.06 * e, origin: center, ..group(&from.items, 1.0 - e) },
-            Group { scale: 0.94 + 0.06 * e, origin: center, ..group(&to.items, e) },
+            Placement { scale: 1.0 + 0.06 * e, origin: center, ..Placement::plain(From, 1.0 - e) },
+            Placement { scale: 0.94 + 0.06 * e, origin: center, ..Placement::plain(To, e) },
         ],
         AnimationKind::Blur => {
             let radius = blur_radius(animation);
             if e < 0.5 {
                 let p = e / 0.5;
-                vec![group(&from.items, 1.0 - p), Group { blur: radius, ..group(&from.items, p) }]
+                vec![Placement::plain(From, 1.0 - p), Placement { blur: radius, ..Placement::plain(From, p) }]
             } else {
                 let p = (e - 0.5) / 0.5;
-                vec![Group { blur: radius, ..group(&to.items, 1.0 - p) }, group(&to.items, p)]
+                vec![Placement { blur: radius, ..Placement::plain(To, 1.0 - p) }, Placement::plain(To, p)]
             }
         }
         // Le balayage : l'ancien texte s'efface là où le nouveau apparaît (la 2.8 le laissait
         // dessous jusqu'à la fin de l'animation).
         AnimationKind::Reveal => vec![
-            Group { clip: Some(hidden_clip(stage, dx, dy, e)), ..group(&from.items, 1.0) },
-            Group { clip: Some(reveal_clip(stage, dx, dy, e)), ..group(&to.items, 1.0) },
+            Placement { clip: Some(hidden_clip(stage, dx, dy, e)), ..Placement::plain(From, 1.0) },
+            Placement { clip: Some(reveal_clip(stage, dx, dy, e)), ..Placement::plain(To, 1.0) },
         ],
     };
-    out.items = groups.into_iter().filter(|g| g.opacity > 0.004 && !g.items.is_empty()).map(Item::Group).collect();
-    // L'identification ne bouge pas ; elle ne passe en fondu que si elle change (de la Bible à une
-    // prédication, par exemple).
-    out.overlay = if from.overlay == to.overlay || animation.kind == AnimationKind::None {
+    places.into_iter().filter(|p| p.opacity > 0.004).collect()
+}
+
+/// L'identification ne bouge pas : elle ne passe en fondu que si elle change (de la Bible à une
+/// prédication, par exemple). Rend les couches et leur opacité.
+pub fn overlay_plan(same: bool, animation: &Animation, t: f32) -> Vec<(Layer, f32)> {
+    if same || animation.kind == AnimationKind::None {
+        return vec![(Layer::To, 1.0)];
+    }
+    let e = ease(t);
+    [(Layer::From, 1.0 - e), (Layer::To, e)].into_iter().filter(|(_, o)| *o > 0.004).collect()
+}
+
+/// L'image de la transition de `from` vers `to` au temps `t` (0 = début, 1 = fin).
+pub fn frame(from: &DisplayList, to: &DisplayList, animation: &Animation, t: f32) -> DisplayList {
+    let mut out = DisplayList { items: Vec::new(), overlay: Vec::new(), ..to.clone() };
+    let pick = |layer: Layer| if layer == Layer::From { from } else { to };
+    out.items = plan(to.stage, to.width, to.height, animation, t)
+        .into_iter()
+        .map(|p| Group {
+            opacity: p.opacity,
+            dx: p.dx,
+            dy: p.dy,
+            scale: p.scale,
+            origin: p.origin,
+            blur: p.blur,
+            clip: p.clip,
+            items: pick(p.layer).items.clone(),
+        })
+        .filter(|g| !g.items.is_empty())
+        .map(Item::Group)
+        .collect();
+    let plans = overlay_plan(from.overlay == to.overlay, animation, t);
+    out.overlay = if plans == [(Layer::To, 1.0)] {
         to.overlay.clone()
     } else {
-        [group(&from.overlay, 1.0 - e), group(&to.overlay, e)]
+        plans
             .into_iter()
-            .filter(|g| g.opacity > 0.004 && !g.items.is_empty())
+            .map(|(layer, opacity)| group(&pick(layer).overlay, opacity))
+            .filter(|g| !g.items.is_empty())
             .map(Item::Group)
             .collect()
     };

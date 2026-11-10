@@ -1,6 +1,16 @@
-//! L'application Project-On (egui).
+//! L'application Project-On (egui) : la régie de la bêta 3.0.
 
-pub mod shell;
+pub mod app;
+pub mod data;
+pub mod icons;
+pub mod library;
+pub mod projector;
+pub mod screens;
+pub mod search;
+pub mod shortcuts;
+pub mod stage;
 pub mod theme;
+pub mod widgets;
+pub mod worker;
 
-pub use shell::Shell;
+pub use app::{App, Boot, Config};

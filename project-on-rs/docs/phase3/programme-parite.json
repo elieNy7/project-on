@@ -1,0 +1,30 @@
+{
+  "programmes": 936,
+  "slides": 310032,
+  "comparaisons": 15518,
+  "differences": 0,
+  "par_genre": {
+    "bible": {
+      "programmes": 517,
+      "avec_difference": 0
+    },
+    "hymn": {
+      "programmes": 274,
+      "avec_difference": 0
+    },
+    "livre": {
+      "programmes": 22,
+      "avec_difference": 0
+    },
+    "sermon": {
+      "programmes": 123,
+      "avec_difference": 0
+    }
+  },
+  "reglages": [
+    "court_sans_compteur",
+    "defaut",
+    "sans_decoupage",
+    "utilisateur"
+  ]
+}

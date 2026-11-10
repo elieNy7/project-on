@@ -11,6 +11,7 @@ publish = false
 po-db.workspace = true
 po-design.workspace = true
 po-layout.workspace = true
+po-program.workspace = true
 po-settings = { path = "../po-settings" }
 po-text.workspace = true
 anyhow.workspace = true

@@ -1,0 +1,132 @@
+{
+  "ouverture_base_ms": 35.1,
+  "recherche": {
+    "liste_sermons": {
+      "ms_first": 15.2,
+      "ms_best": 8.7,
+      "count": 2815,
+      "first": "La Foi Est une Ferme Assurance"
+    },
+    "liste_titre_foi": {
+      "ms_first": 5.6,
+      "ms_best": 3.5,
+      "count": 111,
+      "first": "La Foi Est une Ferme Assurance"
+    },
+    "fts_grace": {
+      "ms_first": 99.3,
+      "ms_best": 29.2,
+      "count": 100,
+      "first": "61-0827 - Le Message De Grâce - §165"
+    },
+    "fts_ferme_assurance": {
+      "ms_first": 9.9,
+      "ms_best": 7.8,
+      "count": 100,
+      "first": "47-0412 - La Foi Est une Ferme Assurance - §50"
+    },
+    "fts_expression": {
+      "ms_first": 42.3,
+      "ms_best": 20.4,
+      "count": 100,
+      "first": "53-0509 - La Colonne De Feu - §53"
+    },
+    "sous_chaine_ernel_die": {
+      "ms_first": 15951.4,
+      "ms_best": 5666.9,
+      "count": 100,
+      "first": "47-1123 - Les Enfants dans le désert - E-76"
+    },
+    "sous_chaine_absente": {
+      "ms_first": 2184.6,
+      "ms_best": 2184.6,
+      "count": 0,
+      "first": ""
+    }
+  },
+  "mise_en_page": {
+    "paragraphes": 1347,
+    "chargement_polices_ms": 1.1,
+    "premiere_mise_en_page_ms": 11.7,
+    "mise_en_page_1080p": {
+      "n": 1347,
+      "mediane_ms": 1.44,
+      "p95_ms": 4.19,
+      "max_ms": 31.66
+    },
+    "rendu_1920x1080": {
+      "n": 135,
+      "mediane_ms": 19.02,
+      "p95_ms": 37.0,
+      "max_ms": 83.63
+    },
+    "rendu_moniteur_960x540": {
+      "n": 135,
+      "mediane_ms": 8.62,
+      "p95_ms": 17.58,
+      "max_ms": 28.38
+    },
+    "rendu_1920x1080_reglages_par_defaut": {
+      "n": 135,
+      "mediane_ms": 58.46,
+      "p95_ms": 93.73,
+      "max_ms": 112.34
+    }
+  },
+  "web": {
+    "ecrans": 3,
+    "images_envoyees": 100,
+    "images_recues": 300,
+    "latence": {
+      "n": 300,
+      "mediane_ms": 7.48,
+      "p95_ms": 16.63,
+      "max_ms": 42.92
+    },
+    "reconnexion_jusqu_a_l_image_ms": 3.3
+  },
+  "interface": {
+    "sermons_affiches": 2815,
+    "premiere_image_ms": 1601.9,
+    "clic_jusqu_a_l_apercu_ms": 422.0,
+    "clics_suivants_ms": {
+      "n": 4,
+      "mediane_ms": 90.2,
+      "p95_ms": 105.5,
+      "max_ms": 105.5
+    },
+    "envoi_au_direct_ms": 76.0,
+    "slide_suivant_ms": {
+      "n": 10,
+      "mediane_ms": 81.0,
+      "p95_ms": 118.8,
+      "max_ms": 118.8
+    },
+    "image_egui_pendant_une_transition": {
+      "n": 30,
+      "mediane_ms": 0.4,
+      "p95_ms": 1.1,
+      "max_ms": 1.22
+    },
+    "recherche_globale": {
+      "Jean 3:16": {
+        "ms": 6.5,
+        "resultats": 1
+      },
+      "grâce": {
+        "ms": 267.6,
+        "resultats": 20
+      },
+      "ferme assurance": {
+        "ms": 23.3,
+        "resultats": 11
+      }
+    },
+    "rendu_gpu_et_lecture": {
+      "n": 5,
+      "mediane_ms": 287.84,
+      "p95_ms": 308.63,
+      "max_ms": 308.63
+    }
+  }
+}

@@ -1,0 +1,18 @@
+[package]
+name = "po-program"
+description = "Project-On : le programme — ce que l'opérateur prépare (Aperçu) puis envoie au direct, découpé en slides"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+po-text.workspace = true
+po-design.workspace = true
+po-settings = { path = "../po-settings" }
+po-db.workspace = true
+po-layout.workspace = true
+regex = "1"
+
+[lints]
+workspace = true

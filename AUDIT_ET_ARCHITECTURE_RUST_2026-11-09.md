@@ -7,8 +7,12 @@
   1 131 437 cas comparés à la 2.8, 0 différence ([rapport](project-on-rs/docs/phase1/RAPPORT_PHASE1.md)).
   **Phase 2 terminée le 10 novembre** : mise en page identique à la 2.8 sur 2 208 slides,
   identification de Branham en 4 styles lisibles sur tous les fonds essayés
-  ([rapport](project-on-rs/docs/phase2/RAPPORT_PHASE2.md)). La phase 3 attend votre feu vert. Le
-  code de la 2.8 n'a pas été modifié ; seul son module natif est rebranché sur `po-text`.
+  ([rapport](project-on-rs/docs/phase2/RAPPORT_PHASE2.md)). **Phase 3 terminée le 11 novembre** :
+  première bêta (régie, bibliothèques, Aperçu / Direct, projection sur la carte graphique, recherche
+  globale, raccourcis), qui s'installe à côté de la 2.8 et travaille sur une copie des données ; programme identique à
+  la 2.8 sur 936 programmes ([rapport](project-on-rs/docs/phase3/RAPPORT_PHASE3.md)). La phase 4
+  attend votre feu vert. Le code de la 2.8 n'a pas été modifié ; seul son module natif est rebranché
+  sur `po-text`.
 - Cette demande remplace le choix du 29 octobre 2026 (« Rust hybride, pas de réécriture complète ») :
   la logique et l'interface passent toutes les deux en Rust.
 

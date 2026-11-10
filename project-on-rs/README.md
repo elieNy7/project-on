@@ -3,10 +3,9 @@
 La refonte de Project-On en Rust, décidée le 9 novembre 2026 : architecture, décisions et plan dans
 [`../AUDIT_ET_ARCHITECTURE_RUST_2026-11-09.md`](../AUDIT_ET_ARCHITECTURE_RUST_2026-11-09.md).
 
-**État : phase 2 terminée (moteur de projection et couche 1).** Phase 0 :
-[`docs/phase0/RAPPORT_PHASE0.md`](docs/phase0/RAPPORT_PHASE0.md) ; phase 1 :
-[`docs/phase1/RAPPORT_PHASE1.md`](docs/phase1/RAPPORT_PHASE1.md) ; phase 2 :
-[`docs/phase2/RAPPORT_PHASE2.md`](docs/phase2/RAPPORT_PHASE2.md). La version livrée reste la
+**État : phase 3 terminée — première bêta (régie et bibliothèque).** Rapports :
+[phase 0](docs/phase0/RAPPORT_PHASE0.md), [phase 1](docs/phase1/RAPPORT_PHASE1.md),
+[phase 2](docs/phase2/RAPPORT_PHASE2.md), [phase 3](docs/phase3/RAPPORT_PHASE3.md). La version livrée reste la
 2.8 (Python) jusqu'à la bascule 3.0. Ce code ne touche jamais aux vraies données : les essais et les
 mesures travaillent sur des copies.
 
@@ -20,9 +19,10 @@ mesures travaillent sur des copies.
 | `po-db` | la base SQLite de la 2.x, sans conversion : schéma et migrations, Bible, cantiques, prédications, livres, Exposé, playlists, déroulé, médias, copie cohérente |
 | `po-design` | le style de la salle (`RoomDesign`), lu depuis les réglages « Projection » de la 2.x ; couleurs et contraste ; genre d'un slide |
 | `po-layout` | la mise en page plein écran de la 2.8, au pixel près (métriques de Qt, largeurs DirectWrite), le fond, l'identification de Branham et les transitions, en **liste d'affichage** (fond, contenu, surcouche) |
-| `po-render` | le dessin d'une liste d'affichage en image (moniteurs, NDI, HDMI, captures) : dégradés, images, ombres et halos, groupes animés |
+| `po-render` | le dessin d'une liste d'affichage en image (moniteurs, NDI, HDMI, captures) : dégradés, images, ombres et halos, groupes animés ; les trois couches d'un slide pour la carte graphique |
+| `po-program` | le programme : ce qu'un clic prépare (tout le sermon, le chapitre, le cantique), découpé en slides « réf (i/n) » comme la 2.8 |
 | `po-web` | la projection Web : serveur local en lecture seule (axum), WebSocket, client navigateur (`web/`) |
-| `project-on` | l'application egui (thème repris de Pgraphics) ; en phase 0, une coque de validation |
+| `project-on` | l'application egui : rail, bibliothèques (Bible, Cantiques, Prédications, Exposé, Livres), Aperçu / Direct, projection native sur la carte graphique, recherche globale, raccourcis ; données de la bêta (copie de la 2.x) |
 | `po-mesures` | les mesures et les planches de captures des phases 0 à 2 (jamais livré) |
 | `po-parite` | les tests dorés : la 3.0 rejoue les références de la 2.8 et compare (jamais livré) |
 
@@ -63,6 +63,15 @@ cargo run --release -p po-parite -- projection target\phase2\ref28
 cargo run --release -p po-mesures -- captures target\phase2\ref28 target\phase2\captures
 ```
 
+Le programme (phase 3) : le vrai code de la 2.8 prépare des sermons, cantiques, chapitres et livres
+entiers, puis `po-parite` refait tout en Rust :
+
+```powershell
+py -3.14 project-on-rs\outils\references_programme_28.py <copie\project_on.db> project-on-rs\target\phase3\ref28
+cd project-on-rs
+cargo run --release -p po-parite -- programme target\phase3\ref28 <copie\project_on.db>
+```
+
 Les références contiennent des textes de la base : elles restent dans `target\` (non versionné).
 
 ## Les mesures
@@ -79,6 +88,18 @@ cargo run --release -p po-mesures -- servir <copie\project_on.db> 8091   # puis 
 
 Pour une mesure « à froid » sans redémarrer, `outils\copie_froide.py` copie la base sans passer
 par le cache de Windows.
+
+## La bêta
+
+```powershell
+powershell -ExecutionPolicy Bypass -File project-on-rs\construire-beta.ps1
+```
+
+Compile l'application, prépare `dist\Project-On-3-beta` (exécutable, polices, licences) et construit
+`installer\Output\Project-On_<version>_Setup.exe` (Inno Setup 7). La bêta s'installe à côté de la
+2.8 (son propre dossier, sans droits d'administrateur) ; au premier lancement, elle copie la base
+et les réglages de la 2.x dans `%APPDATA%\Project-On 3 (bêta)` et ne touche jamais aux originaux.
+`PROJECT_ON_DATA` impose un autre dossier de données (essais).
 
 ## À savoir
 
