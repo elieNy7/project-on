@@ -2,9 +2,11 @@
 
 - **Date** : 9 novembre 2026
 - **Base auditée** : 2.8.0, branche `claude/hdmi-projection-update-56a4v2` (commit `b016396`)
-- **Statut** : les décisions du § 9 ont été prises le 9 novembre. **Phase 0 terminée le 9 novembre :
-  GO**, les quatre critères sont tenus ([rapport](project-on-rs/docs/phase0/RAPPORT_PHASE0.md)). La
-  phase 1 attend votre feu vert. Le code de la 2.8 n'a pas été modifié.
+- **Statut** : les décisions du § 9 ont été prises le 9 novembre. **Phase 0 terminée : GO**
+  ([rapport](project-on-rs/docs/phase0/RAPPORT_PHASE0.md)). **Phase 1 terminée le 10 novembre** :
+  1 131 437 cas comparés à la 2.8, 0 différence ([rapport](project-on-rs/docs/phase1/RAPPORT_PHASE1.md)).
+  La phase 2 attend votre feu vert. Le code de la 2.8 n'a pas été modifié ; seul son module natif
+  est rebranché sur `po-text`.
 - Cette demande remplace le choix du 29 octobre 2026 (« Rust hybride, pas de réécriture complète ») :
   la logique et l'interface passent toutes les deux en Rust.
 

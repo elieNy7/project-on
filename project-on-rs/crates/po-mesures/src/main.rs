@@ -1,9 +1,11 @@
-//! Les mesures de la phase 0, sur une COPIE de la base ouverte en lecture seule.
+//! Les mesures des phases 0 et 1, sur une COPIE de la base ouverte en lecture seule.
 //!
 //! ```text
 //! po-mesures tout <base.db> <dossier de sortie>   toutes les mesures → mesures.json + images PNG
 //! po-mesures demarrage <base.db>                  démarrage jusqu'à la première image, puis sortie
 //! po-mesures servir <base.db> <port>              un écran Web de démonstration (Ctrl+C pour arrêter)
+//! po-mesures recherche <base.db> <sortie.json>    la recherche seule (comparaison à froid, phase 1)
+//! po-mesures trigramme <base.db> <dossier>        l'essai d'un index trigramme (phase 1)
 //! ```
 //!
 //! Aucune fenêtre ne s'ouvre : l'interface est rendue hors écran (egui_kittest + wgpu).
@@ -11,14 +13,16 @@
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
+mod trigramme;
+
 use futures_util::{SinkExt, StreamExt};
-use po_db::{Database, Mode, SermonFilter};
+use po_db::{Database, Mode, ParagraphSearch, SermonFilter};
 use po_layout::{Fonts, SlideContent, SlideStyle, layout_slide};
 use po_render::{Renderer, encode_png};
 use serde_json::{Value, json};
 use tokio_tungstenite::tungstenite::Message;
 
-type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+pub(crate) type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 fn fonts_dir() -> PathBuf {
     po_layout::bundled_fonts_dir()
@@ -29,7 +33,7 @@ fn projection_fonts() -> Fonts {
     Fonts::from_files(&[dir.join("Passion One/PassionOne-Bold.ttf"), dir.join("Passion One/PassionOne-Regular.ttf")])
 }
 
-fn ms(d: Duration) -> f64 {
+pub(crate) fn ms(d: Duration) -> f64 {
     (d.as_secs_f64() * 10_000.0).round() / 10.0
 }
 
@@ -59,14 +63,11 @@ fn measure_db(db: &Database) -> Result<Value> {
                 Ok((l.len(), l.first().map(|s| s.title.clone()).unwrap_or_default()))
             }),
         ),
-        ("fts_grace", Box::new(|d| hits(d.search_paragraphs("grâce", Some("fr"), None, 100, true)?))),
-        (
-            "fts_ferme_assurance",
-            Box::new(|d| hits(d.search_paragraphs("ferme assurance", Some("fr"), None, 100, true)?)),
-        ),
-        ("fts_expression", Box::new(|d| hits(d.search_paragraphs("\"colonne de feu\"", Some("fr"), None, 100, true)?))),
-        ("sous_chaine_ernel_die", Box::new(|d| hits(d.search_paragraphs("ernel Die", Some("fr"), None, 100, true)?))),
-        ("sous_chaine_absente", Box::new(|d| hits(d.search_paragraphs("zzqxw", Some("fr"), None, 100, true)?))),
+        ("fts_grace", Box::new(|d| hits(d.search_paragraphs(&search("grâce"))?))),
+        ("fts_ferme_assurance", Box::new(|d| hits(d.search_paragraphs(&search("ferme assurance"))?))),
+        ("fts_expression", Box::new(|d| hits(d.search_paragraphs(&search("\"colonne de feu\""))?))),
+        ("sous_chaine_ernel_die", Box::new(|d| hits(d.search_paragraphs(&search("ernel Die"))?))),
+        ("sous_chaine_absente", Box::new(|d| hits(d.search_paragraphs(&search("zzqxw"))?))),
     ];
     let mut out = serde_json::Map::new();
     for (name, run) in queries {
@@ -86,6 +87,11 @@ fn measure_db(db: &Database) -> Result<Value> {
     Ok(Value::Object(out))
 }
 
+/// Les mêmes réglages que la recherche de la 2.8 mesurée (`bench_py.py`).
+fn search(query: &str) -> ParagraphSearch<'_> {
+    ParagraphSearch { query, language: Some("fr"), translator: None, limit: 100, substring_fallback: true }
+}
+
 fn hits(found: Vec<po_db::ParagraphHit>) -> po_db::Result<(usize, String)> {
     Ok((found.len(), found.first().map(|h| h.reference.clone()).unwrap_or_default()))
 }
@@ -96,8 +102,8 @@ fn sample_paragraphs(db: &Database) -> Result<Vec<String>> {
     let sermons = db.list_sermons(&SermonFilter::default())?;
     let mut out = Vec::new();
     for sermon in sermons.iter().step_by(25) {
-        for (_, text) in db.paragraphs(sermon.id)?.into_iter().take(12) {
-            let text: String = text.chars().take(280).collect();
+        for paragraph in db.paragraphs(sermon.id)?.into_iter().take(12) {
+            let text: String = paragraph.text.chars().take(280).collect();
             if text.trim().len() > 3 {
                 out.push(text);
             }
@@ -299,6 +305,18 @@ fn measure_ui(db_path: &Path, out_dir: &Path) -> Result<Value> {
     }))
 }
 
+/// La recherche seule, du lancement du processus jusqu'au dernier résultat : sur une copie jamais
+/// lue (cache disque froid), c'est la première recherche d'un culte.
+fn recherche(db_path: &Path, out: &Path) -> Result<()> {
+    let open = Instant::now();
+    let db = Database::open(db_path, Mode::ReadOnly)?;
+    let open_ms = ms(open.elapsed());
+    let search = measure_db(&db)?;
+    let report = json!({ "ouverture_base_ms": open_ms, "recherche": search });
+    std::fs::write(out, serde_json::to_string_pretty(&report)?)?;
+    Ok(())
+}
+
 fn tout(db_path: &Path, out_dir: &Path) -> Result<()> {
     std::fs::create_dir_all(out_dir)?;
     let open = Instant::now();
@@ -363,8 +381,16 @@ fn main() -> Result<()> {
         ["tout", db, out] => tout(Path::new(db), Path::new(out)),
         ["demarrage", db] => demarrage(Path::new(db)),
         ["servir", db, port] => servir(Path::new(db), port.parse()?),
+        ["recherche", db, out] => recherche(Path::new(db), Path::new(out)),
+        ["trigramme", db, out] => {
+            let report = trigramme::evaluate(Path::new(db), Path::new(out))?;
+            std::fs::write(Path::new(out).join("trigramme.json"), serde_json::to_string_pretty(&report)?)?;
+            Ok(())
+        }
         _ => {
-            eprintln!("usage : po-mesures tout <base.db> <dossier> | demarrage <base.db> | servir <base.db> <port>");
+            eprintln!(
+                "usage : po-mesures tout <base.db> <dossier> | demarrage <base.db> | servir <base.db> <port> | recherche <base.db> <sortie.json> | trigramme <base.db> <dossier>"
+            );
             std::process::exit(2);
         }
     }

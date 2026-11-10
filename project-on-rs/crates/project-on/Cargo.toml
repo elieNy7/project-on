@@ -16,6 +16,7 @@ path = "src/main.rs"
 [dependencies]
 po-db.workspace = true
 po-layout.workspace = true
+po-text.workspace = true
 po-render.workspace = true
 po-web.workspace = true
 egui.workspace = true

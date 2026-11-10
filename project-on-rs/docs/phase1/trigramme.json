@@ -1,0 +1,99 @@
+{
+  "construction_s": 173.3,
+  "index_mo": 713.8304,
+  "paragraphes": 568000,
+  "requetes": [
+    {
+      "memes_resultats": true,
+      "parcours_affiches": 100,
+      "parcours_ms": 6886.8,
+      "parcours_resultats": 614,
+      "requete": "ernel Die",
+      "trigramme_ms": 39.3,
+      "trigramme_resultats": 614
+    },
+    {
+      "memes_resultats": true,
+      "parcours_affiches": 0,
+      "parcours_ms": 4346.4,
+      "parcours_resultats": 0,
+      "requete": "zzqxw",
+      "trigramme_ms": 0.2,
+      "trigramme_resultats": 0
+    },
+    {
+      "memes_resultats": true,
+      "parcours_affiches": 100,
+      "parcours_ms": 5230.5,
+      "parcours_resultats": 441,
+      "requete": "ait là, d",
+      "trigramme_ms": 123.6,
+      "trigramme_resultats": 441
+    },
+    {
+      "memes_resultats": true,
+      "parcours_affiches": 100,
+      "parcours_ms": 6600.7,
+      "parcours_resultats": 5885,
+      "requete": "esprit de dieu",
+      "trigramme_ms": 214.6,
+      "trigramme_resultats": 5885
+    },
+    {
+      "memes_resultats": true,
+      "parcours_affiches": 100,
+      "parcours_ms": 5596.5,
+      "parcours_resultats": 4792,
+      "requete": "seigneur jésus-christ",
+      "trigramme_ms": 116.7,
+      "trigramme_resultats": 4792
+    },
+    {
+      "memes_resultats": true,
+      "parcours_affiches": 100,
+      "parcours_ms": 4525.7,
+      "parcours_resultats": 1788,
+      "requete": "œuvre",
+      "trigramme_ms": 11.9,
+      "trigramme_resultats": 1788
+    },
+    {
+      "memes_resultats": true,
+      "parcours_affiches": 100,
+      "parcours_ms": 5079.7,
+      "parcours_resultats": 1193,
+      "requete": "l'Éternel",
+      "trigramme_ms": 17.3,
+      "trigramme_resultats": 1193
+    },
+    {
+      "memes_resultats": false,
+      "parcours_affiches": 100,
+      "parcours_ms": 4261.9,
+      "parcours_resultats": 752,
+      "requete": "100%",
+      "trigramme_ms": 0.4,
+      "trigramme_resultats": 6
+    },
+    {
+      "memes_resultats": false,
+      "parcours_affiches": 100,
+      "parcours_ms": 4326.5,
+      "parcours_resultats": 78256,
+      "requete": "foi_",
+      "trigramme_ms": 0.4,
+      "trigramme_resultats": 0
+    },
+    {
+      "memes_resultats": null,
+      "parcours_affiches": 100,
+      "parcours_ms": 5135.0,
+      "parcours_resultats": 125802,
+      "requete": "ab",
+      "trigramme_ms": null,
+      "trigramme_resultats": null
+    }
+  ],
+  "taille_apres_mo": 1309.63456,
+  "taille_avant_mo": 595.80416
+}

@@ -6,7 +6,7 @@ use egui::{
     Align, Color32, ColorImage, CornerRadius, Key, Layout, RichText, Sense, Stroke, TextureHandle, TextureOptions, Ui,
     vec2,
 };
-use po_db::{Database, Sermon, SermonFilter};
+use po_db::{Database, Paragraph, Sermon, SermonFilter};
 use po_layout::{Fonts, SlideContent, SlideStyle, layout_slide};
 use po_render::Renderer;
 
@@ -27,7 +27,7 @@ pub struct Shell {
     sermons: Vec<Sermon>,
     filter: String,
     selected: Option<usize>,
-    paragraphs: Vec<(i64, String)>,
+    paragraphs: Vec<Paragraph>,
     previewed: Option<usize>,
     preview: Option<Monitor>,
     live: Option<Monitor>,
@@ -116,13 +116,14 @@ impl Shell {
 
     /// Un clic sur un paragraphe : il est préparé dans l'Aperçu, rien ne part au direct.
     pub fn preview_paragraph(&mut self, ctx: &egui::Context, index: usize) {
-        let (Some(sermon), Some((no, text))) =
+        let (Some(sermon), Some(paragraph)) =
             (self.selected.and_then(|i| self.sermons.get(i)), self.paragraphs.get(index))
         else {
             return;
         };
-        let content =
-            SlideContent { text: text.clone(), reference: format!("{} - {} - ¶{no}", sermon.date, sermon.title) };
+        let date = sermon.date.as_deref().unwrap_or("");
+        let reference = po_text::format_reference(date, &sermon.title, &paragraph.marker);
+        let content = SlideContent { text: paragraph.text.clone(), reference };
         self.previewed = Some(index);
         if let Some(texture) = self.render(ctx, "apercu", &content) {
             self.preview = Some(Monitor { content, texture });
@@ -160,7 +161,7 @@ impl Shell {
     fn command_bar(&mut self, ui: &mut Ui) {
         ui.horizontal_centered(|ui| {
             ui.label(RichText::new("Project-On").font(theme::semibold(16.0)).color(theme::TEXT));
-            ui.label(RichText::new("3.0 · phase 0").font(theme::regular(11.5)).color(theme::FAINT));
+            ui.label(RichText::new("3.0 · phase 1").font(theme::regular(11.5)).color(theme::FAINT));
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 let web = self.web_screens;
                 pill(ui, &format!("Web · {web}"), if web > 0 { theme::PREVIEW } else { theme::FAINT });
@@ -190,7 +191,9 @@ impl Shell {
         egui::ScrollArea::vertical().auto_shrink(false).show_rows(ui, row_h, count, |ui, rows| {
             for i in rows {
                 let sermon = &self.sermons[i];
-                if list_row(ui, self.selected == Some(i), row_h, &sermon.date, &sermon.title).clicked() {
+                if list_row(ui, self.selected == Some(i), row_h, sermon.date.as_deref().unwrap_or(""), &sermon.title)
+                    .clicked()
+                {
                     clicked = Some(i);
                 }
             }
@@ -208,11 +211,14 @@ impl Shell {
             return;
         };
         ui.label(RichText::new(&sermon.title).font(theme::semibold(17.0)).color(theme::TEXT));
-        ui.label(RichText::new(format!("{} · {}", sermon.date, sermon.translator)).color(theme::MUTED));
+        ui.label(
+            RichText::new(format!("{} · {}", sermon.date.as_deref().unwrap_or(""), sermon.tradition))
+                .color(theme::MUTED),
+        );
         ui.add_space(8.0);
         let mut clicked = None;
         egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
-            for (i, (no, text)) in self.paragraphs.iter().enumerate() {
+            for (i, paragraph) in self.paragraphs.iter().enumerate() {
                 let selected = self.previewed == Some(i);
                 let frame = egui::Frame::new()
                     .fill(if selected { theme::RAISED } else { theme::SURFACE })
@@ -223,8 +229,8 @@ impl Shell {
                     .show(ui, |ui| {
                         ui.set_width(ui.available_width());
                         ui.horizontal_top(|ui| {
-                            ui.label(RichText::new(format!("¶{no}")).font(theme::medium(12.0)).color(theme::ACCENT));
-                            ui.add(egui::Label::new(RichText::new(text).color(theme::TEXT)).wrap());
+                            ui.label(RichText::new(&paragraph.marker).font(theme::medium(12.0)).color(theme::ACCENT));
+                            ui.add(egui::Label::new(RichText::new(&paragraph.text).color(theme::TEXT)).wrap());
                         });
                     })
                     .response

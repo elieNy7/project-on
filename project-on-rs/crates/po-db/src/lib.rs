@@ -1,20 +1,58 @@
 //! La base de données de Project-On : le même fichier SQLite que la 2.x, sans conversion.
 //!
-//! Phase 0 : la lecture des sermons et la recherche dans leurs paragraphes, assez pour mesurer la
-//! pile. Les requêtes reprennent celles de `app.database.dao_sermons` (2.8).
+//! - [`Database::open`] en lecture seule ne modifie jamais rien (mesures, aperçus, essais).
+//! - [`Database::open_and_initialize`] ouvre en écriture et met le schéma à jour comme
+//!   `Database.initialize()` de la 2.8 : migrations 1 à 11, seulement additives, puis la maintenance
+//!   (titres communs, repères, index de recherche) quand elle est nécessaire. Jamais de contrôle
+//!   d'intégrité automatique au démarrage (leçon de la 2.6).
+//! - Les requêtes reprennent celles de `app.database.dao_*` (2.8), qu'elles remplacent.
 
-use std::path::Path;
+mod backup;
+mod bible;
+mod hymns;
+mod media;
+mod playlist;
+mod schema;
+mod sermons;
+mod service_plan;
+
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use rusqlite::functions::{Context, FunctionFlags};
 use rusqlite::types::ValueRef;
-use rusqlite::{Connection, OpenFlags, params_from_iter};
+use rusqlite::{Connection, OpenFlags, OptionalExtension};
+
+pub use backup::{BackupReport, copy_database};
+pub use bible::{LegacyBook, Translation, TranslationBook, Verse};
+pub use hymns::{Hymn, HymnHit, Stanza};
+pub use media::MediaItem;
+pub use playlist::{Folder, ItemSnapshot, NewItem, PlaylistItem};
+pub use schema::{InitOptions, InitReport, SCHEMA_VERSION};
+pub use sermons::{
+    Book, BookChapter, BookHit, Paragraph, ParagraphHit, ParagraphSearch, Sermon, SermonFilter, SermonSort,
+};
+pub use service_plan::Section;
 
 /// Les erreurs de la base, présentées en français à l'utilisateur par l'application.
 #[derive(Debug, thiserror::Error)]
 pub enum DbError {
     #[error("la base de données « {path} » est introuvable")]
     Missing { path: String },
+    #[error(
+        "la base de données est en version {found} ; Project-On attend la version {SCHEMA_VERSION} (ouvrez-la une fois en écriture pour la mettre à jour)"
+    )]
+    Outdated { found: i64 },
+    #[error("un cantique doit avoir au moins une strophe")]
+    EmptyHymn,
+    #[error("la sauvegarde doit être un autre fichier que la base active")]
+    SameFile,
+    #[error("la base est verrouillée par un autre programme : la copie n'avance plus")]
+    Busy,
+    #[error("la copie de la base a échoué au contrôle d'intégrité : {0}")]
+    BadCopy(String),
+    #[error("erreur d'accès au fichier : {0}")]
+    Io(#[from] std::io::Error),
     #[error("erreur SQLite : {0}")]
     Sqlite(#[from] rusqlite::Error),
 }
@@ -26,52 +64,18 @@ pub type Result<T> = std::result::Result<T, DbError>;
 pub enum Mode {
     /// Lecture seule : rien ne peut être écrit, même par erreur (mesures, aperçus).
     ReadOnly,
+    /// Écriture, sans migration (essais) : préférer [`Database::open_and_initialize`].
     ReadWrite,
-}
-
-/// Un sermon de la liste (onglet Prédications).
-#[derive(Debug, Clone, PartialEq)]
-pub struct Sermon {
-    pub id: i64,
-    /// Code de date (« 63-0317M ») ; les livres et brochures commencent par BK- ou TR-.
-    pub date: String,
-    /// Titre affiché (titre canonique s'il existe).
-    pub title: String,
-    /// Le traducteur (VGR, SHP, BSS).
-    pub translator: String,
-    pub language: String,
-    pub location: String,
-}
-
-/// Un paragraphe trouvé par la recherche.
-#[derive(Debug, Clone, PartialEq)]
-pub struct ParagraphHit {
-    pub sermon_id: i64,
-    pub paragraph_no: i64,
-    pub marker: String,
-    /// « 63-0317M - Titre - ¶12 », comme la 2.x.
-    pub reference: String,
-    pub text: String,
-}
-
-/// Les filtres de la liste des sermons.
-#[derive(Debug, Clone, Default)]
-pub struct SermonFilter<'a> {
-    pub translator: Option<&'a str>,
-    pub language: Option<&'a str>,
-    pub title: Option<&'a str>,
-    pub limit: Option<usize>,
 }
 
 /// La connexion à la base.
 pub struct Database {
     conn: Connection,
+    path: PathBuf,
 }
 
-/// Les sermons seulement : les chapitres de livres (BK-) et les brochures (TR-) ont leur onglet.
-const NOT_A_BOOK: &str = "COALESCE(date, '') NOT LIKE 'BK-%' AND COALESCE(date, '') NOT LIKE 'TR-%'";
-
 impl Database {
+    /// Ouvre une base existante. En lecture seule, elle doit déjà être au schéma 11.
     pub fn open(path: &Path, mode: Mode) -> Result<Self> {
         if !path.is_file() {
             return Err(DbError::Missing { path: path.display().to_string() });
@@ -81,12 +85,47 @@ impl Database {
             Mode::ReadWrite => OpenFlags::SQLITE_OPEN_READ_WRITE,
         } | OpenFlags::SQLITE_OPEN_NO_MUTEX
             | OpenFlags::SQLITE_OPEN_URI;
-        let conn = Connection::open_with_flags(path, flags)?;
+        let db = Self::with_connection(Connection::open_with_flags(path, flags)?, path, mode)?;
+        if mode == Mode::ReadOnly {
+            let found = db.schema_version()?;
+            if found < SCHEMA_VERSION {
+                return Err(DbError::Outdated { found });
+            }
+        }
+        Ok(db)
+    }
+
+    /// Ouvre (ou crée) la base en écriture et met son schéma à jour, comme au lancement de la 2.8.
+    pub fn open_and_initialize(path: &Path, options: &InitOptions) -> Result<(Self, InitReport)> {
+        if let Some(dir) = path.parent() {
+            std::fs::create_dir_all(dir)?;
+        }
+        let flags = OpenFlags::SQLITE_OPEN_READ_WRITE
+            | OpenFlags::SQLITE_OPEN_CREATE
+            | OpenFlags::SQLITE_OPEN_NO_MUTEX
+            | OpenFlags::SQLITE_OPEN_URI;
+        let mut db = Self::with_connection(Connection::open_with_flags(path, flags)?, path, Mode::ReadWrite)?;
+        let report = schema::initialize(&mut db.conn, options)?;
+        Ok((db, report))
+    }
+
+    fn with_connection(conn: Connection, path: &Path, mode: Mode) -> Result<Self> {
         conn.busy_timeout(Duration::from_secs(30))?;
-        // Mêmes réglages de lecture que la 2.x (connection.py).
-        conn.execute_batch("PRAGMA temp_store = MEMORY; PRAGMA cache_size = -64000; PRAGMA mmap_size = 268435456;")?;
         register_unaccent(&conn)?;
-        Ok(Database { conn })
+        // Mêmes réglages que la 2.x (connection.py).
+        if mode == Mode::ReadWrite {
+            conn.execute_batch("PRAGMA foreign_keys = ON;")?;
+            // Une base en mémoire répond « memory » : sans importance.
+            let _: String = conn.query_row("PRAGMA journal_mode = WAL", [], |r| r.get(0))?;
+            conn.execute_batch("PRAGMA synchronous = NORMAL;")?;
+        }
+        conn.execute_batch("PRAGMA temp_store = MEMORY; PRAGMA cache_size = -64000; PRAGMA mmap_size = 268435456;")?;
+        Ok(Database { conn, path: path.to_path_buf() })
+    }
+
+    /// Le fichier de la base.
+    pub fn path(&self) -> &Path {
+        &self.path
     }
 
     /// Le numéro de version du schéma (`PRAGMA user_version`).
@@ -94,150 +133,39 @@ impl Database {
         Ok(self.conn.query_row("PRAGMA user_version", [], |r| r.get(0))?)
     }
 
-    /// La liste des sermons, triée par date puis par titre (`SermonDAO.list_sermons`).
-    pub fn list_sermons(&self, filter: &SermonFilter<'_>) -> Result<Vec<Sermon>> {
-        let mut sql = format!(
-            "SELECT id, COALESCE(date, ''), COALESCE(NULLIF(canonical_title, ''), title),
-                    COALESCE(tradition, ''), COALESCE(language, ''), COALESCE(location, '')
-             FROM sermon WHERE {NOT_A_BOOK}"
-        );
-        let mut params: Vec<String> = Vec::new();
-        if let Some(translator) = filter.translator {
-            sql.push_str(" AND tradition = ?");
-            params.push(translator.to_uppercase());
+    /// Une valeur de `app_meta` (repères de maintenance, version du pack de données).
+    pub fn meta(&self, key: &str) -> Result<Option<String>> {
+        if !table_exists(&self.conn, "app_meta")? {
+            return Ok(None);
         }
-        if let Some(title) = filter.title.map(po_text::plain_query).filter(|t| !t.is_empty()) {
-            sql.push_str(" AND (title_search LIKE ? OR unaccent(title) LIKE unaccent(?))");
-            params.push(format!("%{}%", po_text::search_key(&title)));
-            params.push(format!("%{title}%"));
-        }
-        if let Some(language) = filter.language {
-            sql.push_str(" AND language = ?");
-            params.push(language.chars().take(2).collect::<String>().to_lowercase());
-        }
-        sql.push_str(" ORDER BY date, title COLLATE NOCASE");
-        if let Some(limit) = filter.limit {
-            sql.push_str(&format!(" LIMIT {limit}"));
-        }
-        let mut stmt = self.conn.prepare_cached(&sql)?;
-        let rows = stmt.query_map(params_from_iter(params.iter()), |r| {
-            Ok(Sermon {
-                id: r.get(0)?,
-                date: r.get(1)?,
-                title: r.get(2)?,
-                translator: r.get(3)?,
-                language: r.get(4)?,
-                location: r.get(5)?,
-            })
-        })?;
-        Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+        Ok(self.conn.query_row("SELECT value FROM app_meta WHERE key = ?", [key], |r| r.get(0)).optional()?)
     }
 
-    /// Recherche dans les paragraphes des sermons (`SermonDAO.search_paragraphs`) : l'index FTS5
-    /// d'abord (mots en préfixe, classement bm25), puis, s'il ne trouve rien et si
-    /// `substring_fallback` le permet, une recherche par sous-chaîne sans accents.
-    pub fn search_paragraphs(
-        &self,
-        query: &str,
-        language: Option<&str>,
-        translator: Option<&str>,
-        limit: usize,
-        substring_fallback: bool,
-    ) -> Result<Vec<ParagraphHit>> {
-        let query = query.trim();
-        if query.is_empty() {
-            return Ok(Vec::new());
-        }
-        let fts = po_text::fts_query(query);
-        let mut hits = Vec::new();
-        let mut fts_ok = false;
-        if !fts.is_empty() {
-            let base = format!(
-                "{SELECT_HIT}
-                 FROM sermon_paragraph_fts
-                 JOIN sermon_paragraph p ON p.id = sermon_paragraph_fts.rowid
-                 JOIN sermon s ON s.id = p.sermon_id
-                 WHERE sermon_paragraph_fts MATCH ?
-                   AND s.date NOT LIKE 'BK-%' AND s.date NOT LIKE 'TR-%'"
-            );
-            let order = "ORDER BY bm25(sermon_paragraph_fts), s.date, p.paragraph_no";
-            match self.hits(&base, fts, language, translator, order, limit) {
-                Ok(found) => {
-                    hits = found;
-                    fts_ok = true;
-                }
-                // Une requête que FTS5 refuse : on se rabat sur la sous-chaîne, comme la 2.x.
-                Err(DbError::Sqlite(_)) => {}
-                Err(other) => return Err(other),
-            }
-        }
-        if hits.is_empty() && (!fts_ok || substring_fallback) {
-            let base = format!(
-                "{SELECT_HIT}
-                 FROM sermon_paragraph p
-                 JOIN sermon s ON s.id = p.sermon_id
-                 WHERE unaccent(p.text) LIKE unaccent(?)
-                   AND s.date NOT LIKE 'BK-%' AND s.date NOT LIKE 'TR-%'"
-            );
-            let needle = format!("%{}%", po_text::plain_query(query));
-            hits = self.hits(&base, needle, language, translator, "ORDER BY s.date, p.paragraph_no", limit)?;
-        }
-        Ok(hits)
-    }
-
-    fn hits(
-        &self,
-        base: &str,
-        first: String,
-        language: Option<&str>,
-        translator: Option<&str>,
-        order: &str,
-        limit: usize,
-    ) -> Result<Vec<ParagraphHit>> {
-        let mut sql = base.to_string();
-        let mut params = vec![first];
-        if let Some(translator) = translator {
-            sql.push_str(" AND s.tradition = ?");
-            params.push(translator.to_uppercase());
-        }
-        if let Some(language) = language {
-            sql.push_str(" AND s.language = ?");
-            params.push(language.chars().take(2).collect::<String>().to_lowercase());
-        }
-        sql.push_str(&format!(" {order} LIMIT {limit}"));
-        let mut stmt = self.conn.prepare_cached(&sql)?;
-        let rows = stmt.query_map(params_from_iter(params.iter()), |r| {
-            let sermon_id: i64 = r.get(0)?;
-            let paragraph_no: i64 = r.get(1)?;
-            let marker: String = r.get(2)?;
-            let marker = if marker.trim().is_empty() { format!("¶{paragraph_no}") } else { marker.trim().to_string() };
-            let date: String = r.get(4)?;
-            let title: String = r.get(5)?;
-            let reference = [date.trim(), title.trim(), marker.as_str()]
-                .iter()
-                .filter(|p| !p.is_empty())
-                .copied()
-                .collect::<Vec<_>>();
-            Ok(ParagraphHit { sermon_id, paragraph_no, reference: reference.join(" - "), marker, text: r.get(3)? })
-        })?;
-        Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
-    }
-
-    /// Les paragraphes d'un sermon, dans l'ordre.
-    pub fn paragraphs(&self, sermon_id: i64) -> Result<Vec<(i64, String)>> {
-        let mut stmt = self.conn.prepare_cached(
-            "SELECT paragraph_no, text FROM sermon_paragraph WHERE sermon_id = ? ORDER BY paragraph_no",
-        )?;
-        let rows = stmt.query_map([sermon_id], |r| Ok((r.get(0)?, r.get(1)?)))?;
-        Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+    /// La connexion, pour les essais et les outils de mesure.
+    pub fn connection(&self) -> &Connection {
+        &self.conn
     }
 }
 
-const SELECT_HIT: &str = "SELECT p.sermon_id, p.paragraph_no, COALESCE(NULLIF(p.marker, ''), p.ref, ''), p.text,
-        COALESCE(s.date, ''), COALESCE(NULLIF(s.canonical_title, ''), s.title)";
+pub(crate) fn table_exists(conn: &Connection, table: &str) -> rusqlite::Result<bool> {
+    conn.query_row("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", [table], |_| Ok(()))
+        .optional()
+        .map(|found| found.is_some())
+}
 
-/// `unaccent()` dans SQLite, lue sur place (pas de passage par Python) : mêmes règles que
-/// l'extension de la 2.8. NULL, 0 et "" donnent "" ; un nombre est d'abord converti en texte.
+pub(crate) fn columns(conn: &Connection, table: &str) -> rusqlite::Result<Vec<String>> {
+    let mut stmt = conn.prepare("SELECT name FROM pragma_table_info(?)")?;
+    let rows = stmt.query_map([table], |r| r.get(0))?;
+    rows.collect()
+}
+
+/// `language[:2].lower()` de la 2.8.
+pub(crate) fn language_code(language: &str) -> String {
+    po_text::py::prefix(language, 2).to_lowercase()
+}
+
+/// `unaccent()` dans SQLite, lue sur place : mêmes règles que l'extension de la 2.8 (NULL, 0 et ""
+/// donnent "" ; un nombre est d'abord converti en texte).
 fn register_unaccent(conn: &Connection) -> rusqlite::Result<()> {
     conn.create_scalar_function(
         "unaccent",
@@ -255,60 +183,14 @@ fn register_unaccent(conn: &Connection) -> rusqlite::Result<()> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod testing {
     use super::*;
 
-    /// Une petite base au schéma de la 2.x, en mémoire.
-    fn sample() -> Database {
+    /// Une base neuve au schéma de la 2.8, en mémoire, sans données de démonstration.
+    pub fn empty() -> Database {
         let conn = Connection::open_in_memory().unwrap();
-        register_unaccent(&conn).unwrap();
-        conn.execute_batch(
-            "CREATE TABLE sermon (id INTEGER PRIMARY KEY, title TEXT NOT NULL, date TEXT, tradition TEXT NOT NULL,
-                 language TEXT, source_path TEXT, sort_key TEXT, location TEXT DEFAULT '',
-                 canonical_title TEXT DEFAULT '', title_search TEXT DEFAULT '');
-             CREATE TABLE sermon_paragraph (id INTEGER PRIMARY KEY, sermon_id INTEGER NOT NULL,
-                 paragraph_no INTEGER NOT NULL, ref TEXT, text TEXT NOT NULL, marker TEXT DEFAULT '');
-             CREATE VIRTUAL TABLE sermon_paragraph_fts USING fts5(text, ref, sermon_title, canonical_title,
-                 content='', detail=full, tokenize='unicode61 remove_diacritics 2');
-             INSERT INTO sermon VALUES (1, 'LA FOI EST UNE FERME ASSURANCE', '47-0412', 'VGR', 'fr', '', '47-0412',
-                 '', 'La Foi Est une Ferme Assurance', 'la foi est une ferme assurance');
-             INSERT INTO sermon VALUES (2, 'Chapitre 1', 'BK-AGES-CH1', 'VGR', 'fr', '', '', '', '', 'chapitre 1');
-             INSERT INTO sermon_paragraph VALUES (10, 1, 1, '', 'Ô Éternel, la foi est une ferme assurance.', '¶1');
-             INSERT INTO sermon_paragraph VALUES (11, 1, 2, '', 'Il était là, déjà.', '');
-             INSERT INTO sermon_paragraph VALUES (20, 2, 1, '', 'La foi dans le livre.', '');
-             INSERT INTO sermon_paragraph_fts (rowid, text) VALUES (10, 'Ô Éternel, la foi est une ferme assurance.');
-             INSERT INTO sermon_paragraph_fts (rowid, text) VALUES (11, 'Il était là, déjà.');
-             INSERT INTO sermon_paragraph_fts (rowid, text) VALUES (20, 'La foi dans le livre.');",
-        )
-        .unwrap();
-        Database { conn }
-    }
-
-    #[test]
-    fn lists_sermons_but_not_books() {
-        let db = sample();
-        let sermons = db.list_sermons(&SermonFilter::default()).unwrap();
-        assert_eq!(sermons.len(), 1);
-        assert_eq!(sermons[0].title, "La Foi Est une Ferme Assurance");
-        let found = db.list_sermons(&SermonFilter { title: Some("fermé"), ..Default::default() }).unwrap();
-        assert_eq!(found.len(), 1);
-    }
-
-    #[test]
-    fn full_text_search_ignores_accents() {
-        let db = sample();
-        let hits = db.search_paragraphs("eternel", Some("fr"), None, 100, true).unwrap();
-        assert_eq!(hits.len(), 1);
-        assert_eq!(hits[0].reference, "47-0412 - La Foi Est une Ferme Assurance - ¶1");
-    }
-
-    #[test]
-    fn substring_fallback_and_marker() {
-        let db = sample();
-        // « ait là, d » n'est pas un début de mot : seule la sous-chaîne le trouve.
-        let hits = db.search_paragraphs("ait la, d", None, Some("vgr"), 100, true).unwrap();
-        assert_eq!(hits.len(), 1);
-        assert_eq!(hits[0].marker, "¶2");
-        assert!(db.search_paragraphs("ait la, d", None, None, 100, false).unwrap().is_empty());
+        let mut db = Database::with_connection(conn, Path::new(":memory:"), Mode::ReadWrite).unwrap();
+        schema::migrate(&mut db.conn).unwrap();
+        db
     }
 }

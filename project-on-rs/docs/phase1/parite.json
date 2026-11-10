@@ -1,0 +1,818 @@
+{
+  "textes": {
+    "cas": 262063,
+    "differences": 0,
+    "par_fonction": {
+      "clean_expose_title": {
+        "cas": 4480,
+        "differences": 0
+      },
+      "clean_hymn_title": {
+        "cas": 4480,
+        "differences": 0
+      },
+      "clean_sermon_title": {
+        "cas": 4480,
+        "differences": 0
+      },
+      "clean_text": {
+        "cas": 28433,
+        "differences": 0
+      },
+      "display_location": {
+        "cas": 4480,
+        "differences": 0
+      },
+      "expose_chapter_num": {
+        "cas": 33,
+        "differences": 0
+      },
+      "expose_ref_parts": {
+        "cas": 13733,
+        "differences": 0
+      },
+      "format_reference": {
+        "cas": 3,
+        "differences": 0
+      },
+      "fts_query": {
+        "cas": 4480,
+        "differences": 0
+      },
+      "html_unescape": {
+        "cas": 28433,
+        "differences": 0
+      },
+      "hymn_fts_query": {
+        "cas": 4480,
+        "differences": 0
+      },
+      "is_chorus": {
+        "cas": 8144,
+        "differences": 0
+      },
+      "marker_from_ref": {
+        "cas": 13733,
+        "differences": 0
+      },
+      "mostly_uppercase": {
+        "cas": 4480,
+        "differences": 0
+      },
+      "normalize_filter_date": {
+        "cas": 4480,
+        "differences": 0
+      },
+      "paragraph_marker": {
+        "cas": 13733,
+        "differences": 0
+      },
+      "plain_query": {
+        "cas": 4480,
+        "differences": 0
+      },
+      "search_key": {
+        "cas": 28433,
+        "differences": 0
+      },
+      "split_stanza": {
+        "cas": 32576,
+        "differences": 0
+      },
+      "split_text": {
+        "cas": 8952,
+        "differences": 0
+      },
+      "strip_hymn_label": {
+        "cas": 8144,
+        "differences": 0
+      },
+      "title_case_french": {
+        "cas": 4480,
+        "differences": 0
+      },
+      "title_case_words": {
+        "cas": 4480,
+        "differences": 0
+      },
+      "unaccent": {
+        "cas": 28433,
+        "differences": 0
+      }
+    },
+    "exemples": []
+  },
+  "références bibliques": {
+    "cas": 3179,
+    "differences": 0,
+    "par_fonction": {
+      "parse_reference": {
+        "cas": 3179,
+        "differences": 0
+      }
+    },
+    "exemples": []
+  },
+  "requêtes": {
+    "cas": 2225,
+    "differences": 0,
+    "par_fonction": {
+      "book_of_chapter": {
+        "cas": 10,
+        "differences": 0
+      },
+      "get_hymn": {
+        "cas": 21,
+        "differences": 0
+      },
+      "get_sermon": {
+        "cas": 13,
+        "differences": 0
+      },
+      "list_all_items": {
+        "cas": 1,
+        "differences": 0
+      },
+      "list_book_chapters": {
+        "cas": 6,
+        "differences": 0
+      },
+      "list_books": {
+        "cas": 1,
+        "differences": 0
+      },
+      "list_books_legacy": {
+        "cas": 1,
+        "differences": 0
+      },
+      "list_branham_translators": {
+        "cas": 3,
+        "differences": 0
+      },
+      "list_chapters_legacy": {
+        "cas": 3,
+        "differences": 0
+      },
+      "list_expose_chapters": {
+        "cas": 3,
+        "differences": 0
+      },
+      "list_expose_page_paragraphs": {
+        "cas": 36,
+        "differences": 0
+      },
+      "list_expose_pages": {
+        "cas": 12,
+        "differences": 0
+      },
+      "list_folders": {
+        "cas": 1,
+        "differences": 0
+      },
+      "list_hymns": {
+        "cas": 7,
+        "differences": 0
+      },
+      "list_items": {
+        "cas": 1,
+        "differences": 0
+      },
+      "list_media": {
+        "cas": 1,
+        "differences": 0
+      },
+      "list_paragraphs": {
+        "cas": 15,
+        "differences": 0
+      },
+      "list_sermon_years": {
+        "cas": 4,
+        "differences": 0
+      },
+      "list_sermons": {
+        "cas": 14,
+        "differences": 0
+      },
+      "list_stanzas": {
+        "cas": 1915,
+        "differences": 0
+      },
+      "list_translation_books": {
+        "cas": 11,
+        "differences": 0
+      },
+      "list_translation_chapters": {
+        "cas": 44,
+        "differences": 0
+      },
+      "list_translation_verses": {
+        "cas": 44,
+        "differences": 0
+      },
+      "list_translations": {
+        "cas": 1,
+        "differences": 0
+      },
+      "list_verses_legacy": {
+        "cas": 3,
+        "differences": 0
+      },
+      "search_book": {
+        "cas": 18,
+        "differences": 0
+      },
+      "search_expose": {
+        "cas": 6,
+        "differences": 0
+      },
+      "search_paragraphs": {
+        "cas": 14,
+        "differences": 0
+      },
+      "search_stanzas": {
+        "cas": 16,
+        "differences": 0
+      }
+    },
+    "exemples": []
+  },
+  "maintenance": {
+    "cas": 677141,
+    "differences": 0,
+    "par_fonction": {
+      "app_meta": {
+        "cas": 3,
+        "differences": 0
+      },
+      "app_meta (lignes)": {
+        "cas": 1,
+        "differences": 0
+      },
+      "bible_book": {
+        "cas": 3,
+        "differences": 0
+      },
+      "bible_book (lignes)": {
+        "cas": 1,
+        "differences": 0
+      },
+      "bible_translation": {
+        "cas": 11,
+        "differences": 0
+      },
+      "bible_translation (lignes)": {
+        "cas": 1,
+        "differences": 0
+      },
+      "bible_translation_verse": {
+        "cas": 93312,
+        "differences": 0
+      },
+      "bible_translation_verse (lignes)": {
+        "cas": 1,
+        "differences": 0
+      },
+      "bible_verse": {
+        "cas": 5,
+        "differences": 0
+      },
+      "bible_verse (lignes)": {
+        "cas": 1,
+        "differences": 0
+      },
+      "hymn": {
+        "cas": 1915,
+        "differences": 0
+      },
+      "hymn (lignes)": {
+        "cas": 1,
+        "differences": 0
+      },
+      "hymn_stanza": {
+        "cas": 10980,
+        "differences": 0
+      },
+      "hymn_stanza (lignes)": {
+        "cas": 1,
+        "differences": 0
+      },
+      "hymn_stanza_fts": {
+        "cas": 3,
+        "differences": 0
+      },
+      "library_book": {
+        "cas": 5,
+        "differences": 0
+      },
+      "library_book (lignes)": {
+        "cas": 1,
+        "differences": 0
+      },
+      "media_item (lignes)": {
+        "cas": 1,
+        "differences": 0
+      },
+      "playlist_folder (lignes)": {
+        "cas": 1,
+        "differences": 0
+      },
+      "playlist_item": {
+        "cas": 9,
+        "differences": 0
+      },
+      "playlist_item (lignes)": {
+        "cas": 1,
+        "differences": 0
+      },
+      "schéma": {
+        "cas": 1,
+        "differences": 0
+      },
+      "sermon": {
+        "cas": 2876,
+        "differences": 0
+      },
+      "sermon (lignes)": {
+        "cas": 1,
+        "differences": 0
+      },
+      "sermon_paragraph": {
+        "cas": 568000,
+        "differences": 0
+      },
+      "sermon_paragraph (lignes)": {
+        "cas": 1,
+        "differences": 0
+      },
+      "sermon_paragraph_fts": {
+        "cas": 3,
+        "differences": 0
+      },
+      "service_section (lignes)": {
+        "cas": 1,
+        "differences": 0
+      },
+      "user_version": {
+        "cas": 1,
+        "differences": 0
+      }
+    },
+    "exemples": []
+  },
+  "base neuve": {
+    "cas": 93355,
+    "differences": 0,
+    "par_fonction": {
+      "app_meta": {
+        "cas": 2,
+        "differences": 0
+      },
+      "app_meta (lignes)": {
+        "cas": 1,
+        "differences": 0
+      },
+      "bible_book": {
+        "cas": 3,
+        "differences": 0
+      },
+      "bible_book (lignes)": {
+        "cas": 1,
+        "differences": 0
+      },
+      "bible_translation": {
+        "cas": 3,
+        "differences": 0
+      },
+      "bible_translation (lignes)": {
+        "cas": 1,
+        "differences": 0
+      },
+      "bible_translation_verse": {
+        "cas": 93312,
+        "differences": 0
+      },
+      "bible_translation_verse (lignes)": {
+        "cas": 1,
+        "differences": 0
+      },
+      "bible_verse": {
+        "cas": 5,
+        "differences": 0
+      },
+      "bible_verse (lignes)": {
+        "cas": 1,
+        "differences": 0
+      },
+      "hymn": {
+        "cas": 1,
+        "differences": 0
+      },
+      "hymn (lignes)": {
+        "cas": 1,
+        "differences": 0
+      },
+      "hymn_stanza": {
+        "cas": 2,
+        "differences": 0
+      },
+      "hymn_stanza (lignes)": {
+        "cas": 1,
+        "differences": 0
+      },
+      "hymn_stanza_fts": {
+        "cas": 3,
+        "differences": 0
+      },
+      "library_book": {
+        "cas": 2,
+        "differences": 0
+      },
+      "library_book (lignes)": {
+        "cas": 1,
+        "differences": 0
+      },
+      "media_item (lignes)": {
+        "cas": 1,
+        "differences": 0
+      },
+      "playlist_folder (lignes)": {
+        "cas": 1,
+        "differences": 0
+      },
+      "playlist_item (lignes)": {
+        "cas": 1,
+        "differences": 0
+      },
+      "schéma": {
+        "cas": 1,
+        "differences": 0
+      },
+      "sermon": {
+        "cas": 1,
+        "differences": 0
+      },
+      "sermon (lignes)": {
+        "cas": 1,
+        "differences": 0
+      },
+      "sermon_paragraph": {
+        "cas": 2,
+        "differences": 0
+      },
+      "sermon_paragraph (lignes)": {
+        "cas": 1,
+        "differences": 0
+      },
+      "sermon_paragraph_fts": {
+        "cas": 3,
+        "differences": 0
+      },
+      "service_section (lignes)": {
+        "cas": 1,
+        "differences": 0
+      },
+      "user_version": {
+        "cas": 1,
+        "differences": 0
+      }
+    },
+    "exemples": []
+  },
+  "opérations (résultats)": {
+    "cas": 56,
+    "differences": 0,
+    "par_fonction": {
+      "add_item": {
+        "cas": 2,
+        "differences": 0
+      },
+      "add_items": {
+        "cas": 2,
+        "differences": 0
+      },
+      "add_media": {
+        "cas": 3,
+        "differences": 0
+      },
+      "add_section": {
+        "cas": 2,
+        "differences": 0
+      },
+      "copy_items": {
+        "cas": 1,
+        "differences": 0
+      },
+      "create_folder": {
+        "cas": 2,
+        "differences": 0
+      },
+      "delete_folder": {
+        "cas": 1,
+        "differences": 0
+      },
+      "delete_hymn": {
+        "cas": 1,
+        "differences": 0
+      },
+      "delete_item": {
+        "cas": 1,
+        "differences": 0
+      },
+      "delete_items": {
+        "cas": 1,
+        "differences": 0
+      },
+      "delete_section": {
+        "cas": 1,
+        "differences": 0
+      },
+      "duplicate_items": {
+        "cas": 1,
+        "differences": 0
+      },
+      "exact_duplicate_exists": {
+        "cas": 2,
+        "differences": 0
+      },
+      "get_start_time": {
+        "cas": 1,
+        "differences": 0
+      },
+      "hymn_exists": {
+        "cas": 2,
+        "differences": 0
+      },
+      "import_folder": {
+        "cas": 1,
+        "differences": 0
+      },
+      "import_hymn": {
+        "cas": 1,
+        "differences": 0
+      },
+      "list_all_items": {
+        "cas": 1,
+        "differences": 0
+      },
+      "list_folders": {
+        "cas": 1,
+        "differences": 0
+      },
+      "list_hymns": {
+        "cas": 1,
+        "differences": 0
+      },
+      "list_items": {
+        "cas": 2,
+        "differences": 0
+      },
+      "list_media": {
+        "cas": 1,
+        "differences": 0
+      },
+      "list_sections": {
+        "cas": 1,
+        "differences": 0
+      },
+      "list_stanzas": {
+        "cas": 1,
+        "differences": 0
+      },
+      "move_item": {
+        "cas": 3,
+        "differences": 0
+      },
+      "move_items_to_folder": {
+        "cas": 1,
+        "differences": 0
+      },
+      "move_section": {
+        "cas": 2,
+        "differences": 0
+      },
+      "purge_web_media": {
+        "cas": 1,
+        "differences": 0
+      },
+      "rename_folder": {
+        "cas": 1,
+        "differences": 0
+      },
+      "rename_media": {
+        "cas": 1,
+        "differences": 0
+      },
+      "reorder_items": {
+        "cas": 2,
+        "differences": 0
+      },
+      "restore_folders": {
+        "cas": 1,
+        "differences": 0
+      },
+      "save_hymn": {
+        "cas": 2,
+        "differences": 0
+      },
+      "search_stanzas": {
+        "cas": 1,
+        "differences": 0
+      },
+      "set_duration": {
+        "cas": 1,
+        "differences": 0
+      },
+      "set_loop": {
+        "cas": 1,
+        "differences": 0
+      },
+      "set_start_time": {
+        "cas": 1,
+        "differences": 0
+      },
+      "snapshot_folders": {
+        "cas": 1,
+        "differences": 0
+      },
+      "update_item": {
+        "cas": 1,
+        "differences": 0
+      },
+      "update_item_background": {
+        "cas": 1,
+        "differences": 0
+      },
+      "update_item_sort_order": {
+        "cas": 1,
+        "differences": 0
+      },
+      "update_section": {
+        "cas": 1,
+        "differences": 0
+      }
+    },
+    "exemples": []
+  },
+  "opérations": {
+    "cas": 93368,
+    "differences": 0,
+    "par_fonction": {
+      "app_meta": {
+        "cas": 2,
+        "differences": 0
+      },
+      "app_meta (lignes)": {
+        "cas": 1,
+        "differences": 0
+      },
+      "bible_book": {
+        "cas": 3,
+        "differences": 0
+      },
+      "bible_book (lignes)": {
+        "cas": 1,
+        "differences": 0
+      },
+      "bible_translation": {
+        "cas": 3,
+        "differences": 0
+      },
+      "bible_translation (lignes)": {
+        "cas": 1,
+        "differences": 0
+      },
+      "bible_translation_verse": {
+        "cas": 93312,
+        "differences": 0
+      },
+      "bible_translation_verse (lignes)": {
+        "cas": 1,
+        "differences": 0
+      },
+      "bible_verse": {
+        "cas": 5,
+        "differences": 0
+      },
+      "bible_verse (lignes)": {
+        "cas": 1,
+        "differences": 0
+      },
+      "hymn": {
+        "cas": 2,
+        "differences": 0
+      },
+      "hymn (lignes)": {
+        "cas": 1,
+        "differences": 0
+      },
+      "hymn_stanza": {
+        "cas": 5,
+        "differences": 0
+      },
+      "hymn_stanza (lignes)": {
+        "cas": 1,
+        "differences": 0
+      },
+      "hymn_stanza_fts": {
+        "cas": 3,
+        "differences": 0
+      },
+      "library_book": {
+        "cas": 2,
+        "differences": 0
+      },
+      "library_book (lignes)": {
+        "cas": 1,
+        "differences": 0
+      },
+      "media_item": {
+        "cas": 1,
+        "differences": 0
+      },
+      "media_item (lignes)": {
+        "cas": 1,
+        "differences": 0
+      },
+      "playlist_folder": {
+        "cas": 2,
+        "differences": 0
+      },
+      "playlist_folder (lignes)": {
+        "cas": 1,
+        "differences": 0
+      },
+      "playlist_item": {
+        "cas": 5,
+        "differences": 0
+      },
+      "playlist_item (lignes)": {
+        "cas": 1,
+        "differences": 0
+      },
+      "schéma": {
+        "cas": 1,
+        "differences": 0
+      },
+      "sermon": {
+        "cas": 1,
+        "differences": 0
+      },
+      "sermon (lignes)": {
+        "cas": 1,
+        "differences": 0
+      },
+      "sermon_paragraph": {
+        "cas": 2,
+        "differences": 0
+      },
+      "sermon_paragraph (lignes)": {
+        "cas": 1,
+        "differences": 0
+      },
+      "sermon_paragraph_fts": {
+        "cas": 3,
+        "differences": 0
+      },
+      "service_section": {
+        "cas": 1,
+        "differences": 0
+      },
+      "service_section (lignes)": {
+        "cas": 1,
+        "differences": 0
+      },
+      "user_version": {
+        "cas": 1,
+        "differences": 0
+      }
+    },
+    "exemples": []
+  },
+  "réglages": {
+    "cas": 50,
+    "differences": 0,
+    "par_fonction": {
+      "appearance": {
+        "cas": 10,
+        "differences": 0
+      },
+      "avertissement": {
+        "cas": 10,
+        "differences": 0
+      },
+      "hdmi": {
+        "cas": 10,
+        "differences": 0
+      },
+      "projection": {
+        "cas": 10,
+        "differences": 0
+      },
+      "split": {
+        "cas": 10,
+        "differences": 0
+      }
+    },
+    "exemples": []
+  }
+}

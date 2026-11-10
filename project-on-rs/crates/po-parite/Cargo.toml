@@ -1,0 +1,20 @@
+[package]
+name = "po-parite"
+description = "Project-On : les tests dorés — la 3.0 rejoue les références de la 2.8 et compare (jamais livré)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+publish = false
+
+[dependencies]
+po-db.workspace = true
+po-settings = { path = "../po-settings" }
+po-text.workspace = true
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+rusqlite = { version = "0.41.1", features = ["bundled"] }
+
+[lints]
+workspace = true

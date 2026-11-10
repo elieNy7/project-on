@@ -7,13 +7,16 @@
 [workspace]
 resolver = "3"
 members = [
+    "crates/po-core",
     "crates/po-text",
+    "crates/po-settings",
     "crates/po-db",
     "crates/po-layout",
     "crates/po-render",
     "crates/po-web",
     "crates/project-on",
     "crates/po-mesures",
+    "crates/po-parite",
 ]
 
 [workspace.package]

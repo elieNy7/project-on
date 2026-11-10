@@ -1,0 +1,47 @@
+{
+  "ouverture_base_ms": 23.4,
+  "recherche": {
+    "fts_expression": {
+      "count": 100,
+      "first": "53-0509 - La Colonne De Feu - §53",
+      "ms_best": 24.4,
+      "ms_first": 1648.4
+    },
+    "fts_ferme_assurance": {
+      "count": 100,
+      "first": "47-0412 - La Foi Est une Ferme Assurance - §50",
+      "ms_best": 7.0,
+      "ms_first": 133.8
+    },
+    "fts_grace": {
+      "count": 100,
+      "first": "61-0827 - Le Message De Grâce - §165",
+      "ms_best": 32.3,
+      "ms_first": 6036.9
+    },
+    "liste_sermons": {
+      "count": 2815,
+      "first": "La Foi Est une Ferme Assurance",
+      "ms_best": 12.4,
+      "ms_first": 56.6
+    },
+    "liste_titre_foi": {
+      "count": 111,
+      "first": "La Foi Est une Ferme Assurance",
+      "ms_best": 5.9,
+      "ms_first": 8.2
+    },
+    "sous_chaine_absente": {
+      "count": 0,
+      "first": "",
+      "ms_best": 2258.8,
+      "ms_first": 2258.8
+    },
+    "sous_chaine_ernel_die": {
+      "count": 100,
+      "first": "47-1123 - Les Enfants dans le désert - E-76",
+      "ms_best": 3047.5,
+      "ms_first": 19371.9
+    }
+  }
+}

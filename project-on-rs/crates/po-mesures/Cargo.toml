@@ -1,6 +1,6 @@
 [package]
 name = "po-mesures"
-description = "Project-On : les mesures de la phase 0 (base, mise en page, rendu, Web, interface) — jamais livré"
+description = "Project-On : les mesures des phases 0 et 1 (base, recherche à froid, trigrammes, mise en page, rendu, Web, interface) — jamais livré"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -9,6 +9,8 @@ publish = false
 
 [dependencies]
 po-db.workspace = true
+po-text.workspace = true
+rusqlite = { version = "0.41.1", features = ["bundled"] }
 po-layout.workspace = true
 po-render.workspace = true
 po-web.workspace = true

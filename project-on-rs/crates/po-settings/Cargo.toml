@@ -1,0 +1,19 @@
+[package]
+name = "po-settings"
+description = "Project-On : les réglages, lus dans le settings.json de la 2.x avec les mêmes règles"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+po-core = { path = "../po-core" }
+serde.workspace = true
+serde_json = { workspace = true, features = ["preserve_order"] }
+thiserror.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints]
+workspace = true

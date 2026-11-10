@@ -1,0 +1,21 @@
+[package]
+name = "po-core"
+description = "Project-On : les fondations — chemins des données, journal, valeurs à la Python"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+chrono = { version = "0.4.42", default-features = false, features = ["clock", "std"] }
+serde_json.workspace = true
+thiserror.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows-registry = "0.6.1"
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints]
+workspace = true
