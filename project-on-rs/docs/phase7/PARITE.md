@@ -76,7 +76,7 @@ Le livrable de la phase 7 (audit, § 8) : chaque fonction de la 2.8, et où elle
 | Éditeur de cantiques | ✅ | Créer, modifier, supprimer (avec confirmation) dans la page Cantiques : titre, numéro, langue, paroles en une zone (une ligne vide entre les strophes), bouton « Refrain », découpage reconnu en direct ; mêmes règles que la 2.8, vérifiées sur ses propres résultats |
 | Import de Bibles | ⏳ | |
 | Import PDF (sermons, cantiques) | ⏳ | |
-| Sauvegardes de la base | 🟡 | Phase 7 : base et réglages, copie cohérente, les 10 dernières gardées ; la restauration et l'archive avec médias de la 2.8 restent à faire |
+| Sauvegardes de la base | ✅ | Phase 7 : base et réglages, copie cohérente, les 10 dernières gardées. **Restauration** (3.0) : une sauvegarde de la liste, ou une archive complète de la 2.8 (`.zip` : base, médias, réglages, vérifiée comme la 2.8 le faisait : manifeste, tailles, empreintes) ; appliquée au démarrage suivant, après une sauvegarde de l'état actuel, donc réversible. Mieux que la 2.8, qui reconstruisait un profil à côté à rouvrir à la main. La création d'une archive complète avec médias reste à faire |
 | Reprise après coupure (le direct survit à un arrêt brutal) | ✅ | Phase 7, avec le masquage |
 | Contrôle avant culte (Ctrl+Shift+D) | ✅ | Phase 7 : base, écrans, polices, écrans Web, NDI, sauvegarde, fichiers de la playlist |
 | Mise à jour de l'application | ⏳ | Avec l'installateur de la bascule |

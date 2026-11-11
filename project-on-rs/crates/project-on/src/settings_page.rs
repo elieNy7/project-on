@@ -20,6 +20,29 @@ pub enum SettingsAction {
     Backup,
     Preflight,
     OpenFolder(std::path::PathBuf),
+    /// Préparer la restauration d'une sauvegarde (appliquée au prochain démarrage).
+    Restore(RestoreChoice),
+    /// Renoncer à la restauration préparée.
+    CancelRestore,
+    /// Fermer Project-On (pour que la restauration se fasse).
+    Quit,
+}
+
+/// Ce qu'on restaure : une sauvegarde de la 3.0, ou une archive complète de la 2.8.
+#[derive(Debug, Clone, PartialEq)]
+pub enum RestoreChoice {
+    Backup(std::path::PathBuf),
+    Archive(std::path::PathBuf),
+}
+
+impl RestoreChoice {
+    pub fn label(&self) -> String {
+        let name = |p: &std::path::Path| p.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+        match self {
+            RestoreChoice::Backup(dir) => format!("la sauvegarde du {}", name(dir)),
+            RestoreChoice::Archive(file) => format!("l'archive « {} »", name(file)),
+        }
+    }
 }
 
 /// Les réglages propres à la 3.0, rangés à part dans `settings.json` (la 2.x les ignore).
@@ -56,6 +79,12 @@ pub struct SettingsView {
     pub draft: Option<Settings>,
     pub checks: Vec<Check>,
     pub backups: Vec<crate::maintenance::Backup>,
+    /// La restauration à confirmer.
+    pub confirm_restore: Option<RestoreChoice>,
+    /// La restauration préparée, faite au prochain démarrage.
+    pub pending_restore: Option<String>,
+    /// La restauration en cours de préparation (une archive avec ses médias peut être longue).
+    pub preparing: bool,
     pub families: Vec<String>,
     pub screens: Vec<String>,
 }
@@ -93,6 +122,104 @@ fn choice(ui: &mut Ui, id: &str, value: &mut String, options: &[(&str, &str)]) {
 }
 
 impl SettingsView {
+    /// Restaurer : une sauvegarde de la liste, ou une archive de la 2.8 ; confirmation, puis
+    /// application au prochain démarrage.
+    fn restore_ui(
+        ui: &mut Ui,
+        backups: &[crate::maintenance::Backup],
+        confirm_restore: &mut Option<RestoreChoice>,
+        pending_restore: Option<&str>,
+        preparing: bool,
+        actions: &mut Vec<SettingsAction>,
+    ) {
+        ui.add_space(6.0);
+        if preparing {
+            ui.horizontal(|ui| {
+                ui.spinner();
+                ui.label(RichText::new("Vérification de la sauvegarde…").font(regular(12.0)).color(MUTED));
+            });
+            return;
+        }
+        if let Some(label) = pending_restore {
+            widgets::card(ui, |ui| {
+                ui.set_width(ui.available_width());
+                ui.label(RichText::new(format!("Restauration prête : {label}")).font(semibold(13.0)).color(WARN));
+                ui.label(
+                    RichText::new(
+                        "Elle se fera au prochain démarrage de Project-On : la base et les réglages actuels seront d'abord sauvegardés, puis remplacés.",
+                    )
+                    .font(regular(12.0))
+                    .color(MUTED),
+                );
+                ui.horizontal(|ui| {
+                    if widgets::button(ui, None, "Fermer Project-On maintenant", Tone::Primary(WARN)).clicked() {
+                        actions.push(SettingsAction::Quit);
+                    }
+                    if widgets::button(ui, None, "Annuler la restauration", Tone::Secondary).clicked() {
+                        actions.push(SettingsAction::CancelRestore);
+                    }
+                });
+            });
+            return;
+        }
+        if let Some(choice) = confirm_restore.clone() {
+            widgets::card(ui, |ui| {
+                ui.set_width(ui.available_width());
+                ui.label(RichText::new(format!("Restaurer {} ?", choice.label())).font(semibold(13.0)).color(TEXT));
+                ui.label(
+                    RichText::new(
+                        "Les playlists, cantiques et réglages reviendront à leur état de cette sauvegarde. Rien ne change avant le prochain démarrage, et la base actuelle sera sauvegardée d'abord : la restauration peut être défaite.",
+                    )
+                    .font(regular(12.0))
+                    .color(MUTED),
+                );
+                ui.horizontal(|ui| {
+                    if widgets::button(ui, None, "Préparer la restauration", Tone::Primary(WARN)).clicked() {
+                        actions.push(SettingsAction::Restore(choice.clone()));
+                        *confirm_restore = None;
+                    }
+                    if widgets::button(ui, None, "Annuler", Tone::Secondary).clicked() {
+                        *confirm_restore = None;
+                    }
+                });
+            });
+            return;
+        }
+        egui::CollapsingHeader::new(RichText::new("Restaurer une sauvegarde").font(medium(12.5)).color(TEXT))
+            .id_salt("restaurer")
+            .show(ui, |ui| {
+                for b in backups {
+                    let name = b.dir.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+                    ui.horizontal(|ui| {
+                        ui.add_sized(
+                            [300.0, 22.0],
+                            egui::Label::new(
+                                RichText::new(format!("{name} · {} Mo", b.bytes / 1_000_000))
+                                    .font(regular(12.0))
+                                    .color(MUTED),
+                            ),
+                        );
+                        if widgets::button(ui, None, "Restaurer…", Tone::Secondary)
+                            .on_hover_text(format!("Restaurer la sauvegarde du {name}"))
+                            .clicked()
+                        {
+                            *confirm_restore = Some(RestoreChoice::Backup(b.dir.clone()));
+                        }
+                    });
+                }
+                if widgets::button(ui, None, "Restaurer une archive de la 2.8…", Tone::Secondary)
+                    .on_hover_text("Une « sauvegarde complète » de la 2.8 (fichier .zip : base, médias, réglages)")
+                    .clicked()
+                    && let Some(file) = rfd::FileDialog::new()
+                        .set_title("Archive Project-On à restaurer")
+                        .add_filter("Archive Project-On", &["zip"])
+                        .pick_file()
+                {
+                    *confirm_restore = Some(RestoreChoice::Archive(file));
+                }
+            });
+    }
+
     /// La page. `current` : les réglages en vigueur (le brouillon part d'eux).
     pub fn ui(&mut self, ui: &mut Ui, current: &Settings) -> Vec<SettingsAction> {
         let mut actions = Vec::new();
@@ -173,6 +300,14 @@ impl SettingsView {
                     ui.label(RichText::new("Aucune sauvegarde pour l'instant.").font(regular(12.0)).color(WARN));
                 }
             }
+            Self::restore_ui(
+                ui,
+                &self.backups,
+                &mut self.confirm_restore,
+                self.pending_restore.as_deref(),
+                self.preparing,
+                &mut actions,
+            );
             if !self.checks.is_empty() {
                 ui.add_space(6.0);
                 checks_list(ui, &self.checks);

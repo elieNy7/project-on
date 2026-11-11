@@ -181,6 +181,8 @@ pub struct App {
     pub last_render_ms: f64,
     /// La liste du programme au direct doit montrer le slide courant.
     follow_live: bool,
+    /// La préparation d'une restauration (vérification dans un fil à part).
+    restore_job: Option<JoinHandle<Result<String, String>>>,
 }
 
 /// Le bandeau des écrans Web : les réglages « OBS » de la 2.x (`obs.output`), sinon ceux par défaut.
@@ -300,6 +302,7 @@ impl App {
             warm_up: None,
             last_render_ms: 0.0,
             follow_live: false,
+            restore_job: None,
         };
         app.apply_settings(config.settings.clone());
         app.restore_choices();
@@ -446,6 +449,44 @@ impl App {
         }
     }
 
+    /// Prépare une restauration (vérifiée dans un fil à part) ; elle se fera au prochain démarrage.
+    pub fn prepare_restore(&mut self, choice: crate::settings_page::RestoreChoice) {
+        let Some(data) = self.data_dir() else {
+            self.status = "Restauration impossible : pas de dossier de données".into();
+            return;
+        };
+        let stamp = crate::maintenance::stamp(&today(), service::now_seconds());
+        po_core::journal::line(&format!("restauration : préparation de {}", choice.label()));
+        self.settings_view.preparing = true;
+        self.restore_job = Some(std::thread::spawn(move || match choice {
+            crate::settings_page::RestoreChoice::Backup(dir) => crate::restore::prepare_backup(&dir, &data),
+            crate::settings_page::RestoreChoice::Archive(file) => crate::restore::prepare_archive(&file, &data, &stamp),
+        }));
+    }
+
+    /// La restauration préparée est-elle vérifiée ?
+    pub fn poll_restore(&mut self) {
+        if !self.restore_job.as_ref().is_some_and(JoinHandle::is_finished) {
+            if self.restore_job.is_some() {
+                self.ctx.request_repaint_after(Duration::from_millis(200));
+            }
+            return;
+        }
+        let Some(job) = self.restore_job.take() else { return };
+        self.settings_view.preparing = false;
+        match job.join().unwrap_or_else(|_| Err("préparation interrompue".into())) {
+            Ok(label) => {
+                po_core::journal::line(&format!("restauration : {label} prête"));
+                self.status = format!("Restauration prête : {label} (au prochain démarrage)");
+                self.settings_view.pending_restore = Some(label);
+            }
+            Err(e) => {
+                po_core::journal::line(&format!("restauration refusée : {e}"));
+                self.status = format!("Restauration impossible : {e}");
+            }
+        }
+    }
+
     /// Le contrôle avant culte (Ctrl+Shift+D).
     pub fn preflight(&mut self) -> Vec<crate::maintenance::Check> {
         let backups = self.data_dir().map(|d| crate::maintenance::list(&d.join("sauvegardes"))).unwrap_or_default();
@@ -491,6 +532,24 @@ impl App {
     /// Ouvre la base de la bêta (sa copie : la 2.x n'est jamais ouverte en écriture). Une copie
     /// d'une 2.x plus ancienne reçoit les migrations (additives) ; sinon, rien n'est réécrit.
     fn open_database(&mut self, path: PathBuf) {
+        // Une restauration préparée se fait maintenant, avant que la base ne soit ouverte.
+        let mut restored = None;
+        if let Some(locations) = &self.locations {
+            let stamp = crate::maintenance::stamp(&today(), service::now_seconds());
+            restored = crate::restore::apply_pending(&locations.beta.data(), &path, &locations.beta.settings(), &stamp);
+        }
+        match &restored {
+            Some(Ok(label)) => {
+                po_core::journal::line(&format!("restauration : {label} remise en place"));
+                self.status = format!("Restauré : {label}. L'état d'avant est dans les sauvegardes.");
+                self.reload_settings();
+            }
+            Some(Err(e)) => {
+                po_core::journal::line(&format!("restauration échouée : {e}"));
+                self.status = format!("Restauration échouée : {e}");
+            }
+            None => {}
+        }
         let opened = Database::open(&path, Mode::ReadWrite).and_then(|db| {
             if db.schema_version()? < po_db::SCHEMA_VERSION {
                 drop(db);
@@ -511,6 +570,7 @@ impl App {
                 if let Some(dir) = self.data_dir() {
                     self.recovery = crate::recovery::load(&crate::recovery::file(&dir));
                     self.settings_view.backups = crate::maintenance::list(&dir.join("sauvegardes"));
+                    self.settings_view.pending_restore = crate::restore::pending(&dir);
                 }
             }
             Err(e) => self.startup = Startup::Failed(format!("Base illisible : {e}")),
@@ -1891,6 +1951,7 @@ impl App {
             ui.ctx().request_repaint();
         }
         self.tick_slideshow(now);
+        self.poll_restore();
         self.sync_video();
         self.sync_web();
         // L'horloge de la barre (et celle du retour de scène).
@@ -1985,6 +2046,17 @@ impl App {
                     }
                     crate::settings_page::SettingsAction::OpenFolder(dir) => {
                         let _ = std::process::Command::new("explorer").arg(dir).spawn();
+                    }
+                    crate::settings_page::SettingsAction::Restore(choice) => self.prepare_restore(choice),
+                    crate::settings_page::SettingsAction::CancelRestore => {
+                        if let Some(dir) = self.data_dir() {
+                            crate::restore::cancel(&dir);
+                        }
+                        self.settings_view.pending_restore = None;
+                        self.status = "Restauration annulée".into();
+                    }
+                    crate::settings_page::SettingsAction::Quit => {
+                        ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
                     }
                 }
             }

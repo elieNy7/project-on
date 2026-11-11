@@ -15,6 +15,7 @@ pub mod overlay;
 pub mod playlist;
 pub mod projector;
 pub mod recovery;
+pub mod restore;
 pub mod screens;
 pub mod search;
 pub mod service;

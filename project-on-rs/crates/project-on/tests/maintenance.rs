@@ -135,3 +135,43 @@ fn the_settings_page_saves_backs_up_and_checks() {
     assert_eq!(level("Base de données"), Some(project_on::maintenance::Level::Ok));
     assert_eq!(level("Sauvegarde"), Some(project_on::maintenance::Level::Ok));
 }
+
+#[test]
+fn a_backup_is_restored_at_the_next_start_and_the_state_before_is_kept() {
+    let (_dir, beta) = beta();
+    let locations = Locations::at(&beta, None);
+    let mut h = harness(&beta);
+    h.get_by_label("Réglages").click();
+    h.run_ok();
+    h.get_by_label("Sauvegarder maintenant").click();
+    h.run_ok();
+    // Après la sauvegarde, une playlist de plus.
+    let mut other = Database::open(&locations.beta.database(), po_db::Mode::ReadWrite).unwrap();
+    other.create_folder("Faite après la sauvegarde").unwrap();
+    drop(other);
+
+    h.get_by_label("Restaurer une sauvegarde").click();
+    h.run_ok();
+    h.get_by_label("Restaurer…").click();
+    h.run_ok();
+    h.get_by_label_contains("Rien ne change avant le prochain démarrage");
+    h.get_by_label("Préparer la restauration").click();
+    until(&mut h, |a| a.settings_view.pending_restore.is_some());
+    h.run_ok();
+    let label = h.state_mut().app().settings_view.pending_restore.clone().unwrap();
+    h.get_by_label(&format!("Restauration prête : {label}"));
+    h.get_by_label("Fermer Project-On maintenant");
+    drop(h);
+
+    // Au démarrage suivant : la base de la sauvegarde, et celle d'avant gardée.
+    let mut h = harness(&beta);
+    h.run_ok();
+    let names: Vec<String> =
+        h.state_mut().app().database().unwrap().list_folders().unwrap().into_iter().map(|f| f.name).collect();
+    assert!(!names.iter().any(|n| n == "Faite après la sauvegarde"), "{names:?}");
+    let backups = project_on::maintenance::list(&locations.beta.data().join("sauvegardes"));
+    let safety = backups.iter().find(|b| b.dir.to_string_lossy().ends_with("-avant-restauration")).unwrap();
+    let before = Database::open(&safety.dir.join("project_on.db"), po_db::Mode::ReadOnly).unwrap();
+    assert!(before.list_folders().unwrap().iter().any(|f| f.name == "Faite après la sauvegarde"));
+    assert_eq!(h.state_mut().app().settings_view.pending_restore, None);
+}
