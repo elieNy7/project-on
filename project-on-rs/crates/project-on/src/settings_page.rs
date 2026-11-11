@@ -28,6 +28,10 @@ pub enum SettingsAction {
     Quit,
     /// Projeter les photos de l'église en diaporama.
     ShowPhotos(Vec<String>),
+    /// Relire la liste des scènes d'OBS.
+    ObsRefresh,
+    /// Créer la source « Project-On » dans cette scène d'OBS.
+    ObsCreateSource(String),
 }
 
 /// Ce qu'on restaure : une sauvegarde de la 3.0, ou une archive complète de la 2.8.
@@ -91,6 +95,10 @@ pub struct SettingsView {
     pub screens: Vec<String>,
     /// La galerie des photos de l'église.
     pub gallery: crate::gallery::Gallery,
+    /// Le pilotage d'OBS : état, scènes, dernier message.
+    pub obs: (crate::obs::ObsState, Vec<String>, String),
+    /// La scène où créer la source « Project-On ».
+    pub obs_source_scene: String,
 }
 
 fn row(ui: &mut Ui, label: &str, add: impl FnOnce(&mut Ui)) {
@@ -435,6 +443,9 @@ impl SettingsView {
                 ui.checkbox(&mut s.show_part_counter, "");
             });
 
+            widgets::section(ui, "Pilotage d'OBS");
+            obs_section(ui, draft, &self.obs, &mut self.obs_source_scene, &mut actions);
+
             widgets::section(ui, "Diffusion");
             row(ui, "Couleur de clé des sorties HDMI", |ui| {
                 choice(
@@ -638,6 +649,87 @@ fn church_profile(
         if let Some(map) = section.as_object_mut() {
             p.write_into(map);
         }
+    }
+}
+
+/// Le pilotage d'OBS (obs-websocket 5) : connexion, scènes du direct et du texte masqué, source
+/// navigateur. Les réglages sont ceux de la 2.x (`obs.remote`), le mot de passe chiffré.
+fn obs_section(
+    ui: &mut Ui,
+    draft: &mut Settings,
+    (state, scenes, message): &(crate::obs::ObsState, Vec<String>, String),
+    source_scene: &mut String,
+    actions: &mut Vec<SettingsAction>,
+) {
+    let mut o = crate::obs::ObsSettings::from_settings(draft);
+    let before = o.clone();
+    row(ui, "Piloter OBS", |ui| {
+        ui.checkbox(&mut o.enabled, "Changer de scène au direct et au masquage (obs-websocket, OBS 28 ou plus)");
+    });
+    if o.enabled {
+        field(ui, "Adresse d'OBS", &mut o.host, "127.0.0.1", 200.0);
+        row(ui, "Port", |ui| {
+            ui.add(egui::DragValue::new(&mut o.port).range(1..=65535));
+        });
+        row(ui, "Mot de passe (OBS → Outils → Paramètres WebSocket)", |ui| {
+            let r = ui.add(egui::TextEdit::singleline(&mut o.password).password(true).desired_width(220.0));
+            ui.ctx().accesskit_node_builder(r.id, |n| n.set_label("Champ : mot de passe d'OBS"));
+        });
+        row(ui, "État", |ui| {
+            let color = match state {
+                crate::obs::ObsState::Connected => PREVIEW,
+                crate::obs::ObsState::Failed(_) => WARN,
+                _ => MUTED,
+            };
+            ui.label(RichText::new(state.label()).font(medium(12.0)).color(color));
+            if *state == crate::obs::ObsState::Connected
+                && widgets::button(ui, None, "Actualiser les scènes", Tone::Secondary).clicked()
+            {
+                actions.push(SettingsAction::ObsRefresh);
+            }
+        });
+        let scene_choice = |ui: &mut Ui, id: &str, value: &mut String| {
+            let shown = if value.is_empty() { "Ne pas changer".to_string() } else { value.clone() };
+            egui::ComboBox::from_id_salt(id).selected_text(shown).width(220.0).show_ui(ui, |ui| {
+                ui.selectable_value(value, String::new(), "Ne pas changer");
+                for s in scenes {
+                    ui.selectable_value(value, s.clone(), s);
+                }
+            });
+        };
+        row(ui, "Scène quand un slide passe au direct", |ui| scene_choice(ui, "obs-direct", &mut o.scene_on_live));
+        row(ui, "Scène quand le texte est masqué", |ui| scene_choice(ui, "obs-masque", &mut o.scene_on_hide));
+        if !scenes.is_empty() {
+            row(ui, "Source « Project-On » (écran Diffusion)", |ui| {
+                if source_scene.is_empty() || !scenes.contains(source_scene) {
+                    *source_scene = scenes[0].clone();
+                }
+                egui::ComboBox::from_id_salt("obs-source").selected_text(source_scene.as_str()).width(180.0).show_ui(
+                    ui,
+                    |ui| {
+                        for s in scenes {
+                            ui.selectable_value(source_scene, s.clone(), s);
+                        }
+                    },
+                );
+                if widgets::button(ui, None, "Créer dans OBS", Tone::Secondary).clicked() {
+                    actions.push(SettingsAction::ObsCreateSource(source_scene.clone()));
+                }
+            });
+        }
+        if !message.is_empty() {
+            ui.label(RichText::new(message).font(regular(11.5)).color(MUTED));
+        }
+        ui.label(
+            RichText::new(
+                "Le mot de passe est chiffré pour ce compte Windows, comme dans la 2.8. Enregistrez pour appliquer.",
+            )
+            .font(regular(11.5))
+            .color(FAINT),
+        );
+    }
+    if o != before {
+        o.write_into(draft);
     }
 }
 

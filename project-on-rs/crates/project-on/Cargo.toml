@@ -35,10 +35,12 @@ sha2 = "0.11"
 rfd = "0.18"
 cpal = "0.18.2"
 regex = "1"
+tungstenite = "0.30"
+base64 = "0.22"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 
 [target.'cfg(windows)'.dependencies]
-windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_UI_WindowsAndMessaging", "Win32_System_SystemInformation", "Win32_System_Threading", "Win32_Security"] }
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_UI_WindowsAndMessaging", "Win32_System_SystemInformation", "Win32_System_Threading", "Win32_Security", "Win32_Security_Cryptography"] }
 
 [features]
 # La bascule (phase 8) : la 3.0 remplace la 2.x. Elle travaille directement sur les données de la

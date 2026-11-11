@@ -175,3 +175,31 @@ fn a_backup_is_restored_at_the_next_start_and_the_state_before_is_kept() {
     assert!(before.list_folders().unwrap().iter().any(|f| f.name == "Faite après la sauvegarde"));
     assert_eq!(h.state_mut().app().settings_view.pending_restore, None);
 }
+
+#[test]
+fn obs_control_is_set_in_the_settings_with_its_password_encrypted() {
+    let (_dir, beta) = beta();
+    let locations = Locations::at(&beta, None);
+    let mut h = harness(&beta);
+    h.get_by_label("Réglages").click();
+    h.run_ok();
+    h.get_by_label_contains("Changer de scène au direct").scroll_to_me();
+    h.run_ok();
+    h.get_by_label_contains("Changer de scène au direct").click();
+    h.run_ok();
+    h.get_by_label("Champ : mot de passe d'OBS").click();
+    h.run_ok();
+    h.get_by_label("Champ : mot de passe d'OBS").type_text("secret-obs");
+    h.run_ok();
+    h.get_by_label("Enregistrer").scroll_to_me();
+    h.run_ok();
+    h.get_by_label("Enregistrer").click();
+    h.run_ok();
+    let text = std::fs::read_to_string(locations.beta.settings()).unwrap();
+    assert!(!text.contains("secret-obs"), "jamais en clair");
+    let saved = Settings::load(&locations.beta.settings()).settings;
+    let obs = project_on::obs::ObsSettings::from_settings(&saved);
+    assert!(obs.enabled);
+    assert_eq!(obs.password, "secret-obs");
+    assert_eq!(obs.port, 4455);
+}

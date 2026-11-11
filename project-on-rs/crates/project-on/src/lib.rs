@@ -11,6 +11,7 @@ pub mod icons;
 pub mod library;
 pub mod maintenance;
 pub mod media;
+pub mod obs;
 pub mod outputs;
 pub mod overlay;
 pub mod playlist;

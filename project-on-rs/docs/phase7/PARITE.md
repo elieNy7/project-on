@@ -55,7 +55,7 @@ Le livrable de la phase 7 (audit, § 8) : chaque fonction de la 2.8, et où elle
 | Un seul design pour les sorties | ✅ | 3.0 : « Utiliser pour Web, NDI, HDMI » dans la page Designs habille l'écran Web Diffusion (et `/obs`), la source NDI et les sorties HDMI ; un design de slide habille aussi les écrans Web Salle. La projection de la salle garde son propre design. Le choix (avec le lower third et les sous-titres) est gardé d'un lancement à l'autre |
 | Sortie HDMI vers un mélangeur (couleur de clé) | ✅ | Phase 6, et 3.0 : Réglages → Diffusion : marges 16:9 (letterbox) à la couleur de clé, taille du texte (60 à 180 %), décalage vertical, réouverture au démarrage sur l'écran choisi. Le style propre au HDMI de la 2.8 est remplacé par le design unique des sorties (page Designs) |
 | Mire HDMI (F8) | ✅ | Phase 6 |
-| Pilotage d'OBS (WebSocket : scènes, enregistrement) | ⏳ | |
+| Pilotage d'OBS (WebSocket : scènes, enregistrement) | ✅ | 3.0 : Réglages → Pilotage d'OBS (obs-websocket 5, comme la 2.8) : adresse, port, mot de passe chiffré par Windows (celui de la 2.8 est relu), scène du direct et scène du texte masqué choisies dans la liste des scènes d'OBS, « Créer dans OBS » la source navigateur Project-On (écran Diffusion) ; reconnexion toutes les 10 s. La 3.0 ne change de scène que quand la scène voulue change. La 2.8 ne pilotait pas l'enregistrement |
 
 ## L'Église
 

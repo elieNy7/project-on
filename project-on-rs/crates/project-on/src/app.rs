@@ -183,6 +183,8 @@ pub struct App {
     follow_live: bool,
     /// L'image de citation (Ctrl+Shift+I).
     pub quote: crate::quote::QuoteWindow,
+    /// Le pilotage d'OBS (obs-websocket).
+    pub obs: crate::obs::ObsRemote,
     /// La préparation d'une restauration (vérification dans un fil à part).
     restore_job: Option<JoinHandle<Result<String, String>>>,
 }
@@ -306,6 +308,10 @@ impl App {
             follow_live: false,
             restore_job: None,
             quote: crate::quote::QuoteWindow::default(),
+            obs: {
+                let wake = ctx.clone();
+                crate::obs::ObsRemote::start(move || wake.request_repaint())
+            },
         };
         app.apply_settings(config.settings.clone());
         app.restore_choices();
@@ -375,6 +381,7 @@ impl App {
         self.display_screen = loaded.projection.display_screen.clone();
         self.shortcuts = Shortcuts::from_settings(loaded.other.get("shortcuts"));
         self.hdmi_key = po_layout::graphics::key_color(&loaded.hdmi.key_color);
+        self.obs.configure(crate::obs::ObsSettings::from_settings(&loaded));
         self.designs.refresh_builtin(&self.design, &band_of(&loaded));
         // Les designs « 2.x » suivent les réglages : celui des sorties aussi.
         if let Some(output) = self.designs.find(&self.output.id).and_then(crate::designs::Output::of) {
@@ -2077,6 +2084,8 @@ impl App {
             subtitle,
         };
         self.hub.update(self.taken.take(), context);
+        // OBS passe à la scène du direct, ou à celle du texte masqué.
+        self.obs.notify_live(self.live.is_some(), self.live_stage.hidden());
         let hdmi = self
             .projectors
             .iter()
@@ -2117,6 +2126,7 @@ impl App {
                 self.settings_view.families = self.designs.families.clone();
                 self.settings_view.screens = crate::screens::list().into_iter().map(|s| s.device).collect();
             }
+            self.settings_view.obs = (self.obs.state(), self.obs.scenes(), self.obs.message());
             let current = self.settings.clone();
             for action in self.settings_view.ui(ui, &current) {
                 match action {
@@ -2149,6 +2159,15 @@ impl App {
                             })
                             .collect();
                         self.start_slideshow(medias, "Photos de l'église");
+                    }
+                    crate::settings_page::SettingsAction::ObsRefresh => self.obs.refresh_scenes(),
+                    crate::settings_page::SettingsAction::ObsCreateSource(scene) => {
+                        let url = self
+                            .web
+                            .as_ref()
+                            .and_then(|w| w.local_url("/ecran/diffusion"))
+                            .unwrap_or_else(|| "http://127.0.0.1:8080/ecran/diffusion".into());
+                        self.obs.create_source(&scene, &url);
                     }
                     crate::settings_page::SettingsAction::Quit => {
                         ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
