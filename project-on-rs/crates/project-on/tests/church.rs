@@ -152,3 +152,51 @@ fn the_live_verse_becomes_a_quote_image_to_copy_or_project() {
     let image = live_image(h.state_mut().app());
     assert!(image.contains("citation-") && image.ends_with(".png"), "{image}");
 }
+
+#[test]
+fn the_church_photos_are_listed_projected_and_removed() {
+    let base = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/tmp");
+    std::fs::create_dir_all(&base).unwrap();
+    let dir = tempfile::tempdir_in(base).unwrap();
+    let db = dir.path().join("project_on.db");
+    Database::open_and_initialize(&db, &InitOptions::default()).unwrap();
+    let photos: Vec<String> = ["bg-ardoise_4x3.png", "bg-indigo_16x9.png"]
+        .iter()
+        .map(|n| po_layout::bundled_backgrounds_dir().join(n).to_string_lossy().to_string())
+        .collect();
+    let mut settings = Settings::default();
+    settings.other.insert("church".into(), json!({ "name": "Église", "photos": photos }));
+    let config = Config {
+        fonts_dir: po_layout::bundled_fonts_dir(),
+        locations: None,
+        database: Some(db),
+        settings,
+        windowed_projection: true,
+        web_port: None,
+    };
+    let mut h = Harness::builder()
+        .with_size([1600.0, 940.0])
+        .with_accessibility_check(false)
+        .wgpu()
+        .build_ui_state(|ui, boot: &mut Boot| boot.ui(ui), Boot::new(config));
+    h.run_ok();
+    h.get_by_label("Réglages").click();
+    h.run_ok();
+    h.get_by_label("Projeter en diaporama").scroll_to_me();
+    h.run_ok();
+    h.get_by_label("2 photos");
+    h.get_by_label("Projeter en diaporama").click();
+    h.run_ok();
+    let app = h.state_mut().app();
+    let live = app.live.as_ref().unwrap();
+    assert_eq!(live.origin, Origin::Slideshow);
+    assert_eq!(live.program.len(), 2);
+    assert!(app.slideshow.active);
+
+    // ✕ retire une photo de la galerie (le brouillon des réglages, à enregistrer).
+    h.get_all_by_label("✕").next().unwrap().click();
+    h.run_ok();
+    h.get_by_label("1 photo");
+    let draft = h.state_mut().app().settings_view.draft.clone().unwrap();
+    assert_eq!(draft.other["church"]["photos"].as_array().unwrap().len(), 1);
+}

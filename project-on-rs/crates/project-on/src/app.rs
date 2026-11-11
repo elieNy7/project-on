@@ -574,6 +574,8 @@ impl App {
                     self.recovery = crate::recovery::load(&crate::recovery::file(&dir));
                     self.settings_view.backups = crate::maintenance::list(&dir.join("sauvegardes"));
                     self.settings_view.pending_restore = crate::restore::pending(&dir);
+                    // Les photos ajoutées sont copiées dans les données, comme dans la 2.8.
+                    self.settings_view.gallery.folder = Some(dir.join("church").join("photos"));
                 }
             }
             Err(e) => self.startup = Startup::Failed(format!("Base illisible : {e}")),
@@ -2124,6 +2126,20 @@ impl App {
                         }
                         self.settings_view.pending_restore = None;
                         self.status = "Restauration annulée".into();
+                    }
+                    crate::settings_page::SettingsAction::ShowPhotos(photos) => {
+                        let medias = photos
+                            .iter()
+                            .map(|p| crate::media::Media {
+                                name: std::path::Path::new(p)
+                                    .file_stem()
+                                    .map(|n| n.to_string_lossy().to_string())
+                                    .unwrap_or_default(),
+                                path: p.clone(),
+                                seconds: 0,
+                            })
+                            .collect();
+                        self.start_slideshow(medias, "Photos de l'église");
                     }
                     crate::settings_page::SettingsAction::Quit => {
                         ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);

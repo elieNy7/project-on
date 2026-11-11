@@ -247,6 +247,7 @@ impl ChurchProfile {
             ("speaker_message", json!(self.speaker_message)),
             ("quote_style", json!(self.quote_style)),
             ("show_socials_quotes", json!(self.show_socials_quotes)),
+            ("photos", json!(self.photos)),
         ];
         for (key, value) in fields {
             church.insert(key.to_string(), value);

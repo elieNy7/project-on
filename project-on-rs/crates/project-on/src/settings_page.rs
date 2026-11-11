@@ -26,6 +26,8 @@ pub enum SettingsAction {
     CancelRestore,
     /// Fermer Project-On (pour que la restauration se fasse).
     Quit,
+    /// Projeter les photos de l'église en diaporama.
+    ShowPhotos(Vec<String>),
 }
 
 /// Ce qu'on restaure : une sauvegarde de la 3.0, ou une archive complète de la 2.8.
@@ -87,6 +89,8 @@ pub struct SettingsView {
     pub preparing: bool,
     pub families: Vec<String>,
     pub screens: Vec<String>,
+    /// La galerie des photos de l'église.
+    pub gallery: crate::gallery::Gallery,
 }
 
 fn row(ui: &mut Ui, label: &str, add: impl FnOnce(&mut Ui)) {
@@ -442,7 +446,7 @@ impl SettingsView {
             });
 
             widgets::section(ui, "Profil de l'église");
-            church_profile(ui, draft, &families);
+            church_profile(ui, draft, &families, &mut self.gallery, &mut actions);
 
             widgets::section(ui, "Raccourcis");
             let mut keys: Map<String, Value> = draft
@@ -500,7 +504,13 @@ fn field(ui: &mut Ui, label: &str, value: &mut String, hint: &str, width: f32) -
 
 /// Le profil de l'église (section `church` des réglages, au format de la 2.x) : il sert aux
 /// écrans d'accueil, de l'orateur du jour et des réseaux sociaux.
-fn church_profile(ui: &mut Ui, draft: &mut Settings, families: &[String]) {
+fn church_profile(
+    ui: &mut Ui,
+    draft: &mut Settings,
+    families: &[String],
+    gallery: &mut crate::gallery::Gallery,
+    actions: &mut Vec<SettingsAction>,
+) {
     use po_design::church::{ChurchBackground, ChurchProfile, SOCIAL_PLATFORMS};
     let mut p = ChurchProfile::from_settings(draft.other.get("church"));
     let before = p.clone();
@@ -570,6 +580,21 @@ fn church_profile(ui: &mut Ui, draft: &mut Settings, families: &[String]) {
     row(ui, "Réseaux sur l'écran d'accueil", |ui| {
         ui.checkbox(&mut p.show_socials_welcome, "");
     });
+    row(ui, "Réseaux sur les images de citation", |ui| {
+        ui.checkbox(&mut p.show_socials_quotes, "");
+    });
+    ui.add_space(6.0);
+    ui.label(RichText::new("Photos de l'église").font(semibold(12.5)).color(TEXT));
+    ui.label(
+        RichText::new("Le fond du modèle « Photo » des images de citation ; projetables en diaporama.")
+            .font(regular(11.5))
+            .color(FAINT),
+    );
+    let mut wanted = Vec::new();
+    gallery.ui(ui, &mut p.photos, &mut wanted);
+    for crate::gallery::GalleryAction::Project(photos) in wanted {
+        actions.push(SettingsAction::ShowPhotos(photos));
+    }
     if p != before {
         let section = draft.other.entry("church".to_string()).or_insert_with(|| json!({}));
         if !section.is_object() {

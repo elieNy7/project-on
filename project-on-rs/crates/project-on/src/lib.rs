@@ -3,6 +3,7 @@
 pub mod app;
 pub mod data;
 pub mod designs;
+pub mod gallery;
 pub mod gpu;
 pub mod history;
 pub mod hymn_editor;

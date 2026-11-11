@@ -65,7 +65,7 @@ Le livrable de la phase 7 (audit, § 8) : chaque fonction de la 2.8, et où elle
 | Écran de l'orateur du jour (Ctrl+Shift+P) | ✅ | Le pasteur, ou l'invité du jour (le pasteur en médaillon) ; photo, titre, nom, message |
 | Écran « Réseaux sociaux » (Ctrl+Shift+R) | ✅ | Chaque compte en grand avec sa pastille, QR code « Scannez » |
 | Image de citation du direct (Ctrl+Shift+I) | ✅ | 3.0 : le slide au direct en image aux couleurs de l'église, les 8 modèles et 3 formats de la 2.8 (carré, story, paysage) ; aperçu qui suit la frappe, « Enregistrer l'image… » (Documents\Project-On images), « Copier l'image » (à coller dans WhatsApp), et en plus « Projeter » ; le modèle choisi reste celui du profil |
-| Galerie de photos | ⏳ | |
+| Galerie de photos | ✅ | 3.0 : Réglages → Profil de l'église → « Photos de l'église » : vignettes (décodées sans figer la régie), « Ajouter des photos… » (copiées dans les données, sans doublon, comme la 2.8), ✕ pour retirer ; fond du modèle « Photo » des images de citation, et en plus « Projeter en diaporama » |
 | Profil de l'église (nom, logo, réseaux) | ✅ | Réglages → Profil de l'église ; lu et réécrit au format de la 2.x (les champs que la 3.0 ne connaît pas sont gardés) |
 
 ## Données et entretien
