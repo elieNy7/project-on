@@ -82,3 +82,7 @@ besoin. D'ici là, la bêta 4 s'installe à côté de la 2.8 et permet d'essayer
    mises à jour. C'est visible des églises qui utilisent Project-On.
 
 Rien de cela n'a été fait.
+
+**Votre décision (11 novembre 2026)** : garder la 2.8, son code comme son installation, et ne rien
+publier tant que les 16 fonctions restantes de la [liste de parité](../phase7/PARITE.md) ne sont pas
+faites. La question vous sera reposée à ce moment-là.
