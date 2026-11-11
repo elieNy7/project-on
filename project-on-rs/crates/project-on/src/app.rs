@@ -309,6 +309,14 @@ impl App {
         };
         app.apply_settings(config.settings.clone());
         app.restore_choices();
+        // La sortie HDMI rouverte au démarrage sur l'écran choisi (Réglages → Diffusion).
+        let hdmi = &config.settings.hdmi;
+        if hdmi.enabled
+            && hdmi.screen != "auto"
+            && let Some(screen) = crate::screens::list().into_iter().find(|s| s.device == hdmi.screen)
+        {
+            app.projectors.push(Projector::output(screen, po_web::ScreenKind::Broadcast));
+        }
         if let Some(port) = config.web_port {
             let file = config.locations.as_ref().map(|l| l.beta.data().join("web.json"));
             app.web = Some(crate::web::Web::start(app.hub.clone(), port, file));
@@ -2073,9 +2081,10 @@ impl App {
             .projectors
             .iter()
             .filter(|p| p.kind != po_web::ScreenKind::Room)
-            .map(|p| (p.kind, p.render_size()))
+            .map(|p| (p.kind, crate::projector::hdmi_size(p.render_size(), self.settings.hdmi.letterbox)))
             .collect();
-        self.outputs.want(Wanted { ndi: self.ndi, hdmi, key: Some(self.hdmi_key), pattern: self.hdmi_pattern });
+        let adjust = po_web::Adjust::from_settings(self.settings.hdmi.text_scale, self.settings.hdmi.offset_y);
+        self.outputs.want(Wanted { ndi: self.ndi, hdmi, key: Some(self.hdmi_key), pattern: self.hdmi_pattern, adjust });
         self.outputs.upload(&self.ctx);
     }
 

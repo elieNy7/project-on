@@ -23,7 +23,7 @@ mod server;
 pub use access::{Access, new_token, qr, qr_svg};
 pub use protocol::{ClientMessage, PROTOCOL_VERSION, ServerMessage};
 pub use screens::{DROPPED_FOR, PRESETS, ScreenInfo, ScreenKind, ScreenState};
-pub use server::{Context, Hub, Look, Overlay, OverlayFrame, Program, Server, start, start_near};
+pub use server::{Adjust, Context, Hub, Look, Overlay, OverlayFrame, Program, Server, start, start_near};
 
 /// L'adresse de ce poste sur le réseau local (celle que les autres appareils utilisent), si le
 /// poste est relié à un réseau. Aucun paquet n'est envoyé : la table de routage choisit l'interface.

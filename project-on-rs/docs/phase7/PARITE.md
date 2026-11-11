@@ -50,10 +50,10 @@ Le livrable de la phase 7 (audit, § 8) : chaque fonction de la 2.8, et où elle
 | Fonction de la 2.8 | 3.0 | Où, ou ce qui manque |
 |---|---|---|
 | Page OBS `/obs` (bandeau sur fond transparent) | ✅ | Phase 5, et l'adresse `/obs` est conservée |
-| Réglages du bandeau OBS (position, police, filet, animation, dispositions) | ✅ | Phases 5 et 6, lus depuis vos réglages |
+| Réglages du bandeau OBS (position, police, filet, animation, dispositions) | ✅ | Phases 5 et 6, lus depuis vos réglages ; 3.0 : tous réglables dans Designs → un bandeau de « Mes designs » → Personnaliser → « Réglages détaillés » (graisse, taille minimale, espacement, interligne, lignes, ombre, référence et filet, bande, arrondi, marges, largeur, position, zone de sécurité, décalages, transition) |
 | Sortie NDI du bandeau | ✅ | Phase 6, avec le lower third et la transparence ; depuis la 3.0, **n'importe quel design** de la page Designs : un bandeau, ou un design de slide dont le texte est posé sur un fond transparent |
 | Un seul design pour les sorties | ✅ | 3.0 : « Utiliser pour Web, NDI, HDMI » dans la page Designs habille l'écran Web Diffusion (et `/obs`), la source NDI et les sorties HDMI ; un design de slide habille aussi les écrans Web Salle. La projection de la salle garde son propre design. Le choix (avec le lower third et les sous-titres) est gardé d'un lancement à l'autre |
-| Sortie HDMI vers un mélangeur (couleur de clé) | 🟡 | Phase 6 ; letterbox, taille du texte et décalage avec les réglages |
+| Sortie HDMI vers un mélangeur (couleur de clé) | ✅ | Phase 6, et 3.0 : Réglages → Diffusion : marges 16:9 (letterbox) à la couleur de clé, taille du texte (60 à 180 %), décalage vertical, réouverture au démarrage sur l'écran choisi. Le style propre au HDMI de la 2.8 est remplacé par le design unique des sorties (page Designs) |
 | Mire HDMI (F8) | ✅ | Phase 6 |
 | Pilotage d'OBS (WebSocket : scènes, enregistrement) | ⏳ | |
 
@@ -87,5 +87,5 @@ Le livrable de la phase 7 (audit, § 8) : chaque fonction de la 2.8, et où elle
 | Fonction de la 2.8 | 3.0 | Où, ou ce qui manque |
 |---|---|---|
 | Lecture de `settings.json` de la 2.x, mêmes règles | ✅ | Phase 1 |
-| Page Réglages (projection, apparence, raccourcis, découpage, OBS, HDMI, église) | 🟡 | Phase 7 : projection (texte, fond, transitions, écran), identification, découpage, couleur de clé HDMI, raccourcis, mode PC modeste, entretien. Restent : réglages détaillés du bandeau OBS (repris de la 2.x en attendant), HDMI (letterbox, taille), église |
+| Page Réglages (projection, apparence, raccourcis, découpage, OBS, HDMI, église) | ✅ | Phase 7 : projection (texte, fond, transitions, écran), identification, découpage, couleur de clé HDMI, raccourcis, mode PC modeste, entretien ; 3.0 : profil de l'église et ses photos, HDMI (letterbox, taille, décalage, réouverture), pilotage d'OBS ; le bandeau OBS se règle dans la page Designs |
 | Raccourcis personnalisés de la 2.x | ✅ | Lus et appliqués (phase 3), réglables dans la page Réglages (phase 7) |

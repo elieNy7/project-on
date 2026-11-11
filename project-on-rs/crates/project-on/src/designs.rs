@@ -764,6 +764,136 @@ fn family_edit(ui: &mut Ui, label: &str, family: &mut String, families: &[String
     changed
 }
 
+fn decimal_edit(ui: &mut Ui, label: &str, value: &mut f32, range: std::ops::RangeInclusive<f32>) -> bool {
+    ui.horizontal(|ui| {
+        ui.label(RichText::new(label).font(regular(12.0)).color(MUTED));
+        ui.add(egui::Slider::new(value, range).fixed_decimals(2)).changed()
+    })
+    .inner
+}
+
+fn align_edit(ui: &mut Ui, label: &str, value: &mut Align) -> bool {
+    ui.horizontal(|ui| {
+        ui.label(RichText::new(label).font(regular(12.0)).color(MUTED));
+        let mut changed = false;
+        for (a, l) in [(Align::Left, "À gauche"), (Align::Center, "Centré"), (Align::Right, "À droite")] {
+            changed |= ui.radio_value(value, a, l).changed();
+        }
+        changed
+    })
+    .inner
+}
+
+/// Les réglages détaillés d'un bandeau (ceux de la page « Navigateur OBS » de la 2.8).
+fn band_details(ui: &mut Ui, b: &mut po_design::Band) -> bool {
+    let mut changed = false;
+    egui::CollapsingHeader::new(RichText::new("Réglages détaillés").font(medium(12.5)).color(TEXT))
+        .id_salt("bandeau-details")
+        .show(ui, |ui| {
+            ui.label(RichText::new("TEXTE").font(semibold(10.5)).color(FAINT));
+            ui.horizontal(|ui| {
+                ui.label(RichText::new("Graisse").font(regular(12.0)).color(MUTED));
+                for (w, l) in [(400, "Normale"), (500, "Moyenne"), (600, "Demi-gras"), (700, "Gras"), (800, "Extra")] {
+                    changed |= ui.radio_value(&mut b.weight, w, l).changed();
+                }
+            });
+            changed |= size_edit(ui, "Taille minimale (texte long)", &mut b.min_size, 12.0..=96.0);
+            changed |= decimal_edit(ui, "Espacement des lettres", &mut b.letter_spacing, 0.0..=10.0);
+            changed |= decimal_edit(ui, "Interligne", &mut b.line_height, 1.0..=2.0);
+            let mut lines = b.max_lines as f32;
+            if size_edit(ui, "Lignes au plus", &mut lines, 1.0..=8.0) {
+                b.max_lines = lines as usize;
+                changed = true;
+            }
+            changed |= align_edit(ui, "Texte", &mut b.align);
+            let mut shadow = b.shadow.is_some();
+            if ui.checkbox(&mut shadow, "Ombre du texte").changed() {
+                b.shadow = shadow.then_some((Rgba::new(0, 0, 0, 160), 6.0));
+                changed = true;
+            }
+            if let Some((color, blur)) = &mut b.shadow {
+                changed |= color_edit(ui, "Couleur de l'ombre", color);
+                changed |= size_edit(ui, "Flou de l'ombre", blur, 0.0..=30.0);
+            }
+
+            ui.add_space(4.0);
+            ui.label(RichText::new("RÉFÉRENCE").font(semibold(10.5)).color(FAINT));
+            ui.horizontal(|ui| {
+                for (look, l) in [
+                    (po_design::ReferenceLook::Badge, "Espacée, soulignée"),
+                    (po_design::ReferenceLook::Line, "Simple"),
+                    (po_design::ReferenceLook::Hidden, "Masquée"),
+                ] {
+                    changed |= ui.radio_value(&mut b.reference, look, l).changed();
+                }
+            });
+            if b.reference != po_design::ReferenceLook::Hidden {
+                changed |= size_edit(ui, "Taille de la référence", &mut b.ref_size, 12.0..=60.0);
+                changed |= color_edit(ui, "Couleur de la référence", &mut b.ref_color);
+                let mut accent = b.accent.is_some();
+                if ui.checkbox(&mut accent, "Filet sous la référence").changed() {
+                    b.accent = accent.then_some(b.ref_color);
+                    changed = true;
+                }
+                if let Some(color) = &mut b.accent {
+                    changed |= color_edit(ui, "Couleur du filet", color);
+                }
+            }
+
+            ui.add_space(4.0);
+            ui.label(RichText::new("BANDE").font(semibold(10.5)).color(FAINT));
+            let mut band = b.background.is_some();
+            if ui.checkbox(&mut band, "Bande derrière le texte").changed() {
+                b.background = band.then_some(Rgba::new(10, 14, 22, 230));
+                changed = true;
+            }
+            changed |= size_edit(ui, "Arrondi", &mut b.radius, 0.0..=60.0);
+            changed |= size_edit(ui, "Marge intérieure (côtés)", &mut b.padding.0, 0.0..=120.0);
+            changed |= size_edit(ui, "Marge intérieure (haut, bas)", &mut b.padding.1, 0.0..=120.0);
+            changed |= size_edit(ui, "Largeur (% de l'écran)", &mut b.max_width, 20.0..=100.0);
+
+            ui.add_space(4.0);
+            ui.label(RichText::new("PLACE DANS L'IMAGE").font(semibold(10.5)).color(FAINT));
+            if b.layout == po_design::BandLayout::Subtitle {
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("Position").font(regular(12.0)).color(MUTED));
+                    for (p, l) in [
+                        (po_design::BandPosition::Bottom, "En bas"),
+                        (po_design::BandPosition::Center, "Au centre"),
+                        (po_design::BandPosition::Top, "En haut"),
+                    ] {
+                        changed |= ui.radio_value(&mut b.position, p, l).changed();
+                    }
+                });
+                changed |= align_edit(ui, "Bande", &mut b.band_align);
+            }
+            changed |= size_edit(ui, "Zone de sécurité (%)", &mut b.safe_area, 0.0..=15.0);
+            changed |= size_edit(ui, "Décalage horizontal", &mut b.offset.0, -400.0..=400.0);
+            changed |= size_edit(ui, "Décalage vertical", &mut b.offset.1, -400.0..=400.0);
+
+            ui.add_space(4.0);
+            ui.horizontal(|ui| {
+                ui.label(RichText::new("Transition").font(regular(12.0)).color(MUTED));
+                for (kind, label) in [
+                    (AnimationKind::None, "Aucune"),
+                    (AnimationKind::Fade, "Fondu"),
+                    (AnimationKind::Slide, "Glissement"),
+                    (AnimationKind::Scale, "Zoom"),
+                    (AnimationKind::Blur, "Flou"),
+                    (AnimationKind::Reveal, "Balayage"),
+                ] {
+                    changed |= ui.radio_value(&mut b.animation.kind, kind, label).changed();
+                }
+            });
+            let mut ms = b.animation.duration_ms as f32;
+            if size_edit(ui, "Durée de la transition (ms)", &mut ms, 0.0..=2000.0) {
+                b.animation.duration_ms = ms as u32;
+                changed = true;
+            }
+        });
+    changed
+}
+
 fn size_edit(ui: &mut Ui, label: &str, value: &mut f32, range: std::ops::RangeInclusive<f32>) -> bool {
     ui.horizontal(|ui| {
         ui.label(RichText::new(label).font(regular(12.0)).color(MUTED));
@@ -837,6 +967,7 @@ fn editor(ui: &mut Ui, design: &mut Design, families: &[String]) -> bool {
                     changed |= ui.radio_value(&mut b.layout, layout, label).changed();
                 }
             });
+            changed |= band_details(ui, b);
         }
         DesignBody::LowerThird(s) => {
             changed |= family_edit(ui, "Police du titre", &mut s.title.family, families);

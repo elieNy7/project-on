@@ -161,8 +161,15 @@ impl Projector {
                         crate::video::paint(ui.painter(), area, texture);
                     }
                 } else if let Some(texture) = outputs.texture(self.kind) {
+                    // Une image 16:9 sur un écran qui ne l'est pas (letterbox) : les marges sont à la
+                    // couleur de clé, que le mélangeur efface.
+                    let fill = match outputs.wanted().key {
+                        Some(key) if self.kind.transparent() => egui::Color32::from_rgb(key.0[0], key.0[1], key.0[2]),
+                        _ => egui::Color32::BLACK,
+                    };
+                    ui.painter().rect_filled(area, 0.0, fill);
                     let uv = egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0));
-                    ui.painter().image(texture.id(), area, uv, egui::Color32::WHITE);
+                    ui.painter().image(texture.id(), fit(area, texture.size_vec2()), uv, egui::Color32::WHITE);
                 }
                 if full && ui.rect_contains_pointer(area) {
                     // Pas de flèche sur l'écran de la salle.
@@ -184,6 +191,23 @@ impl Projector {
     }
 }
 
+/// Le plus grand rectangle de proportions `size`, centré dans `area`.
+pub fn fit(area: egui::Rect, size: egui::Vec2) -> egui::Rect {
+    if size.x <= 0.0 || size.y <= 0.0 {
+        return area;
+    }
+    let scale = (area.width() / size.x).min(area.height() / size.y);
+    egui::Rect::from_center_size(area.center(), size * scale)
+}
+
+/// La taille de rendu d'une sortie HDMI : celle de l'écran, ou du 16:9 qui y tient (letterbox).
+pub fn hdmi_size((w, h): (u32, u32), letterbox: bool) -> (u32, u32) {
+    if !letterbox || w == 0 || h == 0 || w * 9 == h * 16 {
+        return (w, h);
+    }
+    if w * 9 > h * 16 { (h * 16 / 9, h) } else { (w, w * 9 / 16) }
+}
+
 /// Ce que l'opérateur a demandé dans la fenêtre de projection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Keys {
@@ -197,6 +221,17 @@ pub struct Keys {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn hdmi_outputs_keep_16_9_on_other_screens() {
+        assert_eq!(hdmi_size((1920, 1200), true), (1920, 1080));
+        assert_eq!(hdmi_size((1920, 1200), false), (1920, 1200));
+        assert_eq!(hdmi_size((1440, 1080), true), (1440, 810));
+        assert_eq!(hdmi_size((1920, 1080), true), (1920, 1080));
+        let area = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(1920.0, 1200.0));
+        let r = fit(area, egui::vec2(1920.0, 1080.0));
+        assert_eq!((r.min.y, r.max.y), (60.0, 1140.0));
+    }
+
     use super::*;
 
     #[test]

@@ -525,3 +525,25 @@ async fn a_hidden_window_gets_a_16_9_layout_instead_of_a_tiny_one() {
     let frame = next_frame(&mut socket).await;
     assert_eq!((frame.list.width, frame.list.height), (1920.0, 1080.0));
 }
+
+#[test]
+fn an_hdmi_output_can_enlarge_and_move_the_band_text() {
+    let hub = hub();
+    hub.update(Some(scripture()), context());
+    let program = hub.program();
+    let key = Some(Rgba::rgb(0, 255, 0));
+    // La plus haute ligne de pixels qui n'est pas de la couleur de clé.
+    let top_of_text =
+        |pixels: &[u8]| pixels.as_chunks::<4>().0.iter().position(|p| p[..3] != [0, 255, 0]).map(|i| i / 640).unwrap();
+    let (plain, _) = hub.render_rgba(&program, ScreenKind::Broadcast, 640, 360, key, false);
+    let bigger = Adjust::from_settings(150, 0);
+    let (large, _) = hub.render_rgba_adjusted(&program, ScreenKind::Broadcast, 640, 360, key, false, bigger);
+    assert!(top_of_text(&large) < top_of_text(&plain), "le texte agrandi monte depuis le bas");
+    // La bande reste collée en bas : rien ne déborde sous l'image.
+    let bottom_row = &large[(359 * 640) * 4..];
+    assert!(bottom_row.as_chunks::<4>().0.iter().all(|p| p[..3] == [0, 255, 0]));
+    let lower = Adjust::from_settings(100, -100);
+    let (moved, _) = hub.render_rgba_adjusted(&program, ScreenKind::Broadcast, 640, 360, key, false, lower);
+    assert!(top_of_text(&moved) + 25 < top_of_text(&plain), "décalé vers le haut");
+    assert_eq!(Adjust::from_settings(500, -900), Adjust { scale: 1.8, offset_y: -300.0 });
+}

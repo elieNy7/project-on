@@ -70,6 +70,51 @@ impl Look {
     }
 }
 
+/// Les ajustements propres à une sortie HDMI (`HdmiSettings` de la 2.8) : la taille du texte
+/// (le rendu caméra supporte souvent plus grand que l'écran) et un décalage vertical fin.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Adjust {
+    /// 0,6 à 1,8.
+    pub scale: f32,
+    /// En pixels pour 1080 lignes (positif : vers le bas).
+    pub offset_y: f32,
+}
+
+impl Default for Adjust {
+    fn default() -> Self {
+        Adjust { scale: 1.0, offset_y: 0.0 }
+    }
+}
+
+impl Adjust {
+    /// Depuis les réglages de la 2.x (`text_scale` en %, `offset_y` en px).
+    pub fn from_settings(text_scale: i64, offset_y: i64) -> Adjust {
+        Adjust { scale: text_scale.clamp(60, 180) as f32 / 100.0, offset_y: offset_y.clamp(-300, 300) as f32 }
+    }
+
+    /// Agrandit et décale le texte d'une liste d'affichage. La bande grandit depuis son bord le
+    /// plus proche du bord de l'image (une bande en bas reste en bas).
+    pub fn apply(&self, list: &mut DisplayList) {
+        if *self == Adjust::default() || list.items.is_empty() {
+            return;
+        }
+        let [x, y, w, h] = list.stage;
+        let middle = y + h / 2.0;
+        let anchor_y = if middle > list.height * 0.6 {
+            y + h
+        } else if middle < list.height * 0.4 {
+            y
+        } else {
+            middle
+        };
+        let mut group = po_layout::Group::plain(std::mem::take(&mut list.items));
+        group.scale = self.scale;
+        group.origin = [x + w / 2.0, anchor_y];
+        group.dy = self.offset_y * list.height / 1080.0;
+        list.items = vec![Item::Group(group)];
+    }
+}
+
 /// Un lower third et son animation : il entre (`shown`) ou sort depuis `since`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Overlay {
@@ -418,10 +463,29 @@ impl Hub {
         background: Option<Rgba>,
         pattern: bool,
     ) -> (Vec<u8>, Option<Duration>) {
+        self.render_rgba_adjusted(program, kind, width, height, background, pattern, Adjust::default())
+    }
+
+    /// [`Hub::render_rgba`], avec la taille et le décalage du texte d'une sortie HDMI.
+    #[allow(clippy::too_many_arguments)]
+    pub fn render_rgba_adjusted(
+        &self,
+        program: &Program,
+        kind: ScreenKind,
+        width: u32,
+        height: u32,
+        background: Option<Rgba>,
+        pattern: bool,
+        adjust: Adjust,
+    ) -> (Vec<u8>, Option<Duration>) {
         let (mut list, next) = if pattern {
             (test_pattern(width as f32, height as f32), None)
         } else {
-            self.layout_at(program, kind, width as f32, height as f32, Instant::now())
+            let (mut list, next) = self.layout_at(program, kind, width as f32, height as f32, Instant::now());
+            if kind.transparent() {
+                adjust.apply(&mut list);
+            }
+            (list, next)
         };
         if let Some(color) = background {
             list.background = color;

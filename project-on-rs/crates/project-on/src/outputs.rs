@@ -23,6 +23,8 @@ pub struct Wanted {
     pub key: Option<Rgba>,
     /// La mire (F8) à la place des sorties HDMI.
     pub pattern: bool,
+    /// La taille et le décalage du texte des sorties HDMI.
+    pub adjust: po_web::Adjust,
 }
 
 /// L'état partagé avec le fil de rendu.
@@ -164,7 +166,7 @@ fn render_loop(hub: &Hub, shared: &Mutex<Shared>, wake: &dyn Fn()) {
         }
         for (kind, (w, h)) in &wanted.hdmi {
             let key = if kind.transparent() { wanted.key.or(Some(Rgba::rgb(0, 255, 0))) } else { None };
-            let (pixels, again) = hub.render_rgba(&current, *kind, *w, *h, key, wanted.pattern);
+            let (pixels, again) = hub.render_rgba_adjusted(&current, *kind, *w, *h, key, wanted.pattern, wanted.adjust);
             next = match (next, again) {
                 (Some(a), Some(b)) => Some(a.min(b)),
                 (a, b) => a.or(b),

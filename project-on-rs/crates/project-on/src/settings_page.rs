@@ -444,6 +444,41 @@ impl SettingsView {
                     &[("green", "Vert"), ("magenta", "Magenta"), ("blue", "Bleu")],
                 );
             });
+            row(ui, "Marges 16:9 (letterbox)", |ui| {
+                ui.checkbox(&mut draft.hdmi.letterbox, "Sur un écran qui n'est pas en 16:9, marges à la couleur de clé");
+            });
+            row(ui, "Taille du texte HDMI", |ui| {
+                ui.add(egui::Slider::new(&mut draft.hdmi.text_scale, 60..=180).suffix(" %"));
+            });
+            row(ui, "Décalage vertical HDMI", |ui| {
+                ui.add(egui::Slider::new(&mut draft.hdmi.offset_y, -300..=300).suffix(" px (en 1080p)"));
+            });
+            row(ui, "Rouvrir la sortie HDMI au démarrage", |ui| {
+                let shown = if draft.hdmi.enabled && draft.hdmi.screen != "auto" {
+                    draft.hdmi.screen.clone()
+                } else {
+                    "Non".to_string()
+                };
+                egui::ComboBox::from_id_salt("hdmi-demarrage").selected_text(shown).width(220.0).show_ui(ui, |ui| {
+                    if ui.selectable_label(!draft.hdmi.enabled, "Non").clicked() {
+                        draft.hdmi.enabled = false;
+                    }
+                    for s in &screens {
+                        let on = draft.hdmi.enabled && draft.hdmi.screen == *s;
+                        if ui.selectable_label(on, s).clicked() {
+                            draft.hdmi.enabled = true;
+                            draft.hdmi.screen = s.clone();
+                        }
+                    }
+                });
+            });
+            ui.label(
+                RichText::new(
+                    "Le design des sorties (bandeau ou design de slide) se choisit dans la page Designs : il sert au Web, à NDI et au HDMI.",
+                )
+                .font(regular(11.5))
+                .color(FAINT),
+            );
 
             widgets::section(ui, "Profil de l'église");
             church_profile(ui, draft, &families, &mut self.gallery, &mut actions);
