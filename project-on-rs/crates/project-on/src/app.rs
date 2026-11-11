@@ -189,6 +189,8 @@ pub struct App {
     pub bible_manager: crate::bible_manager::BibleManager,
     /// L'import d'un recueil de cantiques en PDF.
     pub pdf_import: crate::pdf_import::PdfImport,
+    /// Les PowerPoint de la playlist, rendus en images.
+    pub office: crate::office::Renders,
     /// La préparation d'une restauration (vérification dans un fil à part).
     restore_job: Option<JoinHandle<Result<String, String>>>,
 }
@@ -314,6 +316,7 @@ impl App {
             quote: crate::quote::QuoteWindow::default(),
             bible_manager: crate::bible_manager::BibleManager::default(),
             pdf_import: crate::pdf_import::PdfImport::default(),
+            office: crate::office::Renders::default(),
             obs: {
                 let wake = ctx.clone();
                 crate::obs::ObsRemote::start(move || wake.request_repaint())
@@ -1200,12 +1203,64 @@ impl App {
             .collect()
     }
 
+    /// Le dossier des médias (rendus des PowerPoint) : celui des données, sinon à côté de la base.
+    pub fn media_dir(&self) -> Option<PathBuf> {
+        self.locations
+            .as_ref()
+            .map(|l| l.beta.media())
+            .or_else(|| self.db_path.as_ref().and_then(|p| p.parent().map(|d| d.join("media"))))
+    }
+
+    /// Les PowerPoint de la playlist ouverte : leur rendu est demandé dès qu'elle s'affiche, pour
+    /// qu'ils soient prêts quand on la lance ; l'étiquette de chacun dit où il en est.
+    fn sync_office(&mut self) {
+        let finished = self.office.poll();
+        if let Some(media) = self.media_dir() {
+            let ppts: Vec<String> = self
+                .playlist
+                .items
+                .iter()
+                .filter(|i| i.source == "media" && crate::office::is_powerpoint(&i.background))
+                .map(|i| i.background.trim().to_string())
+                .collect();
+            self.playlist.office_labels.clear();
+            for path in ppts {
+                self.office.request(&media, &path);
+                let label = match self.office.state(&path) {
+                    Some(crate::office::RenderState::Ready(n)) => format!("PowerPoint · {n} slides"),
+                    Some(crate::office::RenderState::Working) => "PowerPoint · préparation…".into(),
+                    Some(crate::office::RenderState::Failed(_)) => "PowerPoint · non rendu".into(),
+                    None => "PowerPoint".into(),
+                };
+                self.playlist.office_labels.insert(path, label);
+            }
+        }
+        for path in finished {
+            let name =
+                std::path::Path::new(&path).file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+            self.status = match self.office.state(&path) {
+                Some(crate::office::RenderState::Ready(n)) => format!("PowerPoint prêt : {name} ({n} slides)"),
+                Some(crate::office::RenderState::Failed(e)) => format!("PowerPoint « {name} » : {e}"),
+                _ => continue,
+            };
+        }
+        if self.office.busy() {
+            self.ctx.request_repaint_after(Duration::from_millis(300));
+        }
+    }
+
     /// Projette (ou prépare) la playlist choisie à partir de l'élément `item`.
     pub fn play_playlist(&mut self, item: i64, take: bool) {
         let (Some(db), Some(folder)) = (self.db.as_ref(), self.playlist.folder) else { return };
         let items = db.list_items(Some(folder)).unwrap_or_default();
         let name = self.playlist.folder_name();
-        let Some(program) = crate::playlist::program(&name, &items, Some(item), &Self::biographies(db)) else {
+        let media = self.media_dir();
+        let slides_of = |path: &str| -> Option<Vec<String>> {
+            let files = crate::office::cached(media.as_deref()?, std::path::Path::new(path))?;
+            Some(files.into_iter().map(|f| f.to_string_lossy().to_string()).collect())
+        };
+        let Some(program) = crate::playlist::program(&name, &items, Some(item), &Self::biographies(db), &slides_of)
+        else {
             self.status = "Rien à projeter dans cette playlist (slides vides ou médias).".into();
             return;
         };
@@ -2065,6 +2120,7 @@ impl App {
         }
         self.tick_slideshow(now);
         self.poll_restore();
+        self.sync_office();
         self.sync_video();
         self.sync_web();
         // L'horloge de la barre (et celle du retour de scène).

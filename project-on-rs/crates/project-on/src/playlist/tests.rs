@@ -148,7 +148,7 @@ fn a_playlist_is_played_from_the_chosen_item() {
         item(4, "sermon", "47-0412 - La Foi - ¶3", "La foi est une ferme assurance.", ""),
         item(5, "custom", "", "Annonce sans référence.", ""),
     ];
-    let p = program("Culte du dimanche", &items, Some(4), &[]).unwrap();
+    let p = program("Culte du dimanche", &items, Some(4), &[], &|_| None).unwrap();
     assert_eq!(p.item_of_entry, [1, 3, 4, 5], "texte vide sauté ; l'image a son slide");
     assert_eq!(p.cue.focus, 2);
     assert_eq!(p.cue.entries[3].reference, "Culte du dimanche", "sans référence : le titre");
@@ -159,9 +159,9 @@ fn a_playlist_is_played_from_the_chosen_item() {
     assert!(prog.next_slide());
     assert_eq!(prog.slide().source, SlideSource::Custom);
     // Élément introuvable : le premier.
-    assert_eq!(program("T", &items, Some(99), &[]).unwrap().cue.focus, 0);
-    assert!(program("T", &items[1..2], None, &[]).is_none(), "rien à projeter");
-    assert!(program("T", &items[1..3], None, &[]).is_some(), "une image seule se projette");
+    assert_eq!(program("T", &items, Some(99), &[], &|_| None).unwrap().cue.focus, 0);
+    assert!(program("T", &items[1..2], None, &[], &|_| None).is_none(), "rien à projeter");
+    assert!(program("T", &items[1..3], None, &[], &|_| None).is_some(), "une image seule se projette");
 }
 
 #[test]
@@ -182,7 +182,7 @@ fn images_and_videos_are_projected_in_their_place() {
         item(4, "custom", "Prière", "Notre Père", "C:/fonds/ciel.jpg"),
         item(5, "media", "", "", "C:/medias/Photo du groupe.JPEG"),
     ];
-    let p = program("Culte", &items, Some(2), &[]).unwrap();
+    let p = program("Culte", &items, Some(2), &[], &|_| None).unwrap();
     let refs: Vec<&str> = p.cue.entries.iter().map(|e| e.reference.as_str()).collect();
     assert_eq!(refs, ["Annonce", "affiche", "clip", "Prière", "Photo du groupe.JPEG"]);
     assert_eq!(p.item_of_entry, [1, 2, 3, 4, 5]);
@@ -199,6 +199,35 @@ fn images_and_videos_are_projected_in_their_place() {
         "une couleur n'est pas une image ; le fond propre d'un texte suit"
     );
     // Sans aucune image, rien ne change pour le programme.
-    let plain = program("Culte", &items[..1], None, &[]).unwrap();
+    let plain = program("Culte", &items[..1], None, &[], &|_| None).unwrap();
     assert!(plain.cue.backgrounds.is_empty());
+}
+
+#[test]
+fn a_rendered_powerpoint_gives_one_slide_per_image() {
+    let item = |id, source: &str, reference: &str, text: &str, background: &str| PlaylistItem {
+        id,
+        folder_id: Some(1),
+        source: source.into(),
+        reference: reference.into(),
+        text: text.into(),
+        sort_order: Some(id),
+        background: background.into(),
+    };
+    let items = [
+        item(1, "bible", "Jean 3:16", "Car Dieu a tant aimé le monde.", ""),
+        item(2, "media", "", "", "C:/Annonces.pptx"),
+        item(3, "custom", "Prière", "Notre Père.", ""),
+    ];
+    // Pas encore rendu : sauté.
+    let p = program("Culte", &items, None, &[], &|_| None).unwrap();
+    assert_eq!(p.item_of_entry, [1, 3]);
+    // Rendu : ses trois slides, à sa place, chacun avec son image.
+    let slides =
+        |path: &str| (path == "C:/Annonces.pptx").then(|| vec!["s1.png".into(), "s2.png".into(), "s3.png".into()]);
+    let p = program("Culte", &items, Some(2), &[], &slides).unwrap();
+    assert_eq!(p.item_of_entry, [1, 2, 2, 2, 3]);
+    assert_eq!(p.cue.focus, 1, "la lecture commence au premier slide du PowerPoint");
+    assert_eq!(p.cue.entries[1].reference, "Annonces · 1/3");
+    assert_eq!(p.cue.backgrounds[3].as_deref(), Some("s3.png"));
 }

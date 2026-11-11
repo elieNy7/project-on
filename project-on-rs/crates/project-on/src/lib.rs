@@ -13,6 +13,7 @@ pub mod library;
 pub mod maintenance;
 pub mod media;
 pub mod obs;
+pub mod office;
 pub mod outputs;
 pub mod overlay;
 pub mod pdf_import;

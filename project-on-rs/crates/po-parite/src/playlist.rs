@@ -61,7 +61,7 @@ pub fn compare(dir: &Path) -> Result<bool> {
     for case in &refs.cas {
         let label = format!("{} (départ {:?})", case.nom, case.depart);
         let items = db.list_items(Some(case.dossier))?;
-        let ours = project_on::playlist::program(&case.nom, &items, case.depart, &[]);
+        let ours = project_on::playlist::program(&case.nom, &items, case.depart, &[], &|_| None);
         let expected = case.programme.as_ref().map(|p| {
             // Les entrées de texte, les images et les vidéos, avec leur fichier ; les PowerPoint ne
             // sont pas encore projetés par la 3.0. Le départ sur l'un d'eux revient au premier.

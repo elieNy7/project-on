@@ -87,6 +87,11 @@ impl eframe::App for Shell {
 }
 
 fn main() {
+    // Le rendu des pages d'un PDF (PowerPoint par LibreOffice), dans un processus à part.
+    let args: Vec<std::ffi::OsString> = std::env::args_os().collect();
+    if args.len() == 4 && args[1] == project_on::office::PDF_HELPER_FLAG {
+        project_on::office::pdf_helper_main(std::path::Path::new(&args[2]), std::path::Path::new(&args[3]));
+    }
     instance_lock();
     let fonts = fonts_dir();
     let locations = Locations::current().ok().map(|l| l.with_bundled(bundled_database()));

@@ -138,6 +138,8 @@ pub struct PlaylistView {
     /// La liste des slides a le clavier (Suppr, Ctrl+D, Ctrl+A…).
     list_focus: bool,
     message: Option<String>,
+    /// Où en est le rendu de chaque PowerPoint (« 12 slides », « en préparation »…).
+    pub office_labels: std::collections::HashMap<String, String>,
 }
 
 impl PlaylistView {
@@ -641,9 +643,9 @@ impl PlaylistView {
             kind.icon(),
             MUTED,
         );
-        // Les images se projettent ; les vidéos et les PowerPoint viendront ensuite.
+        // Un PowerPoint dit où en est son rendu (« 12 slides », « préparation… »).
         let label = if kind == crate::playlist::Kind::PowerPoint {
-            format!("{} · pas encore projeté", kind.label())
+            self.office_labels.get(item.background.trim()).cloned().unwrap_or_else(|| kind.label().to_string())
         } else {
             kind.label().to_string()
         };

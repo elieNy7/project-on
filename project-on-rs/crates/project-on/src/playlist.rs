@@ -54,8 +54,7 @@ impl Kind {
         }
     }
 
-    /// Un média (image, vidéo, présentation). Les images se projettent ; les vidéos et les
-    /// PowerPoint, pas encore.
+    /// Un média (image, vidéo, présentation PowerPoint).
     pub fn is_media(self) -> bool {
         matches!(self, Kind::Image | Kind::Video | Kind::PowerPoint)
     }
@@ -147,12 +146,14 @@ pub struct PlaylistProgram {
 /// saisi, comme dans la 2.8 ; le genre de chaque élément décide de son identification.
 ///
 /// Une image ou une vidéo devient un slide à elle ; le fond propre d'un élément de texte le suit.
-/// Les PowerPoint ne sont pas encore projetés : ils sont sautés.
+/// Un PowerPoint devient un slide par image rendue (`slides_of` : ses images, si elles sont
+/// prêtes) ; pas encore rendu, il est sauté.
 pub fn program(
     title: &str,
     items: &[PlaylistItem],
     start: Option<i64>,
     biographies: &[String],
+    slides_of: &dyn Fn(&str) -> Option<Vec<String>>,
 ) -> Option<PlaylistProgram> {
     let mut entries = Vec::new();
     let mut kinds = Vec::new();
@@ -174,6 +175,21 @@ pub fn program(
             entries.push(Entry { reference, text: String::new() });
             backgrounds.push(Some(background.to_string()));
             item_of_entry.push(item.id);
+            continue;
+        }
+        if kind == Kind::PowerPoint && item.source == "media" {
+            let name = std::path::Path::new(background)
+                .file_stem()
+                .map_or(background.to_string(), |n| n.to_string_lossy().to_string());
+            let name = if item.reference.trim().is_empty() { name } else { clean_text(&item.reference) };
+            let slides = slides_of(background).unwrap_or_default();
+            let total = slides.len();
+            for (i, slide) in slides.into_iter().enumerate() {
+                kinds.push(SlideSource::Custom);
+                entries.push(Entry { reference: format!("{name} · {}/{total}", i + 1), text: String::new() });
+                backgrounds.push(Some(slide));
+                item_of_entry.push(item.id);
+            }
             continue;
         }
         if kind.is_media() && item.source == "media" {
