@@ -3,7 +3,7 @@
 La refonte de Project-On en Rust, décidée le 9 novembre 2026 : architecture, décisions et plan dans
 [`../AUDIT_ET_ARCHITECTURE_RUST_2026-11-09.md`](../AUDIT_ET_ARCHITECTURE_RUST_2026-11-09.md).
 
-**État : phases 0 à 8 menées — bêta 4 ; la bascule est prête mais pas faite
+**État : phases 0 à 8 menées — bêta 6 ([essai guidé](docs/phase8/ESSAI_BETA6.md)) ; la bascule est prête mais pas faite
 ([document](docs/phase8/BASCULE.md)) : il reste 16 fonctions de la 2.8 à porter
 ([liste de parité](docs/phase7/PARITE.md)), et le retrait de la 2.8 comme la publication attendent
 votre accord.**
