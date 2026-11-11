@@ -207,6 +207,7 @@ pub fn layout_room(
                 letter_spacing: design.text.letter_spacing,
                 advance_scale: 1.0,
                 shadow: text_shadow,
+                outline: None,
             }));
         }
     }
@@ -241,6 +242,7 @@ pub fn layout_room(
                 letter_spacing: 0.0,
                 advance_scale: 1.12,
                 shadow: text_shadow,
+                outline: None,
             }));
         }
         let accent_w = 120.max(280.min(sw / 6));

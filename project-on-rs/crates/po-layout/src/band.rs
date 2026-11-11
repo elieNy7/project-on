@@ -2,7 +2,7 @@
 //! l'écran de retour de scène. Mêmes listes d'affichage que la salle : le navigateur, la fenêtre et
 //! les sorties NDI / HDMI les dessinent de la même façon.
 
-use po_design::{Align, Band, BandPosition, ReferenceLook, Rgba};
+use po_design::{Align, Band, BandLayout, BandPosition, ReferenceLook, Rgba};
 
 use crate::display::{Anchor, DisplayList, Item, TextLine, TextShadow};
 use crate::fit::{FontSpec, wrap_lines};
@@ -43,6 +43,7 @@ fn push_lines(
             letter_spacing,
             advance_scale: 1.0,
             shadow,
+            outline: None,
         }));
     }
     if lines.is_empty() { 0.0 } else { m.height as f32 + step * (lines.len() as f32 - 1.0) }
@@ -84,12 +85,19 @@ pub fn layout_band(fonts: &mut Fonts, slide: &Slide, band: &Band, width: f32, he
     let family = fonts.resolve_family(&band.family);
     let safe_x = width * band.safe_area / 100.0;
     let safe_y = height * band.safe_area / 100.0;
-    let band_w = (width * band.max_width / 100.0).min(width - 2.0 * safe_x).max(200.0 * k);
+    // Chaque disposition : largeur (% de l'écran), alignement du texte, lignes, agrandissement.
+    let (width_pct, align, max_lines, scale) = match band.layout {
+        BandLayout::Subtitle => (band.max_width, band.align, band.max_lines, 1.0),
+        BandLayout::LowerThird => (band.max_width.min(70.0), Align::Left, band.max_lines, 1.0),
+        BandLayout::SidePanel => (32.0, Align::Left, 14, 1.15),
+        BandLayout::FocusCard => (62.0, Align::Center, 8, 1.3),
+    };
+    let band_w = (width * width_pct / 100.0).min(width - 2.0 * safe_x).max(200.0 * k);
     let (pad_x, pad_y) = (band.padding.0 * k, band.padding.1 * k);
     let inner = band_w - 2.0 * pad_x;
     let shadow = band.shadow.map(|(color, blur)| TextShadow { color, blur: blur * k, dx: 0.0, dy: (k * 2.0).round() });
     let spec = FontSpec { family: &family, weight: band.weight, letter_spacing: band.letter_spacing * k };
-    let (size, lines) = fit_lines(fonts, &text, spec, inner, band.size * k, band.min_size * k, band.max_lines);
+    let (size, lines) = fit_lines(fonts, &text, spec, inner, band.size * k * scale, band.min_size * k, max_lines);
 
     // La référence au-dessus, puis le filet, puis le texte.
     let ref_size = (band.ref_size * k).round();
@@ -109,28 +117,37 @@ pub fn layout_band(fonts: &mut Fonts, slide: &Slide, band: &Band, width: f32, he
     let step = text_m.line_spacing as f32 * band.line_height;
     let text_h = if lines.is_empty() { 0.0 } else { text_m.height as f32 + step * (lines.len() as f32 - 1.0) };
     let between = if ref_lines.is_empty() || lines.is_empty() { 0.0 } else { (12.0 * k).round() };
-    let band_h = pad_y * 2.0 + ref_h + accent_gap + accent_h + between + text_h;
-
-    let band_x = match band.band_align {
-        Align::Left => safe_x,
-        Align::Right => width - safe_x - band_w,
-        Align::Center => (width - band_w) / 2.0,
-    } + band.offset.0 * k;
-    let band_y = match band.position {
-        BandPosition::Top => safe_y,
-        BandPosition::Center => (height - band_h) / 2.0,
-        BandPosition::Bottom => height - safe_y - band_h,
-    } + band.offset.1 * k;
+    let content_h = pad_y * 2.0 + ref_h + accent_gap + accent_h + between + text_h;
+    // Le panneau latéral occupe toute la hauteur utile ; le texte y est centré.
+    let band_h = if band.layout == BandLayout::SidePanel { content_h.max(height - 2.0 * safe_y) } else { content_h };
+    let (band_x, band_y) = match band.layout {
+        BandLayout::Subtitle => (
+            match band.band_align {
+                Align::Left => safe_x,
+                Align::Right => width - safe_x - band_w,
+                Align::Center => (width - band_w) / 2.0,
+            },
+            match band.position {
+                BandPosition::Top => safe_y,
+                BandPosition::Center => (height - band_h) / 2.0,
+                BandPosition::Bottom => height - safe_y - band_h,
+            },
+        ),
+        BandLayout::LowerThird => (safe_x, height - safe_y - band_h),
+        BandLayout::SidePanel => (width - safe_x - band_w, safe_y),
+        BandLayout::FocusCard => ((width - band_w) / 2.0, (height - band_h) / 2.0),
+    };
+    let (band_x, band_y) = (band_x + band.offset.0 * k, band_y + band.offset.1 * k);
     list.stage = [band_x, band_y, band_w, band_h];
     if let Some(color) = band.background {
         list.items.push(Item::Rect { x: band_x, y: band_y, w: band_w, h: band_h, radius: band.radius * k, color });
     }
-    let (x, anchor) = match band.align {
+    let (x, anchor) = match align {
         Align::Left => (band_x + pad_x, Anchor::Start),
         Align::Right => (band_x + band_w - pad_x, Anchor::End),
         Align::Center => (band_x + band_w / 2.0, Anchor::Middle),
     };
-    let mut y = band_y + pad_y;
+    let mut y = band_y + pad_y + (band_h - content_h) / 2.0;
     if !ref_lines.is_empty() {
         push_lines(
             &mut list,
@@ -150,7 +167,7 @@ pub fn layout_band(fonts: &mut Fonts, slide: &Slide, band: &Band, width: f32, he
         y += ref_h + accent_gap;
         if let Some(color) = band.accent {
             let w = (inner * 0.18).clamp(80.0 * k, 280.0 * k);
-            let ax = match band.align {
+            let ax = match align {
                 Align::Left => x,
                 Align::Right => x - w,
                 Align::Center => x - w / 2.0,
@@ -222,6 +239,7 @@ pub fn layout_stage(
             letter_spacing: 0.0,
             advance_scale: 1.0,
             shadow: None,
+            outline: None,
         }));
     };
     push(&mut list, fonts, clock, width - margin, Anchor::End, head, Rgba::WHITE, 700);
@@ -257,6 +275,7 @@ pub fn layout_stage(
             letter_spacing: 0.0,
             advance_scale: 1.0,
             shadow: None,
+            outline: None,
         }));
     }
     // Le slide au direct : 60 % de la hauteur.
@@ -378,6 +397,32 @@ mod tests {
         // Rien au direct : rien à l'écran.
         let empty = layout_band(&mut fonts, &Slide::new("", "", SlideSource::Custom), &Band::default(), 1920.0, 1080.0);
         assert!(empty.items.is_empty());
+    }
+
+    #[test]
+    fn the_other_layouts_place_the_band_where_expected() {
+        let mut fonts = fonts();
+        let slide =
+            Slide::new("La foi est une ferme assurance des choses qu'on espère.", "Hébreux 11:1", SlideSource::Bible);
+        let place = |fonts: &mut Fonts, layout: BandLayout| {
+            let band = Band { layout, ..Band::default() };
+            layout_band(fonts, &slide, &band, 1920.0, 1080.0)
+        };
+        let lower = place(&mut fonts, BandLayout::LowerThird);
+        assert!(lower.stage[0] < 200.0 && lower.stage[1] > 540.0, "en bas à gauche : {:?}", lower.stage);
+        let side = place(&mut fonts, BandLayout::SidePanel);
+        assert!(side.stage[0] > 1200.0 && side.stage[3] > 900.0, "colonne à droite : {:?}", side.stage);
+        let card = place(&mut fonts, BandLayout::FocusCard);
+        let center = (card.stage[0] + card.stage[2] / 2.0, card.stage[1] + card.stage[3] / 2.0);
+        assert!((center.0 - 960.0).abs() < 1.0 && (center.1 - 540.0).abs() < 1.0, "centrée : {:?}", card.stage);
+        let subtitle = place(&mut fonts, BandLayout::Subtitle);
+        let size = |l: &DisplayList| l.text_lines().last().unwrap().size;
+        assert!(size(&card) > size(&subtitle), "la carte agrandit le texte");
+        for list in [&lower, &side, &card] {
+            for l in list.text_lines() {
+                assert!(l.baseline > list.stage[1] && l.baseline < list.stage[1] + list.stage[3]);
+            }
+        }
     }
 
     #[test]

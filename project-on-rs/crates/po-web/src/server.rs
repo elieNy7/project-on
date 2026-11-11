@@ -13,7 +13,9 @@ use axum::middleware::Next;
 use axum::response::{Html, IntoResponse, Redirect, Response};
 use axum::routing::get;
 use futures_util::{SinkExt, StreamExt};
-use po_design::{Animation, Band, RoomDesign, SlideSource};
+use po_design::graphics::{LowerThirdStyle, LowerThirdText, SubtitleStyle};
+use po_design::{Animation, Band, Rgba, RoomDesign, SlideSource};
+use po_layout::graphics::{graphic_frame, layout_lower_third, layout_subtitle, test_pattern};
 use po_layout::{DisplayList, Fonts, Item, Slide, layout_band, layout_room, layout_stage};
 use po_render::Renderer;
 use tokio::sync::{oneshot, watch};
@@ -37,6 +39,70 @@ pub struct Context {
     pub clock: String,
     /// Le déroulé du culte, pour le retour de scène (« Prédication · 12:00 restantes »).
     pub status: String,
+    /// Le lower third de la diffusion (affiché, ou en train d'entrer ou de sortir).
+    pub lower_third: Option<Overlay>,
+    /// Le sous-titre affiché (écrans « sous-titres ») ; `None` : sous-titres masqués.
+    pub subtitle: Option<(SubtitleStyle, String)>,
+}
+
+/// Un lower third et son animation : il entre (`shown`) ou sort depuis `since`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Overlay {
+    pub style: LowerThirdStyle,
+    pub text: LowerThirdText,
+    pub shown: bool,
+    pub since: Instant,
+}
+
+/// L'état d'un habillage à un instant : ses éléments, et quand le redessiner.
+pub struct OverlayFrame {
+    pub items: Vec<Item>,
+    /// `Some(délai)` : l'habillage bouge (ou sortira de lui-même) ; `None` : il est immobile.
+    pub next: Option<Duration>,
+}
+
+/// Une image à 30 images par seconde pendant les animations.
+const ANIMATION_TICK: Duration = Duration::from_millis(33);
+
+impl Overlay {
+    /// L'habillage à l'instant `now`, mis en page pour `width` × `height`.
+    pub fn frame(&self, fonts: &mut Fonts, width: f32, height: f32, now: Instant) -> OverlayFrame {
+        let graphic = layout_lower_third(fonts, &self.text, &self.style, width, height);
+        let motion = &self.style.motion;
+        let duration = Duration::from_millis(u64::from(motion.duration_ms.max(1)));
+        let elapsed = now.saturating_duration_since(self.since);
+        let progress = |d: Duration| (d.as_secs_f32() / duration.as_secs_f32()).clamp(0.0, 1.0);
+        if !self.shown {
+            return if elapsed < duration {
+                OverlayFrame {
+                    items: graphic_frame(&graphic, motion, progress(elapsed), false),
+                    next: Some(ANIMATION_TICK),
+                }
+            } else {
+                OverlayFrame { items: Vec::new(), next: None }
+            };
+        }
+        if elapsed < duration {
+            return OverlayFrame {
+                items: graphic_frame(&graphic, motion, progress(elapsed), true),
+                next: Some(ANIMATION_TICK),
+            };
+        }
+        // Affiché : jusqu'au masquage, ou pendant la durée choisie, puis il sort de lui-même.
+        if self.style.hold_ms == 0 {
+            return OverlayFrame { items: graphic.items(), next: None };
+        }
+        let hold = Duration::from_millis(u64::from(self.style.hold_ms));
+        if elapsed < duration + hold {
+            return OverlayFrame { items: graphic.items(), next: Some(duration + hold - elapsed) };
+        }
+        let out = elapsed - duration - hold;
+        if out < duration {
+            OverlayFrame { items: graphic_frame(&graphic, motion, progress(out), false), next: Some(ANIMATION_TICK) }
+        } else {
+            OverlayFrame { items: Vec::new(), next: None }
+        }
+    }
 }
 
 /// Ce qui est au direct.
@@ -69,7 +135,8 @@ impl Program {
             && a.hidden == b.hidden
             && match kind {
                 ScreenKind::Room => a.design == b.design,
-                ScreenKind::Broadcast | ScreenKind::Subtitles => a.band == b.band,
+                ScreenKind::Broadcast => a.band == b.band && a.lower_third == b.lower_third,
+                ScreenKind::Subtitles => a.subtitle == b.subtitle,
                 ScreenKind::Stage => a.next == b.next && a.clock == b.clock && a.status == b.status,
             }
     }
@@ -170,6 +237,17 @@ impl Hub {
         self.program.borrow().clone()
     }
 
+    /// Prévenu à chaque changement du direct (sorties NDI et HDMI).
+    pub fn subscribe(&self) -> watch::Receiver<Arc<Program>> {
+        self.program.subscribe()
+    }
+
+    /// Découpe un texte en sous-titres (pour 1920 × 1080, avec les polices des écrans).
+    pub fn subtitle_chunks(&self, text: &str, style: &SubtitleStyle) -> Vec<String> {
+        let mut fonts = self.fonts.lock().unwrap_or_else(|e| e.into_inner());
+        po_layout::graphics::subtitle_chunks(&mut fonts, text, style)
+    }
+
     /// Le nombre d'écrans connectés.
     pub fn connected(&self) -> usize {
         self.registry.connected()
@@ -211,35 +289,96 @@ impl Hub {
 
     /// La liste d'affichage d'un écran de ce genre et de cette taille.
     pub fn layout(&self, program: &Program, kind: ScreenKind, width: f32, height: f32) -> DisplayList {
+        self.layout_at(program, kind, width, height, Instant::now()).0
+    }
+
+    /// La liste d'affichage à l'instant `now` (le lower third peut être en mouvement), et quand la
+    /// redessiner.
+    pub fn layout_at(
+        &self,
+        program: &Program,
+        kind: ScreenKind,
+        width: f32,
+        height: f32,
+        now: Instant,
+    ) -> (DisplayList, Option<Duration>) {
         // Un fil qui a paniqué en tenant le verrou ne doit pas éteindre les écrans.
         let mut fonts = self.fonts.lock().unwrap_or_else(|e| e.into_inner());
         let c = &program.context;
-        match kind {
+        let mut next = None;
+        let list = match kind {
             ScreenKind::Room => {
                 let mut renderer = self.renderer.lock().unwrap_or_else(|e| e.into_inner());
                 let mut probe = |list: &DisplayList, zone: [f32; 4]| renderer.backdrop_luminance(list, zone);
                 layout_room(&mut fonts, &program.slide, &c.design, width, height, &mut probe)
             }
-            ScreenKind::Broadcast => layout_band(&mut fonts, &program.slide, &c.band, width, height),
-            ScreenKind::Subtitles => layout_band(&mut fonts, &program.slide, &c.band.subtitles(), width, height),
+            ScreenKind::Broadcast => {
+                let mut list = layout_band(&mut fonts, &program.slide, &c.band, width, height);
+                if let Some(overlay) = &c.lower_third {
+                    let frame = overlay.frame(&mut fonts, width, height, now);
+                    list.overlay = frame.items;
+                    next = frame.next;
+                }
+                list
+            }
+            ScreenKind::Subtitles => {
+                let mut list = DisplayList::blank(width, height, Rgba::TRANSPARENT);
+                if let Some((style, text)) = &c.subtitle {
+                    let graphic = layout_subtitle(&mut fonts, text, style, width, height);
+                    list.stage = graphic.rect;
+                    list.items = graphic.items();
+                }
+                list
+            }
             ScreenKind::Stage => {
                 layout_stage(&mut fonts, &program.slide, c.next.as_ref(), &c.clock, &c.status, c.hidden, width, height)
             }
-        }
+        };
+        (list, next)
     }
 
-    fn frame(&self, program: &Program, kind: ScreenKind, width: f32, height: f32) -> String {
-        let mut list = self.layout(program, kind, width, height);
+    /// L'image d'un écran (sortie NDI ou HDMI) : RVBA prémultiplié, `width` × `height`. `background`
+    /// remplace le fond (la couleur de clé d'une sortie HDMI) ; `pattern` : la mire. Rend aussi
+    /// quand la redessiner.
+    pub fn render_rgba(
+        &self,
+        program: &Program,
+        kind: ScreenKind,
+        width: u32,
+        height: u32,
+        background: Option<Rgba>,
+        pattern: bool,
+    ) -> (Vec<u8>, Option<Duration>) {
+        let (mut list, next) = if pattern {
+            (test_pattern(width as f32, height as f32), None)
+        } else {
+            self.layout_at(program, kind, width as f32, height as f32, Instant::now())
+        };
+        if let Some(color) = background {
+            list.background = color;
+        }
+        let mut fonts = self.fonts.lock().unwrap_or_else(|e| e.into_inner());
+        let mut renderer = self.renderer.lock().unwrap_or_else(|e| e.into_inner());
+        let pixels = renderer.render(&mut fonts, &list, width, height).map(|p| p.data().to_vec()).unwrap_or_default();
+        (pixels, next)
+    }
+
+    fn frame(&self, program: &Program, kind: ScreenKind, width: f32, height: f32) -> (String, Option<Duration>) {
+        let (mut list, next) = self.layout_at(program, kind, width, height, Instant::now());
         self.share_images(&mut list.backdrop);
         self.share_images(&mut list.items);
         let c = &program.context;
         let (animation, hidden): (Option<Animation>, bool) = match kind {
             ScreenKind::Room => (Some(c.design.animation), c.hidden),
-            ScreenKind::Broadcast | ScreenKind::Subtitles => (Some(c.band.animation), c.hidden),
+            ScreenKind::Broadcast => (Some(c.band.animation), c.hidden),
+            // Les sous-titres changent sans transition ; masqués, ils ne sont pas envoyés.
+            ScreenKind::Subtitles => (None, false),
             // Le retour de scène change sans transition, et montre le texte même masqué.
             ScreenKind::Stage => (None, false),
         };
-        serde_json::to_string(&ServerMessage::Frame { seq: program.seq, list, animation, hidden }).unwrap_or_default()
+        let text = serde_json::to_string(&ServerMessage::Frame { seq: program.seq, list, animation, hidden })
+            .unwrap_or_default();
+        (text, next)
     }
 
     fn fonts_css(&self) -> String {
@@ -519,9 +658,24 @@ async fn client(socket: WebSocket, screen: String, peer: SocketAddr, shared: Sha
     // Ce que l'écran montre déjà : un changement qui ne le concerne pas (l'heure pour la salle) ne
     // lui renvoie rien.
     let mut shown: Option<(Arc<Program>, (f32, f32))> = None;
+    let mut last_text = String::new();
+    // Le prochain redessin d'un habillage en mouvement.
+    let mut redraw: Option<tokio::time::Instant> = None;
     let mut ping = tokio::time::interval(Duration::from_secs(5));
     loop {
+        let animate = async {
+            match redraw {
+                Some(at) => tokio::time::sleep_until(at).await,
+                None => std::future::pending().await,
+            }
+        };
+        let mut forced = false;
         let wanted = tokio::select! {
+            _ = animate => {
+                redraw = None;
+                forced = true;
+                true
+            }
             incoming = rx.next() => match incoming {
                 Some(Ok(Message::Text(text))) => match serde_json::from_str::<ClientMessage>(&text) {
                     Ok(ClientMessage::Hello { width, height }) => {
@@ -568,25 +722,28 @@ async fn client(socket: WebSocket, screen: String, peer: SocketAddr, shared: Sha
             continue;
         }
         let current = program.borrow_and_update().clone();
-        if let Some((before, at)) = &shown
+        if !forced
+            && let Some((before, at)) = &shown
             && *at == size
             && before.same_image(&current, kind)
         {
             continue;
         }
         // La mise en page (quelques millisecondes) ne bloque pas les autres écrans.
-        let text = {
+        let (text, next) = {
             let hub = hub.clone();
             let current = current.clone();
             tokio::task::spawn_blocking(move || hub.frame(&current, kind, size.0, size.1)).await.unwrap_or_default()
         };
-        if text.is_empty() {
+        redraw = next.map(|d| tokio::time::Instant::now() + d);
+        shown = Some((current, size));
+        if text.is_empty() || text == last_text {
             continue;
         }
-        if tx.send(Message::Text(text.into())).await.is_err() {
+        if tx.send(Message::Text(text.clone().into())).await.is_err() {
             break;
         }
-        shown = Some((current, size));
+        last_text = text;
     }
 }
 

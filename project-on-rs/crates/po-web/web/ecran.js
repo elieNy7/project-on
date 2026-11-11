@@ -108,6 +108,13 @@
           defs.appendChild(filter);
           attrs.filter = `url(#${id})`;
         }
+        // Le contour (sous-titres « contour ») : un trait dessiné sous les lettres.
+        if (item.outline) {
+          attrs.stroke = rgba(item.outline.color);
+          attrs['stroke-width'] = item.outline.width * 2;
+          attrs['stroke-linejoin'] = 'round';
+          attrs['paint-order'] = 'stroke';
+        }
         const text = el('text', attrs);
         text.style.fontKerning = 'normal';
         text.textContent = item.text;
@@ -344,8 +351,11 @@
     background.setAttribute('fill', rgba(list.background));
     const backdropKey = JSON.stringify(list.backdrop);
     const overlayKey = JSON.stringify(list.overlay);
+    const contentKey = JSON.stringify(list.items);
+    // Même slide, même contenu (seul un habillage bouge) : le contenu n'est pas redessiné.
+    const sameContent = !resized && state.seq === message.seq && state.contentKey === contentKey;
     const fresh = {
-      content: layer(list.items),
+      content: sameContent ? null : layer(list.items),
       backdrop: resized || state.backdropKey !== backdropKey ? layer(list.backdrop) : null,
       overlay: resized || state.overlayKey !== overlayKey ? layer(list.overlay) : null,
     };
@@ -356,11 +366,11 @@
     if (animate) {
       transition(animation, fresh, list.stage, list.width, list.height);
     } else {
-      replace(contentRoot, fresh.content);
+      if (fresh.content) replace(contentRoot, fresh.content);
       if (fresh.backdrop) replace(backdropRoot, fresh.backdrop);
       if (fresh.overlay) replace(overlayRoot, fresh.overlay);
     }
-    state = { seq: message.seq, width: list.width, height: list.height, backdropKey, overlayKey };
+    state = { seq: message.seq, width: list.width, height: list.height, backdropKey, overlayKey, contentKey };
     document.body.classList.add('ready');
     requestAnimationFrame(() => send({ type: 'ack', seq: message.seq }));
   }

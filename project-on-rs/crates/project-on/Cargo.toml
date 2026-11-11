@@ -23,6 +23,7 @@ po-program.workspace = true
 po-text.workspace = true
 po-render.workspace = true
 po-web.workspace = true
+po-ndi.workspace = true
 egui.workspace = true
 eframe = { version = "0.37.0", default-features = false, features = ["wgpu", "default_fonts"] }
 resvg = { version = "0.48.1", default-features = false }

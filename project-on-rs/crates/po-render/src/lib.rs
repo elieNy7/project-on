@@ -316,6 +316,7 @@ impl Renderer {
             // lignes, comme la 2.8 (`ShadowTextLabel` floute le bloc entier), puis le texte.
             if let Item::Text(first) = &items[i]
                 && let Some(shadow) = first.shadow
+                && first.outline.is_none()
             {
                 let same_block = |item: &Item| {
                     matches!(item, Item::Text(l) if l.shadow == Some(shadow) && l.size == first.size
@@ -448,10 +449,26 @@ impl Renderer {
 
     fn draw_line(&mut self, pixmap: &mut Pixmap, fonts: &mut Fonts, line: &TextLine, transform: Transform) {
         let Some(path) = self.line_path(fonts, line) else { return };
-        match line.shadow {
-            Some(shadow) => draw_shadowed(pixmap, &path, shadow, Some(line.color), transform),
-            None => pixmap.fill_path(&path, &paint(line.color), FillRule::Winding, transform, None),
+        let Some(outline) = line.outline else {
+            match line.shadow {
+                Some(shadow) => draw_shadowed(pixmap, &path, shadow, Some(line.color), transform),
+                None => pixmap.fill_path(&path, &paint(line.color), FillRule::Winding, transform, None),
+            }
+            return;
+        };
+        // Le contour : un trait arrondi deux fois plus large, dont la moitié dépasse des lettres,
+        // puis les lettres par-dessus (l'ombre éventuelle dessous).
+        if let Some(shadow) = line.shadow {
+            draw_shadowed(pixmap, &path, shadow, None, transform);
         }
+        let stroke = tiny_skia::Stroke {
+            width: outline.width * 2.0,
+            line_join: tiny_skia::LineJoin::Round,
+            line_cap: tiny_skia::LineCap::Round,
+            ..tiny_skia::Stroke::default()
+        };
+        pixmap.stroke_path(&path, &paint(outline.color), &stroke, transform, None);
+        pixmap.fill_path(&path, &paint(line.color), FillRule::Winding, transform, None);
     }
 
     fn draw_group(&mut self, pixmap: &mut Pixmap, fonts: &mut Fonts, group: &Group, transform: Transform) {

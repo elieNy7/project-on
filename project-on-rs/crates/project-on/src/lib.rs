@@ -2,9 +2,12 @@
 
 pub mod app;
 pub mod data;
+pub mod designs;
 pub mod gpu;
 pub mod icons;
 pub mod library;
+pub mod outputs;
+pub mod overlay;
 pub mod playlist;
 pub mod projector;
 pub mod screens;

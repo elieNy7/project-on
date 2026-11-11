@@ -18,10 +18,13 @@ use po_program::Program;
 use po_settings::{Settings, SplitSettings};
 
 use crate::data::{CopyReport, Locations};
+use crate::designs::{DesignAction, DesignsView};
 use crate::icons::{self, Icon};
 use crate::library::books::{BOOK_KEYS, BooksView, EXPOSE_KEYS};
 use crate::library::playlist::{PlaylistAction, PlaylistMarks, PlaylistView};
 use crate::library::{Action, Marks, Origin, Page, Prepared, bible::BibleView, hymns::HymnsView, sermons::SermonsView};
+use crate::outputs::{Outputs, Wanted};
+use crate::overlay::{LowerThird, Subtitles};
 use crate::playlist::Playlists;
 use crate::projector::Projector;
 use crate::search::{self, Hit, Kind, Request, Response, SearchThread};
@@ -133,6 +136,21 @@ pub struct App {
     pub taken: Option<Slide>,
     /// Les écrans Web (salle, diffusion, sous-titres, retour de scène).
     pub web: Option<crate::web::Web>,
+    /// Ce qui est au direct, tel que le voit chaque genre d'écran (Web, NDI, HDMI).
+    pub hub: std::sync::Arc<po_web::Hub>,
+    pub outputs: Outputs,
+    pub lower_third: LowerThird,
+    pub subtitles: Subtitles,
+    /// On recule : le slide précédent montre son dernier sous-titre.
+    subtitles_backwards: bool,
+    pub designs: DesignsView,
+    /// Un design de salle essayé dans l'Aperçu (bibliothèque de designs).
+    pub preview_design: Option<RoomDesign>,
+    /// La source NDI « Project-On Diffusion ».
+    pub ndi: bool,
+    /// La mire sur les sorties HDMI (F8).
+    pub hdmi_pattern: bool,
+    hdmi_key: po_design::Rgba,
     /// Le bandeau de la diffusion et des sous-titres (réglages « OBS » de la 2.x).
     band: po_design::Band,
     help: bool,
@@ -164,6 +182,36 @@ impl App {
         let settings = &config.settings;
         let wake = ctx.clone();
         let worker = Worker::spawn(config.fonts_dir.clone(), move || wake.request_repaint());
+        let hub = po_web::Hub::new(crate::worker::fonts_from(&config.fonts_dir));
+        let wake_outputs = ctx.clone();
+        let outputs = Outputs::start(hub.clone(), move || wake_outputs.request_repaint());
+        let band_2x = band_of(settings);
+        let designs_dir = config.locations.as_ref().map(|l| l.beta.data().join("designs"));
+        let mut designs = DesignsView::new(
+            config.fonts_dir.clone(),
+            designs_dir,
+            &RoomDesign::from_projection(&settings.projection),
+            &band_2x,
+        );
+        designs.families = crate::worker::fonts_from(&config.fonts_dir).families();
+        let lower_third = po_design::graphics::builtin_lower_thirds()
+            .into_iter()
+            .find(|(id, ..)| *id == "lt-moderne")
+            .map(|(id, name, _, style)| LowerThird::new(id, name, style))
+            .unwrap_or_else(|| {
+                LowerThird::new("lt", "Lower third", po_design::graphics::builtin_lower_thirds().remove(0).3)
+            });
+        let subtitles = po_design::graphics::builtin_subtitles()
+            .into_iter()
+            .nth(1)
+            .map(|(id, name, style)| Subtitles::new(id, name, style))
+            .unwrap_or_else(|| {
+                Subtitles::new(
+                    "st",
+                    "Sous-titres",
+                    po_design::graphics::SubtitleStyle::new(po_design::graphics::SubtitleLook::Translucent),
+                )
+            });
         let mut app = App {
             ctx: ctx.clone(),
             locations: config.locations.clone(),
@@ -198,7 +246,17 @@ impl App {
             projectors: Vec::new(),
             taken: None,
             web: None,
-            band: band_of(settings),
+            hub,
+            outputs,
+            lower_third,
+            subtitles,
+            subtitles_backwards: false,
+            designs,
+            preview_design: None,
+            ndi: false,
+            hdmi_pattern: false,
+            hdmi_key: po_layout::graphics::key_color(&settings.hdmi.key_color),
+            band: band_2x,
             help: false,
             status: "Prêt".into(),
             warm_up: None,
@@ -206,9 +264,8 @@ impl App {
             follow_live: false,
         };
         if let Some(port) = config.web_port {
-            let hub = po_web::Hub::new(crate::worker::fonts_from(&config.fonts_dir));
             let file = config.locations.as_ref().map(|l| l.beta.data().join("web.json"));
-            app.web = Some(crate::web::Web::start(hub, port, file));
+            app.web = Some(crate::web::Web::start(app.hub.clone(), port, file));
         }
         match (config.database, config.locations) {
             (Some(path), _) => app.open_database(path),
@@ -254,6 +311,8 @@ impl App {
         self.display_screen = loaded.projection.display_screen.clone();
         self.shortcuts = Shortcuts::from_settings(loaded.other.get("shortcuts"));
         self.band = band_of(&loaded);
+        self.hdmi_key = po_layout::graphics::key_color(&loaded.hdmi.key_color);
+        self.designs.refresh_builtin(&self.design, &self.band);
     }
 
     /// Ouvre la base de la bêta (sa copie : la 2.x n'est jamais ouverte en écriture). Une copie
@@ -316,7 +375,12 @@ impl App {
                 po_core::journal::line(&format!("déroulé : section « {} »", s.name));
             }
         }
-        self.worker.submit(Job { target, id, slide, design: self.design.clone(), width, height, blur });
+        // Un design essayé dans la bibliothèque ne touche que l'Aperçu.
+        let design = match (target, &self.preview_design) {
+            (Target::Preview, Some(tried)) => tried.clone(),
+            _ => self.design.clone(),
+        };
+        self.worker.submit(Job { target, id, slide, design, width, height, blur });
     }
 
     /// Prépare un programme dans l'Aperçu.
@@ -345,6 +409,12 @@ impl App {
 
     /// Slide suivant (`+1`) ou précédent (`-1`) au direct.
     pub fn step(&mut self, delta: i32) {
+        // Sous-titres affichés : ← et → avancent d'abord dans le paragraphe.
+        if self.live.is_some() && self.subtitles.step(delta) {
+            self.status = format!("Sous-titre {} / {}", self.subtitles.index + 1, self.subtitles.chunks.len());
+            return;
+        }
+        self.subtitles_backwards = delta < 0;
         let Some(live) = self.live.as_mut() else { return };
         let moved = if delta > 0 { live.program.next_slide() } else { live.program.prev_slide() };
         if moved {
@@ -429,11 +499,29 @@ impl App {
             ui.label(RichText::new("PROJETER SUR").font(semibold(10.5)).color(FAINT));
             for screen in crate::screens::list() {
                 let projector = Projector::on(screen.clone());
-                let on = self.projectors.contains(&projector);
+                let current = self.projectors.iter().find(|p| **p == projector).map(|p| p.kind);
+                let on = current == Some(po_web::ScreenKind::Room);
                 if ui.add(egui::Button::selectable(on, &screen.label)).clicked() {
-                    self.toggle_projector(projector);
+                    if current.is_some_and(|k| k != po_web::ScreenKind::Room) {
+                        self.toggle_output(screen.clone(), po_web::ScreenKind::Room);
+                    } else {
+                        self.toggle_projector(projector);
+                    }
                     ui.close();
                 }
+                // Une sortie HDMI de diffusion sur cet écran (vers un mélangeur vidéo).
+                ui.horizontal(|ui| {
+                    ui.add_space(14.0);
+                    for kind in
+                        [po_web::ScreenKind::Broadcast, po_web::ScreenKind::Subtitles, po_web::ScreenKind::Stage]
+                    {
+                        let on = current == Some(kind);
+                        if ui.add(egui::Button::selectable(on, RichText::new(kind.label()).size(11.5))).clicked() {
+                            self.toggle_output(screen.clone(), kind);
+                            ui.close();
+                        }
+                    }
+                });
             }
             let window = Projector::windowed();
             let on = self.projectors.contains(&window);
@@ -938,6 +1026,9 @@ impl App {
                     self.sermons.focus_search = true;
                 }
                 Key2::Help => self.help = !self.help,
+                Key2::LowerThird => self.toggle_lower_third(),
+                Key2::Subtitles => self.toggle_subtitles(),
+                Key2::HdmiPattern => self.toggle_pattern(),
             }
         }
         let typing = self.ctx.egui_wants_keyboard_input();
@@ -947,6 +1038,9 @@ impl App {
             if self.ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, key)) {
                 self.page = page;
             }
+        }
+        if self.ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, Key::Num7)) {
+            self.page = Page::Designs;
         }
         if typing {
             return;
@@ -975,7 +1069,99 @@ impl App {
             Page::Sermons => self.sermons.focus_search = true,
             Page::Expose => self.expose.focus_search = true,
             Page::Books => self.books.focus_search = true,
-            Page::Playlist => {}
+            Page::Playlist | Page::Designs => {}
+        }
+    }
+
+    // ── Habillage et sorties ────────────────────────────────────────────────────────────────────
+
+    /// L : affiche ou masque le lower third.
+    pub fn toggle_lower_third(&mut self) {
+        self.lower_third.toggle();
+        self.status = if self.lower_third.shown { "Lower third affiché".into() } else { "Lower third masqué".into() };
+    }
+
+    /// S : affiche ou masque les sous-titres.
+    pub fn toggle_subtitles(&mut self) {
+        self.subtitles.shown = !self.subtitles.shown;
+        self.status = if self.subtitles.shown {
+            "Sous-titres affichés : ← et → avancent dans le paragraphe".into()
+        } else {
+            "Sous-titres masqués".into()
+        };
+    }
+
+    /// F8 : la mire sur les sorties HDMI.
+    pub fn toggle_pattern(&mut self) {
+        self.hdmi_pattern = !self.hdmi_pattern;
+        self.status = if self.hdmi_pattern { "Mire HDMI".into() } else { "Mire HDMI retirée".into() };
+    }
+
+    /// Ouvre (ou ferme) une sortie HDMI de ce genre sur un écran.
+    pub fn toggle_output(&mut self, screen: crate::screens::Screen, kind: po_web::ScreenKind) {
+        let wanted = Projector::output(screen, kind);
+        match self.projectors.iter().position(|p| *p == wanted) {
+            Some(i) if self.projectors[i].kind == kind => {
+                self.projectors.remove(i);
+                self.status = format!("Sortie fermée : {}", wanted.label());
+            }
+            Some(i) => {
+                self.projectors[i].kind = kind;
+                self.status = format!("Sortie : {}", wanted.label());
+            }
+            None => {
+                self.status = format!("Sortie : {}", wanted.label());
+                self.projectors.push(wanted);
+            }
+        }
+    }
+
+    /// Les sorties HDMI ouvertes (hors salle).
+    pub fn hdmi_outputs(&self) -> usize {
+        self.projectors.iter().filter(|p| p.kind != po_web::ScreenKind::Room).count()
+    }
+
+    fn apply_design(&mut self, action: DesignAction) {
+        match action {
+            DesignAction::Preview(design) => {
+                self.preview_design = Some(design);
+                self.render(Target::Preview);
+            }
+            DesignAction::ApplyLive => {
+                if let Some(design) = self.preview_design.take() {
+                    self.design = design;
+                    self.render(Target::Live);
+                    self.render(Target::Preview);
+                    self.status = "Design appliqué au direct".into();
+                }
+            }
+            DesignAction::Band(band) => self.band = band,
+            DesignAction::LowerThird(design) => {
+                if let po_design::library::DesignBody::LowerThird(style) = design.body {
+                    self.lower_third.id = design.id;
+                    self.lower_third.name = design.name.clone();
+                    self.lower_third.style = style;
+                    self.status = format!("Lower third : « {} »", design.name);
+                }
+            }
+            DesignAction::Subtitles(design) => {
+                if let po_design::library::DesignBody::Subtitles(style) = design.body {
+                    self.subtitles.id = design.id;
+                    self.subtitles.name = design.name.clone();
+                    self.subtitles.style = style;
+                    // Un autre style : le découpage est à refaire.
+                    self.subtitles.cut_for = None;
+                    self.status = format!("Sous-titres : « {} »", design.name);
+                }
+            }
+            DesignAction::ToggleLowerThird => self.toggle_lower_third(),
+            DesignAction::ToggleSubtitles => self.toggle_subtitles(),
+            DesignAction::StepSubtitle(delta) => {
+                self.subtitles.step(delta);
+            }
+            DesignAction::Ndi(on) => self.ndi = on,
+            DesignAction::Pattern => self.toggle_pattern(),
+            DesignAction::Status(text) => self.status = text,
         }
     }
 
@@ -1025,8 +1211,8 @@ impl App {
             self.help_window(ui);
         }
         let before = self.projectors.len();
-        let (ctx, stage) = (self.ctx.clone(), &self.live_stage);
-        self.projectors.retain_mut(|p| p.show(&ctx, stage, now));
+        let (ctx, stage, outputs) = (self.ctx.clone(), &self.live_stage, &self.outputs);
+        self.projectors.retain_mut(|p| p.show(&ctx, stage, outputs, now));
         if self.projectors.len() < before {
             self.status = "Projection fermée".into();
         }
@@ -1041,7 +1227,24 @@ impl App {
     /// Les écrans Web suivent le direct : le slide, le suivant, le texte masqué, le déroulé et
     /// l'heure. Rien ne part si rien n'a changé.
     fn sync_web(&mut self) {
-        let Some(web) = &self.web else { return };
+        let now = Instant::now();
+        // Les sous-titres du slide au direct (redécoupés quand il change).
+        if let Some(slide) = self.live.as_ref().map(|l| l.program.slide())
+            && self.subtitles.needs_cut(&slide)
+        {
+            let chunks = self.hub.subtitle_chunks(&slide.text, &self.subtitles.style);
+            self.subtitles.cut(&slide, chunks, self.subtitles_backwards);
+            self.subtitles_backwards = false;
+        }
+        let live = self.live.as_ref().map(|l| (l.program.slide(), l.program.title.clone()));
+        let text = self.lower_third.current_text(live.as_ref().map(|(s, t)| (s, t.as_str())));
+        let lower_third = (self.lower_third.visible(now) && !text.is_empty()).then(|| po_web::Overlay {
+            style: self.lower_third.style.clone(),
+            text,
+            shown: self.lower_third.shown,
+            since: self.lower_third.since,
+        });
+        let subtitle = self.subtitles.current().map(|t| (self.subtitles.style.clone(), t.to_string()));
         let next = self.live.as_ref().and_then(|l| l.program.slide_at(l.program.current() + 1));
         let context = po_web::Context {
             design: self.design.clone(),
@@ -1050,8 +1253,18 @@ impl App {
             hidden: self.live_stage.hidden(),
             clock: chrono_now(),
             status: self.service_line(),
+            lower_third,
+            subtitle,
         };
-        web.hub.update(self.taken.take(), context);
+        self.hub.update(self.taken.take(), context);
+        let hdmi = self
+            .projectors
+            .iter()
+            .filter(|p| p.kind != po_web::ScreenKind::Room)
+            .map(|p| (p.kind, p.render_size()))
+            .collect();
+        self.outputs.want(Wanted { ndi: self.ndi, hdmi, key: Some(self.hdmi_key), pattern: self.hdmi_pattern });
+        self.outputs.upload(&self.ctx);
     }
 
     /// Le déroulé en une ligne, pour le retour de scène : « Prédication · 12:00 restantes ».
@@ -1067,6 +1280,21 @@ impl App {
     }
 
     fn library(&mut self, ui: &mut Ui) {
+        if self.page == Page::Designs {
+            let sample = self
+                .preview
+                .as_ref()
+                .or(self.live.as_ref())
+                .map(|s| s.program.slide())
+                .unwrap_or_else(crate::designs::sample_slide);
+            let ndi = (self.ndi, self.outputs.ndi_status(), self.outputs.ndi_receivers());
+            let hdmi = self.hdmi_outputs();
+            let actions = self.designs.ui(ui, &mut self.lower_third, &mut self.subtitles, ndi, hdmi, &sample);
+            for action in actions {
+                self.apply_design(action);
+            }
+            return;
+        }
         if self.page == Page::Playlist {
             let Some(db) = self.db.as_ref() else { return };
             let marks = self.playlist_marks();
@@ -1088,7 +1316,7 @@ impl App {
             Page::Hymns => self.hymns.ui(ui, db, &marks, search, self.split.hymn_repeat_chorus),
             Page::Expose => self.expose.ui(ui, db, &marks, search),
             Page::Books => self.books.ui(ui, db, &marks, search),
-            Page::Playlist => None,
+            Page::Playlist | Page::Designs => None,
         };
         if let Some(action) = action {
             self.apply(action);
@@ -1304,11 +1532,28 @@ impl App {
         }
         ui.add_space(10.0);
         ui.separator();
-        for (label, icon, phase) in [
-            ("Médias", Icon::Image, "phase 7"),
-            ("Designs", Icon::SwatchBook, "phase 6"),
-            ("Réglages", Icon::Settings, "phase 7"),
-        ] {
+        let designs = self.page == Page::Designs;
+        let (rect, r) = widgets::list_row(ui, designs, 38.0, Page::Designs.label());
+        ui.add_space(2.0);
+        icons::paint(
+            ui.painter(),
+            egui::Rect::from_center_size(pos2(rect.min.x + 22.0, rect.center().y), vec2(17.0, 17.0)),
+            Icon::SwatchBook,
+            if designs { ACCENT } else { MUTED },
+        );
+        widgets::paint_text(
+            ui,
+            pos2(rect.min.x + 40.0, rect.center().y),
+            Align2::LEFT_CENTER,
+            Page::Designs.label(),
+            medium(13.5),
+            if designs { TEXT } else { MUTED },
+            rect.width() - 50.0,
+        );
+        if r.on_hover_text("Designs, lower thirds, sous-titres, NDI et HDMI (Ctrl+7)").clicked() {
+            self.page = Page::Designs;
+        }
+        for (label, icon, phase) in [("Médias", Icon::Image, "phase 7"), ("Réglages", Icon::Settings, "phase 7")] {
             let (rect, r) = ui.allocate_exact_size(vec2(ui.available_width(), 36.0), Sense::hover());
             icons::paint(
                 ui.painter(),

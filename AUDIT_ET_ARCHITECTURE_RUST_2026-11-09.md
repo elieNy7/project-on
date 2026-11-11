@@ -16,7 +16,10 @@
   **Phase 5 terminée le 11 novembre** : projection Web à quatre écrans (salle, diffusion pour OBS,
   sous-titres, retour de scène), mise en page et transitions du vidéoprojecteur, état des écrans
   dans la régie, réseau local avec jeton, adresse `/obs` de la 2.8 conservée
-  ([rapport](project-on-rs/docs/phase5/RAPPORT_PHASE5.md)). Les phases 6 à 8 suivent sans attendre
+  ([rapport](project-on-rs/docs/phase5/RAPPORT_PHASE5.md)). **Phase 6 terminée le 11 novembre** :
+  page Designs (27 designs intégrés dont 13 lower thirds, Mes designs), lower third (L) et
+  sous-titres (S) en direct, source NDI avec transparence, sorties HDMI sur couleur de clé, mire F8
+  ([rapport](project-on-rs/docs/phase6/RAPPORT_PHASE6.md)). Les phases 7 et 8 suivent sans attendre
   (votre demande du 11 novembre), sauf la suppression du code de la 2.8 et la publication, qui vous
   seront demandées. Le code de la 2.8 n'a pas été modifié ; seul son module natif est rebranché
   sur `po-text`.

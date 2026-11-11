@@ -530,6 +530,7 @@ fn servir(db_path: &Path, port: u16) -> Result<()> {
             hidden: i % 7 == 6,
             clock: format!("10:{:02}", i % 60),
             status: format!("Prédication · {}:00 restantes", 30 - i % 30),
+            ..po_web::Context::default()
         };
         hub.update(Some(slide(i)), context);
         std::thread::sleep(Duration::from_secs(4));
@@ -582,6 +583,7 @@ fn capture_web(db_path: &Path, out_dir: &Path) -> Result<()> {
             hidden: false,
             clock: "10:42".into(),
             status: "Prédication · 32:15 restantes".into(),
+            ..po_web::Context::default()
         },
     );
     let program = hub.program();
@@ -666,6 +668,97 @@ fn capture_web(db_path: &Path, out_dir: &Path) -> Result<()> {
     Ok(())
 }
 
+/// La planche de tous les designs intégrés (aperçus réels, avec leur nom), puis la page Designs
+/// de la régie avec un lower third et des sous-titres affichés.
+fn capture_designs(db_path: &Path, out_dir: &Path) -> Result<()> {
+    use po_design::library::DesignBody;
+    std::fs::create_dir_all(out_dir)?;
+    let mut fonts = project_on::worker::fonts_from(&fonts_dir());
+    let mut renderer = Renderer::new();
+    let room_2x = ui_config(db_path, out_dir).settings.projection.clone();
+    let designs = po_design::library::builtin(&RoomDesign::from_projection(&room_2x), &legacy_band());
+    let slide = project_on::designs::sample_slide();
+    let [w, h] = project_on::designs::PREVIEW_SIZE;
+    let (gap, label) = (16u32, 40u32);
+    let columns = 5u32;
+    let rows = (designs.len() as u32).div_ceil(columns);
+    let (sheet_w, sheet_h) = (columns * (w + gap) + gap, rows * (h + label + gap) + gap);
+    let mut sheet = tiny_skia::Pixmap::new(sheet_w, sheet_h).ok_or("taille")?;
+    sheet.fill(tiny_skia::Color::from_rgba8(11, 18, 23, 255));
+    let mut names = DisplayList::blank(sheet_w as f32, sheet_h as f32, Rgba::TRANSPARENT);
+    for (i, design) in designs.iter().enumerate() {
+        let pixels = project_on::designs::render_preview(&mut fonts, &mut renderer, &design.body, &slide);
+        let tile =
+            tiny_skia::Pixmap::from_vec(pixels, tiny_skia::IntSize::from_wh(w, h).ok_or("taille")?).ok_or("aperçu")?;
+        let (col, row) = (i as u32 % columns, i as u32 / columns);
+        let (x, y) = (gap + col * (w + gap), gap + row * (h + label + gap));
+        let paint = tiny_skia::PixmapPaint::default();
+        sheet.draw_pixmap(x as i32, y as i32, tile.as_ref(), &paint, tiny_skia::Transform::identity(), None);
+        let kind = match &design.body {
+            DesignBody::Room(_) => "Salle",
+            DesignBody::Band(_) => "Bandeau",
+            DesignBody::LowerThird(_) => "Lower third",
+            DesignBody::Subtitles(_) => "Sous-titres",
+        };
+        for (text, dy, size, color, weight) in [
+            (design.name.clone(), 20.0, 15.0, Rgba::rgb(242, 240, 233), 600),
+            (format!("{kind} · {}", design.category), 37.0, 12.0, Rgba::rgb(147, 163, 173), 400),
+        ] {
+            let width = fonts.qt_advance(&text, "Inter", weight, size, 0.0);
+            names.items.push(po_layout::Item::Text(po_layout::TextLine {
+                text,
+                x: x as f32,
+                baseline: (y + h) as f32 + dy,
+                anchor: po_layout::Anchor::Start,
+                size,
+                family: "Inter".into(),
+                weight,
+                color,
+                width,
+                letter_spacing: 0.0,
+                advance_scale: 1.0,
+                shadow: None,
+                outline: None,
+            }));
+        }
+    }
+    let labels = renderer.render(&mut fonts, &names, sheet_w, sheet_h)?;
+    sheet.draw_pixmap(
+        0,
+        0,
+        labels.as_ref(),
+        &tiny_skia::PixmapPaint::default(),
+        tiny_skia::Transform::identity(),
+        None,
+    );
+    std::fs::write(out_dir.join("designs.png"), encode_png(&sheet)?)?;
+    println!("Planche : {} ({} designs)", out_dir.join("designs.png").display(), designs.len());
+
+    // La page Designs : un paragraphe au direct, le lower third et les sous-titres affichés.
+    let mut harness = ui_harness(ui_config(db_path, out_dir));
+    harness.run_ok();
+    harness.state_mut().app().select_sermon(40);
+    harness.step();
+    harness.state_mut().app().cue_sermon_entry(3);
+    until(&mut harness, |a| !a.rendering() && a.preview_frame().is_some());
+    harness.state_mut().app().take();
+    until(&mut harness, |a| !a.rendering() && a.live_frame().is_some());
+    let app = harness.state_mut().app();
+    app.page = project_on::library::Page::Designs;
+    app.lower_third.auto = true;
+    app.toggle_lower_third();
+    app.toggle_subtitles();
+    app.designs.selected = Some("lt-moderne".into());
+    for _ in 0..40 {
+        harness.step();
+        std::thread::sleep(Duration::from_millis(25));
+    }
+    let image = harness.render()?;
+    image.save(out_dir.join("designs-regie.png"))?;
+    println!("Capture : {}", out_dir.join("designs-regie.png").display());
+    Ok(())
+}
+
 fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.iter().map(String::as_str).collect::<Vec<_>>().as_slice() {
@@ -676,6 +769,7 @@ fn main() -> Result<()> {
         ["captures", refs, out] => captures::run(Path::new(refs), Path::new(out)),
         ["playlist", db, out] => capture_playlist(Path::new(db), Path::new(out)),
         ["web", db, out] => capture_web(Path::new(db), Path::new(out)),
+        ["designs", db, out] => capture_designs(Path::new(db), Path::new(out)),
         ["trigramme", db, out] => {
             let report = trigramme::evaluate(Path::new(db), Path::new(out))?;
             std::fs::write(Path::new(out).join("trigramme.json"), serde_json::to_string_pretty(&report)?)?;
@@ -683,7 +777,7 @@ fn main() -> Result<()> {
         }
         _ => {
             eprintln!(
-                "usage : po-mesures tout <base.db> <dossier> | demarrage <base.db> | servir <base.db> <port> | recherche <base.db> <sortie.json> | trigramme <base.db> <dossier> | captures <références 2.8> <dossier> | playlist <base.db> <dossier> | web <base.db> <dossier>"
+                "usage : po-mesures tout <base.db> <dossier> | demarrage <base.db> | servir <base.db> <port> | recherche <base.db> <sortie.json> | trigramme <base.db> <dossier> | captures <références 2.8> <dossier> | playlist <base.db> <dossier> | web <base.db> <dossier> | designs <base.db> <dossier>"
             );
             std::process::exit(2);
         }

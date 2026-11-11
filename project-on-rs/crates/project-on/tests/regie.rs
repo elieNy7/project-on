@@ -94,7 +94,7 @@ fn a_click_prepares_the_aperçu_and_f2_sends_it_live() {
     until(&mut h, |a| a.live_frame().is_some() && !a.rendering());
     let app = h.state_mut().app();
     assert_eq!(app.live.as_ref().unwrap().program.slide().text, preview_text(app));
-    assert!(app.taken.is_some(), "le slide part aussi aux écrans Web");
+    assert!(app.hub.program().seq >= 1, "le slide part aussi aux écrans Web, NDI et HDMI");
     // Le slide au direct porte l'identification de Branham (une prédication).
     assert!(!app.live_frame().unwrap().list.overlay.is_empty());
 }

@@ -26,6 +26,8 @@ pub enum Page {
     Expose,
     Books,
     Playlist,
+    /// La bibliothèque de designs et l'habillage en direct (hors du rail principal).
+    Designs,
 }
 
 impl Page {
@@ -39,6 +41,7 @@ impl Page {
             Page::Expose => "Exposé",
             Page::Books => "Livres",
             Page::Playlist => "Playlist",
+            Page::Designs => "Designs",
         }
     }
 
@@ -50,6 +53,7 @@ impl Page {
             Page::Expose => Icon::FileText,
             Page::Books => Icon::Library,
             Page::Playlist => Icon::ListVideo,
+            Page::Designs => Icon::SwatchBook,
         }
     }
 }

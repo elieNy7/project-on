@@ -204,3 +204,28 @@ fn fast_shadow_looks_like_the_full_screen_layer() {
         }
     }
 }
+
+#[test]
+fn outlined_subtitles_are_ringed_with_their_outline_color() {
+    use po_design::graphics::{SubtitleLook, SubtitleStyle};
+    let mut fonts = fonts();
+    let mut renderer = Renderer::new();
+    let mut style = SubtitleStyle::new(SubtitleLook::Outline);
+    style.font.outline = Some((Rgba::rgb(255, 0, 0), 4.0));
+    let graphic = po_layout::graphics::layout_subtitle(&mut fonts, "Que ton règne vienne", &style, 960.0, 540.0);
+    let mut list = DisplayList::blank(960.0, 540.0, Rgba::TRANSPARENT);
+    list.items = graphic.items();
+    let pixmap = renderer.render(&mut fonts, &list, 960, 540).unwrap();
+    let (mut red, mut white) = (0, 0);
+    for p in pixmap.pixels() {
+        if p.alpha() == 255 && p.red() > 200 && p.green() < 60 {
+            red += 1;
+        }
+        if p.alpha() == 255 && p.red() > 240 && p.green() > 240 && p.blue() > 240 {
+            white += 1;
+        }
+    }
+    assert!(red > 500 && white > 500, "contour {red}, lettres {white}");
+    // Le fond reste transparent autour.
+    assert_eq!(pixmap.pixel(5, 5).unwrap().alpha(), 0);
+}

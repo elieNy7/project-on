@@ -48,6 +48,14 @@ fn is_zero(v: &f32) -> bool {
     *v == 0.0
 }
 
+/// Le contour d'une ligne de texte (sous-titres « contour »).
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct TextOutline {
+    pub color: Rgba,
+    /// L'épaisseur, en pixels.
+    pub width: f32,
+}
+
 /// Une ligne de texte placée.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TextLine {
@@ -72,6 +80,8 @@ pub struct TextLine {
     pub advance_scale: f32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub shadow: Option<TextShadow>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub outline: Option<TextOutline>,
 }
 
 /// Un arrêt de dégradé : position (0 à 1) et couleur.

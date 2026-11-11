@@ -3,11 +3,11 @@
 La refonte de Project-On en Rust, décidée le 9 novembre 2026 : architecture, décisions et plan dans
 [`../AUDIT_ET_ARCHITECTURE_RUST_2026-11-09.md`](../AUDIT_ET_ARCHITECTURE_RUST_2026-11-09.md).
 
-**État : phase 5 terminée — projection Web (salle, diffusion, sous-titres, retour de scène).**
+**État : phase 6 terminée — designs, lower thirds, sous-titres, sorties NDI et HDMI.**
 Rapports : [phase 0](docs/phase0/RAPPORT_PHASE0.md), [phase 1](docs/phase1/RAPPORT_PHASE1.md),
 [phase 2](docs/phase2/RAPPORT_PHASE2.md), [phase 3](docs/phase3/RAPPORT_PHASE3.md),
 [phase 4](docs/phase4/RAPPORT_PHASE4.md) ([essai guidé](docs/phase4/ESSAI_GUIDE.md)),
-[phase 5](docs/phase5/RAPPORT_PHASE5.md). La version livrée reste la
+[phase 5](docs/phase5/RAPPORT_PHASE5.md), [phase 6](docs/phase6/RAPPORT_PHASE6.md). La version livrée reste la
 2.8 (Python) jusqu'à la bascule 3.0. Ce code ne touche jamais aux vraies données : les essais et les
 mesures travaillent sur des copies.
 
@@ -19,12 +19,13 @@ mesures travaillent sur des copies.
 | `po-text` | le texte : sans accents, nettoyage, clés et requêtes de recherche, découpage en parties, strophes, références bibliques, titres et repères |
 | `po-settings` | les réglages, lus dans le `settings.json` de la 2.x avec les mêmes règles ; écriture atomique et `.bak` |
 | `po-db` | la base SQLite de la 2.x, sans conversion : schéma et migrations, Bible, cantiques, prédications, livres, Exposé, playlists, déroulé, médias, copie cohérente |
-| `po-design` | le style de la salle (`RoomDesign`), lu depuis les réglages « Projection » de la 2.x ; le bandeau de la diffusion (`Band`), lu depuis les réglages « OBS » ; couleurs et contraste ; genre d'un slide |
-| `po-layout` | la mise en page plein écran de la 2.8, au pixel près (métriques de Qt, largeurs DirectWrite), le fond, l'identification de Branham et les transitions ; le bandeau sur fond transparent et le retour de scène ; le tout en **liste d'affichage** (fond, contenu, surcouche) |
+| `po-design` | le style de la salle (`RoomDesign`), lu depuis les réglages « Projection » de la 2.x ; le bandeau de la diffusion (`Band`, 4 dispositions), lu depuis les réglages « OBS » ; lower thirds et sous-titres (`graphics`) ; la bibliothèque de designs et « Mes designs » (`library`) ; couleurs et contraste ; genre d'un slide |
+| `po-layout` | la mise en page plein écran de la 2.8, au pixel près (métriques de Qt, largeurs DirectWrite), le fond, l'identification de Branham et les transitions ; le bandeau sur fond transparent et le retour de scène ; lower thirds, sous-titres (découpage équilibré) et leurs animations, mire HDMI ; le tout en **liste d'affichage** (fond, contenu, surcouche) |
 | `po-render` | le dessin d'une liste d'affichage en image (moniteurs, NDI, HDMI, captures) : dégradés, images, ombres et halos, groupes animés ; les trois couches d'un slide pour la carte graphique |
 | `po-program` | le programme : ce qu'un clic prépare (tout le sermon, le chapitre, le cantique), découpé en slides « réf (i/n) » comme la 2.8 |
 | `po-web` | la projection Web : serveur local en lecture seule (axum), quatre genres d'écrans, registre des écrans, jeton du réseau local et QR code, adresses de la 2.8 (`/obs`, `/slide.json`), WebSocket, client navigateur (`web/`) aux transitions du vidéoprojecteur |
-| `project-on` | l'application egui : rail, bibliothèques (Bible, Cantiques, Prédications, Exposé, Livres), playlist et déroulé du culte, Aperçu / Direct, projection native sur la carte graphique, écrans Web (bouton « Web »), recherche globale, raccourcis ; données de la bêta (copie de la 2.x) |
+| `po-ndi` | la source NDI (bibliothèque chargée à la demande, reprise de Pgraphics) : BGRA avec transparence |
+| `project-on` | l'application egui : rail, bibliothèques (Bible, Cantiques, Prédications, Exposé, Livres), playlist et déroulé du culte, Designs (bibliothèque, Mes designs, habillage en direct L / S), Aperçu / Direct, projection native sur la carte graphique, sorties HDMI et NDI, écrans Web (bouton « Web »), recherche globale, raccourcis ; données de la bêta (copie de la 2.x) |
 | `po-mesures` | les mesures et les planches de captures des phases 0 à 2 (jamais livré) |
 | `po-parite` | les tests dorés : la 3.0 rejoue les références de la 2.8 et compare (jamais livré) |
 
@@ -96,6 +97,7 @@ cargo run --release -p po-mesures -- recherche <copie\project_on.db> <sortie.jso
 cargo run --release -p po-mesures -- trigramme <copie\project_on.db> <dossier de sortie>
 cargo run --release -p po-mesures -- servir <copie\project_on.db> 8091   # puis http://127.0.0.1:8091/
 cargo run --release -p po-mesures -- web <copie\project_on.db> <dossier de sortie>   # planche des écrans Web
+cargo run --release -p po-mesures -- designs <copie\project_on.db> <dossier de sortie>   # planche des designs
 ```
 
 Pour une mesure « à froid » sans redémarrer, `outils\copie_froide.py` copie la base sans passer

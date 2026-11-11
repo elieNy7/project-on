@@ -21,10 +21,13 @@ pub enum Action {
     Search,
     ParagraphSearch,
     Help,
+    LowerThird,
+    Subtitles,
+    HdmiPattern,
 }
 
 /// (action, identifiant de la 2.8, libellé, touche par défaut).
-pub const ACTIONS: [(Action, &str, &str, &str); 9] = [
+pub const ACTIONS: [(Action, &str, &str, &str); 12] = [
     (Action::Take, "take", "Envoyer l'aperçu au direct", "F2"),
     (Action::NextSlide, "next_slide", "Slide suivant (télécommande)", "PgDown"),
     (Action::PrevSlide, "prev_slide", "Slide précédent (télécommande)", "PgUp"),
@@ -34,11 +37,13 @@ pub const ACTIONS: [(Action, &str, &str, &str); 9] = [
     (Action::Search, "search", "Rechercher dans la bibliothèque", "Ctrl+F"),
     (Action::ParagraphSearch, "paragraph_search", "Rechercher un paragraphe", "Ctrl+G"),
     (Action::Help, "help", "Aide des raccourcis", "F1"),
+    (Action::LowerThird, "lower_third", "Afficher / masquer le lower third", "L"),
+    (Action::Subtitles, "subtitles", "Afficher / masquer les sous-titres", "S"),
+    (Action::HdmiPattern, "hdmi_mire", "Mire de la sortie HDMI", "F8"),
 ];
 
 /// Les actions de la 2.8 qui arrivent dans une phase suivante (montrées dans l'aide).
-pub const LATER: [(&str, &str); 9] = [
-    ("Mire de la sortie HDMI (F8)", "phase 6"),
+pub const LATER: [(&str, &str); 8] = [
     ("Déroulé : section suivante (Ctrl+Alt+N)", "phase 4"),
     ("Contrôle avant culte (Ctrl+Shift+D)", "phase 7"),
     ("Historique du culte (Ctrl+H)", "phase 7"),

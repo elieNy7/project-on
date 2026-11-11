@@ -398,3 +398,88 @@ fn the_browser_transitions_are_the_projector_ones() {
         }
     }
 }
+
+fn has_text(items: &[Item], wanted: &str) -> bool {
+    items.iter().any(|item| match item {
+        Item::Text(line) => line.text == wanted,
+        Item::Group(group) => has_text(&group.items, wanted),
+        _ => false,
+    })
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn the_lower_third_moves_on_the_broadcast_screen_only_while_it_animates() {
+    use po_design::graphics::{LowerThirdText, builtin_lower_thirds};
+    let hub = hub();
+    let server = start(hub.clone(), "127.0.0.1:0".parse().unwrap()).unwrap();
+    hub.update(Some(scripture()), context());
+    let (mut broadcast, _) = open(server.addr, "diffusion", 1280, 720).await;
+    let (mut room, _) = open(server.addr, "salle", 1280, 720).await;
+    assert!(next_frame(&mut broadcast).await.list.overlay.is_empty());
+    next_frame(&mut room).await;
+
+    let (_, _, _, style) = builtin_lower_thirds().remove(1);
+    let overlay =
+        Overlay { style, text: LowerThirdText::new("Frère Paul", "Ancien"), shown: true, since: Instant::now() };
+    hub.update(None, Context { lower_third: Some(overlay.clone()), ..context() });
+    // L'entrée (450 ms) : des images à 30 par seconde, toutes différentes, puis plus rien.
+    let mut overlays = Vec::new();
+    while overlays
+        .last()
+        .is_none_or(|o: &Vec<Item>| !has_text(o, "Frère Paul") || o.iter().any(|i| matches!(i, Item::Group(_))))
+    {
+        let frame = next_frame(&mut broadcast).await;
+        assert_eq!(frame.seq, 1, "même slide : pas de transition du bandeau");
+        overlays.push(frame.list.overlay);
+        assert!(overlays.len() < 60, "l'entrée ne finit pas");
+    }
+    assert!(overlays.len() >= 5, "{} images pendant l'entrée", overlays.len());
+    assert!(quiet(&mut broadcast, Duration::from_millis(400)).await, "immobile : rien n'est renvoyé");
+    assert!(quiet(&mut room, Duration::from_millis(100)).await, "la salle n'a pas d'habillage");
+
+    // Masqué : il sort, puis disparaît.
+    hub.update(
+        None,
+        Context { lower_third: Some(Overlay { shown: false, since: Instant::now(), ..overlay }), ..context() },
+    );
+    let mut last = next_frame(&mut broadcast).await.list.overlay;
+    while !last.is_empty() {
+        last = next_frame(&mut broadcast).await.list.overlay;
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn subtitles_show_the_current_chunk_and_nothing_when_hidden() {
+    use po_design::graphics::{SubtitleLook, SubtitleStyle};
+    let hub = hub();
+    let server = start(hub.clone(), "127.0.0.1:0".parse().unwrap()).unwrap();
+    hub.update(Some(scripture()), context());
+    let (mut subtitles, _) = open(server.addr, "sous-titres", 1920, 1080).await;
+    let frame = next_frame(&mut subtitles).await;
+    assert!(frame.list.items.is_empty() && frame.list.background.alpha() == 0.0, "masqués : rien");
+    let style = SubtitleStyle::new(SubtitleLook::BoxPerLine);
+    hub.update(None, Context { subtitle: Some((style.clone(), "Que ton règne vienne".into())), ..context() });
+    let frame = next_frame(&mut subtitles).await;
+    assert!(frame.list.text_lines().any(|l| l.text.contains("règne")));
+    assert!(frame.list.items.iter().any(|i| matches!(i, Item::Rect { .. })), "une boîte par ligne");
+    assert_eq!(frame.animation, None);
+    hub.update(None, Context { subtitle: Some((style, "Que ta volonté soit faite".into())), ..context() });
+    assert!(next_frame(&mut subtitles).await.list.text_lines().any(|l| l.text.contains("volonté")));
+}
+
+#[test]
+fn outputs_render_on_a_key_color_or_show_the_test_pattern() {
+    let hub = hub();
+    hub.update(Some(scripture()), context());
+    let program = hub.program();
+    let green = Rgba::rgb(0, 255, 0);
+    let (pixels, next) = hub.render_rgba(&program, ScreenKind::Broadcast, 320, 180, Some(green), false);
+    assert_eq!(pixels.len(), 320 * 180 * 4);
+    assert_eq!(&pixels[..4], &[0, 255, 0, 255], "le coin est de la couleur de clé");
+    assert_eq!(next, None);
+    let (transparent, _) = hub.render_rgba(&program, ScreenKind::Broadcast, 320, 180, None, false);
+    assert_eq!(transparent[3], 0, "NDI : le fond reste transparent");
+    let (pattern, _) = hub.render_rgba(&program, ScreenKind::Broadcast, 320, 180, Some(green), true);
+    // La première barre de la mire : gris 75 %.
+    assert_eq!(&pattern[(20 * 320 + 10) * 4..(20 * 320 + 10) * 4 + 3], &[192, 192, 192]);
+}

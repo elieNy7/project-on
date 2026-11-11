@@ -15,6 +15,10 @@ pub enum BandLayout {
     Subtitle,
     /// Lower third : une bande en bas à gauche, la référence en titre.
     LowerThird,
+    /// Panneau latéral : une colonne à droite, sur toute la hauteur utile.
+    SidePanel,
+    /// Carte : une carte centrée, aérée, pour un texte mis en avant.
+    FocusCard,
 }
 
 /// La place verticale du bandeau.
@@ -137,7 +141,9 @@ impl Band {
     pub fn from_obs_output(output: &Value) -> Band {
         let d = Band::default();
         let layout = match text(output, "layout_mode").as_deref() {
-            Some("lower_third" | "side_panel" | "focus_card") => BandLayout::LowerThird,
+            Some("lower_third") => BandLayout::LowerThird,
+            Some("side_panel") => BandLayout::SidePanel,
+            Some("focus_card") => BandLayout::FocusCard,
             _ => BandLayout::Subtitle,
         };
         let position = match text(output, "position").as_deref() {

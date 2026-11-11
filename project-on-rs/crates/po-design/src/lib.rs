@@ -7,6 +7,8 @@
 
 mod band;
 mod color;
+pub mod graphics;
+pub mod library;
 
 use po_settings::ProjectionSettings;
 use serde::{Deserialize, Serialize};

@@ -12,6 +12,7 @@ mod display;
 mod dwrite;
 mod fit;
 mod fonts;
+pub mod graphics;
 pub mod identification;
 mod room;
 pub mod transition;
@@ -19,7 +20,7 @@ pub mod transition;
 pub use band::{layout_band, layout_stage};
 /// La base de polices de cosmic-text (pour lister les fichiers à servir aux navigateurs).
 pub use cosmic_text::fontdb;
-pub use display::{Anchor, DisplayList, Group, Item, Rgba, Stop, TextLine, TextShadow};
+pub use display::{Anchor, DisplayList, Group, Item, Rgba, Stop, TextLine, TextOutline, TextShadow};
 pub use fit::{FontSpec, balanced_lines, fit_text_size, splitlines, wrap_lines};
 pub use fonts::{Fonts, QtMetrics, VerticalMetrics};
 pub use room::{Probe, Slide, layout_room};

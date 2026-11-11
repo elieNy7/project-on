@@ -11,6 +11,9 @@
 
 use egui::{CentralPanel, Context, CursorIcon, ViewportBuilder, ViewportId};
 
+use po_web::ScreenKind;
+
+use crate::outputs::Outputs;
 use crate::screens::{self, Screen};
 use crate::stage::Stage;
 
@@ -23,6 +26,9 @@ pub struct Projector {
     /// L'écran en plein écran ; `None` : une fenêtre.
     pub screen: Option<Screen>,
     placed: bool,
+    /// Ce que montre l'écran : la salle (le Direct), ou une sortie HDMI de diffusion (bandeau ou
+    /// sous-titres sur la couleur de clé, retour de scène).
+    pub kind: ScreenKind,
 }
 
 impl PartialEq for Projector {
@@ -36,17 +42,22 @@ impl Projector {
     pub fn open(preferred: &str) -> Projector {
         let all = screens::list();
         let screen = screens::choose(&all, preferred).cloned().filter(|_| all.len() >= 2);
-        Projector { screen, placed: false }
+        Projector { screen, placed: false, kind: ScreenKind::Room }
     }
 
     /// Dans une fenêtre (un seul écran, ou essais).
     pub fn windowed() -> Projector {
-        Projector { screen: None, placed: true }
+        Projector { screen: None, placed: true, kind: ScreenKind::Room }
     }
 
     /// En plein écran sur `screen`.
     pub fn on(screen: Screen) -> Projector {
-        Projector { screen: Some(screen), placed: false }
+        Projector { screen: Some(screen), placed: false, kind: ScreenKind::Room }
+    }
+
+    /// Une sortie HDMI de ce genre sur `screen`.
+    pub fn output(screen: Screen, kind: ScreenKind) -> Projector {
+        Projector { screen: Some(screen), placed: false, kind }
     }
 
     /// Ce qui distingue deux projections : le nom Windows de l'écran, ou « fenêtre ».
@@ -76,11 +87,12 @@ impl Projector {
 
     /// Ce que l'opérateur lit dans la barre : « Écran 2 — 1920 × 1080 » ou « Fenêtre ».
     pub fn label(&self) -> String {
-        self.screen.as_ref().map_or_else(|| "Fenêtre".into(), |s| s.label.clone())
+        let place = self.screen.as_ref().map_or_else(|| "Fenêtre".into(), |s| s.label.clone());
+        if self.kind == ScreenKind::Room { place } else { format!("{place} · {}", self.kind.label()) }
     }
 
     /// Montre la fenêtre de projection. Rend `false` si l'opérateur l'a fermée (Échap, fermeture).
-    pub fn show(&mut self, ctx: &Context, stage: &Stage, now: f64) -> bool {
+    pub fn show(&mut self, ctx: &Context, stage: &Stage, outputs: &Outputs, now: f64) -> bool {
         let full = self.screen.is_some();
         let title = self.title();
         let mut builder = ViewportBuilder::default().with_title(&title).with_min_inner_size([320.0, 180.0]);
@@ -104,7 +116,12 @@ impl Projector {
             }
             CentralPanel::no_frame().show(ui, |ui| {
                 let area = ui.max_rect();
-                stage.paint(ui.painter(), area, now);
+                if self.kind == ScreenKind::Room {
+                    stage.paint(ui.painter(), area, now);
+                } else if let Some(texture) = outputs.texture(self.kind) {
+                    let uv = egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0));
+                    ui.painter().image(texture.id(), area, uv, egui::Color32::WHITE);
+                }
                 if full && ui.rect_contains_pointer(area) {
                     // Pas de flèche sur l'écran de la salle.
                     ctx.set_cursor_icon(CursorIcon::None);
@@ -123,9 +140,9 @@ mod tests {
     fn render_size_follows_the_screen() {
         let screen =
             |w, h| Screen { device: "x".into(), label: "x".into(), x: 0, y: 0, width: w, height: h, primary: false };
-        let p = Projector { screen: Some(screen(1280, 720)), placed: false };
+        let p = Projector::on(screen(1280, 720));
         assert_eq!(p.render_size(), (1280, 720));
-        let p = Projector { screen: Some(screen(3840, 2160)), placed: false };
+        let p = Projector::on(screen(3840, 2160));
         assert_eq!(p.render_size(), (2560, 1440));
         assert_eq!(Projector::windowed().render_size(), (1920, 1080));
     }

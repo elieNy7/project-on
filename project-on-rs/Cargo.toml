@@ -16,6 +16,7 @@ members = [
     "crates/po-render",
     "crates/po-program",
     "crates/po-web",
+    "crates/po-ndi",
     "crates/project-on",
     "crates/po-mesures",
     "crates/po-parite",
@@ -35,6 +36,7 @@ po-layout = { path = "crates/po-layout" }
 po-render = { path = "crates/po-render" }
 po-program = { path = "crates/po-program" }
 po-web = { path = "crates/po-web" }
+po-ndi = { path = "crates/po-ndi" }
 project-on = { path = "crates/project-on" }
 anyhow = "1.0"
 thiserror = "2.0"

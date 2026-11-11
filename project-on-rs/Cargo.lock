@@ -2267,6 +2267,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "po-ndi"
+version = "3.0.0-beta.3"
+dependencies = [
+ "windows",
+]
+
+[[package]]
 name = "po-parite"
 version = "3.0.0-beta.3"
 dependencies = [
@@ -2445,6 +2452,7 @@ dependencies = [
  "po-db",
  "po-design",
  "po-layout",
+ "po-ndi",
  "po-program",
  "po-render",
  "po-settings",

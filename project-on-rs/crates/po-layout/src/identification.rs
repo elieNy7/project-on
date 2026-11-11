@@ -103,6 +103,7 @@ pub fn place(
         letter_spacing: spacing,
         advance_scale: 1.0,
         shadow: None,
+        outline: None,
     };
 
     match identification.style {

@@ -14,6 +14,7 @@ mod hymn;
 pub mod py;
 mod search;
 mod split;
+pub mod srt;
 mod titles;
 mod words;
 
