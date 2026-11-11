@@ -483,3 +483,45 @@ fn outputs_render_on_a_key_color_or_show_the_test_pattern() {
     // La première barre de la mire : gris 75 %.
     assert_eq!(&pattern[(20 * 320 + 10) * 4..(20 * 320 + 10) * 4 + 3], &[192, 192, 192]);
 }
+
+#[test]
+fn a_slide_design_dresses_the_broadcast_outputs_on_a_transparent_background() {
+    let hub = hub();
+    let mut design = RoomDesign::default();
+    design.background.color = Rgba::rgb(20, 40, 160);
+    design.animation.kind = po_design::AnimationKind::Scale;
+    hub.update(Some(scripture()), Context { broadcast: Look::Slide(design.clone()), ..context() });
+    let program = hub.program();
+
+    // La diffusion (Web, NDI, HDMI) : le texte du design, sans son fond.
+    let list = hub.layout(&program, ScreenKind::Broadcast, 1920.0, 1080.0);
+    assert_eq!(list.background.alpha(), 0.0, "fond transparent");
+    assert!(list.backdrop.is_empty(), "le fond du design s'efface");
+    assert!(list.text_lines().any(|l| l.text.contains("Dieu")));
+    assert_eq!(program.context.broadcast.animation().kind, po_design::AnimationKind::Scale, "la transition du design");
+
+    // L'image NDI : coin transparent, texte opaque.
+    let (pixels, _) = hub.render_rgba(&program, ScreenKind::Broadcast, 480, 270, None, false);
+    assert_eq!(pixels[3], 0, "le coin est transparent");
+    let max = pixels.as_chunks::<4>().0.iter().map(|p| p[3]).max();
+    assert!(max >= Some(240), "le texte est visible : {max:?}");
+    assert!(!pixels.as_chunks::<4>().0.iter().any(|p| p[..3] == [20, 40, 160]), "aucun pixel du fond du design");
+
+    // Une image seule (une affiche) reste visible sur la diffusion.
+    let poster = po_layout::bundled_backgrounds_dir().join("bg-ardoise_4x3.png");
+    let mut slide = Slide::new("", "", SlideSource::Custom);
+    slide.background = Some(poster.to_string_lossy().into_owned());
+    hub.update(Some(slide), Context { broadcast: Look::Slide(design), ..context() });
+    let list = hub.layout(&hub.program(), ScreenKind::Broadcast, 1920.0, 1080.0);
+    assert!(list.backdrop.iter().any(|i| matches!(i, Item::Image { .. })), "l'affiche reste");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_hidden_window_gets_a_16_9_layout_instead_of_a_tiny_one() {
+    let hub = hub();
+    let server = start(hub.clone(), "127.0.0.1:0".parse().unwrap()).unwrap();
+    hub.publish(scripture(), RoomDesign::default());
+    let (mut socket, _) = open(server.addr, "retour", 0, 0).await;
+    let frame = next_frame(&mut socket).await;
+    assert_eq!((frame.list.width, frame.list.height), (1920.0, 1080.0));
+}

@@ -4,6 +4,12 @@
 //!
 //! Un clic sur un design de salle le pose dans l'**Aperçu** ; « Appliquer au direct » l'envoie au
 //! direct. Le direct n'est jamais modifié par un simple clic.
+//!
+//! **Un seul design pour les sorties** : le design choisi par « Utiliser pour Web, NDI, HDMI » (un
+//! bandeau, ou un design de slide dont le texte est posé sur un fond transparent) habille l'écran
+//! Web « Diffusion », la source NDI et les sorties HDMI ; les écrans Web « Salle » le prennent
+//! aussi quand c'est un design de slide. La projection de la salle garde son propre design. Ce
+//! choix, le lower third et les sous-titres sont gardés d'un lancement à l'autre.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -27,7 +33,8 @@ pub enum DesignAction {
     Preview(RoomDesign),
     /// Le design de l'Aperçu au direct.
     ApplyLive,
-    Band(Band),
+    /// Le design des sorties Web, NDI et HDMI (un bandeau ou un design de slide).
+    Output(Design),
     LowerThird(Design),
     Subtitles(Design),
     ToggleLowerThird,
@@ -36,6 +43,56 @@ pub enum DesignAction {
     Ndi(bool),
     Pattern,
     Status(String),
+}
+
+/// Le design des sorties Web, NDI et HDMI.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Output {
+    pub id: String,
+    pub name: String,
+    pub look: po_web::Look,
+}
+
+impl Output {
+    /// Un bandeau ou un design de slide peut habiller les sorties ; pas un lower third.
+    pub fn of(design: &Design) -> Option<Output> {
+        let look = match &design.body {
+            DesignBody::Room(room) => po_web::Look::Slide(room.clone()),
+            DesignBody::Band(band) => po_web::Look::Band(band.clone()),
+            DesignBody::LowerThird(_) | DesignBody::Subtitles(_) => return None,
+        };
+        Some(Output { id: design.id.clone(), name: design.name.clone(), look })
+    }
+}
+
+/// Les designs choisis, gardés d'un lancement à l'autre : sorties, lower third, sous-titres.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Choices {
+    pub output: Option<String>,
+    pub lower_third: Option<String>,
+    pub subtitles: Option<String>,
+}
+
+impl Choices {
+    pub fn load(file: &std::path::Path) -> Choices {
+        let value: serde_json::Value = std::fs::read_to_string(file)
+            .ok()
+            .and_then(|t| serde_json::from_str(&t).ok())
+            .unwrap_or(serde_json::Value::Null);
+        let id = |key: &str| value.get(key).and_then(serde_json::Value::as_str).map(str::to_string);
+        Choices { output: id("sorties"), lower_third: id("lower_third"), subtitles: id("sous_titres") }
+    }
+
+    pub fn save(&self, file: &std::path::Path) -> std::io::Result<()> {
+        let body = serde_json::json!({
+            "sorties": self.output,
+            "lower_third": self.lower_third,
+            "sous_titres": self.subtitles,
+        });
+        let tmp = file.with_extension("json.tmp");
+        std::fs::write(&tmp, body.to_string())?;
+        std::fs::rename(&tmp, file)
+    }
 }
 
 /// La taille des aperçus.
@@ -261,13 +318,14 @@ impl DesignsView {
         ndi: (bool, Option<Result<String, String>>, i32),
         hdmi_count: usize,
         sample: &Slide,
+        output: &Output,
     ) -> Vec<DesignAction> {
         let mut actions = Vec::new();
         egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
             ui.add_space(12.0);
             ui.label(RichText::new("Designs").font(bold(20.0)).color(TEXT));
             ui.add_space(4.0);
-            live_card(ui, lower_third, subtitles, ndi, hdmi_count, &mut actions);
+            live_card(ui, lower_third, subtitles, ndi, hdmi_count, output, &mut actions);
             ui.add_space(10.0);
             self.filters(ui);
             let designs = self.shown();
@@ -276,10 +334,10 @@ impl DesignsView {
             if let Some(id) = self.selected.clone()
                 && let Some(design) = self.find(&id).cloned()
             {
-                self.details(ui, &design, &mut actions);
+                self.details(ui, &design, output, &mut actions);
                 ui.add_space(10.0);
             }
-            self.grid(ui, &designs, lower_third, subtitles, &mut actions);
+            self.grid(ui, &designs, lower_third, subtitles, output, &mut actions);
         });
         actions
     }
@@ -303,6 +361,7 @@ impl DesignsView {
         designs: &[Design],
         lower_third: &LowerThird,
         subtitles: &Subtitles,
+        output: &Output,
         actions: &mut Vec<DesignAction>,
     ) {
         if designs.is_empty() {
@@ -322,7 +381,7 @@ impl DesignsView {
                     let in_use = match &d.body {
                         DesignBody::LowerThird(_) => lower_third.id == d.id,
                         DesignBody::Subtitles(_) => subtitles.id == d.id,
-                        _ => false,
+                        DesignBody::Room(_) | DesignBody::Band(_) => output.id == d.id,
                     };
                     let r = self.card(ui, d, card_w, selected, in_use);
                     if r.clicked() {
@@ -337,7 +396,8 @@ impl DesignsView {
                         match &d.body {
                             DesignBody::LowerThird(_) => actions.push(DesignAction::LowerThird(d.clone())),
                             DesignBody::Subtitles(_) => actions.push(DesignAction::Subtitles(d.clone())),
-                            _ => {}
+                            DesignBody::Band(_) => actions.push(DesignAction::Output(d.clone())),
+                            DesignBody::Room(_) => {}
                         }
                     }
                     ui.add_space(12.0);
@@ -400,7 +460,7 @@ impl DesignsView {
         response
     }
 
-    fn details(&mut self, ui: &mut Ui, design: &Design, actions: &mut Vec<DesignAction>) {
+    fn details(&mut self, ui: &mut Ui, design: &Design, output: &Output, actions: &mut Vec<DesignAction>) {
         widgets::card(ui, |ui| {
             ui.set_width(ui.available_width());
             ui.horizontal(|ui| {
@@ -415,16 +475,15 @@ impl DesignsView {
             ui.horizontal_wrapped(|ui| {
                 match &design.body {
                     DesignBody::Room(_) => {
-                        if widgets::button(ui, None, "Appliquer au direct", Tone::Primary(LIVE)).clicked() {
+                        if widgets::button(ui, None, "Appliquer au direct", Tone::Primary(LIVE))
+                            .on_hover_text("La projection de la salle prend ce design")
+                            .clicked()
+                        {
                             actions.push(DesignAction::ApplyLive);
                         }
+                        output_button(ui, design, output, actions);
                     }
-                    DesignBody::Band(band) => {
-                        if widgets::button(ui, None, "Utiliser pour la diffusion", Tone::Primary(ACCENT)).clicked() {
-                            actions.push(DesignAction::Band(band.clone()));
-                            actions.push(DesignAction::Status(format!("Diffusion : « {} »", design.name)));
-                        }
-                    }
+                    DesignBody::Band(_) => output_button(ui, design, output, actions),
                     DesignBody::LowerThird(_) => {
                         if widgets::button(ui, None, "Utiliser comme lower third", Tone::Primary(ACCENT)).clicked() {
                             actions.push(DesignAction::LowerThird(design.clone()));
@@ -559,6 +618,25 @@ impl DesignsView {
     }
 }
 
+/// Le bouton qui fait d'un design celui des sorties Web, NDI et HDMI.
+fn output_button(ui: &mut Ui, design: &Design, output: &Output, actions: &mut Vec<DesignAction>) {
+    if output.id == design.id {
+        ui.label(RichText::new("✔ Utilisé pour Web, NDI, HDMI").font(semibold(12.0)).color(PREVIEW));
+        return;
+    }
+    let about = match design.body {
+        DesignBody::Room(_) => {
+            "Le texte de ce design, sur fond transparent, sur l'écran Web Diffusion, la source NDI et les sorties HDMI ; les écrans Web Salle le prennent en entier. La projection de la salle ne change pas."
+        }
+        _ => {
+            "Ce bandeau sur l'écran Web Diffusion, la source NDI et les sorties HDMI. La projection de la salle ne change pas."
+        }
+    };
+    if widgets::button(ui, None, "Utiliser pour Web, NDI, HDMI", Tone::Primary(ACCENT)).on_hover_text(about).clicked() {
+        actions.push(DesignAction::Output(design.clone()));
+    }
+}
+
 /// L'habillage en direct : lower third, sous-titres, sorties.
 fn live_card(
     ui: &mut Ui,
@@ -566,12 +644,25 @@ fn live_card(
     subtitles: &mut Subtitles,
     (ndi_on, ndi_status, receivers): (bool, Option<Result<String, String>>, i32),
     hdmi_count: usize,
+    output: &Output,
     actions: &mut Vec<DesignAction>,
 ) {
     widgets::card(ui, |ui| {
         ui.set_width(ui.available_width());
         ui.label(RichText::new("HABILLAGE EN DIRECT").font(semibold(10.5)).color(FAINT));
         ui.add_space(4.0);
+        ui.horizontal_wrapped(|ui| {
+            ui.label(RichText::new("Web, NDI, HDMI :").font(medium(12.0)).color(MUTED));
+            ui.label(RichText::new(format!("« {} »", output.name)).font(semibold(12.5)).color(TEXT));
+            let what = match output.look {
+                po_web::Look::Band(_) => "bandeau, fond transparent",
+                po_web::Look::Slide(_) => "texte du design, fond transparent",
+            };
+            ui.label(
+                RichText::new(format!("({what}) · la projection garde son design")).font(regular(11.5)).color(FAINT),
+            );
+        });
+        ui.add_space(6.0);
         ui.horizontal(|ui| {
             let label = if lower_third.shown { "Masquer le lower third  L" } else { "Afficher le lower third  L" };
             let tone = if lower_third.shown { Tone::Primary(LIVE) } else { Tone::Secondary };

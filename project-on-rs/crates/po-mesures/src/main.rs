@@ -523,9 +523,12 @@ fn servir(db_path: &Path, port: u16) -> Result<()> {
         let mut design = room.clone();
         design.animation.kind = kinds[i % kinds.len()];
         design.animation.duration_ms = 700;
+        // La diffusion alterne le bandeau et le design de slide (son texte sur fond transparent).
+        let broadcast =
+            if (i / 3) % 2 == 0 { po_web::Look::Band(band.clone()) } else { po_web::Look::Slide(design.clone()) };
         let context = po_web::Context {
             design,
-            band: band.clone(),
+            broadcast,
             next: Some(slide(i + 1)),
             hidden: i % 7 == 6,
             clock: format!("10:{:02}", i % 60),
@@ -578,7 +581,7 @@ fn capture_web(db_path: &Path, out_dir: &Path) -> Result<()> {
         Some(slide),
         po_web::Context {
             design: room,
-            band: legacy_band(),
+            broadcast: po_web::Look::Band(legacy_band()),
             next: Some(next),
             hidden: false,
             clock: "10:42".into(),

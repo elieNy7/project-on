@@ -11,6 +11,7 @@ use egui::{
     Align, Align2, Color32, CornerRadius, Key, Layout, Margin, RichText, ScrollArea, Sense, Stroke, Ui, pos2, vec2,
 };
 use po_db::{Database, Mode};
+use po_design::library::{Design, DesignBody};
 use po_design::{AnimationKind, RoomDesign};
 use po_layout::Slide;
 use po_layout::transition::blur_radius;
@@ -171,8 +172,8 @@ pub struct App {
     video_volume: f32,
     /// La vidéo qui n'a pas pu être lue (pour ne pas réessayer à chaque image).
     video_failed: Option<String>,
-    /// Le bandeau de la diffusion et des sous-titres (réglages « OBS » de la 2.x).
-    band: po_design::Band,
+    /// Le design des sorties Web, NDI et HDMI (au départ, le bandeau « OBS » de la 2.x).
+    pub output: crate::designs::Output,
     help: bool,
     status: String,
     warm_up: Option<JoinHandle<(u64, Duration)>>,
@@ -289,7 +290,11 @@ impl App {
             video_volume: 1.0,
             video_failed: None,
             media_view: crate::media::MediaView::new(settings.projection.media_default_duration.clamp(0, 600) as u32),
-            band: band_2x,
+            output: crate::designs::Output {
+                id: "bandeau-2x".into(),
+                name: "Mon bandeau 2.x".into(),
+                look: po_web::Look::Band(band_2x),
+            },
             help: false,
             status: "Prêt".into(),
             warm_up: None,
@@ -297,6 +302,7 @@ impl App {
             follow_live: false,
         };
         app.apply_settings(config.settings.clone());
+        app.restore_choices();
         if let Some(port) = config.web_port {
             let file = config.locations.as_ref().map(|l| l.beta.data().join("web.json"));
             app.web = Some(crate::web::Web::start(app.hub.clone(), port, file));
@@ -354,10 +360,53 @@ impl App {
         self.split = loaded.split.clone();
         self.display_screen = loaded.projection.display_screen.clone();
         self.shortcuts = Shortcuts::from_settings(loaded.other.get("shortcuts"));
-        self.band = band_of(&loaded);
         self.hdmi_key = po_layout::graphics::key_color(&loaded.hdmi.key_color);
-        self.designs.refresh_builtin(&self.design, &self.band);
+        self.designs.refresh_builtin(&self.design, &band_of(&loaded));
+        // Les designs « 2.x » suivent les réglages : celui des sorties aussi.
+        if let Some(output) = self.designs.find(&self.output.id).and_then(crate::designs::Output::of) {
+            self.output = output;
+        }
         self.settings = loaded;
+    }
+
+    /// Le fichier des designs choisis (sorties, lower third, sous-titres).
+    fn choices_file(&self) -> Option<PathBuf> {
+        self.data_dir().map(|d| d.join("designs-choisis.json"))
+    }
+
+    /// Reprend les designs choisis au dernier lancement.
+    fn restore_choices(&mut self) {
+        let Some(file) = self.choices_file() else { return };
+        let choices = crate::designs::Choices::load(&file);
+        let find = |id: &Option<String>| id.as_deref().and_then(|id| self.designs.find(id)).cloned();
+        let (output, lower_third, subtitles) =
+            (find(&choices.output), find(&choices.lower_third), find(&choices.subtitles));
+        if let Some(output) = output.as_ref().and_then(crate::designs::Output::of) {
+            self.output = output;
+        }
+        if let Some(Design { id, name, body: DesignBody::LowerThird(style), .. }) = lower_third {
+            self.lower_third.id = id;
+            self.lower_third.name = name;
+            self.lower_third.style = style;
+        }
+        if let Some(Design { id, name, body: DesignBody::Subtitles(style), .. }) = subtitles {
+            self.subtitles.id = id;
+            self.subtitles.name = name;
+            self.subtitles.style = style;
+            self.subtitles.cut_for = None;
+        }
+    }
+
+    fn save_choices(&self) {
+        let Some(file) = self.choices_file() else { return };
+        let choices = crate::designs::Choices {
+            output: Some(self.output.id.clone()),
+            lower_third: Some(self.lower_third.id.clone()),
+            subtitles: Some(self.subtitles.id.clone()),
+        };
+        if let Err(e) = choices.save(&file) {
+            po_core::journal::line(&format!("designs : choix non enregistré ({e})"));
+        }
     }
 
     /// Le dossier de données de la bêta.
@@ -1732,13 +1781,20 @@ impl App {
                     self.status = "Design appliqué au direct".into();
                 }
             }
-            DesignAction::Band(band) => self.band = band,
+            DesignAction::Output(design) => {
+                if let Some(output) = crate::designs::Output::of(&design) {
+                    self.status = format!("Web, NDI et HDMI : « {} »", output.name);
+                    self.output = output;
+                    self.save_choices();
+                }
+            }
             DesignAction::LowerThird(design) => {
                 if let po_design::library::DesignBody::LowerThird(style) = design.body {
                     self.lower_third.id = design.id;
                     self.lower_third.name = design.name.clone();
                     self.lower_third.style = style;
                     self.status = format!("Lower third : « {} »", design.name);
+                    self.save_choices();
                 }
             }
             DesignAction::Subtitles(design) => {
@@ -1749,6 +1805,7 @@ impl App {
                     // Un autre style : le découpage est à refaire.
                     self.subtitles.cut_for = None;
                     self.status = format!("Sous-titres : « {} »", design.name);
+                    self.save_choices();
                 }
             }
             DesignAction::ToggleLowerThird => self.toggle_lower_third(),
@@ -1862,9 +1919,15 @@ impl App {
         });
         let subtitle = self.subtitles.current().map(|t| (self.subtitles.style.clone(), t.to_string()));
         let next = self.live.as_ref().and_then(|l| l.program.slide_at(l.program.current() + 1));
+        // Le design choisi pour les sorties habille la diffusion (Web, NDI, HDMI) ; un design de slide
+        // habille aussi les écrans Web de salle. La projection locale garde le sien.
+        let room = match &self.output.look {
+            po_web::Look::Slide(design) => design.clone(),
+            po_web::Look::Band(_) => self.design.clone(),
+        };
         let context = po_web::Context {
-            design: self.design.clone(),
-            band: self.band.clone(),
+            design: room,
+            broadcast: self.output.look.clone(),
             next,
             hidden: self.live_stage.hidden(),
             clock: chrono_now(),
@@ -1936,7 +1999,8 @@ impl App {
                 .unwrap_or_else(crate::designs::sample_slide);
             let ndi = (self.ndi, self.outputs.ndi_status(), self.outputs.ndi_receivers());
             let hdmi = self.hdmi_outputs();
-            let actions = self.designs.ui(ui, &mut self.lower_third, &mut self.subtitles, ndi, hdmi, &sample);
+            let output = self.output.clone();
+            let actions = self.designs.ui(ui, &mut self.lower_third, &mut self.subtitles, ndi, hdmi, &sample, &output);
             for action in actions {
                 self.apply_design(action);
             }
@@ -2000,7 +2064,7 @@ impl App {
     fn command_bar(&mut self, ui: &mut Ui) {
         ui.horizontal_centered(|ui| {
             ui.label(RichText::new("Project-On").font(bold(17.0)).color(TEXT));
-            widgets::chip(ui, "3.0 bêta", ACCENT);
+            widgets::chip(ui, if cfg!(feature = "bascule") { "3.0" } else { "3.0 bêta" }, ACCENT);
             ui.add_space(24.0);
             let r = widgets::search_field(ui, &mut self.global.query, "Rechercher partout…  Ctrl+K", 440.0);
             if std::mem::take(&mut self.global.focus) {

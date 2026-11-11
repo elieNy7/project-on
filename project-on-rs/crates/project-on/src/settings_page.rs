@@ -123,9 +123,13 @@ impl SettingsView {
                 });
             });
             ui.label(
-                RichText::new("Ces réglages sont ceux de la bêta : la 2.8 garde les siens.")
-                    .font(regular(12.0))
-                    .color(FAINT),
+                RichText::new(if cfg!(feature = "bascule") {
+                    "Ces réglages sont ceux de Project-On (les mêmes fichiers que la 2.x)."
+                } else {
+                    "Ces réglages sont ceux de la bêta : la 2.8 garde les siens."
+                })
+                .font(regular(12.0))
+                .color(FAINT),
             );
 
             widgets::section(ui, "Mode PC modeste");

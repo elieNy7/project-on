@@ -122,6 +122,12 @@ fn the_web_button_lists_the_screen_addresses() {
         h.get_by_label(&format!("http://127.0.0.1:{port}/ecran/{screen}"));
     }
     h.get_by_label_contains("Ouvrir aux appareils du réseau");
+    // « Copier » met l'adresse dans le presse-papiers et le dit.
+    h.get_all_by_label("Copier").next().unwrap().click();
+    h.run_ok();
+    let url = format!("http://127.0.0.1:{port}/ecran/salle");
+    assert_eq!(h.state_mut().app().web.as_ref().unwrap().copied(), Some(url.as_str()));
+    h.get_by_label("Copié ✓");
     // Une page d'écran ouverte ailleurs (ici par une simple requête) : le serveur répond.
     let page = get(h.state_mut().app(), "/ecran/diffusion");
     assert!(page.starts_with("HTTP/1.1 200") && page.contains("transparent"));

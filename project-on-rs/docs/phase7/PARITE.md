@@ -51,7 +51,8 @@ Le livrable de la phase 7 (audit, § 8) : chaque fonction de la 2.8, et où elle
 |---|---|---|
 | Page OBS `/obs` (bandeau sur fond transparent) | ✅ | Phase 5, et l'adresse `/obs` est conservée |
 | Réglages du bandeau OBS (position, police, filet, animation, dispositions) | ✅ | Phases 5 et 6, lus depuis vos réglages |
-| Sortie NDI du bandeau | ✅ | Phase 6, avec le lower third et la transparence |
+| Sortie NDI du bandeau | ✅ | Phase 6, avec le lower third et la transparence ; depuis la 3.0, **n'importe quel design** de la page Designs : un bandeau, ou un design de slide dont le texte est posé sur un fond transparent |
+| Un seul design pour les sorties | ✅ | 3.0 : « Utiliser pour Web, NDI, HDMI » dans la page Designs habille l'écran Web Diffusion (et `/obs`), la source NDI et les sorties HDMI ; un design de slide habille aussi les écrans Web Salle. La projection de la salle garde son propre design. Le choix (avec le lower third et les sous-titres) est gardé d'un lancement à l'autre |
 | Sortie HDMI vers un mélangeur (couleur de clé) | 🟡 | Phase 6 ; letterbox, taille du texte et décalage avec les réglages |
 | Mire HDMI (F8) | ✅ | Phase 6 |
 | Pilotage d'OBS (WebSocket : scènes, enregistrement) | ⏳ | |

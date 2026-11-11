@@ -119,7 +119,7 @@ fn main() {
         ..Default::default()
     };
     let result = eframe::run_native(
-        "Project-On 3 bêta",
+        NAME,
         options,
         Box::new(move |cc| {
             if let Some(state) = &cc.wgpu_render_state {

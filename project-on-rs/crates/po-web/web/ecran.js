@@ -39,8 +39,20 @@
     if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(message));
   }
 
-  function announceSize() {
-    send({ type: 'hello', width: window.innerWidth, height: window.innerHeight });
+  // La taille de l'écran. Une fenêtre encore cachée (source OBS pas encore affichée, téléviseur
+  // qui démarre) mesure 0 : on annonce alors du 16:9, que le dessin SVG met à l'échelle.
+  let announced = '';
+  function announceSize(force) {
+    let width = window.innerWidth;
+    let height = window.innerHeight;
+    if (width < 100 || height < 100) {
+      width = 1920;
+      height = 1080;
+    }
+    const size = `${width}x${height}`;
+    if (!force && size === announced) return;
+    announced = size;
+    send({ type: 'hello', width, height });
   }
 
   function rgba(c) {
@@ -395,7 +407,7 @@
     ws.onopen = () => {
       retryDelay = 500;
       document.body.classList.remove('offline');
-      announceSize();
+      announceSize(true);
     };
     ws.onmessage = (event) => {
       let message;
@@ -419,7 +431,10 @@
       if (navigator.wakeLock && document.visibilityState === 'visible') await navigator.wakeLock.request('screen');
     } catch { /* non disponible (adresse non sécurisée) : sans effet */ }
   }
-  document.addEventListener('visibilitychange', keepAwake);
+  document.addEventListener('visibilitychange', () => {
+    keepAwake();
+    if (document.visibilityState === 'visible') announceSize(false);
+  });
 
   // Double-clic : plein écran.
   document.addEventListener('dblclick', () => {
@@ -427,11 +442,15 @@
     else document.documentElement.requestFullscreen().catch(() => {});
   });
 
+  // Toute nouvelle taille (fenêtre, plein écran, source OBS redimensionnée) : une nouvelle mise en
+  // page. ResizeObserver voit aussi les changements que l'événement « resize » rate.
   let resizeTimer = 0;
-  window.addEventListener('resize', () => {
+  const resized = () => {
     clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(announceSize, 150);
-  });
+    resizeTimer = setTimeout(() => announceSize(false), 150);
+  };
+  window.addEventListener('resize', resized);
+  if (window.ResizeObserver) new ResizeObserver(resized).observe(document.documentElement);
   keepAwake();
   connect();
 })();

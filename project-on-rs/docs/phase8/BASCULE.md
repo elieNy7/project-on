@@ -83,6 +83,35 @@ besoin. D'ici là, la bêta 4 s'installe à côté de la 2.8 et permet d'essayer
 
 Rien de cela n'a été fait.
 
+## L'installateur définitif (11 novembre 2026, soir)
+
+À votre demande, l'installateur **définitif** de Project-On 3.0 (pas une bêta) est construit :
+`installer\Output\ProjectOn_3.0.0_Setup.exe`, par `construire-beta.ps1 -Bascule`, version
+`3.0.0`. Il n'a **pas** été lancé ni publié, et le code de la 2.8 reste dans le dépôt.
+
+**Attention : lancer ce fichier remplace la 2.8 sur le poste** (même place, mêmes données). Il
+reste 8 fonctions de la [liste de parité](../phase7/PARITE.md) à porter (citation, galerie,
+PowerPoint, imports PDF et Bibles, restauration d'une sauvegarde, pilotage d'OBS, réglages détaillés
+du bandeau et du HDMI, mise à jour automatique). Retour à la 2.8 : réinstaller
+`ProjectOn_2.8.0_Setup.exe`.
+
+Ce qu'il apporte de plus que la bêta 6 :
+- **un seul design pour les sorties** : choisi dans la page Designs (« Utiliser pour Web, NDI,
+  HDMI »), il habille l'écran Web Diffusion, la source NDI et les sorties HDMI ; la projection de la
+  salle garde le sien ;
+- la **source NDI** prend n'importe quel design (bandeau, ou texte d'un design de slide), toujours
+  sur fond transparent, avec le lower third ;
+- le bouton **Web** : « Copier » marche (le presse-papiers manquait dans la construction), les
+  adresses se sélectionnent, « Ouvrir » les ouvre dans le navigateur ;
+- les **écrans Web** ouverts dans une fenêtre encore cachée (source OBS pas encore affichée,
+  téléviseur qui démarre) ne restent plus illisibles ;
+- l'installation pour tous les utilisateurs autorise Project-On dans le **pare-feu** (réseaux
+  privés), pour les tablettes, les téléviseurs et NDI ;
+- plus aucune mention « bêta » dans la fenêtre.
+
+FFmpeg (vidéos) n'est pas livré avec : sur un autre poste, les vidéos de la playlist demandent
+FFmpeg installé (il l'est sur celui-ci).
+
 **Votre décision (11 novembre 2026)** : garder la 2.8, son code comme son installation, et ne rien
 publier tant que les 16 fonctions restantes de la [liste de parité](../phase7/PARITE.md) ne sont pas
 faites. La question vous sera reposée à ce moment-là.

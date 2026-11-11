@@ -29,8 +29,8 @@ use crate::screens::{PRESETS, Registry, ScreenInfo, ScreenKind};
 pub struct Context {
     /// Le design de la salle (écrans « salle »).
     pub design: RoomDesign,
-    /// Le bandeau (écrans « diffusion » et « sous-titres »).
-    pub band: Band,
+    /// Le design des sorties de diffusion (écran Web « diffusion », NDI, HDMI).
+    pub broadcast: Look,
     /// Le slide suivant (retour de scène).
     pub next: Option<Slide>,
     /// Le texte est masqué (le fond reste).
@@ -43,6 +43,31 @@ pub struct Context {
     pub lower_third: Option<Overlay>,
     /// Le sous-titre affiché (écrans « sous-titres ») ; `None` : sous-titres masqués.
     pub subtitle: Option<(SubtitleStyle, String)>,
+}
+
+/// Le design des sorties de diffusion, choisi dans la page Designs : un bandeau, ou un design de
+/// slide plein écran dont le texte est posé sur un fond transparent (la projection de la salle
+/// garde son propre design).
+#[derive(Debug, Clone, PartialEq)]
+pub enum Look {
+    Band(Band),
+    Slide(RoomDesign),
+}
+
+impl Default for Look {
+    fn default() -> Self {
+        Look::Band(Band::default())
+    }
+}
+
+impl Look {
+    /// La transition entre deux slides.
+    pub fn animation(&self) -> Animation {
+        match self {
+            Look::Band(band) => band.animation,
+            Look::Slide(design) => design.animation,
+        }
+    }
 }
 
 /// Un lower third et son animation : il entre (`shown`) ou sort depuis `since`.
@@ -135,7 +160,7 @@ impl Program {
             && a.hidden == b.hidden
             && match kind {
                 ScreenKind::Room => a.design == b.design,
-                ScreenKind::Broadcast => a.band == b.band && a.lower_third == b.lower_third,
+                ScreenKind::Broadcast => a.broadcast == b.broadcast && a.lower_third == b.lower_third,
                 ScreenKind::Subtitles => a.subtitle == b.subtitle,
                 ScreenKind::Stage => a.next == b.next && a.clock == b.clock && a.status == b.status,
             }
@@ -328,7 +353,22 @@ impl Hub {
                 layout_room(&mut fonts, &program.slide, &c.design, width, height, &mut probe)
             }
             ScreenKind::Broadcast => {
-                let mut list = layout_band(&mut fonts, &program.slide, &c.band, width, height);
+                let mut list = match &c.broadcast {
+                    Look::Band(band) => layout_band(&mut fonts, &program.slide, band, width, height),
+                    Look::Slide(design) => {
+                        let mut renderer = self.renderer.lock().unwrap_or_else(|e| e.into_inner());
+                        let mut probe = |list: &DisplayList, zone: [f32; 4]| renderer.backdrop_luminance(list, zone);
+                        let mut list = layout_room(&mut fonts, &program.slide, design, width, height, &mut probe);
+                        // Le texte seul, posé sur la vidéo : le fond du design s'efface. Une image
+                        // seule (une affiche, une photo) reste visible.
+                        let image_alone = program.slide.background.is_some() && list.items.is_empty();
+                        if !image_alone {
+                            list.backdrop.clear();
+                        }
+                        list.background = Rgba::TRANSPARENT;
+                        list
+                    }
+                };
                 if let Some(overlay) = &c.lower_third {
                     let frame = overlay.frame(&mut fonts, width, height, now);
                     list.overlay = frame.items;
@@ -385,7 +425,7 @@ impl Hub {
         let c = &program.context;
         let (animation, hidden): (Option<Animation>, bool) = match kind {
             ScreenKind::Room => (Some(c.design.animation), c.hidden),
-            ScreenKind::Broadcast => (Some(c.band.animation), c.hidden),
+            ScreenKind::Broadcast => (Some(c.broadcast.animation()), c.hidden),
             // Les sous-titres changent sans transition ; masqués, ils ne sont pas envoyés.
             ScreenKind::Subtitles => (None, false),
             // Le retour de scène change sans transition, et montre le texte même masqué.
@@ -694,7 +734,12 @@ async fn client(socket: WebSocket, screen: String, peer: SocketAddr, shared: Sha
             incoming = rx.next() => match incoming {
                 Some(Ok(Message::Text(text))) => match serde_json::from_str::<ClientMessage>(&text) {
                     Ok(ClientMessage::Hello { width, height }) => {
-                        let size = (width.clamp(16.0, 8192.0), height.clamp(16.0, 8192.0));
+                        // Une taille absurde (fenêtre cachée) donnerait une mise en page illisible.
+                        let size = if width < 100.0 || height < 100.0 || !width.is_finite() || !height.is_finite() {
+                            (1920.0, 1080.0)
+                        } else {
+                            (width.min(8192.0), height.min(8192.0))
+                        };
                         viewport = Some(size);
                         hub.registry.touch(id, |s| (s.width, s.height) = size);
                         shown = None;

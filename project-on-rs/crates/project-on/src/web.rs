@@ -28,6 +28,8 @@ pub struct Web {
     pub error: Option<String>,
     /// Le QR code de l'adresse du réseau, déjà en texture.
     qr: Option<(String, egui::TextureHandle)>,
+    /// La dernière adresse copiée, et quand (le bouton dit « Copié ✓ » deux secondes).
+    copied: Option<(String, Instant)>,
 }
 
 impl Web {
@@ -44,7 +46,7 @@ impl Web {
             .and_then(Value::as_str)
             .filter(|t| t.len() >= 8 && t.chars().all(|c| c.is_ascii_alphanumeric()))
             .map_or_else(po_web::new_token, str::to_string);
-        let mut web = Web { hub, server: None, port, lan, token, file, error: None, qr: None };
+        let mut web = Web { hub, server: None, port, lan, token, file, error: None, qr: None, copied: None };
         web.restart();
         web
     }
@@ -192,11 +194,15 @@ impl Web {
             ui.horizontal(|ui| {
                 ui.label(RichText::new(kind.label()).font(semibold(12.0)).color(TEXT)).on_hover_text(about);
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if widgets::button(ui, None, "Copier", Tone::Secondary).on_hover_text("Copier l'adresse").clicked()
+                    if widgets::button(ui, None, "Ouvrir", Tone::Secondary)
+                        .on_hover_text("Ouvrir dans le navigateur de ce poste")
+                        .clicked()
                     {
-                        ui.ctx().copy_text(url.clone());
+                        ui.ctx().open_url(egui::OpenUrl::new_tab(&url));
                     }
-                    ui.label(RichText::new(&url).font(regular(11.5)).color(ACCENT));
+                    self.copy_button(ui, &url);
+                    // L'adresse se sélectionne aussi à la souris (Ctrl+C).
+                    ui.add(egui::Label::new(RichText::new(&url).font(regular(11.5)).color(ACCENT)).selectable(true));
                 });
             });
         }
@@ -228,10 +234,10 @@ impl Web {
                     ui.horizontal(|ui| {
                         self.qr_image(ui, &url);
                         ui.vertical(|ui| {
-                            ui.label(RichText::new(&url).font(medium(12.0)).color(ACCENT));
-                            if widgets::button(ui, None, "Copier", Tone::Secondary).clicked() {
-                                ui.ctx().copy_text(url.clone());
-                            }
+                            ui.add(
+                                egui::Label::new(RichText::new(&url).font(medium(12.0)).color(ACCENT)).selectable(true),
+                            );
+                            self.copy_button(ui, &url);
                             if widgets::button(ui, None, "Nouveau code", Tone::Secondary)
                                 .on_hover_text("Les anciens codes ne permettent plus d'ouvrir un écran")
                                 .clicked()
@@ -252,6 +258,23 @@ impl Web {
                     .color(FAINT),
             );
         }
+    }
+
+    /// « Copier » met l'adresse dans le presse-papiers, puis dit « Copié ✓ » deux secondes.
+    fn copy_button(&mut self, ui: &mut Ui, url: &str) {
+        let recent = self.copied.as_ref().is_some_and(|(u, at)| u == url && at.elapsed().as_secs_f32() < 2.0);
+        let label = if recent { "Copié ✓" } else { "Copier" };
+        let tone = if recent { Tone::Primary(PREVIEW) } else { Tone::Secondary };
+        if widgets::button(ui, None, label, tone).on_hover_text("Copier l'adresse").clicked() {
+            ui.ctx().copy_text(url.to_string());
+            self.copied = Some((url.to_string(), Instant::now()));
+            ui.ctx().request_repaint_after(std::time::Duration::from_secs(2));
+        }
+    }
+
+    /// La dernière adresse copiée (essais).
+    pub fn copied(&self) -> Option<&str> {
+        self.copied.as_ref().map(|(u, _)| u.as_str())
     }
 
     fn qr_image(&mut self, ui: &mut Ui, url: &str) {

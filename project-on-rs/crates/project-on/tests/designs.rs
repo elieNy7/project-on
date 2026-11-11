@@ -138,3 +138,62 @@ fn l_shows_the_lower_third_and_s_steps_the_subtitles_through_a_paragraph() {
     h.run_ok();
     until(&mut h, |a| a.hub.program().context.subtitle.is_none());
 }
+
+#[test]
+fn the_chosen_design_dresses_web_ndi_and_hdmi_but_not_the_projection() {
+    let mut h = harness();
+    let projection = h.state_mut().app().design.clone();
+    h.get_by_label("Designs").click();
+    h.run_ok();
+    // Au départ : le bandeau de la 2.x.
+    h.get_by_label("« Mon bandeau 2.x »");
+    h.get_by_label("Nuit profonde").click();
+    h.run_ok();
+    h.get_by_label("Utiliser pour Web, NDI, HDMI").click();
+    h.run_ok();
+    let app = h.state_mut().app();
+    assert_eq!(app.output.name, "Nuit profonde");
+    let po_web::Look::Slide(chosen) = app.output.look.clone() else { panic!("un design de slide") };
+    assert_eq!(app.design, projection, "la projection garde son design");
+    // Les sorties le reçoivent : diffusion (Web, NDI, HDMI) et écrans Web de salle.
+    until(&mut h, |a| a.hub.program().context.broadcast == po_web::Look::Slide(chosen.clone()));
+    assert_eq!(h.state_mut().app().hub.program().context.design, chosen);
+    h.get_by_label("« Nuit profonde »");
+    h.get_by_label("✔ Utilisé pour Web, NDI, HDMI");
+
+    // Un bandeau, choisi de la même façon, remplace le design de slide.
+    h.get_by_label("Diffusion").click();
+    h.run_ok();
+    let band = h
+        .state_mut()
+        .app()
+        .designs
+        .all()
+        .find(|d| matches!(d.body, po_design::library::DesignBody::Band(_)) && d.id != "bandeau-2x")
+        .cloned()
+        .unwrap();
+    h.get_by_label(&band.name).click();
+    h.run_ok();
+    h.get_by_label("Utiliser pour Web, NDI, HDMI").click();
+    h.run_ok();
+    until(&mut h, |a| matches!(a.hub.program().context.broadcast, po_web::Look::Band(_)));
+    let app = h.state_mut().app();
+    assert_eq!(app.output.id, band.id);
+    assert_eq!(app.hub.program().context.design, projection, "la salle Web revient au design de la projection");
+}
+
+#[test]
+fn the_chosen_designs_are_kept_between_launches() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/tmp");
+    std::fs::create_dir_all(&dir).unwrap();
+    let file = tempfile::tempdir_in(dir).unwrap().keep().join("designs-choisis.json");
+    let choices = project_on::designs::Choices {
+        output: Some("nuit".into()),
+        lower_third: Some("lt-moderne".into()),
+        subtitles: None,
+    };
+    choices.save(&file).unwrap();
+    assert_eq!(project_on::designs::Choices::load(&file), choices);
+    assert_eq!(project_on::designs::Choices::load(&file.with_extension("absent")), Default::default());
+    std::fs::remove_dir_all(file.parent().unwrap()).unwrap();
+}
