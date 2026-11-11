@@ -6,7 +6,7 @@
 use po_design::Rgba;
 use po_design::church::{ChurchBackground, ChurchProfile, SocialPlatform, display_handle, link_url, platform};
 
-use crate::display::{Anchor, DisplayList, Item, Stop, TextLine};
+use crate::display::{Anchor, DisplayList, Group, Item, Stop, TextLine};
 use crate::fit::{FontSpec, wrap_lines};
 use crate::fonts::Fonts;
 
@@ -555,6 +555,478 @@ pub fn layout_socials(fonts: &mut Fonts, profile: &ChurchProfile, width: f32, he
     finish(width, height, background(profile, width, height), c.items)
 }
 
+/// Le compte le plus partagé entre les réseaux (« @MonEglise »), sinon le premier (`_main_handle`).
+fn main_handle(profile: &ChurchProfile) -> String {
+    let all: Vec<(&str, String)> =
+        profile.social_items().iter().map(|(p, v)| (p.key, display_handle(p.key, v))).collect();
+    let mut handles: Vec<&String> =
+        all.iter().filter(|(k, _)| !matches!(*k, "phone" | "email")).map(|(_, h)| h).collect();
+    if handles.is_empty() {
+        handles = all.iter().map(|(_, h)| h).collect();
+    }
+    let mut best: Option<(&String, usize)> = None;
+    for h in &handles {
+        let count = handles.iter().filter(|o| **o == *h).count();
+        if best.is_none_or(|(_, c)| count > c) {
+            best = Some((h, count));
+        }
+    }
+    best.map(|(h, _)| h.clone()).unwrap_or_default()
+}
+
+impl Canvas<'_> {
+    /// Un texte espacé (petites capitales façon magazine), en police `family` ; rend sa largeur.
+    #[allow(clippy::too_many_arguments)]
+    fn tracked(&mut self, text: &str, x: f32, top: f32, size: f32, color: Rgba, anchor: Anchor, spacing: f32) -> f32 {
+        let family = self.family.clone();
+        let m = self.fonts.qt_metrics(&family, 600, size);
+        let width = self.fonts.qt_advance(text, &family, 600, size, spacing);
+        self.items.push(Item::Text(TextLine {
+            text: text.to_string(),
+            x,
+            baseline: top + m.ascent as f32,
+            anchor,
+            size,
+            family,
+            weight: 600,
+            color,
+            width,
+            letter_spacing: spacing,
+            advance_scale: 1.0,
+            shadow: None,
+            outline: None,
+        }));
+        width
+    }
+
+    fn tracked_width(&mut self, text: &str, size: f32, spacing: f32) -> f32 {
+        let family = self.family.clone();
+        self.fonts.qt_advance(text, &family, 600, size, spacing)
+    }
+
+    /// Un rectangle vide (un cadre), en quatre traits.
+    fn frame(&mut self, x: f32, y: f32, w: f32, h: f32, t: f32, color: Rgba) {
+        for (rx, ry, rw, rh) in [(x, y, w, t), (x, y + h - t, w, t), (x, y, t, h), (x + w - t, y, t, h)] {
+            self.items.push(Item::Rect { x: rx, y: ry, w: rw, h: rh, radius: 0.0, color });
+        }
+    }
+}
+
+/// Le fond du modèle « Photo » : une photo de l'église, floutée, sous un voile à la couleur de
+/// l'église plus dense en haut et en bas.
+fn photo_background(profile: &ChurchProfile, w: f32, h: f32) -> Option<(Rgba, Vec<Item>)> {
+    let path = profile
+        .photos
+        .iter()
+        .chain([&profile.background_image])
+        .find(|p| crate::backdrop::image_size_of(p).is_some())?;
+    let (iw, ih) = crate::backdrop::image_size_of(path)?;
+    let scale = (w / iw).max(h / ih) * 1.04;
+    let (rw, rh) = (iw * scale, ih * scale);
+    let image = Item::Image { path: path.clone(), x: (w - rw) / 2.0, y: (h - rh) / 2.0, w: rw, h: rh, opacity: 1.0 };
+    let mut blurred = Group::plain(vec![image]);
+    blurred.blur = (w.min(h) / 270.0).max(1.0);
+    let p = profile.primary_color;
+    let veil = |a: u8| Rgba::new(p.0[0], p.0[1], p.0[2], a);
+    let shade = Item::LinearGradient {
+        x: 0.0,
+        y: 0.0,
+        w,
+        h,
+        from: [0.0, 0.0],
+        to: [0.0, h],
+        stops: vec![
+            Stop { at: 0.0, color: veil(245) },
+            Stop { at: 0.5, color: veil(175) },
+            Stop { at: 1.0, color: veil(245) },
+        ],
+    };
+    Some((p, vec![Item::Group(blurred), shade]))
+}
+
+/// Une image de citation (verset, paragraphe) aux couleurs de l'église (`render_quote` de la
+/// 2.8) : le texte le plus grand possible, l'église qui signe discrètement (logo et nom en tête,
+/// pasteur et réseaux en pied). `style` : une clé de [`QUOTE_STYLES`](po_design::church::QUOTE_STYLES).
+pub fn layout_quote(
+    fonts: &mut Fonts,
+    profile: &ChurchProfile,
+    text: &str,
+    reference: &str,
+    style: &str,
+    width: f32,
+    height: f32,
+) -> DisplayList {
+    let (w, h) = (width, height);
+    let family = fonts.resolve_family(&profile.font_family);
+    let mut c = Canvas { fonts, family, items: Vec::new() };
+    let unit = w.min(h) / 1080.0;
+    let margin = (w.min(h) * 0.075).round();
+    let primary = profile.primary_color;
+    let (mut accent, mut ink) = (profile.accent_color, profile.text_color);
+    let background = match style {
+        "poster" => (profile.accent_color, Vec::new()),
+        "photo" => photo_background(profile, w, h).unwrap_or_else(|| background(profile, w, h)),
+        _ => background(profile, w, h),
+    };
+    if style == "poster" {
+        // Fond à la couleur d'accent : texte et détails à la couleur de l'église.
+        accent = primary;
+        ink = primary;
+    }
+    if style == "framed" {
+        let inset = (margin * 0.42).round();
+        c.frame(
+            inset,
+            inset,
+            w - 2.0 * inset,
+            h - 2.0 * inset,
+            (3.0 * unit).max(2.0),
+            accent.with_alpha(170.0 / 255.0),
+        );
+    }
+
+    // En-tête : petit logo et nom de l'église en capitales espacées.
+    let top = (margin * 0.85).round();
+    let logo_h = c.logo(&profile.logo, w / 2.0, top, 46.0 * unit);
+    let mut header_bottom = top + logo_h;
+    if !profile.name.is_empty() {
+        let y = top + if logo_h > 0.0 { logo_h + 12.0 * unit } else { 0.0 };
+        let name = profile.name.to_uppercase();
+        let mut size = (19.0 * unit).round();
+        while c.tracked_width(&name, size, size * 0.14) > w - 2.0 * margin && size > 13.0 * unit {
+            size = (size * 0.92).floor().max(13.0 * unit);
+        }
+        c.tracked(&name, w / 2.0, y, size, ink.with_alpha(215.0 / 255.0), Anchor::Middle, size * 0.14);
+        header_bottom = y + 24.0 * unit;
+    }
+
+    // Pied : le filet, le pasteur à gauche, les réseaux à droite.
+    let footer_h = (78.0 * unit).round();
+    let footer_bottom = h - (margin * 0.85).round();
+    let footer_top = footer_bottom - footer_h;
+    let rule_y = footer_top - 26.0 * unit;
+    let portrait = (style == "portrait").then(|| crate::backdrop::image_size_of(&profile.pastor_photo)).flatten().map(
+        |(iw, ih)| {
+            let (max_w, max_h) =
+                if h > w { (w * 0.62, h * 0.40) } else { (w * 0.42, rule_y - header_bottom - 20.0 * unit) };
+            let s = (max_w / iw).min(max_h / ih);
+            (iw * s, ih * s)
+        },
+    );
+    c.items.push(Item::Rect {
+        x: margin,
+        y: rule_y,
+        w: w - 2.0 * margin,
+        h: (1.5 * unit).max(1.0),
+        radius: 0.0,
+        color: ink.with_alpha(50.0 / 255.0),
+    });
+    let mut left_end = margin;
+    let mut has_left = false;
+    if portrait.is_none()
+        && let Some((iw, ih)) = crate::backdrop::image_size_of(&profile.pastor_photo)
+    {
+        // Le médaillon : un disque clair cerclé d'accent, la photo (détourée) posée dedans.
+        let d = footer_h;
+        let ring = (3.0 * unit).max(2.0);
+        let light = |c: u8| (f32::from(c) * 1.6 + 18.0).min(255.0) as u8;
+        c.items.push(Item::Rect { x: margin, y: footer_top, w: d, h: d, radius: d / 2.0, color: accent });
+        let inner = d - 2.0 * ring;
+        c.items.push(Item::Rect {
+            x: margin + ring,
+            y: footer_top + ring,
+            w: inner,
+            h: inner,
+            radius: inner / 2.0,
+            color: Rgba::rgb(light(primary.0[0]), light(primary.0[1]), light(primary.0[2])),
+        });
+        let s = (inner * 0.86 / iw).min(inner * 0.86 / ih);
+        let (pw, ph) = (iw * s, ih * s);
+        let photo = Item::Image {
+            path: profile.pastor_photo.clone(),
+            x: margin + d / 2.0 - pw / 2.0,
+            y: footer_top + ring + inner - ph,
+            w: pw,
+            h: ph,
+            opacity: 1.0,
+        };
+        let mut clipped = Group::plain(vec![photo]);
+        let side = inner * 0.86;
+        clipped.clip = Some([margin + d / 2.0 - side / 2.0, footer_top + ring + inner * 0.07, side, side]);
+        c.items.push(Item::Group(clipped));
+        left_end = margin + d + 16.0 * unit;
+        has_left = true;
+    }
+    if !profile.pastor_name.is_empty() || !profile.pastor_title.is_empty() {
+        let mid = footer_top + footer_h / 2.0;
+        let mut used: f32 = 0.0;
+        if !profile.pastor_title.is_empty() {
+            let size = (14.0 * unit).round();
+            let title = profile.pastor_title.to_uppercase();
+            used = c.tracked(&title, left_end, mid - 24.0 * unit, size, accent, Anchor::Start, size * 0.16);
+        }
+        let name = if profile.pastor_name.chars().any(char::is_lowercase) {
+            profile.pastor_name.clone()
+        } else {
+            title_case(&profile.pastor_name)
+        };
+        if !name.is_empty() {
+            let width = c.line(&name, left_end, mid - 2.0 * unit, (23.0 * unit).round(), true, ink, Anchor::Start);
+            used = used.max(width);
+        }
+        left_end += used;
+        has_left = true;
+    }
+    let socials: Vec<_> =
+        if profile.show_socials_quotes { profile.social_items().into_iter().take(6).collect() } else { Vec::new() };
+    if !socials.is_empty() || !profile.contact.is_empty() {
+        let icon = (26.0 * unit).round();
+        let gap = (8.0 * unit).round();
+        let mut handle = if socials.is_empty() { profile.contact.clone() } else { main_handle(profile) };
+        let handle_size = (19.0 * unit).round();
+        let family = c.family.clone();
+        let row_w = socials.len() as f32 * icon + (socials.len() as f32 - 1.0).max(0.0) * gap;
+        let mut handle_w = c.fonts.qt_advance(&handle, &family, 400, handle_size, 0.0);
+        let room = w - margin - left_end - 30.0 * unit;
+        if handle_w > room {
+            handle.clear();
+            handle_w = 0.0;
+        }
+        let block_w = row_w.max(handle_w);
+        let centered = !has_left;
+        let right = if centered { w / 2.0 + block_w / 2.0 } else { w - margin };
+        let mid = footer_top + footer_h / 2.0;
+        let icons_y = if handle.is_empty() { mid - icon / 2.0 } else { mid - icon - 4.0 * unit };
+        let mut x = if centered { w / 2.0 - row_w / 2.0 } else { right - row_w };
+        for (p, _) in &socials {
+            c.badge(x, icons_y, p, icon);
+            x += icon + gap;
+        }
+        if !handle.is_empty() {
+            let (hx, anchor) = if centered { (w / 2.0, Anchor::Middle) } else { (right, Anchor::End) };
+            c.line(&handle, hx, mid + 8.0 * unit, handle_size, false, ink.with_alpha(190.0 / 255.0), anchor);
+        }
+    }
+
+    // Le corps : le texte, le plus grand possible, entre l'en-tête et le pied.
+    let area_top = header_bottom + 50.0 * unit;
+    let mut area_bottom = rule_y - 50.0 * unit;
+    let (x0, mut x1) = (margin, w - margin);
+    let mut style = style;
+    if let Some((pw, ph)) = portrait {
+        let px = w - pw - (margin * 0.5).round();
+        let py = rule_y - ph;
+        let d = pw * 0.9;
+        let (gx, gy) = (px + pw / 2.0, py + ph * 0.42);
+        c.items.push(Item::RadialGradient {
+            x: gx - d,
+            y: gy - d,
+            w: 2.0 * d,
+            h: 2.0 * d,
+            center: [gx, gy],
+            radius: d,
+            stops: vec![
+                Stop { at: 0.0, color: accent.with_alpha(70.0 / 255.0) },
+                Stop { at: 1.0, color: accent.with_alpha(0.0) },
+            ],
+        });
+        c.items.push(Item::Image { path: profile.pastor_photo.clone(), x: px, y: py, w: pw, h: ph, opacity: 1.0 });
+        if h > w {
+            area_bottom = py - 30.0 * unit;
+        } else {
+            x1 = px - 20.0 * unit;
+        }
+    } else if style == "portrait" {
+        style = "minimal"; // sans photo du pasteur
+    }
+    let left = matches!(style, "minimal" | "poster" | "portrait");
+    let pad = if style == "card" { (60.0 * unit).round() } else { 0.0 };
+    let indent = if style == "minimal" { (36.0 * unit).round() } else { 0.0 };
+    let text_w = (x1 - x0 - indent).min(1440.0 * unit);
+    let mark_h = (match style {
+        "classic" => 96.0,
+        "elegant" => 64.0,
+        "poster" => 130.0,
+        "portrait" => 44.0,
+        _ => 0.0,
+    } * unit)
+        .round();
+
+    // La référence entière, réservée avant d'ajuster le texte : rien ne déborde.
+    let ref_text = reference.replace('\n', " — ").split_whitespace().collect::<Vec<_>>().join(" ").to_uppercase();
+    let (mut ref_size, mut ref_lines) = ((24.0 * unit).round(), Vec::new());
+    if !ref_text.is_empty() {
+        loop {
+            let spacing = ref_size * if ref_size > 15.0 * unit { 0.14 } else { 0.08 };
+            let max = text_w - 2.0 * pad;
+            let mut lines: Vec<String> = Vec::new();
+            for part in ref_text.split(" — ").map(str::trim).filter(|p| !p.is_empty()) {
+                if let Some(last) = lines.last_mut() {
+                    let joined = format!("{last} — {part}");
+                    if c.tracked_width(&joined, ref_size, spacing) <= max {
+                        *last = joined;
+                        continue;
+                    }
+                }
+                let mut current = String::new();
+                for word in part.split(' ') {
+                    let candidate = if current.is_empty() { word.to_string() } else { format!("{current} {word}") };
+                    if !current.is_empty() && c.tracked_width(&candidate, ref_size, spacing) > max {
+                        lines.push(std::mem::replace(&mut current, word.to_string()));
+                    } else {
+                        current = candidate;
+                    }
+                }
+                if !current.is_empty() {
+                    lines.push(current);
+                }
+            }
+            if lines.len() <= 2 || ref_size <= 15.0 * unit {
+                ref_lines = lines;
+                break;
+            }
+            ref_size = (ref_size * 0.9).floor().max((15.0 * unit).round());
+        }
+    }
+    let ref_spacing = ref_size * if ref_size > 15.0 * unit { 0.14 } else { 0.08 };
+    let ref_lh = (ref_size * 1.55).floor();
+    let ref_h = if ref_lines.is_empty() {
+        0.0
+    } else {
+        (if left { 30.0 } else { 50.0 }) * unit + ref_lh * ref_lines.len() as f32 + 8.0 * unit
+    };
+
+    // Le texte : la police du modèle « Élégant » est à empattements.
+    let body_family = if style == "elegant" { c.fonts.resolve_family("Playfair Display") } else { c.family.clone() };
+    let church_family = std::mem::replace(&mut c.family, body_family);
+    let box_h = area_bottom - area_top - mark_h - ref_h - 2.0 * pad;
+    let (size, lines) = c.fit(text.trim(), text_w - 2.0 * pad, box_h, 86.0 * unit, 24.0 * unit, 1.3);
+    let line_h = (size * 1.3).floor();
+    let block_h = mark_h + line_h * lines.len() as f32 + ref_h;
+    let mut y = area_top + pad + ((area_bottom - area_top - 2.0 * pad - block_h) / 2.0).max(0.0).floor();
+    let cx = ((x0 + x1) / 2.0).floor();
+    let tx = x0 + indent;
+    let (mut text_color, mut detail) = (ink, accent);
+    let serif = c.fonts.resolve_family("Playfair Display");
+    let mark = |c: &mut Canvas<'_>, x: f32, top: f32, size: f32, color: Rgba, anchor: Anchor| {
+        let family = std::mem::replace(&mut c.family, serif.clone());
+        c.line("“", x, top, size, true, color, anchor);
+        c.family = family;
+    };
+    match style {
+        "card" => {
+            // Carte claire et ombrée ; la pastille du guillemet à cheval sur le bord.
+            text_color = primary;
+            detail = primary;
+            let (cx0, cy0) = (cx - text_w / 2.0, y - pad);
+            let (cw, ch) = (text_w, block_h + 2.0 * pad - 20.0 * unit);
+            let radius = (28.0 * unit).round();
+            let mut shadow = Group::plain(vec![Item::Rect {
+                x: cx0,
+                y: cy0 + 14.0 * unit,
+                w: cw,
+                h: ch,
+                radius,
+                color: Rgba::new(0, 0, 0, 110),
+            }]);
+            shadow.blur = 22.0 * unit;
+            c.items.push(Item::Group(shadow));
+            c.items.push(Item::Rect { x: cx0, y: cy0, w: cw, h: ch, radius, color: Rgba::rgb(250, 249, 246) });
+            let r = (38.0 * unit).round();
+            c.items.push(Item::Rect { x: cx - r, y: cy0 - r, w: 2.0 * r, h: 2.0 * r, radius: r, color: accent });
+            // Le dessin du guillemet est centré à mi-hauteur de la police : centré sur la pastille.
+            let size = (110.0 * unit).round();
+            mark(&mut c, cx, cy0 - size * 0.51, size, primary, Anchor::Middle);
+        }
+        "classic" => mark(&mut c, cx, y - 30.0 * unit, (170.0 * unit).round(), accent, Anchor::Middle),
+        "elegant" => {
+            let mid = y + 18.0 * unit;
+            let s = 8.0 * unit;
+            c.items.push(Item::Rect { x: cx - s, y: mid - s, w: 2.0 * s, h: 2.0 * s, radius: s * 0.3, color: accent });
+            for sign in [-1.0f32, 1.0] {
+                let (a, b) = (cx + sign * 22.0 * unit, cx + sign * 90.0 * unit);
+                c.items.push(Item::Rect {
+                    x: a.min(b),
+                    y: mid - (unit).max(1.0),
+                    w: (b - a).abs(),
+                    h: (2.0 * unit).max(1.0),
+                    radius: 0.0,
+                    color: accent,
+                });
+            }
+        }
+        "poster" => {
+            let mix = |a: u8, b: u8| (f32::from(a) * 0.65 + f32::from(b) * 0.35) as u8;
+            let a = profile.accent_color;
+            let color = Rgba::rgb(mix(primary.0[0], a.0[0]), mix(primary.0[1], a.0[1]), mix(primary.0[2], a.0[2]));
+            mark(&mut c, tx - 8.0 * unit, y - 40.0 * unit, (260.0 * unit).round(), color, Anchor::Start);
+        }
+        "portrait" => c.items.push(Item::Rect {
+            x: tx,
+            y: y + 8.0 * unit,
+            w: 64.0 * unit,
+            h: 6.0 * unit,
+            radius: 3.0 * unit,
+            color: accent,
+        }),
+        "minimal" => {
+            let bar_x = tx - 30.0 * unit;
+            c.items.push(Item::Rect {
+                x: bar_x,
+                y: y + size * 0.18,
+                w: (6.0 * unit).max(3.0),
+                h: line_h * lines.len() as f32 - size * 0.36,
+                radius: 3.0 * unit,
+                color: accent,
+            });
+        }
+        _ => {}
+    }
+    y += mark_h;
+    for line in &lines {
+        let (x, anchor) = if left { (tx, Anchor::Start) } else { (cx, Anchor::Middle) };
+        c.line(line, x, y, size, true, text_color, anchor);
+        y += line_h;
+    }
+    c.family = church_family;
+    if !ref_lines.is_empty() {
+        if left {
+            y += 30.0 * unit;
+        } else {
+            y += 26.0 * unit;
+            c.items.push(Item::Rect {
+                x: cx - 28.0 * unit,
+                y,
+                w: 56.0 * unit,
+                h: (3.0 * unit).max(2.0),
+                radius: 0.0,
+                color: accent,
+            });
+            y += 24.0 * unit;
+        }
+        for line in &ref_lines {
+            let (x, anchor) = if left { (tx, Anchor::Start) } else { (cx, Anchor::Middle) };
+            c.tracked(line, x, y, ref_size, detail, anchor, ref_spacing);
+            y += ref_lh;
+        }
+    }
+    finish(w, h, background, c.items)
+}
+
+/// « JEAN MUKENDI » → « Jean Mukendi ».
+fn title_case(text: &str) -> String {
+    text.split(' ')
+        .map(|word| {
+            let mut chars = word.chars();
+            match chars.next() {
+                Some(first) => first.to_uppercase().chain(chars.flat_map(char::to_lowercase)).collect(),
+                None => String::new(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -657,5 +1129,54 @@ Samedi : 15H00"
         }
         let empty = texts(&layout_socials(&mut fonts, &ChurchProfile::default(), 1920.0, 1080.0));
         assert!(empty.contains("Ajoutez vos réseaux"));
+    }
+
+    #[test]
+    fn quote_images_fit_every_model_and_format() {
+        let mut fonts = fonts();
+        let p = profile();
+        let text = "Car Dieu a tant aimé le monde qu'il a donné son Fils unique, afin que quiconque croit en lui ne périsse point, mais qu'il ait la vie éternelle.";
+        for (style, _) in po_design::church::QUOTE_STYLES {
+            for (_, _, w, h) in po_design::church::QUOTE_FORMATS {
+                let (w, h) = (w as f32, h as f32);
+                let list = layout_quote(
+                    &mut fonts,
+                    &p,
+                    text,
+                    "Jean 3:16
+Louis Segond",
+                    style,
+                    w,
+                    h,
+                );
+                let all = texts(&list);
+                assert!(all.contains("Dieu") && all.contains("JEAN 3:16 — LOUIS SEGOND"), "{style} : {all}");
+                assert!(all.contains("OUVRIERS DE LA ONZIÈME HEURE"), "{style}");
+                for line in list.text_lines() {
+                    let left = match line.anchor {
+                        Anchor::Start => line.x,
+                        Anchor::Middle => line.x - line.width / 2.0,
+                        Anchor::End => line.x - line.width,
+                    };
+                    assert!(
+                        left >= -1.0 && left + line.width <= w + 1.0,
+                        "{style} {w}×{h} : « {} » déborde",
+                        line.text
+                    );
+                    assert!(line.baseline > 0.0 && line.baseline < h, "{style} : « {} » hors de l'image", line.text);
+                }
+                // Le corps reste au-dessus du filet du pied (le nom du pasteur est dessous).
+                let pastor = list.text_lines().find(|l| l.text == "Joseph Nyembo").map(|l| l.baseline).unwrap();
+                let body =
+                    list.text_lines().filter(|l| l.text.contains("Dieu")).map(|l| l.baseline).fold(0.0, f32::max);
+                assert!(body < pastor - 40.0, "{style} {w}×{h} : le texte touche le pied");
+            }
+        }
+        // L'affiche : le fond à la couleur d'accent.
+        let poster = layout_quote(&mut fonts, &p, text, "", "poster", 1080.0, 1080.0);
+        assert_eq!(poster.background, p.accent_color);
+        // Le portrait sans photo du pasteur devient minimal (aligné à gauche).
+        let portrait = layout_quote(&mut fonts, &p, text, "", "portrait", 1080.0, 1080.0);
+        assert!(portrait.text_lines().filter(|l| l.text.contains("Dieu")).all(|l| l.anchor == Anchor::Start));
     }
 }

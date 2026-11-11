@@ -30,10 +30,11 @@ pub enum Action {
     Welcome,
     Pastor,
     Socials,
+    Quote,
 }
 
 /// (action, identifiant de la 2.8, libellé, touche par défaut).
-pub const ACTIONS: [(Action, &str, &str, &str); 18] = [
+pub const ACTIONS: [(Action, &str, &str, &str); 19] = [
     (Action::Take, "take", "Envoyer l'aperçu au direct", "F2"),
     (Action::NextSlide, "next_slide", "Slide suivant (télécommande)", "PgDown"),
     (Action::PrevSlide, "prev_slide", "Slide précédent (télécommande)", "PgUp"),
@@ -52,13 +53,11 @@ pub const ACTIONS: [(Action, &str, &str, &str); 18] = [
     (Action::Welcome, "welcome", "Projeter l'écran d'accueil", "Ctrl+Shift+W"),
     (Action::Pastor, "pastor", "Projeter l'écran de l'orateur du jour", "Ctrl+Shift+P"),
     (Action::Socials, "socials", "Projeter l'écran « Réseaux sociaux »", "Ctrl+Shift+R"),
+    (Action::Quote, "quote", "Image de citation du direct", "Ctrl+Shift+I"),
 ];
 
 /// Les actions de la 2.8 qui arrivent dans une phase suivante (montrées dans l'aide).
-pub const LATER: [(&str, &str); 2] = [
-    ("Image de citation du direct (Ctrl+Shift+I)", "phase 7"),
-    ("Miniature YouTube (Ctrl+Shift+Y)", "retirée (couche 1)"),
-];
+pub const LATER: [(&str, &str); 1] = [("Miniature YouTube (Ctrl+Shift+Y)", "retirée (couche 1)")];
 
 /// La touche nommée comme dans la 2.8 (`QKeySequence` : « F2 », « PgDown », « B », « Space »…).
 fn key(name: &str) -> Option<Key> {

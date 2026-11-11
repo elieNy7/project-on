@@ -282,6 +282,20 @@ impl Hub {
         po_render::encode_png(&pixmap).map_err(|e| e.to_string())
     }
 
+    /// Une image RVBA prémultipliée de `width` × `height` d'une liste d'affichage mise en page avec
+    /// les polices des écrans (l'aperçu de l'image de citation, sa copie dans le presse-papiers).
+    pub fn render_list_rgba(
+        &self,
+        width: u32,
+        height: u32,
+        layout: impl FnOnce(&mut Fonts) -> DisplayList,
+    ) -> Result<Vec<u8>, String> {
+        let mut fonts = self.fonts.lock().unwrap_or_else(|e| e.into_inner());
+        let list = layout(&mut fonts);
+        let mut renderer = self.renderer.lock().unwrap_or_else(|e| e.into_inner());
+        renderer.render(&mut fonts, &list, width, height).map(|p| p.data().to_vec()).map_err(|e| e.to_string())
+    }
+
     /// Découpe un texte en sous-titres (pour 1920 × 1080, avec les polices des écrans).
     pub fn subtitle_chunks(&self, text: &str, style: &SubtitleStyle) -> Vec<String> {
         let mut fonts = self.fonts.lock().unwrap_or_else(|e| e.into_inner());

@@ -95,3 +95,60 @@ fn the_church_screens_are_projected_and_the_profile_is_set_in_the_settings() {
     h.run_ok();
     assert_eq!(h.state_mut().app().live.as_ref().unwrap().program.title, "Frère Paul");
 }
+
+#[test]
+fn the_live_verse_becomes_a_quote_image_to_copy_or_project() {
+    let base = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/tmp");
+    std::fs::create_dir_all(&base).unwrap();
+    let dir = tempfile::tempdir_in(base).unwrap();
+    let db = dir.path().join("project_on.db");
+    let bibles = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../bible_json");
+    Database::open_and_initialize(&db, &InitOptions { bible_json_dir: Some(bibles) }).unwrap();
+    let mut settings = Settings::default();
+    settings.other.insert("church".into(), json!({ "name": "OUVRIERS DE LA ONZIÈME HEURE", "quote_style": "minimal" }));
+    let config = Config {
+        fonts_dir: po_layout::bundled_fonts_dir(),
+        locations: None,
+        database: Some(db),
+        settings,
+        windowed_projection: true,
+        web_port: None,
+    };
+    let mut h = Harness::builder()
+        .with_size([1600.0, 940.0])
+        .with_accessibility_check(false)
+        .wgpu()
+        .build_ui_state(|ui, boot: &mut Boot| boot.ui(ui), Boot::new(config));
+    h.run_ok();
+    h.get_by_label("Bible").click();
+    h.run_ok();
+    h.get_by_label_contains("Référence").click();
+    h.run_ok();
+    h.get_by_label_contains("Référence").type_text("Jean 3:16");
+    h.run_ok();
+    h.key_press(Key::Enter);
+    h.run_ok();
+    h.state_mut().app().take();
+    h.ctx.memory_mut(|m| m.stop_text_input());
+    h.run_ok();
+
+    // Ctrl+Maj+I : le verset au direct, avec le modèle de l'église.
+    h.key_press_modifiers(Modifiers::COMMAND | Modifiers::SHIFT, Key::I);
+    h.run_ok();
+    let quote = &h.state_mut().app().quote;
+    assert!(quote.open);
+    assert!(quote.text.contains("Dieu a tant aimé"), "{}", quote.text);
+    assert!(quote.reference.starts_with("Jean 3:16"));
+    assert_eq!(quote.style, "minimal");
+    h.get_by_label("Image de citation");
+
+    h.get_by_label("Copier l'image").click();
+    h.run_ok();
+    assert!(h.state_mut().app().quote.message.starts_with("Image copiée"));
+    h.get_by_label("Image copiée ✓");
+
+    h.get_by_label("Projeter").click();
+    h.run_ok();
+    let image = live_image(h.state_mut().app());
+    assert!(image.contains("citation-") && image.ends_with(".png"), "{image}");
+}

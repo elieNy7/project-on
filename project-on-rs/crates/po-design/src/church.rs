@@ -70,7 +70,32 @@ pub struct ChurchProfile {
     pub speaker_title: String,
     pub speaker_photo: String,
     pub speaker_message: String,
+    /// Le modèle des images de citation (voir [`QUOTE_STYLES`]).
+    pub quote_style: String,
+    /// Les réseaux en pied des images de citation.
+    pub show_socials_quotes: bool,
+    /// Les photos de l'église (fond du modèle « Photo »).
+    pub photos: Vec<String>,
 }
+
+/// Les modèles des images de citation : clé, nom (`QUOTE_STYLES` de la 2.8).
+pub const QUOTE_STYLES: [(&str, &str); 8] = [
+    ("classic", "Classique (grand guillemet)"),
+    ("minimal", "Minimal (aligné à gauche)"),
+    ("framed", "Encadré"),
+    ("elegant", "Élégant (police à empattements)"),
+    ("card", "Carte claire"),
+    ("poster", "Affiche (couleur d'accent)"),
+    ("photo", "Photo de l'église en fond"),
+    ("portrait", "Portrait du pasteur"),
+];
+
+/// Les formats des images de citation : clé, nom, largeur, hauteur (`FORMATS` de la 2.8).
+pub const QUOTE_FORMATS: [(&str, &str, u32, u32); 3] = [
+    ("square", "Carré 1080×1080 (Instagram, Facebook)", 1080, 1080),
+    ("story", "Story 1080×1920 (WhatsApp, Instagram)", 1080, 1920),
+    ("landscape", "Paysage 1920×1080 (YouTube, écran)", 1920, 1080),
+];
 
 impl Default for ChurchProfile {
     fn default() -> Self {
@@ -98,6 +123,9 @@ impl Default for ChurchProfile {
             speaker_title: String::new(),
             speaker_photo: String::new(),
             speaker_message: String::new(),
+            quote_style: "classic".into(),
+            show_socials_quotes: true,
+            photos: Vec::new(),
         }
     }
 }
@@ -160,6 +188,15 @@ impl ChurchProfile {
             speaker_title: get("speaker_title", ""),
             speaker_photo: get("speaker_photo", ""),
             speaker_message: get("speaker_message", ""),
+            quote_style: Some(get("quote_style", "classic"))
+                .filter(|s| QUOTE_STYLES.iter().any(|(k, _)| k == s))
+                .unwrap_or_else(|| "classic".into()),
+            show_socials_quotes: v.get("show_socials_quotes").and_then(Value::as_bool).unwrap_or(true),
+            photos: v
+                .get("photos")
+                .and_then(Value::as_array)
+                .map(|a| a.iter().filter_map(Value::as_str).map(str::to_string).filter(|p| !p.is_empty()).collect())
+                .unwrap_or_default(),
             socials,
         };
         // 2.7 préversion : « message du jour » rattaché au pasteur.
@@ -208,6 +245,8 @@ impl ChurchProfile {
             ("speaker_title", json!(self.speaker_title)),
             ("speaker_photo", json!(self.speaker_photo)),
             ("speaker_message", json!(self.speaker_message)),
+            ("quote_style", json!(self.quote_style)),
+            ("show_socials_quotes", json!(self.show_socials_quotes)),
         ];
         for (key, value) in fields {
             church.insert(key.to_string(), value);

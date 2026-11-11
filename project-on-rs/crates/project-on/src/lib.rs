@@ -14,6 +14,7 @@ pub mod outputs;
 pub mod overlay;
 pub mod playlist;
 pub mod projector;
+pub mod quote;
 pub mod recovery;
 pub mod restore;
 pub mod screens;

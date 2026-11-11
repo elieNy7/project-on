@@ -181,6 +181,8 @@ pub struct App {
     pub last_render_ms: f64,
     /// La liste du programme au direct doit montrer le slide courant.
     follow_live: bool,
+    /// L'image de citation (Ctrl+Shift+I).
+    pub quote: crate::quote::QuoteWindow,
     /// La préparation d'une restauration (vérification dans un fil à part).
     restore_job: Option<JoinHandle<Result<String, String>>>,
 }
@@ -303,6 +305,7 @@ impl App {
             last_render_ms: 0.0,
             follow_live: false,
             restore_job: None,
+            quote: crate::quote::QuoteWindow::default(),
         };
         app.apply_settings(config.settings.clone());
         app.restore_choices();
@@ -881,13 +884,16 @@ impl App {
             ChurchScreen::Speaker => po_layout::church::layout_speaker(fonts, &profile, w as f32, h as f32),
             ChurchScreen::Socials => po_layout::church::layout_socials(fonts, &profile, w as f32, h as f32),
         });
-        let png = match png {
-            Ok(png) => png,
-            Err(e) => {
-                self.status = format!("Écran de l'église impossible : {e}");
-                return;
-            }
-        };
+        match png {
+            Ok(png) => self.project_image(&png, file, &label),
+            Err(e) => self.status = format!("Écran de l'église impossible : {e}"),
+        }
+    }
+
+    /// Met au direct une image rendue (écran de l'église, image de citation), comme une image de la
+    /// playlist. `file` : le début du nom du fichier gardé dans les données.
+    pub fn project_image(&mut self, png: &[u8], file: &str, label: &str) {
+        let label = label.to_string();
         // Un nom propre à chaque rendu : une image déjà chargée ne masque jamais la nouvelle.
         let dir = self
             .data_dir()
@@ -896,7 +902,7 @@ impl App {
             .join("church");
         let digest: String = {
             use sha2::Digest;
-            sha2::Sha256::digest(&png).iter().take(6).map(|b| format!("{b:02x}")).collect()
+            sha2::Sha256::digest(png).iter().take(6).map(|b| format!("{b:02x}")).collect()
         };
         let path = dir.join(format!("{file}-{digest}.png"));
         if let Ok(entries) = std::fs::read_dir(&dir) {
@@ -907,7 +913,7 @@ impl App {
                 }
             }
         }
-        if let Err(e) = std::fs::create_dir_all(&dir).and_then(|()| std::fs::write(&path, &png)) {
+        if let Err(e) = std::fs::create_dir_all(&dir).and_then(|()| std::fs::write(&path, png)) {
             self.status = format!("Écran de l'église impossible : {e}");
             return;
         }
@@ -918,7 +924,69 @@ impl App {
         self.abandon_slideshow();
         self.live = Some(Shown { program, origin: Origin::Church, items: Vec::new() });
         self.render(Target::Live);
-        self.status = format!("Au direct : {default_label}");
+        self.status = format!("Au direct : {label}");
+    }
+
+    /// Ouvre l'image de citation avec le slide au direct (sinon celui de l'Aperçu).
+    pub fn open_quote(&mut self) {
+        let profile = po_design::church::ChurchProfile::from_settings(self.settings.other.get("church"));
+        let slide = self.live.as_ref().or(self.preview.as_ref()).map(|s| s.program.slide());
+        let (text, reference) = slide.map(|s| (s.text, s.reference)).unwrap_or_default();
+        self.quote.open_with(&text, &reference, &profile);
+    }
+
+    fn quote_window(&mut self, ctx: &egui::Context) {
+        if !self.quote.open {
+            return;
+        }
+        let profile = po_design::church::ChurchProfile::from_settings(self.settings.other.get("church"));
+        let hub = self.hub.clone();
+        let actions = self
+            .quote
+            .show(ctx, &profile, |quote, w, h| hub.render_list_rgba(w, h, |fonts| quote.layout(fonts, &profile)).ok());
+        let (w, h) = crate::quote::size_of(&self.quote.format);
+        for action in actions {
+            match action {
+                crate::quote::QuoteAction::Save(path) => {
+                    let png = self.hub.render_png(w, h, |fonts| self.quote.layout(fonts, &profile));
+                    self.quote.message = match png.and_then(|png| std::fs::write(&path, png).map_err(|e| e.to_string()))
+                    {
+                        Ok(()) => format!("Enregistrée : {}", path.display()),
+                        Err(e) => format!("Image non enregistrée : {e}"),
+                    };
+                    self.status = self.quote.message.clone();
+                }
+                crate::quote::QuoteAction::Copy => {
+                    match self.hub.render_list_rgba(w, h, |fonts| self.quote.layout(fonts, &profile)) {
+                        Ok(pixels) => {
+                            let image = egui::ColorImage::from_rgba_premultiplied([w as usize, h as usize], &pixels);
+                            ctx.copy_image(image);
+                            self.quote.message = "Image copiée : collez-la dans WhatsApp ou Facebook (Ctrl+V).".into();
+                        }
+                        Err(e) => self.quote.message = format!("Copie impossible : {e}"),
+                    }
+                }
+                crate::quote::QuoteAction::Project => {
+                    match self.hub.render_png(w, h, |fonts| self.quote.layout(fonts, &profile)) {
+                        Ok(png) => {
+                            let label = self.quote.reference.lines().next().unwrap_or("Citation").to_string();
+                            let label = if label.is_empty() { "Citation".to_string() } else { label };
+                            self.project_image(&png, "citation", &label);
+                        }
+                        Err(e) => self.quote.message = format!("Projection impossible : {e}"),
+                    }
+                }
+                crate::quote::QuoteAction::RememberStyle(style) => {
+                    // Le modèle choisi reste celui de l'église (comme dans la 2.8).
+                    let mut settings = self.settings.clone();
+                    let church = settings.other.entry("church".to_string()).or_insert_with(|| serde_json::json!({}));
+                    if let Some(map) = church.as_object_mut() {
+                        map.insert("quote_style".into(), serde_json::json!(style));
+                        self.save_settings(settings);
+                    }
+                }
+            }
+        }
     }
 
     /// Le diaporama en cours : l'image montrée et leur nombre.
@@ -1605,6 +1673,7 @@ impl App {
                 Key2::Welcome => self.show_church(crate::media::ChurchScreen::Welcome),
                 Key2::Pastor => self.show_church(crate::media::ChurchScreen::Speaker),
                 Key2::Socials => self.show_church(crate::media::ChurchScreen::Socials),
+                Key2::Quote => self.open_quote(),
             }
         }
         let typing = self.ctx.egui_wants_keyboard_input();
@@ -1924,6 +1993,7 @@ impl App {
         self.add_window(ui);
         self.preflight_window(ui);
         self.history_window(ui);
+        self.quote_window(ui.ctx());
         if self.help {
             self.help_window(ui);
         }
