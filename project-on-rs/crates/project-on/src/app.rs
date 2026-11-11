@@ -159,6 +159,10 @@ pub struct App {
     /// Les fenêtres du contrôle avant culte et de l'historique.
     pub preflight_open: bool,
     pub history_open: bool,
+    /// Le diaporama, le direct qu'il a remplacé (rendu à l'arrêt) et la page Médias.
+    pub slideshow: crate::media::Slideshow,
+    slideshow_before: Option<(Option<Shown>, bool)>,
+    pub media_view: crate::media::MediaView,
     /// Le bandeau de la diffusion et des sous-titres (réglages « OBS » de la 2.x).
     band: po_design::Band,
     help: bool,
@@ -269,6 +273,9 @@ impl App {
             recovery: None,
             preflight_open: false,
             history_open: false,
+            slideshow: crate::media::Slideshow::default(),
+            slideshow_before: None,
+            media_view: crate::media::MediaView::new(settings.projection.media_default_duration.clamp(0, 600) as u32),
             band: band_2x,
             help: false,
             status: "Prêt".into(),
@@ -524,6 +531,7 @@ impl App {
 
     /// Envoie l'Aperçu au direct (F2).
     pub fn take(&mut self) {
+        self.abandon_slideshow();
         if let Some(preview) = self.preview.clone() {
             self.live = Some(preview);
             self.render(Target::Live);
@@ -533,6 +541,10 @@ impl App {
 
     /// Slide suivant (`+1`) ou précédent (`-1`) au direct.
     pub fn step(&mut self, delta: i32) {
+        // Une flèche pendant le diaporama : il s'arrête, et la flèche agit sur le direct rendu.
+        if self.slideshow.active {
+            self.stop_slideshow();
+        }
         // Sous-titres affichés : ← et → avancent d'abord dans le paragraphe.
         if self.live.is_some() && self.subtitles.step(delta) {
             self.status = format!("Sous-titre {} / {}", self.subtitles.index + 1, self.subtitles.chunks.len());
@@ -551,7 +563,83 @@ impl App {
             && live.program.set(row)
         {
             self.render(Target::Live);
+            // Dans le diaporama : on repart de l'image choisie.
+            let now = self.ctx.input(|i| i.time);
+            self.slideshow.arm(row, now);
         }
+    }
+
+    // ── Diaporama ───────────────────────────────────────────────────────────────────────────────
+
+    /// Lance un diaporama : il prend le direct (celui d'avant reviendra à l'arrêt).
+    pub fn start_slideshow(&mut self, medias: Vec<crate::media::Media>, title: &str) {
+        let Some(program) = crate::media::cue(&medias, title).and_then(|c| Program::from_cue(&c, &self.split)) else {
+            self.status = "Diaporama : aucune image".into();
+            return;
+        };
+        if !self.slideshow.active {
+            self.slideshow_before = Some((self.live.clone(), self.live_stage.hidden()));
+        }
+        if self.live_stage.hidden() {
+            self.toggle_hidden();
+        }
+        self.live = Some(Shown { program, origin: Origin::Slideshow, items: Vec::new() });
+        self.slideshow.begin(&medias, self.media_view.seconds);
+        self.render(Target::Live);
+        let now = self.ctx.input(|i| i.time);
+        self.slideshow.arm(0, now);
+        self.status = format!("Diaporama « {} » : {} image(s)", title.trim(), medias.len());
+    }
+
+    /// Arrête le diaporama et rend le direct d'avant, à l'identique.
+    pub fn stop_slideshow(&mut self) {
+        if !self.slideshow.active {
+            return;
+        }
+        self.slideshow.end();
+        if let Some((live, hidden)) = self.slideshow_before.take() {
+            self.live = live;
+            if self.live.is_some() {
+                self.render(Target::Live);
+            } else {
+                // Rien n'était au direct : les écrans se vident.
+                self.live_stage.clear();
+                self.taken = Some(Slide::new("", "", po_design::SlideSource::Custom));
+            }
+            if hidden != self.live_stage.hidden() {
+                self.toggle_hidden();
+            }
+        }
+        self.status = "Diaporama arrêté : le direct d'avant est revenu".into();
+    }
+
+    /// Un autre programme prend le direct : le diaporama se clôt sans rien rendre.
+    fn abandon_slideshow(&mut self) {
+        if self.slideshow.active {
+            self.slideshow.end();
+            self.slideshow_before = None;
+        }
+    }
+
+    /// L'image suivante quand son temps est passé.
+    fn tick_slideshow(&mut self, now: f64) {
+        if self.slideshow.due(now)
+            && let Some(live) = self.live.as_mut()
+        {
+            let next = crate::media::Slideshow::following(live.program.current(), live.program.len());
+            live.program.set(next);
+            self.render(Target::Live);
+            self.slideshow.arm(next, now);
+        }
+        if let Some(at) = self.slideshow.next_at() {
+            self.ctx.request_repaint_after(Duration::from_secs_f64((at - now).max(0.05)));
+        }
+    }
+
+    /// Le diaporama en cours : l'image montrée et leur nombre.
+    pub fn slideshow_position(&self) -> Option<(usize, usize)> {
+        let live = self.live.as_ref().filter(|_| self.slideshow.active)?;
+        Some((live.program.current(), live.program.len()))
     }
 
     fn edge(&mut self, to_start: bool) {
@@ -797,6 +885,7 @@ impl App {
             let mut select = None;
             let mut play = None;
             let mut start = false;
+            let mut slideshow = None;
             {
                 let Some(db) = self.db.as_mut() else { return };
                 let p = &mut self.playlists;
@@ -922,6 +1011,33 @@ impl App {
                             self.playlist.say(&message);
                         }
                     }
+                    PlaylistAction::Slideshow => {
+                        if let Some(f) = folder {
+                            let name =
+                                db.folder(f).ok().flatten().map(|f| f.name).unwrap_or_else(|| "Diaporama".into());
+                            // La durée de chaque image : celle de la bibliothèque de médias de la 2.x.
+                            let library = db.list_media().unwrap_or_default();
+                            let medias: Vec<crate::media::Media> = db
+                                .list_items(Some(f))
+                                .unwrap_or_default()
+                                .into_iter()
+                                .filter(|i| i.source == "media" && crate::playlist::is_image_file(&i.background))
+                                .map(|i| crate::media::Media {
+                                    name: if i.reference.trim().is_empty() {
+                                        i.background.clone()
+                                    } else {
+                                        i.reference.clone()
+                                    },
+                                    seconds: library
+                                        .iter()
+                                        .find(|m| m.path == i.background)
+                                        .map_or(0, |m| m.duration_seconds.clamp(0, 3600) as u32),
+                                    path: i.background,
+                                })
+                                .collect();
+                            slideshow = Some((medias, name));
+                        }
+                    }
                     PlaylistAction::Import(file) => {
                         let media = self
                             .locations
@@ -950,6 +1066,9 @@ impl App {
             }
             if let Some((item, take)) = play {
                 self.play_playlist(item, take);
+            }
+            if let Some((medias, name)) = slideshow {
+                self.start_slideshow(medias, &name);
             }
         }
     }
@@ -1214,6 +1333,9 @@ impl App {
         if self.ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, Key::Num8)) {
             self.page = Page::Settings;
         }
+        if self.ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, Key::Num9)) {
+            self.page = Page::Media;
+        }
         if typing {
             return;
         }
@@ -1246,7 +1368,7 @@ impl App {
             Page::Sermons => self.sermons.focus_search = true,
             Page::Expose => self.expose.focus_search = true,
             Page::Books => self.books.focus_search = true,
-            Page::Playlist | Page::Designs | Page::Settings => {}
+            Page::Playlist | Page::Designs | Page::Settings | Page::Media => {}
         }
     }
 
@@ -1260,6 +1382,7 @@ impl App {
     /// Reprend le direct laissé par un arrêt brutal.
     pub fn resume(&mut self) {
         let Some(snapshot) = self.recovery.take() else { return };
+        self.abandon_slideshow();
         self.live = Some(Shown { program: snapshot.program, origin: snapshot.origin, items: snapshot.items });
         if snapshot.hidden != self.live_stage.hidden() {
             self.toggle_hidden();
@@ -1530,6 +1653,7 @@ impl App {
         if self.live_stage.animating(now) || self.preview_stage.animating(now) {
             ui.ctx().request_repaint();
         }
+        self.tick_slideshow(now);
         self.sync_web();
         // L'horloge de la barre (et celle du retour de scène).
         ui.ctx().request_repaint_after(Duration::from_secs(1));
@@ -1591,6 +1715,16 @@ impl App {
     }
 
     fn library(&mut self, ui: &mut Ui) {
+        if self.page == Page::Media {
+            let running = self.slideshow_position();
+            for action in self.media_view.ui(ui, running) {
+                match action {
+                    crate::media::MediaAction::Start(medias, title) => self.start_slideshow(medias, &title),
+                    crate::media::MediaAction::Stop => self.stop_slideshow(),
+                }
+            }
+            return;
+        }
         if self.page == Page::Settings {
             if self.settings_view.families.is_empty() {
                 self.settings_view.families = self.designs.families.clone();
@@ -1647,7 +1781,7 @@ impl App {
             Page::Hymns => self.hymns.ui(ui, db, &marks, search, self.split.hymn_repeat_chorus),
             Page::Expose => self.expose.ui(ui, db, &marks, search),
             Page::Books => self.books.ui(ui, db, &marks, search),
-            Page::Playlist | Page::Designs | Page::Settings => None,
+            Page::Playlist | Page::Designs | Page::Settings | Page::Media => None,
         };
         if let Some(action) = action {
             self.apply(action);
@@ -1932,25 +2066,26 @@ impl App {
         if r.on_hover_text("Réglages, sauvegardes, contrôle avant culte (Ctrl+8)").clicked() {
             self.page = Page::Settings;
         }
-        {
-            let (label, icon, phase) = ("Médias", Icon::Image, "une prochaine version");
-            let (rect, r) = ui.allocate_exact_size(vec2(ui.available_width(), 36.0), Sense::hover());
-            icons::paint(
-                ui.painter(),
-                egui::Rect::from_center_size(pos2(rect.min.x + 22.0, rect.center().y), vec2(17.0, 17.0)),
-                icon,
-                FAINT.gamma_multiply(0.6),
-            );
-            widgets::paint_text(
-                ui,
-                pos2(rect.min.x + 40.0, rect.center().y),
-                Align2::LEFT_CENTER,
-                label,
-                medium(13.0),
-                FAINT.gamma_multiply(0.7),
-                rect.width() - 50.0,
-            );
-            r.on_hover_text(format!("Arrive en {phase} ; la 2.8 reste disponible pour cela."));
+        let media = self.page == Page::Media;
+        let (rect, r) = widgets::list_row(ui, media, 38.0, Page::Media.label());
+        ui.add_space(2.0);
+        icons::paint(
+            ui.painter(),
+            egui::Rect::from_center_size(pos2(rect.min.x + 22.0, rect.center().y), vec2(17.0, 17.0)),
+            Icon::Image,
+            if media { ACCENT } else { MUTED },
+        );
+        widgets::paint_text(
+            ui,
+            pos2(rect.min.x + 40.0, rect.center().y),
+            Align2::LEFT_CENTER,
+            Page::Media.label(),
+            medium(13.5),
+            if media { TEXT } else { MUTED },
+            rect.width() - 50.0,
+        );
+        if r.on_hover_text("Le diaporama d'un dossier d'images (Ctrl+9)").clicked() {
+            self.page = Page::Media;
         }
         ui.with_layout(Layout::bottom_up(Align::Min), |ui| {
             ui.add_space(6.0);

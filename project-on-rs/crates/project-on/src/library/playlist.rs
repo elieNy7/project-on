@@ -71,6 +71,8 @@ pub enum PlaylistAction {
     Export,
     /// Importer une playlist exportée (par la 2.8 ou la 3.0).
     Import(std::path::PathBuf),
+    /// Lancer le diaporama des images de la playlist.
+    Slideshow,
 }
 
 /// Le dossier d'échange des playlists : « Documents\Project-On playlists ».
@@ -364,6 +366,14 @@ impl PlaylistView {
             .clicked()
             {
                 actions.push(PlaylistAction::Undo);
+            }
+            let images =
+                self.items.iter().any(|i| i.source == "media" && crate::playlist::is_image_file(&i.background));
+            if widgets::button_at(ui, Size::Normal, None, "Diaporama", Tone::Secondary, images)
+                .on_hover_text("Les images de la playlist défilent au direct ; une flèche rend la main")
+                .clicked()
+            {
+                actions.push(PlaylistAction::Slideshow);
             }
             if widgets::button_at(ui, Size::Normal, None, "Exporter", Tone::Secondary, has_folder)
                 .on_hover_text("Dans « Documents\\Project-On playlists », avec ses images (format de la 2.8)")

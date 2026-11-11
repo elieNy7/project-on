@@ -30,6 +30,8 @@ pub enum Page {
     Designs,
     /// Les réglages et l'entretien.
     Settings,
+    /// Les médias : le diaporama.
+    Media,
 }
 
 impl Page {
@@ -45,6 +47,7 @@ impl Page {
             Page::Playlist => "Playlist",
             Page::Designs => "Designs",
             Page::Settings => "Réglages",
+            Page::Media => "Médias",
         }
     }
 
@@ -58,6 +61,7 @@ impl Page {
             Page::Playlist => Icon::ListVideo,
             Page::Designs => Icon::SwatchBook,
             Page::Settings => Icon::Settings,
+            Page::Media => Icon::Image,
         }
     }
 }
@@ -76,6 +80,8 @@ pub enum Origin {
     BookChapter(i64),
     /// Une playlist.
     Playlist(i64),
+    /// Un diaporama d'images.
+    Slideshow,
 }
 
 /// Un programme préparé par une bibliothèque, et d'où il vient.

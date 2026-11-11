@@ -42,7 +42,7 @@ Le livrable de la phase 7 (audit, § 8) : chaque fonction de la 2.8, et où elle
 | Images et vidéos dans une playlist | 🟡 | Les **images** se projettent à leur place, en entier sur du noir, et le fond propre d'un élément de texte le suit (identique à la 2.8 : 30 playlists, 0 différence) ; les **vidéos** restent à faire |
 | PowerPoint dans une playlist | ⏳ | Médias |
 | Import / export d'une playlist (fichier) | ✅ | Au format de la 2.8 (archive avec `manifest.json` et les images, ancien JSON lu aussi), dans « Documents\Project-On playlists » |
-| Diaporama d'un dossier d'images | ⏳ | Médias |
+| Diaporama d'un dossier d'images | ✅ | Page Médias (un dossier, ses images dans l'ordre des noms) ou bouton « Diaporama » d'une playlist (durées de la bibliothèque de médias de la 2.x) ; en boucle, 8 s par défaut ; à l'arrêt le direct d'avant revient, une flèche rend la main comme dans la 2.8. Les vidéos et PowerPoint attendent le lecteur |
 | Historique du culte (Ctrl+H), tableur, SRT | ✅ | Phase 7 : un fichier par jour, exports CSV et SRT dans « Documents\Project-On exports » ; le rapport imprimable de la 2.8 reste à faire |
 
 ## Diffusion
