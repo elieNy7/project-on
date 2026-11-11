@@ -32,6 +32,25 @@ pub enum SettingsAction {
     ObsRefresh,
     /// Créer la source « Project-On » dans cette scène d'OBS.
     ObsCreateSource(String),
+    /// Rechercher une mise à jour.
+    UpdateCheck,
+    /// Télécharger la mise à jour trouvée.
+    UpdateDownload,
+    /// Lancer l'installateur téléchargé (Project-On se ferme).
+    UpdateInstall,
+    /// Ouvrir la page de la version (bêta).
+    UpdatePage,
+}
+
+/// Où en est la mise à jour, pour la page Réglages.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct UpdateView {
+    pub busy: bool,
+    pub status: String,
+    /// Une version plus récente trouvée.
+    pub available: Option<crate::updater::UpdateInfo>,
+    /// L'installateur téléchargé, prêt à lancer.
+    pub ready: Option<std::path::PathBuf>,
 }
 
 /// Ce qu'on restaure : une sauvegarde de la 3.0, ou une archive complète de la 2.8.
@@ -99,6 +118,8 @@ pub struct SettingsView {
     pub obs: (crate::obs::ObsState, Vec<String>, String),
     /// La scène où créer la source « Project-On ».
     pub obs_source_scene: String,
+    /// La mise à jour de l'application.
+    pub update: UpdateView,
 }
 
 fn row(ui: &mut Ui, label: &str, add: impl FnOnce(&mut Ui)) {
@@ -278,6 +299,9 @@ impl SettingsView {
                     set_3(draft, "low_power", json!(modest));
                 }
             });
+
+            widgets::section(ui, "Mise à jour");
+            update_section(ui, draft, &self.update, &mut actions);
 
             widgets::section(ui, "Entretien");
             ui.horizontal(|ui| {
@@ -730,6 +754,69 @@ fn obs_section(
     }
     if o != before {
         o.write_into(draft);
+    }
+}
+
+/// La mise à jour (`UpdateDialog` de la 2.8) : rechercher, télécharger, installer.
+fn update_section(ui: &mut Ui, draft: &mut Settings, update: &UpdateView, actions: &mut Vec<SettingsAction>) {
+    row(ui, "Au démarrage", |ui| {
+        ui.checkbox(
+            &mut draft.appearance.check_updates,
+            "Rechercher une nouvelle version (si Internet est disponible)",
+        );
+    });
+    ui.horizontal(|ui| {
+        ui.label(
+            RichText::new(format!("Version installée : {}", env!("CARGO_PKG_VERSION")))
+                .font(regular(12.0))
+                .color(MUTED),
+        );
+        if widgets::button_at(
+            ui,
+            widgets::Size::Normal,
+            None,
+            "Rechercher une mise à jour",
+            Tone::Secondary,
+            !update.busy,
+        )
+        .clicked()
+        {
+            actions.push(SettingsAction::UpdateCheck);
+        }
+        if update.busy {
+            ui.spinner();
+        }
+    });
+    if !update.status.is_empty() {
+        ui.label(RichText::new(&update.status).font(medium(12.0)).color(if update.available.is_some() {
+            PREVIEW
+        } else {
+            MUTED
+        }));
+    }
+    if let Some(path) = &update.ready {
+        ui.horizontal(|ui| {
+            if widgets::button(ui, None, "Installer maintenant (Project-On se ferme)", Tone::Primary(ACCENT)).clicked()
+            {
+                actions.push(SettingsAction::UpdateInstall);
+            }
+            ui.label(RichText::new(path.display().to_string()).font(regular(11.0)).color(FAINT));
+        });
+    } else if update.available.is_some() && !update.busy {
+        ui.horizontal(|ui| {
+            if cfg!(feature = "bascule") {
+                if widgets::button(ui, None, "Télécharger la mise à jour", Tone::Primary(ACCENT)).clicked() {
+                    actions.push(SettingsAction::UpdateDownload);
+                }
+            } else if widgets::button(ui, None, "Ouvrir la page de la version", Tone::Secondary).clicked() {
+                actions.push(SettingsAction::UpdatePage);
+            }
+            ui.label(
+                RichText::new("L'installation garde vos cantiques, playlists et réglages.")
+                    .font(regular(11.5))
+                    .color(FAINT),
+            );
+        });
     }
 }
 

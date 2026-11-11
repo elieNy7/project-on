@@ -121,6 +121,9 @@ fn the_settings_page_saves_backs_up_and_checks() {
     let saved = Settings::load(&locations.beta.settings()).settings;
     assert_eq!(saved.other["refonte_3"]["low_power"], serde_json::json!(true));
     assert_eq!(h.state_mut().app().design.animation.kind, po_design::AnimationKind::None);
+    // La mise à jour : la version installée et la recherche (pas lancée ici : pas de réseau).
+    h.get_by_label(&format!("Version installée : {}", env!("CARGO_PKG_VERSION")));
+    h.get_by_label("Rechercher une mise à jour");
     // Une sauvegarde : la base et les réglages, listés ensuite.
     h.get_by_label("Sauvegarder maintenant").click();
     h.run_ok();

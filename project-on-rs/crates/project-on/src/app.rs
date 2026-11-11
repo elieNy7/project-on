@@ -191,8 +191,18 @@ pub struct App {
     pub pdf_import: crate::pdf_import::PdfImport,
     /// Les PowerPoint de la playlist, rendus en images.
     pub office: crate::office::Renders,
+    /// La recherche ou le téléchargement d'une mise à jour en cours.
+    update_job: Option<UpdateJob>,
+    /// Une mise à jour trouvée au démarrage, signalée une fois.
+    pub update_notice: Option<crate::updater::UpdateInfo>,
     /// La préparation d'une restauration (vérification dans un fil à part).
     restore_job: Option<JoinHandle<Result<String, String>>>,
+}
+
+/// La recherche (discrète ou non) ou le téléchargement d'une mise à jour.
+enum UpdateJob {
+    Check(bool, JoinHandle<Result<Option<crate::updater::UpdateInfo>, String>>),
+    Download(JoinHandle<Result<PathBuf, String>>),
 }
 
 /// Le bandeau des écrans Web : les réglages « OBS » de la 2.x (`obs.output`), sinon ceux par défaut.
@@ -317,6 +327,8 @@ impl App {
             bible_manager: crate::bible_manager::BibleManager::default(),
             pdf_import: crate::pdf_import::PdfImport::default(),
             office: crate::office::Renders::default(),
+            update_job: None,
+            update_notice: None,
             obs: {
                 let wake = ctx.clone();
                 crate::obs::ObsRemote::start(move || wake.request_repaint())
@@ -324,6 +336,10 @@ impl App {
         };
         app.apply_settings(config.settings.clone());
         app.restore_choices();
+        // La version définitive cherche une mise à jour au démarrage, discrètement (comme la 2.8).
+        if cfg!(feature = "bascule") && config.settings.appearance.check_updates {
+            app.check_update(true);
+        }
         // La sortie HDMI rouverte au démarrage sur l'écran choisi (Réglages → Diffusion).
         let hdmi = &config.settings.hdmi;
         if hdmi.enabled
@@ -511,6 +527,100 @@ impl App {
                 po_core::journal::line(&format!("restauration refusée : {e}"));
                 self.status = format!("Restauration impossible : {e}");
             }
+        }
+    }
+
+    /// Recherche une mise à jour dans un fil à part. `quiet` : au démarrage, seul un succès se voit.
+    pub fn check_update(&mut self, quiet: bool) {
+        if self.update_job.is_some() {
+            return;
+        }
+        self.settings_view.update.busy = true;
+        if !quiet {
+            self.settings_view.update.status = "Recherche de la dernière version…".into();
+        }
+        self.update_job = Some(UpdateJob::Check(quiet, std::thread::spawn(crate::updater::check_latest)));
+    }
+
+    fn download_update(&mut self) {
+        let (Some(info), Some(dir)) = (self.settings_view.update.available.clone(), self.data_dir()) else { return };
+        self.settings_view.update.busy = true;
+        self.settings_view.update.status = format!("Téléchargement de la version {}…", info.version);
+        let folder = dir.join("updates");
+        self.update_job =
+            Some(UpdateJob::Download(std::thread::spawn(move || crate::updater::download(&info, &folder))));
+    }
+
+    fn poll_update(&mut self) {
+        let finished = match &self.update_job {
+            Some(UpdateJob::Check(_, h)) => h.is_finished(),
+            Some(UpdateJob::Download(h)) => h.is_finished(),
+            None => return,
+        };
+        if !finished {
+            self.ctx.request_repaint_after(Duration::from_millis(300));
+            return;
+        }
+        let view = &mut self.settings_view.update;
+        view.busy = false;
+        match self.update_job.take() {
+            Some(UpdateJob::Check(quiet, handle)) => {
+                match handle.join().unwrap_or_else(|_| Err("recherche interrompue".into())) {
+                    Ok(Some(info)) if crate::updater::is_newer(&info.version, env!("CARGO_PKG_VERSION")) => {
+                        let size =
+                            if info.size > 0 { format!(" · {} Mo", info.size / 1_000_000) } else { String::new() };
+                        view.status = format!("Nouvelle version {} disponible{size}", info.version);
+                        po_core::journal::line(&format!("mise à jour : {} disponible", info.version));
+                        if quiet {
+                            self.update_notice = Some(info.clone());
+                        }
+                        view.available = Some(info);
+                    }
+                    Ok(Some(info)) => {
+                        view.status = format!("Project-On est à jour (dernière version publiée : {}).", info.version);
+                        view.available = None;
+                    }
+                    Ok(None) => view.status = "Aucune version installable publiée pour le moment.".into(),
+                    Err(e) => {
+                        if !quiet {
+                            view.status = format!("Recherche impossible : {e}");
+                        }
+                    }
+                }
+            }
+            Some(UpdateJob::Download(handle)) => {
+                match handle.join().unwrap_or_else(|_| Err("téléchargement interrompu".into())) {
+                    Ok(path) => {
+                        view.status = "La nouvelle version est prête à installer.".into();
+                        view.ready = Some(path);
+                    }
+                    Err(e) => view.status = format!("Téléchargement interrompu : {e}"),
+                }
+            }
+            None => {}
+        }
+    }
+
+    /// « Mise à jour disponible » (trouvée au démarrage), avec « Voir » vers les Réglages.
+    fn update_notice_window(&mut self, ctx: &egui::Context) {
+        let Some(info) = self.update_notice.clone() else { return };
+        let mut open = true;
+        let mut see = false;
+        egui::Window::new("Mise à jour disponible").open(&mut open).collapsible(false).resizable(false).show(
+            ctx,
+            |ui| {
+                ui.label(format!(
+                    "Project-On {} est disponible. L'installation garde vos cantiques, playlists et réglages.",
+                    info.version
+                ));
+                see = ui.button("Voir").clicked();
+            },
+        );
+        if see {
+            self.page = Page::Settings;
+            self.update_notice = None;
+        } else if !open {
+            self.update_notice = None;
         }
     }
 
@@ -2121,6 +2231,8 @@ impl App {
         self.tick_slideshow(now);
         self.poll_restore();
         self.sync_office();
+        self.poll_update();
+        self.update_notice_window(ui.ctx());
         self.sync_video();
         self.sync_web();
         // L'horloge de la barre (et celle du retour de scène).
@@ -2250,6 +2362,22 @@ impl App {
                             .and_then(|w| w.local_url("/ecran/diffusion"))
                             .unwrap_or_else(|| "http://127.0.0.1:8080/ecran/diffusion".into());
                         self.obs.create_source(&scene, &url);
+                    }
+                    crate::settings_page::SettingsAction::UpdateCheck => self.check_update(false),
+                    crate::settings_page::SettingsAction::UpdateDownload => self.download_update(),
+                    crate::settings_page::SettingsAction::UpdatePage => {
+                        if let Some(info) = &self.settings_view.update.available {
+                            ui.ctx().open_url(egui::OpenUrl::new_tab(&info.page));
+                        }
+                    }
+                    crate::settings_page::SettingsAction::UpdateInstall => {
+                        if let Some(path) = self.settings_view.update.ready.clone() {
+                            po_core::journal::line(&format!("mise à jour : lancement de {}", path.display()));
+                            match std::process::Command::new(&path).spawn() {
+                                Ok(_) => ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close),
+                                Err(e) => self.settings_view.update.status = format!("Installateur non lancé : {e}"),
+                            }
+                        }
                     }
                     crate::settings_page::SettingsAction::Quit => {
                         ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);

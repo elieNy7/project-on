@@ -79,7 +79,7 @@ Le livrable de la phase 7 (audit, § 8) : chaque fonction de la 2.8, et où elle
 | Sauvegardes de la base | ✅ | Phase 7 : base et réglages, copie cohérente, les 10 dernières gardées. **Restauration** (3.0) : une sauvegarde de la liste, ou une archive complète de la 2.8 (`.zip` : base, médias, réglages, vérifiée comme la 2.8 le faisait : manifeste, tailles, empreintes) ; appliquée au démarrage suivant, après une sauvegarde de l'état actuel, donc réversible. Mieux que la 2.8, qui reconstruisait un profil à côté à rouvrir à la main. La création d'une archive complète avec médias reste à faire |
 | Reprise après coupure (le direct survit à un arrêt brutal) | ✅ | Phase 7, avec le masquage |
 | Contrôle avant culte (Ctrl+Shift+D) | ✅ | Phase 7 : base, écrans, polices, écrans Web, NDI, sauvegarde, fichiers de la playlist |
-| Mise à jour de l'application | ⏳ | Avec l'installateur de la bascule |
+| Mise à jour de l'application | ✅ | 3.0 : Réglages → Mise à jour (comme la 2.8) : les versions publiées sur GitHub (paratech-web, `project-on-v…`), « Rechercher une mise à jour », recherche discrète au démarrage (réglage de la 2.x), téléchargement vérifié (HTTPS GitHub seulement, taille, SHA-256 des notes) puis « Installer maintenant ». La bêta n'installe jamais (elle ouvre la page de la version) : l'installateur remplacerait la 2.8. Rien n'est publié : la recherche ne trouve que la 2.8 |
 | Mode PC modeste | ✅ | Phase 7 : sans transitions ni aperçus de designs |
 
 ## Réglages
