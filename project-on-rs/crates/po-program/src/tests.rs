@@ -85,3 +85,25 @@ fn empty_entries_give_no_program() {
     let cue = Cue::new(SlideSource::Bible, "Vide", vec![Entry::new("Jean 1:1", "   ")], 0);
     assert!(Program::from_cue(&cue, &SplitSettings::default()).is_none());
 }
+
+#[test]
+fn an_image_entry_becomes_an_image_slide_in_its_place() {
+    let mut cue = Cue::new(
+        SlideSource::Custom,
+        "Culte",
+        vec![Entry::new("Annonce", "Bienvenue"), Entry::new("affiche", ""), Entry::new("Fin", "Amen")],
+        1,
+    );
+    cue.backgrounds = vec![None, Some("C:/medias/affiche.png".into()), None];
+    let program = Program::from_cue(&cue, &po_settings::SplitSettings::default()).unwrap();
+    assert_eq!(program.len(), 3);
+    assert_eq!(program.current(), 1, "le départ sur l'image");
+    let image = program.slide();
+    assert_eq!((image.text.as_str(), image.reference.as_str()), ("", ""), "ni texte ni référence à l'écran");
+    assert_eq!(image.background.as_deref(), Some("C:/medias/affiche.png"));
+    assert_eq!(program.slides[1].reference, "affiche", "nommée dans la liste du programme");
+    assert_eq!(program.slide_at(0).unwrap().background, None);
+    // Sans fond, une entrée vide reste sautée, comme avant.
+    cue.backgrounds.clear();
+    assert_eq!(Program::from_cue(&cue, &po_settings::SplitSettings::default()).unwrap().len(), 2);
+}

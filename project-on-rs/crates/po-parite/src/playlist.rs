@@ -63,16 +63,33 @@ pub fn compare(dir: &Path) -> Result<bool> {
         let items = db.list_items(Some(case.dossier))?;
         let ours = project_on::playlist::program(&case.nom, &items, case.depart, &[]);
         let expected = case.programme.as_ref().map(|p| {
-            // Les entrées sans visuel ; le départ sur un média revient au premier slide.
-            let keep: Vec<usize> =
-                (0..p.entrees.len()).filter(|&i| p.visuels.get(i).is_none_or(String::is_empty)).collect();
-            let entries: Vec<&(String, String)> = keep.iter().map(|&i| &p.entrees[i]).collect();
+            // Les entrées de texte et les images, avec leur fichier ; les vidéos et les PowerPoint
+            // ne sont pas encore projetés par la 3.0. Le départ sur l'un d'eux revient au premier.
+            let visual = |i: usize| p.visuels.get(i).cloned().unwrap_or_default();
+            let keep: Vec<usize> = (0..p.entrees.len())
+                .filter(|&i| visual(i).is_empty() || project_on::playlist::is_image_file(&visual(i)))
+                .collect();
+            let entries: Vec<(&str, &str, String)> =
+                keep.iter().map(|&i| (p.entrees[i].0.as_str(), p.entrees[i].1.as_str(), visual(i))).collect();
             let focus = keep.iter().position(|&i| i == p.focus).unwrap_or(0);
             json!({ "titre": p.titre, "entrees": entries, "focus": focus })
         });
         let actual = ours.as_ref().map(|p| {
-            let entries: Vec<(&str, &str)> =
-                p.cue.entries.iter().map(|e| (e.reference.as_str(), e.text.as_str())).collect();
+            // Le fichier d'une image seule (le fond propre d'un texte n'est pas un visuel de la 2.8).
+            let entries: Vec<(&str, &str, String)> = p
+                .cue
+                .entries
+                .iter()
+                .enumerate()
+                .map(|(i, e)| {
+                    let visual = if e.text.is_empty() {
+                        p.cue.backgrounds.get(i).cloned().flatten().unwrap_or_default()
+                    } else {
+                        String::new()
+                    };
+                    (e.reference.as_str(), e.text.as_str(), visual)
+                })
+                .collect();
             json!({ "titre": p.cue.title, "entrees": entries, "focus": p.cue.focus })
         });
         section.check("programme", &label, &json!(expected), &json!(actual));

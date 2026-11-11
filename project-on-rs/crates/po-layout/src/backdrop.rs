@@ -130,9 +130,36 @@ pub fn backdrop(background: &Background, image: Option<&str>, has_content: bool,
     (base, items)
 }
 
+/// Une image seule, en entier (« contenir »), centrée sur du noir. Introuvable : du noir.
+pub fn image_alone(path: &str, w: f32, h: f32) -> (Rgba, Vec<Item>) {
+    let mut items = Vec::new();
+    if std::path::Path::new(path).is_file()
+        && let Some((iw, ih)) = image_size(path)
+    {
+        let [x, y, rw, rh] = fit_rect(iw, ih, w, h, true);
+        items.push(Item::Image { path: path.to_string(), x, y, w: rw, h: rh, opacity: 1.0 });
+    }
+    (Rgba::BLACK, items)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_image_alone_is_shown_whole_on_black() {
+        let path = crate::bundled_backgrounds_dir().join("bg-ardoise_4x3.png");
+        let (color, items) = image_alone(&path.to_string_lossy(), 1920.0, 1080.0);
+        assert_eq!(color, Rgba::BLACK);
+        match &items[..] {
+            [Item::Image { x, y, w, h, .. }] => {
+                assert_eq!((*y, *h), (0.0, 1080.0), "toute la hauteur");
+                assert!((*x - 240.0).abs() < 0.5 && (*w - 1440.0).abs() < 0.5, "4:3 centré : {x} {w}");
+            }
+            other => panic!("{other:?}"),
+        }
+        assert!(image_alone("C:/introuvable.png", 1920.0, 1080.0).1.is_empty());
+    }
 
     #[test]
     fn cover_and_contain() {

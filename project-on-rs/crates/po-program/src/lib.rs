@@ -44,11 +44,14 @@ pub struct Cue {
     /// Le genre de chaque entrée, quand il diffère d'une entrée à l'autre (une playlist) : il
     /// décide de l'identification et du filet ; le découpage, lui, suit `source`. Vide : `source`.
     pub kinds: Vec<SlideSource>,
+    /// Le fond propre à chaque entrée (une image de playlist), s'il y en a un. Une entrée sans
+    /// texte mais avec un fond devient un slide d'image. Vide : aucun.
+    pub backgrounds: Vec<Option<String>>,
 }
 
 impl Cue {
     pub fn new(source: SlideSource, title: impl Into<String>, entries: Vec<Entry>, focus: usize) -> Self {
-        Cue { source, title: title.into(), entries, focus, split: true, kinds: Vec::new() }
+        Cue { source, title: title.into(), entries, focus, split: true, kinds: Vec::new(), backgrounds: Vec::new() }
     }
 }
 
@@ -161,6 +164,9 @@ pub struct Program {
     pub starts: Vec<Option<usize>>,
     /// Le genre de chaque entrée (vide : `source`).
     pub kinds: Vec<SlideSource>,
+    /// Le fond propre à chaque entrée (vide : aucun).
+    #[serde(default)]
+    pub backgrounds: Vec<Option<String>>,
     current: usize,
 }
 
@@ -168,7 +174,27 @@ impl Program {
     /// Le programme d'un `Cue`, placé sur la première partie de l'entrée cliquée. `None` si rien
     /// n'est projetable (entrées vides).
     pub fn from_cue(cue: &Cue, split: &SplitSettings) -> Option<Program> {
-        let (slides, starts) = build_slides(&cue.source, &cue.entries, cue.split, split);
+        let (mut slides, mut starts) = build_slides(&cue.source, &cue.entries, cue.split, split);
+        // Les images : une entrée sans texte mais avec un fond donne un slide, à sa place.
+        if cue.backgrounds.iter().any(Option::is_some) {
+            let mut all = Vec::with_capacity(slides.len());
+            let mut all_starts = Vec::with_capacity(starts.len());
+            for (index, entry) in cue.entries.iter().enumerate() {
+                let own: Vec<ProgramSlide> = slides.iter().filter(|s| s.entry == index).cloned().collect();
+                if own.is_empty() && cue.backgrounds.get(index).is_some_and(Option::is_some) {
+                    all_starts.push(Some(all.len()));
+                    all.push(ProgramSlide {
+                        reference: clean_text(&entry.reference),
+                        text: String::new(),
+                        entry: index,
+                    });
+                } else {
+                    all_starts.push((!own.is_empty()).then_some(all.len()));
+                    all.extend(own);
+                }
+            }
+            (slides, starts) = (all, all_starts);
+        }
         if slides.is_empty() {
             return None;
         }
@@ -179,6 +205,7 @@ impl Program {
             slides,
             starts,
             kinds: cue.kinds.clone(),
+            backgrounds: cue.backgrounds.clone(),
             current,
         })
     }
@@ -206,6 +233,13 @@ impl Program {
             let mut slide = presentation(&self.source, s);
             if let Some(kind) = self.kinds.get(s.entry) {
                 slide.source = kind.clone();
+            }
+            if let Some(Some(background)) = self.backgrounds.get(s.entry) {
+                slide.background = Some(background.clone());
+                // Une image seule : ni texte ni référence à l'écran.
+                if s.text.is_empty() {
+                    slide.reference.clear();
+                }
             }
             slide
         })

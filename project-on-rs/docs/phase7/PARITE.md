@@ -39,7 +39,7 @@ Le livrable de la phase 7 (audit, § 8) : chaque fonction de la 2.8, et où elle
 | Slide saisi | ✅ | Phase 4 |
 | Déroulé du culte : sections, heures, avance / retard | ✅ | Phase 4 |
 | Section suivante (Ctrl+Alt+N) | ✅ | Phase 7 |
-| Images et vidéos dans une playlist | ⏳ | Médias |
+| Images et vidéos dans une playlist | 🟡 | Les **images** se projettent à leur place, en entier sur du noir, et le fond propre d'un élément de texte le suit (identique à la 2.8 : 30 playlists, 0 différence) ; les **vidéos** restent à faire |
 | PowerPoint dans une playlist | ⏳ | Médias |
 | Import / export d'une playlist (fichier) | ⏳ | |
 | Diaporama d'un dossier d'images | ⏳ | Médias |

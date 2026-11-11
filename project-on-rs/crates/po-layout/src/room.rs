@@ -108,8 +108,12 @@ pub fn layout_room(
         stage_h,
     };
 
-    let (background, backdrop_items) =
-        backdrop(&design.background, slide.background.as_deref(), has_text || has_ref, width, height);
+    // Une image seule (une affiche, une photo de la playlist) : montrée en entier, sur du noir,
+    // sans voile ; sinon le fond du design, ou l'image propre au slide derrière le texte.
+    let (background, backdrop_items) = match slide.background.as_deref() {
+        Some(path) if !has_text && !has_ref => crate::backdrop::image_alone(path, width, height),
+        own => backdrop(&design.background, own, has_text || has_ref, width, height),
+    };
     let mut list = DisplayList {
         width,
         height,

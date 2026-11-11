@@ -579,7 +579,12 @@ impl PlaylistView {
             kind.icon(),
             MUTED,
         );
-        let label = if kind.is_media() { format!("{} · phase 7", kind.label()) } else { kind.label().to_string() };
+        // Les images se projettent ; les vidéos et les PowerPoint viendront ensuite.
+        let label = if kind.is_media() && kind != crate::playlist::Kind::Image {
+            format!("{} · pas encore projeté", kind.label())
+        } else {
+            kind.label().to_string()
+        };
         widgets::paint_text(
             ui,
             pos2(rect.min.x + 20.0, rect.min.y + 38.0),

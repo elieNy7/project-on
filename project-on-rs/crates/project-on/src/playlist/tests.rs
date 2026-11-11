@@ -162,3 +162,41 @@ fn a_playlist_is_played_from_the_chosen_item() {
     assert_eq!(program("T", &items, Some(99), &[]).unwrap().cue.focus, 0);
     assert!(program("T", &items[1..3], None, &[]).is_none());
 }
+
+#[test]
+fn images_are_projected_in_their_place_and_videos_wait() {
+    let item = |id, source: &str, reference: &str, text: &str, background: &str| PlaylistItem {
+        id,
+        folder_id: Some(1),
+        source: source.into(),
+        reference: reference.into(),
+        text: text.into(),
+        sort_order: Some(id),
+        background: background.into(),
+    };
+    let items = [
+        item(1, "custom", "Annonce", "Bienvenue à tous", "#123456"),
+        item(2, "media", "affiche", "", "C:/medias/affiche.png"),
+        item(3, "media", "clip", "", "C:/medias/clip.mp4"),
+        item(4, "custom", "Prière", "Notre Père", "C:/fonds/ciel.jpg"),
+        item(5, "media", "", "", "C:/medias/Photo du groupe.JPEG"),
+    ];
+    let p = program("Culte", &items, Some(2), &[]).unwrap();
+    let refs: Vec<&str> = p.cue.entries.iter().map(|e| e.reference.as_str()).collect();
+    assert_eq!(refs, ["Annonce", "affiche", "Prière", "Photo du groupe.JPEG"], "la vidéo est sautée");
+    assert_eq!(p.item_of_entry, [1, 2, 4, 5]);
+    assert_eq!(p.cue.focus, 1, "le départ sur l'image");
+    assert_eq!(
+        p.cue.backgrounds,
+        [
+            None,
+            Some("C:/medias/affiche.png".into()),
+            Some("C:/fonds/ciel.jpg".into()),
+            Some("C:/medias/Photo du groupe.JPEG".into())
+        ],
+        "une couleur n'est pas une image ; le fond propre d'un texte suit"
+    );
+    // Sans aucune image, rien ne change pour le programme.
+    let plain = program("Culte", &items[..1], None, &[]).unwrap();
+    assert!(plain.cue.backgrounds.is_empty());
+}

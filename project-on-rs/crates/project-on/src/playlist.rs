@@ -54,7 +54,8 @@ impl Kind {
         }
     }
 
-    /// Un média (image, vidéo, présentation) : projeté à partir de la phase 7.
+    /// Un média (image, vidéo, présentation). Les images se projettent ; les vidéos et les
+    /// PowerPoint, pas encore.
     pub fn is_media(self) -> bool {
         matches!(self, Kind::Image | Kind::Video | Kind::PowerPoint)
     }
@@ -69,6 +70,13 @@ static HYMN_REF: LazyLock<Regex> =
 static BIBLE_REF: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\b\d+\s*:\s*\d+").unwrap_or_else(|_| unreachable!()));
 
 /// Image, vidéo ou présentation, d'après l'extension (`media_kind` de la 2.8).
+/// Un chemin d'image (pas une couleur ni un autre réglage de fond).
+pub fn is_image_file(path: &str) -> bool {
+    let ext =
+        std::path::Path::new(path.trim()).extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
+    matches!(ext.as_str(), "png" | "jpg" | "jpeg" | "webp" | "bmp" | "gif")
+}
+
 pub fn media_kind(path: &str) -> Kind {
     let ext =
         std::path::Path::new(path.trim()).extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
@@ -138,7 +146,8 @@ pub struct PlaylistProgram {
 /// `None` ou introuvable). Un élément sans texte est sauté. Le découpage est celui d'un texte
 /// saisi, comme dans la 2.8 ; le genre de chaque élément décide de son identification.
 ///
-/// Les médias (images, vidéos, PowerPoint) ne sont pas encore projetés (phase 7) : ils sont sautés.
+/// Une image devient un slide d'image ; le fond propre d'un élément de texte le suit. Les vidéos
+/// et les PowerPoint ne sont pas encore projetés : ils sont sautés.
 pub fn program(
     title: &str,
     items: &[PlaylistItem],
@@ -147,9 +156,26 @@ pub fn program(
 ) -> Option<PlaylistProgram> {
     let mut entries = Vec::new();
     let mut kinds = Vec::new();
+    let mut backgrounds = Vec::new();
     let mut item_of_entry = Vec::new();
     for item in items {
         let kind = item_kind(&item.source, &item.reference, &item.background);
+        let background = item.background.trim();
+        if kind == Kind::Image && item.source == "media" {
+            // Une image de la playlist : un slide d'image, nommé par son fichier.
+            if background.is_empty() {
+                continue;
+            }
+            let name = std::path::Path::new(background)
+                .file_name()
+                .map_or(background.to_string(), |n| n.to_string_lossy().to_string());
+            let reference = if item.reference.trim().is_empty() { name } else { clean_text(&item.reference) };
+            kinds.push(SlideSource::Custom);
+            entries.push(Entry { reference, text: String::new() });
+            backgrounds.push(Some(background.to_string()));
+            item_of_entry.push(item.id);
+            continue;
+        }
         if kind.is_media() && item.source == "media" {
             continue;
         }
@@ -160,6 +186,8 @@ pub fn program(
         }
         kinds.push(slide_source(kind, &reference, biographies));
         entries.push(Entry { reference, text });
+        // Le fond propre d'un élément de texte (une image choisie dans la 2.x).
+        backgrounds.push(is_image_file(background).then(|| background.to_string()));
         item_of_entry.push(item.id);
     }
     if entries.is_empty() {
@@ -168,6 +196,9 @@ pub fn program(
     let focus = start.and_then(|id| item_of_entry.iter().position(|i| *i == id)).unwrap_or(0);
     let mut cue = Cue::new(SlideSource::Custom, clean_text(title), entries, focus);
     cue.kinds = kinds;
+    if backgrounds.iter().any(Option::is_some) {
+        cue.backgrounds = backgrounds;
+    }
     Some(PlaylistProgram { cue, item_of_entry })
 }
 
