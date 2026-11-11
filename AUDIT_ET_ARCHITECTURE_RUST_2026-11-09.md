@@ -24,7 +24,11 @@
   avant culte, page Réglages, mode PC modeste ; la [liste de parité](project-on-rs/docs/phase7/PARITE.md)
   compte 29 fonctions faites, 3 en partie et 16 à faire, surtout les médias, les écrans de l'Église,
   l'éditeur de cantiques et les imports
-  ([rapport](project-on-rs/docs/phase7/RAPPORT_PHASE7.md)). La phase 8 suit sans attendre
+  ([rapport](project-on-rs/docs/phase7/RAPPORT_PHASE7.md)). **Phase 8 préparée le 11 novembre** :
+  bêta 4, et l'installateur de la bascule (même identifiant que la 2.x, données en place, port
+  8080) prêt à être construit, ni lancé ni publié ; la bascule attend les 16 fonctions restantes,
+  l'essai sur le vrai vidéoprojecteur et votre accord pour retirer la 2.8 et publier
+  ([document](project-on-rs/docs/phase8/BASCULE.md)). Les phases ont suivi sans attendre
   (votre demande du 11 novembre), sauf la suppression du code de la 2.8 et la publication, qui vous
   seront demandées. Le code de la 2.8 n'a pas été modifié ; seul son module natif est rebranché
   sur `po-text`.

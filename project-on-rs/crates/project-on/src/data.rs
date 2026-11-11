@@ -112,6 +112,11 @@ impl Locations {
     /// Les dossiers de ce poste (`PROJECT_ON_DATA` impose celui de la bêta).
     pub fn current() -> Result<Self, String> {
         let env = po_core::paths::Environment::current();
+        // La bascule : la 3.0 travaille directement sur les données de la 2.x, sans copie.
+        if cfg!(feature = "bascule") {
+            let own = po_core::paths::legacy_root(&env).map_err(|e| e.to_string())?;
+            return Ok(Locations { beta: own, legacy: None, bundled: None });
+        }
         let beta = po_core::paths::beta_root(&env).map_err(|e| e.to_string())?;
         let legacy = po_core::paths::legacy_root(&env).ok().filter(|l| l.database().is_file());
         Ok(Locations { beta, legacy, bundled: None })

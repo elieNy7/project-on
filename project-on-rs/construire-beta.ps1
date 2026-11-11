@@ -10,13 +10,15 @@
 
   Usage :
     powershell -ExecutionPolicy Bypass -File project-on-rs\construire-beta.ps1
+    ... -Bascule           (l'installateur de la bascule : remplace la 2.x, données en place ;
+                            à ne publier qu'avec l'accord de l'utilisateur)
     ... -SansCompilation   (reprendre l'exécutable déjà compilé)
     ... -SansBase          (installateur léger, sans la base fournie)
 
   Variable reconnue : ISCC_EXE (Inno Setup), sinon C:\Program Files\Inno Setup 7\ISCC.exe.
   La bêta n'est pas signée : Windows SmartScreen peut demander une confirmation.
 #>
-param([switch]$SansCompilation, [switch]$SansBase)
+param([switch]$SansCompilation, [switch]$SansBase, [switch]$Bascule)
 $ErrorActionPreference = 'Stop'
 
 $rs = $PSScriptRoot
@@ -29,15 +31,17 @@ Write-Host "[INFO] Project-On $version"
 if (-not $SansCompilation) {
     Push-Location $rs
     try {
-        & cargo build --release -p project-on
+        if ($Bascule) { & cargo build --release -p project-on --features bascule }
+        else { & cargo build --release -p project-on }
         if ($LASTEXITCODE -ne 0) { throw 'La compilation a échoué' }
     } finally { Pop-Location }
 }
 
-$dist = Join-Path $rs 'dist\Project-On-3-beta'
+if ($Bascule) { $dist = Join-Path $rs 'dist\Project-On-3'; $exe = 'Project-On.exe'; $iss = 'project-on-3.iss' }
+else { $dist = Join-Path $rs 'dist\Project-On-3-beta'; $exe = 'Project-On-3-beta.exe'; $iss = 'project-on-3-beta.iss' }
 if (Test-Path $dist) { Remove-Item -Recurse -Force $dist }
 New-Item -ItemType Directory -Force (Join-Path $dist 'assets') | Out-Null
-Copy-Item (Join-Path $rs 'target\release\project-on.exe') (Join-Path $dist 'Project-On-3-beta.exe')
+Copy-Item (Join-Path $rs 'target\release\project-on.exe') (Join-Path $dist $exe)
 # Les polices : celles de l'interface (Inter) et toutes celles que les réglages de projection
 # peuvent choisir. Leurs licences (OFL…) sont dans leurs dossiers.
 Copy-Item -Recurse (Join-Path $root 'assets\fonts') (Join-Path $dist 'assets\fonts')
@@ -57,7 +61,8 @@ Write-Host ("[INFO] dist : {0:N0} Mo" -f $size)
 $iscc = $env:ISCC_EXE
 if (-not $iscc) { $iscc = 'C:\Program Files\Inno Setup 7\ISCC.exe' }
 if (-not (Test-Path $iscc)) { throw "Inno Setup introuvable : $iscc (variable ISCC_EXE)" }
-& $iscc "/Q" "/DMyAppVersion=$version" (Join-Path $rs 'installer\project-on-3-beta.iss')
+& $iscc "/Q" "/DMyAppVersion=$version" (Join-Path $rs "installer\$iss")
 if ($LASTEXITCODE -ne 0) { throw "Inno Setup a échoué ($LASTEXITCODE)" }
-$setup = Join-Path $rs "installer\Output\Project-On_${version}_Setup.exe"
+if ($Bascule) { $setup = Join-Path $rs "installer\Output\ProjectOn_${version}_Setup.exe" }
+else { $setup = Join-Path $rs "installer\Output\Project-On_${version}_Setup.exe" }
 Write-Host ("[OK] {0} ({1:N0} Mo)" -f $setup, ((Get-Item $setup).Length / 1MB))

@@ -3,13 +3,15 @@
 La refonte de Project-On en Rust, décidée le 9 novembre 2026 : architecture, décisions et plan dans
 [`../AUDIT_ET_ARCHITECTURE_RUST_2026-11-09.md`](../AUDIT_ET_ARCHITECTURE_RUST_2026-11-09.md).
 
-**État : phase 7 (première partie) terminée — reprise après coupure, historique, sauvegardes,
-contrôle avant culte, page Réglages ; [liste de parité](docs/phase7/PARITE.md) avec la 2.8.**
+**État : phases 0 à 8 menées — bêta 4 ; la bascule est prête mais pas faite
+([document](docs/phase8/BASCULE.md)) : il reste 16 fonctions de la 2.8 à porter
+([liste de parité](docs/phase7/PARITE.md)), et le retrait de la 2.8 comme la publication attendent
+votre accord.**
 Rapports : [phase 0](docs/phase0/RAPPORT_PHASE0.md), [phase 1](docs/phase1/RAPPORT_PHASE1.md),
 [phase 2](docs/phase2/RAPPORT_PHASE2.md), [phase 3](docs/phase3/RAPPORT_PHASE3.md),
 [phase 4](docs/phase4/RAPPORT_PHASE4.md) ([essai guidé](docs/phase4/ESSAI_GUIDE.md)),
 [phase 5](docs/phase5/RAPPORT_PHASE5.md), [phase 6](docs/phase6/RAPPORT_PHASE6.md),
-[phase 7](docs/phase7/RAPPORT_PHASE7.md). La version livrée reste la
+[phase 7](docs/phase7/RAPPORT_PHASE7.md), [phase 8](docs/phase8/BASCULE.md). La version livrée reste la
 2.8 (Python) jusqu'à la bascule 3.0. Ce code ne touche jamais aux vraies données : les essais et les
 mesures travaillent sur des copies.
 
