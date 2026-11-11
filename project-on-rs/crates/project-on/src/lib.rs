@@ -23,6 +23,7 @@ pub mod shortcuts;
 pub mod stage;
 pub mod theme;
 pub mod transfer;
+pub mod video;
 pub mod web;
 pub mod widgets;
 pub mod worker;

@@ -165,7 +165,7 @@ fn a_playlist_is_played_from_the_chosen_item() {
 }
 
 #[test]
-fn images_are_projected_in_their_place_and_videos_wait() {
+fn images_and_videos_are_projected_in_their_place() {
     let item = |id, source: &str, reference: &str, text: &str, background: &str| PlaylistItem {
         id,
         folder_id: Some(1),
@@ -184,14 +184,15 @@ fn images_are_projected_in_their_place_and_videos_wait() {
     ];
     let p = program("Culte", &items, Some(2), &[]).unwrap();
     let refs: Vec<&str> = p.cue.entries.iter().map(|e| e.reference.as_str()).collect();
-    assert_eq!(refs, ["Annonce", "affiche", "Prière", "Photo du groupe.JPEG"], "la vidéo est sautée");
-    assert_eq!(p.item_of_entry, [1, 2, 4, 5]);
+    assert_eq!(refs, ["Annonce", "affiche", "clip", "Prière", "Photo du groupe.JPEG"]);
+    assert_eq!(p.item_of_entry, [1, 2, 3, 4, 5]);
     assert_eq!(p.cue.focus, 1, "le départ sur l'image");
     assert_eq!(
         p.cue.backgrounds,
         [
             None,
             Some("C:/medias/affiche.png".into()),
+            Some("C:/medias/clip.mp4".into()),
             Some("C:/fonds/ciel.jpg".into()),
             Some("C:/medias/Photo du groupe.JPEG".into())
         ],

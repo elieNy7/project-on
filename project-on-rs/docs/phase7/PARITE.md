@@ -39,10 +39,10 @@ Le livrable de la phase 7 (audit, § 8) : chaque fonction de la 2.8, et où elle
 | Slide saisi | ✅ | Phase 4 |
 | Déroulé du culte : sections, heures, avance / retard | ✅ | Phase 4 |
 | Section suivante (Ctrl+Alt+N) | ✅ | Phase 7 |
-| Images et vidéos dans une playlist | 🟡 | Les **images** se projettent à leur place, en entier sur du noir, et le fond propre d'un élément de texte le suit (identique à la 2.8 : 30 playlists, 0 différence) ; les **vidéos** restent à faire |
+| Images et vidéos dans une playlist | ✅ | Images en entier sur du noir ; **vidéos** lues par FFmpeg (repris de Pgraphics) dans la régie et la projection, avec le son : pause, recommencer, boucle, volume (identique à la 2.8 : 30 playlists, 0 différence). Pas encore sur les écrans Web, NDI ni HDMI ; FFmpeg à livrer avec l'installateur à la publication |
 | PowerPoint dans une playlist | ⏳ | Médias |
 | Import / export d'une playlist (fichier) | ✅ | Au format de la 2.8 (archive avec `manifest.json` et les images, ancien JSON lu aussi), dans « Documents\Project-On playlists » |
-| Diaporama d'un dossier d'images | ✅ | Page Médias (un dossier, ses images dans l'ordre des noms) ou bouton « Diaporama » d'une playlist (durées de la bibliothèque de médias de la 2.x) ; en boucle, 8 s par défaut ; à l'arrêt le direct d'avant revient, une flèche rend la main comme dans la 2.8. Les vidéos et PowerPoint attendent le lecteur |
+| Diaporama d'un dossier d'images | ✅ | Page Médias (un dossier, ses images et vidéos dans l'ordre des noms) ou bouton « Diaporama » d'une playlist ; une vidéo donne le tempo (on passe au suivant à sa fin), une image dure sa durée (8 s par défaut) ; en boucle ; à l'arrêt le direct d'avant revient, une flèche rend la main comme dans la 2.8. Les PowerPoint attendent |
 | Historique du culte (Ctrl+H), tableur, SRT | ✅ | Phase 7 : un fichier par jour, exports CSV et SRT dans « Documents\Project-On exports » ; le rapport imprimable de la 2.8 reste à faire |
 
 ## Diffusion

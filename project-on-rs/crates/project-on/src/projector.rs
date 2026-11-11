@@ -104,7 +104,14 @@ impl Projector {
     }
 
     /// Montre la fenêtre de projection, et rend ce que l'opérateur y a demandé au clavier.
-    pub fn show(&mut self, ctx: &Context, stage: &Stage, outputs: &Outputs, now: f64) -> Keys {
+    pub fn show(
+        &mut self,
+        ctx: &Context,
+        stage: &Stage,
+        outputs: &Outputs,
+        video: Option<&egui::TextureHandle>,
+        now: f64,
+    ) -> Keys {
         let full = self.screen.is_some();
         let title = self.title();
         let mut builder = ViewportBuilder::default().with_title(&title).with_min_inner_size([320.0, 180.0]);
@@ -150,6 +157,9 @@ impl Projector {
                 let area = ui.max_rect();
                 if self.kind == ScreenKind::Room {
                     stage.paint(ui.painter(), area, now);
+                    if let Some(texture) = video {
+                        crate::video::paint(ui.painter(), area, texture);
+                    }
                 } else if let Some(texture) = outputs.texture(self.kind) {
                     let uv = egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0));
                     ui.painter().image(texture.id(), area, uv, egui::Color32::WHITE);

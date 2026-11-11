@@ -367,10 +367,12 @@ impl PlaylistView {
             {
                 actions.push(PlaylistAction::Undo);
             }
-            let images =
-                self.items.iter().any(|i| i.source == "media" && crate::playlist::is_image_file(&i.background));
+            let images = self.items.iter().any(|i| {
+                i.source == "media"
+                    && (crate::playlist::is_image_file(&i.background) || crate::video::is_video_file(&i.background))
+            });
             if widgets::button_at(ui, Size::Normal, None, "Diaporama", Tone::Secondary, images)
-                .on_hover_text("Les images de la playlist défilent au direct ; une flèche rend la main")
+                .on_hover_text("Les images et vidéos de la playlist défilent au direct ; une flèche rend la main")
                 .clicked()
             {
                 actions.push(PlaylistAction::Slideshow);
@@ -640,7 +642,7 @@ impl PlaylistView {
             MUTED,
         );
         // Les images se projettent ; les vidéos et les PowerPoint viendront ensuite.
-        let label = if kind.is_media() && kind != crate::playlist::Kind::Image {
+        let label = if kind == crate::playlist::Kind::PowerPoint {
             format!("{} · pas encore projeté", kind.label())
         } else {
             kind.label().to_string()

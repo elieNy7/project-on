@@ -56,7 +56,10 @@ pub fn folder_images(dir: &Path) -> Vec<Media> {
     let mut out: Vec<Media> = entries
         .flatten()
         .map(|e| e.path())
-        .filter(|p| p.is_file() && crate::playlist::is_image_file(&p.to_string_lossy()))
+        .filter(|p| {
+            let path = p.to_string_lossy();
+            p.is_file() && (crate::playlist::is_image_file(&path) || crate::video::is_video_file(&path))
+        })
         .map(|p| Media {
             name: p.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default(),
             path: p.to_string_lossy().to_string(),
@@ -108,6 +111,11 @@ impl Slideshow {
             Some(&s) if s > 0 => s,
             _ => self.default_seconds,
         }
+    }
+
+    /// Une vidéo au direct : elle donne le tempo (on avancera à sa fin), pas de minuterie.
+    pub fn hold(&mut self) {
+        self.next_at = None;
     }
 
     /// L'image `row` vient de passer au direct à `now` : la minuterie se réarme avec sa durée.
@@ -189,8 +197,8 @@ impl MediaView {
             let count = self.found.len();
             let detail = match (self.folder.trim().is_empty(), count) {
                 (true, _) => "Choisissez un dossier : ses images défilent dans l'ordre de leurs noms.".to_string(),
-                (false, 0) => "Aucune image (PNG, JPEG, WebP, BMP, GIF) dans ce dossier.".to_string(),
-                (false, n) => format!("{n} image(s)"),
+                (false, 0) => "Aucune image ni vidéo dans ce dossier.".to_string(),
+                (false, n) => format!("{n} média(s)"),
             };
             ui.label(RichText::new(detail).font(regular(12.0)).color(MUTED));
             ui.horizontal(|ui| {
@@ -250,7 +258,7 @@ mod tests {
             std::fs::write(dir.join(name), b"x").unwrap();
         }
         let names: Vec<String> = folder_images(&dir).into_iter().map(|m| m.name).collect();
-        assert_eq!(names, ["Accueil", "photo 1", "photo 2", "photo 10"]);
+        assert_eq!(names, ["Accueil", "clip", "photo 1", "photo 2", "photo 10"], "images et vidéos");
         assert!(folder_images(&dir.join("absent")).is_empty());
         let _ = std::fs::remove_dir_all(&dir);
     }

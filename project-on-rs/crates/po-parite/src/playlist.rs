@@ -63,11 +63,14 @@ pub fn compare(dir: &Path) -> Result<bool> {
         let items = db.list_items(Some(case.dossier))?;
         let ours = project_on::playlist::program(&case.nom, &items, case.depart, &[]);
         let expected = case.programme.as_ref().map(|p| {
-            // Les entrées de texte et les images, avec leur fichier ; les vidéos et les PowerPoint
-            // ne sont pas encore projetés par la 3.0. Le départ sur l'un d'eux revient au premier.
+            // Les entrées de texte, les images et les vidéos, avec leur fichier ; les PowerPoint ne
+            // sont pas encore projetés par la 3.0. Le départ sur l'un d'eux revient au premier.
             let visual = |i: usize| p.visuels.get(i).cloned().unwrap_or_default();
             let keep: Vec<usize> = (0..p.entrees.len())
-                .filter(|&i| visual(i).is_empty() || project_on::playlist::is_image_file(&visual(i)))
+                .filter(|&i| {
+                    let v = visual(i);
+                    v.is_empty() || project_on::playlist::is_image_file(&v) || project_on::video::is_video_file(&v)
+                })
                 .collect();
             let entries: Vec<(&str, &str, String)> =
                 keep.iter().map(|&i| (p.entrees[i].0.as_str(), p.entrees[i].1.as_str(), visual(i))).collect();
@@ -75,7 +78,8 @@ pub fn compare(dir: &Path) -> Result<bool> {
             json!({ "titre": p.titre, "entrees": entries, "focus": focus })
         });
         let actual = ours.as_ref().map(|p| {
-            // Le fichier d'une image seule (le fond propre d'un texte n'est pas un visuel de la 2.8).
+            // Le fichier d'une image ou d'une vidéo seule (le fond propre d'un texte n'est pas un
+            // visuel de la 2.8).
             let entries: Vec<(&str, &str, String)> = p
                 .cue
                 .entries

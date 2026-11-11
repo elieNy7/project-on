@@ -146,8 +146,8 @@ pub struct PlaylistProgram {
 /// `None` ou introuvable). Un élément sans texte est sauté. Le découpage est celui d'un texte
 /// saisi, comme dans la 2.8 ; le genre de chaque élément décide de son identification.
 ///
-/// Une image devient un slide d'image ; le fond propre d'un élément de texte le suit. Les vidéos
-/// et les PowerPoint ne sont pas encore projetés : ils sont sautés.
+/// Une image ou une vidéo devient un slide à elle ; le fond propre d'un élément de texte le suit.
+/// Les PowerPoint ne sont pas encore projetés : ils sont sautés.
 pub fn program(
     title: &str,
     items: &[PlaylistItem],
@@ -161,8 +161,8 @@ pub fn program(
     for item in items {
         let kind = item_kind(&item.source, &item.reference, &item.background);
         let background = item.background.trim();
-        if kind == Kind::Image && item.source == "media" {
-            // Une image de la playlist : un slide d'image, nommé par son fichier.
+        if matches!(kind, Kind::Image | Kind::Video) && item.source == "media" {
+            // Une image ou une vidéo de la playlist : un slide à elle, nommé par son fichier.
             if background.is_empty() {
                 continue;
             }

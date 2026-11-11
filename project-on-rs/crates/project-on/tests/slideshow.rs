@@ -82,7 +82,7 @@ fn the_slideshow_takes_the_live_advances_and_gives_it_back() {
     h.get_by_label("Dossier d'images").type_text(&images.to_string_lossy());
     h.run_ok();
     h.ctx.memory_mut(|m| m.stop_text_input());
-    h.get_by_label("3 image(s)");
+    h.get_by_label("3 média(s)");
     h.state_mut().app().media_view.seconds = 1;
     h.get_by_label("Lancer le diaporama").click();
     h.run_ok();

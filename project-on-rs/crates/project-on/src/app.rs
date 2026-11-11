@@ -163,6 +163,14 @@ pub struct App {
     pub slideshow: crate::media::Slideshow,
     slideshow_before: Option<(Option<Shown>, bool)>,
     pub media_view: crate::media::MediaView,
+    /// La vidéo au direct, et ses réglages de lecture.
+    pub video: Option<crate::video::LiveVideo>,
+    /// Sans son (essais).
+    pub video_muted: bool,
+    video_looping: bool,
+    video_volume: f32,
+    /// La vidéo qui n'a pas pu être lue (pour ne pas réessayer à chaque image).
+    video_failed: Option<String>,
     /// Le bandeau de la diffusion et des sous-titres (réglages « OBS » de la 2.x).
     band: po_design::Band,
     help: bool,
@@ -275,6 +283,11 @@ impl App {
             history_open: false,
             slideshow: crate::media::Slideshow::default(),
             slideshow_before: None,
+            video: None,
+            video_muted: false,
+            video_looping: false,
+            video_volume: 1.0,
+            video_failed: None,
             media_view: crate::media::MediaView::new(settings.projection.media_default_duration.clamp(0, 600) as u32),
             band: band_2x,
             help: false,
@@ -588,7 +601,10 @@ impl App {
         self.render(Target::Live);
         let now = self.ctx.input(|i| i.time);
         self.slideshow.arm(0, now);
-        self.status = format!("Diaporama « {} » : {} image(s)", title.trim(), medias.len());
+        if self.live_video_path().is_some() {
+            self.slideshow.hold();
+        }
+        self.status = format!("Diaporama « {} » : {} média(s)", title.trim(), medias.len());
     }
 
     /// Arrête le diaporama et rend le direct d'avant, à l'identique.
@@ -623,16 +639,119 @@ impl App {
 
     /// L'image suivante quand son temps est passé.
     fn tick_slideshow(&mut self, now: f64) {
-        if self.slideshow.due(now)
+        // Une vidéo passe au média suivant à sa fin ; une image, à la fin de sa durée.
+        let video_done = self.slideshow.active && self.video.as_ref().is_some_and(|v| v.player.ended());
+        if (self.slideshow.due(now) || video_done)
             && let Some(live) = self.live.as_mut()
         {
             let next = crate::media::Slideshow::following(live.program.current(), live.program.len());
             live.program.set(next);
             self.render(Target::Live);
             self.slideshow.arm(next, now);
+            if self.live_video_path().is_some() {
+                self.slideshow.hold();
+            }
+            // La vidéo d'après (même fichier en boucle compris) repart de zéro.
+            self.video = None;
         }
         if let Some(at) = self.slideshow.next_at() {
             self.ctx.request_repaint_after(Duration::from_secs_f64((at - now).max(0.05)));
+        }
+    }
+
+    /// Le fichier vidéo du slide au direct, s'il y en a un.
+    pub fn live_video_path(&self) -> Option<String> {
+        let slide = self.live.as_ref()?.program.slide();
+        slide.background.filter(|b| crate::video::is_video_file(b))
+    }
+
+    /// Démarre ou arrête le lecteur selon le slide au direct, et prépare son image.
+    fn sync_video(&mut self) {
+        let wanted = self.live_video_path();
+        let playing = self.video.as_ref().map(|v| v.player.path.to_string_lossy().to_string());
+        if wanted != playing {
+            self.video = None;
+            if let Some(path) = wanted.clone().filter(|p| self.video_failed.as_deref() != Some(p.as_str())) {
+                let max = self.render_size();
+                match crate::video::Player::start(
+                    std::path::Path::new(&path),
+                    0.0,
+                    self.video_looping,
+                    max,
+                    self.video_muted,
+                ) {
+                    Ok(player) => {
+                        player.set_volume(self.video_volume);
+                        self.video = Some(crate::video::LiveVideo::new(player));
+                        self.video_failed = None;
+                    }
+                    Err(e) => {
+                        po_core::journal::line(&format!("vidéo : {e}"));
+                        self.status = e;
+                        self.video_failed = Some(path);
+                    }
+                }
+            }
+        }
+        if let Some(video) = &mut self.video {
+            video.upload(&self.ctx);
+            if !video.player.paused() && !video.player.ended() {
+                self.ctx.request_repaint_after(Duration::from_millis(15));
+            }
+        }
+    }
+
+    /// Recommence la vidéo au direct (ou la relance en boucle, ou non), à partir de `from` secondes.
+    fn restart_video(&mut self, from: f64) {
+        let Some(path) = self.live_video_path() else { return };
+        self.video = None;
+        let max = self.render_size();
+        match crate::video::Player::start(std::path::Path::new(&path), from, self.video_looping, max, self.video_muted)
+        {
+            Ok(player) => {
+                player.set_volume(self.video_volume);
+                self.video = Some(crate::video::LiveVideo::new(player));
+            }
+            Err(e) => self.status = e,
+        }
+    }
+
+    /// Les commandes de la vidéo au direct, sous le moniteur.
+    fn video_controls(&mut self, ui: &mut Ui) {
+        let Some(video) = &self.video else { return };
+        let (paused, ended) = (video.player.paused(), video.player.ended());
+        let (position, duration) = (video.player.position(), video.player.probe.duration_s);
+        let mut restart = None;
+        ui.horizontal(|ui| {
+            let label = if paused || ended { "Lecture" } else { "Pause" };
+            if widgets::button(ui, None, label, Tone::Secondary).clicked() {
+                if ended {
+                    restart = Some(0.0);
+                } else {
+                    video.player.set_paused(!paused);
+                }
+            }
+            if widgets::button(ui, None, "Recommencer", Tone::Secondary).clicked() {
+                restart = Some(0.0);
+            }
+            ui.label(
+                RichText::new(format!("{} / {}", crate::video::clock(position), crate::video::clock(duration)))
+                    .font(semibold(12.0))
+                    .color(TEXT),
+            );
+            let mut looping = self.video_looping;
+            if ui.checkbox(&mut looping, "Boucle").changed() {
+                self.video_looping = looping;
+                restart = Some(position);
+            }
+            let mut volume = self.video_volume;
+            if ui.add(egui::Slider::new(&mut volume, 0.0..=1.0).show_value(false).text("Volume")).changed() {
+                self.video_volume = volume;
+                video.player.set_volume(volume);
+            }
+        });
+        if let Some(from) = restart {
+            self.restart_video(from);
         }
     }
 
@@ -1633,9 +1752,10 @@ impl App {
         }
         let before = self.projectors.len();
         let (ctx, stage, outputs) = (self.ctx.clone(), &self.live_stage, &self.outputs);
+        let video = self.video.as_ref().and_then(|v| v.texture());
         let (mut steps, mut hide) = (0, false);
         self.projectors.retain_mut(|p| {
-            let keys = p.show(&ctx, stage, outputs, now);
+            let keys = p.show(&ctx, stage, outputs, video, now);
             steps += keys.step;
             hide |= keys.hide;
             keys.keep
@@ -1654,6 +1774,7 @@ impl App {
             ui.ctx().request_repaint();
         }
         self.tick_slideshow(now);
+        self.sync_video();
         self.sync_web();
         // L'horloge de la barre (et celle du retour de scène).
         ui.ctx().request_repaint_after(Duration::from_secs(1));
@@ -2137,6 +2258,9 @@ impl App {
         monitor_header(ui, "DIRECT", LIVE, self.live.as_ref());
         let (rect, _) = ui.allocate_exact_size(vec2(width, height), Sense::hover());
         self.live_stage.paint(ui.painter(), rect, now);
+        if let Some(texture) = self.video.as_ref().and_then(|v| v.texture()) {
+            crate::video::paint(ui.painter(), rect, texture);
+        }
         ui.painter().rect_stroke(
             rect,
             CornerRadius::same(4),
@@ -2153,6 +2277,7 @@ impl App {
             );
         }
         ui.add_space(8.0);
+        self.video_controls(ui);
         ui.horizontal(|ui| {
             let live = self.live.is_some();
             if widgets::button_sized(ui, 44.0, Size::Large, Some(Icon::ChevronLeft), "", Tone::Secondary, live)
