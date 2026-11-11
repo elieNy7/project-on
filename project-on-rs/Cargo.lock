@@ -2221,7 +2221,7 @@ dependencies = [
 
 [[package]]
 name = "po-core"
-version = "3.0.0-beta.4"
+version = "3.0.0-beta.5"
 dependencies = [
  "chrono",
  "serde_json",
@@ -2232,7 +2232,7 @@ dependencies = [
 
 [[package]]
 name = "po-db"
-version = "3.0.0-beta.4"
+version = "3.0.0-beta.5"
 dependencies = [
  "po-core",
  "po-text",
@@ -2246,7 +2246,7 @@ dependencies = [
 
 [[package]]
 name = "po-design"
-version = "3.0.0-beta.4"
+version = "3.0.0-beta.5"
 dependencies = [
  "po-settings",
  "serde",
@@ -2255,7 +2255,7 @@ dependencies = [
 
 [[package]]
 name = "po-layout"
-version = "3.0.0-beta.4"
+version = "3.0.0-beta.5"
 dependencies = [
  "cosmic-text",
  "imagesize",
@@ -2268,7 +2268,7 @@ dependencies = [
 
 [[package]]
 name = "po-mesures"
-version = "3.0.0-beta.4"
+version = "3.0.0-beta.5"
 dependencies = [
  "egui",
  "egui_kittest",
@@ -2291,14 +2291,14 @@ dependencies = [
 
 [[package]]
 name = "po-ndi"
-version = "3.0.0-beta.4"
+version = "3.0.0-beta.5"
 dependencies = [
  "windows",
 ]
 
 [[package]]
 name = "po-parite"
-version = "3.0.0-beta.4"
+version = "3.0.0-beta.5"
 dependencies = [
  "anyhow",
  "po-db",
@@ -2315,7 +2315,7 @@ dependencies = [
 
 [[package]]
 name = "po-program"
-version = "3.0.0-beta.4"
+version = "3.0.0-beta.5"
 dependencies = [
  "po-db",
  "po-design",
@@ -2328,7 +2328,7 @@ dependencies = [
 
 [[package]]
 name = "po-render"
-version = "3.0.0-beta.4"
+version = "3.0.0-beta.5"
 dependencies = [
  "cosmic-text",
  "image",
@@ -2341,7 +2341,7 @@ dependencies = [
 
 [[package]]
 name = "po-settings"
-version = "3.0.0-beta.4"
+version = "3.0.0-beta.5"
 dependencies = [
  "po-core",
  "serde",
@@ -2352,7 +2352,7 @@ dependencies = [
 
 [[package]]
 name = "po-text"
-version = "3.0.0-beta.4"
+version = "3.0.0-beta.5"
 dependencies = [
  "regex",
  "unicode-general-category",
@@ -2361,7 +2361,7 @@ dependencies = [
 
 [[package]]
 name = "po-web"
-version = "3.0.0-beta.4"
+version = "3.0.0-beta.5"
 dependencies = [
  "axum",
  "futures-util",
@@ -2466,7 +2466,7 @@ checksum = "3d595e54a326bc53c1c197b32d295e14b169e3cfeaa8dc82b529f947fba6bcf5"
 
 [[package]]
 name = "project-on"
-version = "3.0.0-beta.4"
+version = "3.0.0-beta.5"
 dependencies = [
  "eframe",
  "egui",
