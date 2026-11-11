@@ -2597,8 +2597,10 @@ dependencies = [
 name = "po-db"
 version = "3.0.0"
 dependencies = [
+ "flate2",
  "po-core",
  "po-text",
+ "roxmltree 0.21.2",
  "rusqlite",
  "serde",
  "serde_json",

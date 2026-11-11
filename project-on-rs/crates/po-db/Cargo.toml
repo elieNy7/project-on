@@ -13,6 +13,9 @@ serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 unicode-normalization = "0.1.26"
+# Lecture des Bibles importées : XML (Zefania, Beblia) et fichiers .gz.
+roxmltree = "0.21"
+flate2 = "1"
 # SQLite intégré (FTS5 compris) : pas de dépendance à la version installée sur le poste.
 rusqlite = { version = "0.41.1", features = ["bundled", "functions", "backup"] }
 

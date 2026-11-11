@@ -9,6 +9,7 @@
 
 mod backup;
 mod bible;
+pub mod bibles;
 mod hymns;
 mod media;
 mod playlist;

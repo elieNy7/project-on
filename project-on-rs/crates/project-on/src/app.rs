@@ -185,6 +185,8 @@ pub struct App {
     pub quote: crate::quote::QuoteWindow,
     /// Le pilotage d'OBS (obs-websocket).
     pub obs: crate::obs::ObsRemote,
+    /// « Gérer les Bibles ».
+    pub bible_manager: crate::bible_manager::BibleManager,
     /// La préparation d'une restauration (vérification dans un fil à part).
     restore_job: Option<JoinHandle<Result<String, String>>>,
 }
@@ -308,6 +310,7 @@ impl App {
             follow_live: false,
             restore_job: None,
             quote: crate::quote::QuoteWindow::default(),
+            bible_manager: crate::bible_manager::BibleManager::default(),
             obs: {
                 let wake = ctx.clone();
                 crate::obs::ObsRemote::start(move || wake.request_repaint())
@@ -2011,6 +2014,14 @@ impl App {
         self.preflight_window(ui);
         self.history_window(ui);
         self.quote_window(ui.ctx());
+        if std::mem::take(&mut self.bible.manage) {
+            self.bible_manager.open = true;
+        }
+        if let (Some(db), Some(path)) = (self.db.as_mut(), self.db_path.clone())
+            && self.bible_manager.show(ui.ctx(), db, &path)
+        {
+            self.bible.reload(db);
+        }
         if self.help {
             self.help_window(ui);
         }

@@ -74,7 +74,7 @@ Le livrable de la phase 7 (audit, § 8) : chaque fonction de la 2.8, et où elle
 |---|---|---|
 | Base SQLite de la 2.x, sans conversion | ✅ | Phase 1 |
 | Éditeur de cantiques | ✅ | Créer, modifier, supprimer (avec confirmation) dans la page Cantiques : titre, numéro, langue, paroles en une zone (une ligne vide entre les strophes), bouton « Refrain », découpage reconnu en direct ; mêmes règles que la 2.8, vérifiées sur ses propres résultats |
-| Import de Bibles | ⏳ | |
+| Import de Bibles | ✅ | 3.0 : page Bible → « Gérer les Bibles… » : les traductions installées (et leur suppression, sans réinstallation automatique), les Bibles fournies (livrées avec l'installateur), le catalogue des Bibles du domaine public de la 2.8 à télécharger, et l'import d'un fichier XML (Zefania, Beblia) ou JSON (scrollmapper, Project-On), .gz compris ; installation d'un bloc, dans un fil à part |
 | Import PDF (sermons, cantiques) | ⏳ | |
 | Sauvegardes de la base | ✅ | Phase 7 : base et réglages, copie cohérente, les 10 dernières gardées. **Restauration** (3.0) : une sauvegarde de la liste, ou une archive complète de la 2.8 (`.zip` : base, médias, réglages, vérifiée comme la 2.8 le faisait : manifeste, tailles, empreintes) ; appliquée au démarrage suivant, après une sauvegarde de l'état actuel, donc réversible. Mieux que la 2.8, qui reconstruisait un profil à côté à rouvrir à la main. La création d'une archive complète avec médias reste à faire |
 | Reprise après coupure (le direct survit à un arrêt brutal) | ✅ | Phase 7, avec le masquage |

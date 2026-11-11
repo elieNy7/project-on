@@ -45,6 +45,8 @@ Copy-Item (Join-Path $rs 'target\release\project-on.exe') (Join-Path $dist $exe)
 # Les polices : celles de l'interface (Inter) et toutes celles que les réglages de projection
 # peuvent choisir. Leurs licences (OFL…) sont dans leurs dossiers.
 Copy-Item -Recurse (Join-Path $root 'assets\fonts') (Join-Path $dist 'assets\fonts')
+# Les Bibles fournies (domaine public), installables depuis « Gérer les Bibles ».
+Copy-Item -Recurse (Join-Path $root 'bibles') (Join-Path $dist 'bibles')
 New-Item -ItemType Directory -Force (Join-Path $dist 'licences') | Out-Null
 Copy-Item (Join-Path $root 'LICENSE.txt') (Join-Path $dist 'licences\Project-On-LICENSE.txt')
 Copy-Item (Join-Path $rs 'crates\project-on\LICENSE-lucide.txt') (Join-Path $dist 'licences\LICENSE-lucide.txt')

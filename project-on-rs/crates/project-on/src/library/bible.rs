@@ -30,6 +30,8 @@ pub struct BibleView {
     pub focus_search: bool,
     scroll_book: Option<usize>,
     scroll_verse: Option<usize>,
+    /// « Gérer les Bibles… » demandé.
+    pub manage: bool,
 }
 
 impl BibleView {
@@ -49,6 +51,22 @@ impl BibleView {
             .map(|t| t.id);
         if let Some(id) = first {
             self.set_translation(db, id);
+        }
+    }
+
+    /// Relit les traductions (une Bible installée ou supprimée) ; la traduction choisie reste si
+    /// elle existe encore.
+    pub fn reload(&mut self, db: &Database) {
+        let keep = self.translation;
+        self.translations = db.list_translations().unwrap_or_default();
+        match keep.filter(|id| self.translations.iter().any(|t| t.id == *id)) {
+            Some(id) => self.set_translation(db, id),
+            None => {
+                self.translation = None;
+                self.books.clear();
+                self.translations.clear();
+                self.ensure_loaded(db);
+            }
         }
     }
 
@@ -148,7 +166,17 @@ impl BibleView {
             ui.allocate_ui_with_layout(vec2(books_w, ui.available_height()), Layout::top_down(Align::Min), |ui| {
                 ui.set_width(books_w);
                 self.translation_picker(ui, db);
-                ui.add_space(6.0);
+                if ui
+                    .add(
+                        egui::Button::new(RichText::new("Gérer les Bibles…").font(regular(11.5)).color(MUTED))
+                            .frame(false),
+                    )
+                    .on_hover_text("Installer, télécharger, importer ou supprimer une traduction")
+                    .clicked()
+                {
+                    self.manage = true;
+                }
+                ui.add_space(4.0);
                 let mut chosen = None;
                 let mut area = ScrollArea::vertical().id_salt("livres-bible").auto_shrink([false, false]);
                 if let Some(row) = self.scroll_book.take() {

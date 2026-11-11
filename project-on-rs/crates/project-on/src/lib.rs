@@ -1,6 +1,7 @@
 //! L'application Project-On (egui) : la régie de la bêta 3.0.
 
 pub mod app;
+pub mod bible_manager;
 pub mod data;
 pub mod designs;
 pub mod gallery;
