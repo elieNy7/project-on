@@ -230,5 +230,28 @@ fn without_2x_data_the_beta_says_so() {
     let dir = scratch();
     let locations = Locations::at(dir.path().join("bêta"), None);
     let h = harness(config(None, Some(locations)));
-    h.get_by_label_contains("Aucune donnée de Project-On 2.x");
+    h.get_by_label_contains("Aucune base à copier");
+}
+
+#[test]
+fn the_first_launch_offers_the_bundled_database() {
+    let dir = scratch();
+    let legacy = dir.path().join("Project-On");
+    std::fs::create_dir_all(legacy.join("data")).unwrap();
+    std::fs::copy(fixture(), legacy.join("data").join("project_on.db")).unwrap();
+    let bundled = dir.path().join("installation").join("data").join("project_on.db");
+    std::fs::create_dir_all(bundled.parent().unwrap()).unwrap();
+    std::fs::copy(fixture(), &bundled).unwrap();
+    let before = std::fs::read(legacy.join("data").join("project_on.db")).unwrap();
+
+    let locations = Locations::at(dir.path().join("bêta"), Some(&legacy)).with_bundled(Some(bundled));
+    let mut h = harness(config(None, Some(locations)));
+    assert!(h.state_mut().app().choosing());
+    h.get_by_label("Mes données de Project-On 2.8");
+    h.get_by_label("La base fournie avec Project-On").click();
+    until(&mut h, |a| a.database().is_some());
+    h.run_ok();
+    h.get_by_label("La Foi");
+    assert!(dir.path().join("bêta").join("data").join("project_on.db").is_file());
+    assert_eq!(std::fs::read(legacy.join("data").join("project_on.db")).unwrap(), before, "la 2.x n'a pas changé");
 }

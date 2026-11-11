@@ -58,10 +58,15 @@ struct AddDialog {
     new_name: String,
 }
 
-/// Le démarrage : la copie des données de la 2.x au premier lancement.
+/// Le démarrage : la copie des données au premier lancement.
 enum Startup {
     Ready,
-    Copying { handle: JoinHandle<Result<CopyReport, String>>, since: Instant },
+    /// Les données de la 2.x et la base fournie sont là : l'opérateur choisit.
+    Choose,
+    Copying {
+        handle: JoinHandle<Result<CopyReport, String>>,
+        since: Instant,
+    },
     Failed(String),
 }
 
@@ -189,14 +194,14 @@ impl App {
             (Some(path), _) => app.open_database(path),
             (None, Some(locations)) => {
                 if crate::data::needs_copy(&locations.beta) {
-                    if let Some(legacy) = locations.legacy.clone() {
-                        let beta = locations.beta.clone();
-                        let handle = std::thread::spawn(move || crate::data::copy_from_legacy(&legacy, &beta));
-                        app.startup = Startup::Copying { handle, since: Instant::now() };
-                    } else {
-                        app.startup = Startup::Failed(
-                            "Aucune donnée de Project-On 2.x sur ce poste : installez et lancez d'abord la 2.8.".into(),
-                        );
+                    match locations.origins().as_slice() {
+                        [] => {
+                            app.startup = Startup::Failed(
+                                "Aucune base à copier : ni données de Project-On 2.x sur ce poste, ni base fournie avec l'installateur.".into(),
+                            );
+                        }
+                        [only] => app.start_copy(*only),
+                        _ => app.startup = Startup::Choose,
                     }
                 } else {
                     app.open_database(locations.beta.database());
@@ -205,6 +210,19 @@ impl App {
             (None, None) => app.startup = Startup::Failed("Dossier des données introuvable.".into()),
         }
         app
+    }
+
+    /// Lance la première copie de la base, sur un fil à part.
+    pub fn start_copy(&mut self, origin: crate::data::Origin) {
+        let Some(locations) = self.locations.clone() else { return };
+        po_core::journal::line(&format!("bêta : première copie depuis {origin:?}"));
+        let handle = std::thread::spawn(move || locations.copy(origin));
+        self.startup = Startup::Copying { handle, since: Instant::now() };
+    }
+
+    /// Le premier lancement attend le choix de la base.
+    pub fn choosing(&self) -> bool {
+        matches!(self.startup, Startup::Choose)
     }
 
     /// Les réglages de la copie de la bêta (lus après la copie).
@@ -952,10 +970,16 @@ impl App {
                     ui,
                     "Préparation de la bêta",
                     &format!(
-                        "Copie de vos données de Project-On 2.8 (une seule fois)… {seconds} s\nLa 2.8 et ses données ne sont pas modifiées."
+                        "Copie de la base (une seule fois)… {seconds} s\nLa 2.8 et ses données ne sont pas modifiées."
                     ),
                 );
                 ui.ctx().request_repaint_after(Duration::from_millis(250));
+                return;
+            }
+            Startup::Choose => {
+                if let Some(origin) = choose_origin(ui) {
+                    self.start_copy(origin);
+                }
                 return;
             }
             Startup::Failed(message) => {
@@ -1478,6 +1502,47 @@ fn monitor_header(ui: &mut Ui, title: &str, color: Color32, shown: Option<&Shown
         }
     });
     ui.add_space(4.0);
+}
+
+/// Le premier lancement : vos données de la 2.8, ou la base fournie avec Project-On.
+fn choose_origin(ui: &mut Ui) -> Option<crate::data::Origin> {
+    use crate::data::Origin;
+    let mut chosen = None;
+    egui::CentralPanel::default().frame(egui::Frame::NONE.fill(BG)).show(ui, |ui| {
+        ui.add_space(ui.available_height() / 4.0);
+        ui.vertical_centered(|ui| {
+            ui.label(RichText::new("Bienvenue dans Project-On 3 (bêta)").font(semibold(22.0)).color(TEXT));
+            ui.add_space(6.0);
+            ui.label(
+                RichText::new("Avec quelle base voulez-vous essayer la bêta ? Elle travaille sur une copie : la 2.8 n'est jamais modifiée.")
+                    .font(regular(13.5))
+                    .color(MUTED),
+            );
+            ui.add_space(24.0);
+            let choices = [
+                (
+                    Origin::Legacy,
+                    "Mes données de Project-On 2.8",
+                    "Vos playlists, vos cantiques ajoutés, vos Bibles importées et vos réglages.",
+                ),
+                (
+                    Origin::Bundled,
+                    "La base fournie avec Project-On",
+                    "Les Bibles, cantiques, prédications et livres livrés avec l'installateur, sans vos playlists. Vos réglages de projection sont repris.",
+                ),
+            ];
+            for (origin, title, detail) in choices {
+                let r = widgets::button_sized(ui, 520.0, Size::Hero, None, title, Tone::Primary(ACCENT), true);
+                if r.clicked() {
+                    chosen = Some(origin);
+                }
+                ui.add_space(4.0);
+                ui.label(RichText::new(detail).font(regular(12.0)).color(FAINT));
+                ui.add_space(18.0);
+            }
+        });
+    });
+    chosen
 }
 
 fn waiting(ui: &mut Ui, title: &str, message: &str) {

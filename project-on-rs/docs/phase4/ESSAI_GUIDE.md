@@ -1,7 +1,8 @@
 # Phase 4 : essai guidé de la playlist et du déroulé
 
-Une vingtaine de minutes, sur la bêta 2 (`Project-On_3.0.0-beta.2_Setup.exe`), si possible avec le
-vidéoprojecteur branché. La bêta travaille sur sa copie des données : ce que vous faites ici ne
+Une vingtaine de minutes, sur la bêta 3 (`Project-On_3.0.0-beta.3_Setup.exe`), si possible avec le
+vidéoprojecteur branché. Au premier lancement, la bêta demande avec quelle base partir : vos
+données de la 2.8 ou la base fournie avec Project-On. La bêta travaille sur sa copie des données : ce que vous faites ici ne
 change rien dans la 2.8. Les playlists créées dans la bêta restent dans la bêta.
 
 Pour chaque étape, cochez si le résultat est celui attendu ; sinon, notez ce que vous avez vu.

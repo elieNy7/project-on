@@ -105,11 +105,17 @@ par le cache de Windows.
 powershell -ExecutionPolicy Bypass -File project-on-rs\construire-beta.ps1
 ```
 
-Compile l'application, prépare `dist\Project-On-3-beta` (exécutable, polices, licences) et construit
-`installer\Output\Project-On_<version>_Setup.exe` (Inno Setup 7). La bêta s'installe à côté de la
-2.8 (son propre dossier, sans droits d'administrateur) ; au premier lancement, elle copie la base
-et les réglages de la 2.x dans `%APPDATA%\Project-On 3 (bêta)` et ne touche jamais aux originaux.
-`PROJECT_ON_DATA` impose un autre dossier de données (essais).
+Compile l'application, prépare `dist\Project-On-3-beta` (exécutable, polices, licences et la base
+fournie `data\project_on.db` du dépôt, la même que celle de la 2.8 ; `-SansBase` l'omet) et
+construit `installer\Output\Project-On_<version>_Setup.exe` (Inno Setup 7). La bêta s'installe à
+côté de la 2.8 ; au premier lancement, elle copie dans `%APPDATA%\Project-On 3 (bêta)` vos données
+de la 2.x ou la base fournie (elle demande quand les deux existent) et ne touche jamais aux
+originaux. `PROJECT_ON_DATA` impose un autre dossier de données (essais).
+
+**Carte graphique** : DirectX 12, puis OpenGL ; jamais Vulkan par défaut (le pilote Vulkan de
+l'Intel UHD 620 plante dès la première image). `WGPU_BACKEND=vulkan|dx12|gl` impose un choix. Le
+journal (`%APPDATA%\Project-On 3 (bêta)\data\logs\project-on.log`) note la carte choisie et toute
+erreur.
 
 ## À savoir
 

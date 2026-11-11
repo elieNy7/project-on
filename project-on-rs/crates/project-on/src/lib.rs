@@ -2,6 +2,7 @@
 
 pub mod app;
 pub mod data;
+pub mod gpu;
 pub mod icons;
 pub mod library;
 pub mod playlist;

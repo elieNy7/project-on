@@ -1,17 +1,22 @@
 <#
   Project-On 3.0 bêta - construction de l'installateur.
 
-  Compilation (cargo, release) -> dossier dist\Project-On-3-beta (exécutable, polices, licences)
-  -> installateur Inno Setup (installer\Output\Project-On_<version>_Setup.exe).
+  Compilation (cargo, release) -> dossier dist\Project-On-3-beta (exécutable, polices, licences,
+  base fournie) -> installateur Inno Setup (installer\Output\Project-On_<version>_Setup.exe).
+
+  La base fournie est data\project_on.db à la racine du dépôt, la même que celle de l'installateur
+  de la 2.8 (project_on.spec). Au premier lancement, la bêta propose de partir de vos données de la
+  2.8 ou de cette base.
 
   Usage :
     powershell -ExecutionPolicy Bypass -File project-on-rs\construire-beta.ps1
     ... -SansCompilation   (reprendre l'exécutable déjà compilé)
+    ... -SansBase          (installateur léger, sans la base fournie)
 
   Variable reconnue : ISCC_EXE (Inno Setup), sinon C:\Program Files\Inno Setup 7\ISCC.exe.
   La bêta n'est pas signée : Windows SmartScreen peut demander une confirmation.
 #>
-param([switch]$SansCompilation)
+param([switch]$SansCompilation, [switch]$SansBase)
 $ErrorActionPreference = 'Stop'
 
 $rs = $PSScriptRoot
@@ -39,6 +44,13 @@ Copy-Item -Recurse (Join-Path $root 'assets\fonts') (Join-Path $dist 'assets\fon
 New-Item -ItemType Directory -Force (Join-Path $dist 'licences') | Out-Null
 Copy-Item (Join-Path $root 'LICENSE.txt') (Join-Path $dist 'licences\Project-On-LICENSE.txt')
 Copy-Item (Join-Path $rs 'crates\project-on\LICENSE-lucide.txt') (Join-Path $dist 'licences\LICENSE-lucide.txt')
+if (-not $SansBase) {
+    $base = Join-Path $root 'data\project_on.db'
+    if (-not (Test-Path $base)) { throw "Base fournie introuvable : $base (ou -SansBase)" }
+    New-Item -ItemType Directory -Force (Join-Path $dist 'data') | Out-Null
+    Copy-Item $base (Join-Path $dist 'data\project_on.db')
+    Write-Host ("[INFO] base fournie : {0:N0} Mo" -f ((Get-Item $base).Length / 1MB))
+}
 $size = (Get-ChildItem -Recurse $dist | Measure-Object -Sum Length).Sum / 1MB
 Write-Host ("[INFO] dist : {0:N0} Mo" -f $size)
 

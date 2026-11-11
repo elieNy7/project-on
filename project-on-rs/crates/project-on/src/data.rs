@@ -1,4 +1,5 @@
-//! Les données de la bêta : une COPIE de celles de la 2.x, faite au premier lancement.
+//! Les données de la bêta : une COPIE faite au premier lancement, de celles de la 2.x ou de la
+//! base fournie avec l'installateur (la même que celle de l'installateur de la 2.8).
 //!
 //! La bêta travaille dans `%APPDATA%\Project-On 3 (bêta)` et ne touche jamais au dossier de la 2.x :
 //! la base y est seulement lue (API de sauvegarde de SQLite, comme une sauvegarde de la 2.8), et
@@ -46,6 +47,36 @@ pub fn copy_from_legacy(legacy: &DataPaths, beta: &DataPaths) -> Result<CopyRepo
     Ok(CopyReport { database_bytes: report.size_bytes, settings, elapsed: started.elapsed() })
 }
 
+/// La première copie de la base : depuis la base fournie avec l'installateur. Les réglages de la
+/// 2.x, s'ils existent, sont repris (le style de projection de l'église).
+pub fn copy_bundled(bundled: &Path, legacy: Option<&DataPaths>, beta: &DataPaths) -> Result<CopyReport, String> {
+    let started = Instant::now();
+    if beta.database().exists() {
+        return Err("la bêta a déjà sa base : rien n'est copié".into());
+    }
+    std::fs::create_dir_all(beta.data()).map_err(|e| format!("dossier de la bêta : {e}"))?;
+    let report =
+        po_db::copy_database(bundled, &beta.database()).map_err(|e| format!("copie de la base fournie : {e}"))?;
+    let mut settings = false;
+    if let Some(legacy) = legacy
+        && legacy.settings().is_file()
+        && !beta.settings().exists()
+    {
+        std::fs::copy(legacy.settings(), beta.settings()).map_err(|e| format!("copie des réglages : {e}"))?;
+        settings = true;
+    }
+    Ok(CopyReport { database_bytes: report.size_bytes, settings, elapsed: started.elapsed() })
+}
+
+/// D'où vient la première copie de la base.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Origin {
+    /// Les données de la 2.x de ce poste (playlists, cantiques ajoutés, Bibles importées).
+    Legacy,
+    /// La base fournie avec l'installateur.
+    Bundled,
+}
+
 /// Lit tout le fichier `path` une fois, en arrière-plan, pour que Windows le garde en mémoire. Rend
 /// le nombre d'octets lus et la durée.
 pub fn warm_up(path: PathBuf) -> JoinHandle<(u64, Duration)> {
@@ -73,6 +104,8 @@ pub fn warm_up(path: PathBuf) -> JoinHandle<(u64, Duration)> {
 pub struct Locations {
     pub beta: DataPaths,
     pub legacy: Option<DataPaths>,
+    /// La base fournie avec l'installateur (`data\project_on.db` à côté de l'exécutable).
+    pub bundled: Option<PathBuf>,
 }
 
 impl Locations {
@@ -81,11 +114,38 @@ impl Locations {
         let env = po_core::paths::Environment::current();
         let beta = po_core::paths::beta_root(&env).map_err(|e| e.to_string())?;
         let legacy = po_core::paths::legacy_root(&env).ok().filter(|l| l.database().is_file());
-        Ok(Locations { beta, legacy })
+        Ok(Locations { beta, legacy, bundled: None })
     }
 
     pub fn at(beta: impl Into<PathBuf>, legacy: Option<&Path>) -> Self {
-        Locations { beta: DataPaths::at(beta), legacy: legacy.map(DataPaths::at) }
+        Locations { beta: DataPaths::at(beta), legacy: legacy.map(DataPaths::at), bundled: None }
+    }
+
+    /// Avec la base fournie avec l'installateur.
+    pub fn with_bundled(mut self, bundled: Option<PathBuf>) -> Self {
+        self.bundled = bundled.filter(|p| p.is_file());
+        self
+    }
+
+    /// Les origines possibles de la première copie : les données de la 2.x d'abord.
+    pub fn origins(&self) -> Vec<Origin> {
+        let mut out = Vec::new();
+        if self.legacy.is_some() {
+            out.push(Origin::Legacy);
+        }
+        if self.bundled.is_some() {
+            out.push(Origin::Bundled);
+        }
+        out
+    }
+
+    /// Fait la première copie depuis `origin` (sur un fil à part : plusieurs secondes).
+    pub fn copy(&self, origin: Origin) -> Result<CopyReport, String> {
+        match (origin, &self.legacy, &self.bundled) {
+            (Origin::Legacy, Some(legacy), _) => copy_from_legacy(legacy, &self.beta),
+            (Origin::Bundled, legacy, Some(bundled)) => copy_bundled(bundled, legacy.as_ref(), &self.beta),
+            _ => Err("aucune base à copier".into()),
+        }
     }
 }
 
@@ -123,5 +183,38 @@ mod tests {
 
         let (bytes, _) = warm_up(beta.database()).join().unwrap();
         assert_eq!(bytes, std::fs::metadata(beta.database()).unwrap().len());
+    }
+
+    #[test]
+    fn the_bundled_database_can_be_chosen_instead() {
+        let dir = scratch();
+        let legacy = DataPaths::at(dir.path().join("Project-On"));
+        std::fs::create_dir_all(legacy.data()).unwrap();
+        Database::open_and_initialize(&legacy.database(), &InitOptions::default()).unwrap();
+        std::fs::write(legacy.settings(), r#"{"projection": {"font_family": "Poppins"}}"#).unwrap();
+        // La base de l'installateur : une autre base, avec une playlist de plus.
+        let bundled = dir.path().join("installation").join("data").join("project_on.db");
+        std::fs::create_dir_all(bundled.parent().unwrap()).unwrap();
+        let (mut db, _) = Database::open_and_initialize(&bundled, &InitOptions::default()).unwrap();
+        db.create_folder("Fournie").unwrap();
+        db.connection().execute_batch("PRAGMA wal_checkpoint(TRUNCATE);").unwrap();
+        drop(db);
+
+        let locations = Locations::at(dir.path().join("bêta"), Some(legacy.root())).with_bundled(Some(bundled.clone()));
+        assert_eq!(locations.origins(), [Origin::Legacy, Origin::Bundled]);
+        let report = locations.copy(Origin::Bundled).unwrap();
+        assert!(report.settings, "les réglages de la 2.x sont repris");
+        let copy = Database::open(&locations.beta.database(), Mode::ReadOnly).unwrap();
+        assert!(copy.list_folders().unwrap().iter().any(|f| f.name == "Fournie"));
+        assert!(locations.copy(Origin::Legacy).is_err(), "jamais par-dessus une base déjà copiée");
+        // Sans 2.x : seule la base fournie.
+        let alone = Locations::at(dir.path().join("autre"), None).with_bundled(Some(bundled));
+        assert_eq!(alone.origins(), [Origin::Bundled]);
+        assert!(
+            Locations::at(dir.path().join("x"), None)
+                .with_bundled(Some(dir.path().join("absente.db")))
+                .origins()
+                .is_empty()
+        );
     }
 }

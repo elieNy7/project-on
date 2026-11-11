@@ -5,8 +5,9 @@
 ;  - son propre identifiant, son propre dossier (dans les programmes de
 ;    l'utilisateur, sans droits d'administrateur) et son entrée de menu ;
 ;  - ses données dans %APPDATA%\Project-On 3 (bêta) : au premier lancement,
-;    l'application y COPIE la base et les réglages de la 2.x, qui ne sont
-;    jamais modifiés.
+;    l'application y COPIE la base et les réglages de la 2.x, ou la base
+;    fournie (data\project_on.db, celle de l'installateur de la 2.8) ; la 2.x
+;    n'est jamais modifiée.
 ;  La désinstallation retire le programme seulement : la copie des données
 ;  reste, comme celles de la 2.8.
 ;

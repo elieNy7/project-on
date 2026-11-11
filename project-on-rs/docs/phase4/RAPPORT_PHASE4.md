@@ -148,6 +148,33 @@ réécrite.
 - **Pas de retour vers la 2.8** : les playlists de la bêta restent dans sa copie, les deux versions
   ne se synchronisent pas.
 
+## Correctif de la bêta 3 (11 novembre) : rien ne s'affichait
+
+**Le symptôme** : sur votre portable, l'installateur de la bêta 1 s'exécutait, puis la régie ne
+montrait rien.
+
+**La cause**, lue dans le journal des erreurs de Windows : la bêta plantait à la première image,
+dans `igvk64.dll`, le pilote **Vulkan** de l'Intel UHD 620 (version 31.0.101.2127), avant même de
+copier vos données. La bibliothèque graphique (wgpu) avait choisi Vulkan. Pgraphics avait mesuré
+le même plantage sur ce portable le 20 octobre et s'en protégeait ; la régie de Project-On ne le
+faisait pas. Les essais sans fenêtre ne pouvaient pas le voir : ils n'ouvrent pas de vraie
+fenêtre.
+
+**Le correctif** :
+- **La carte graphique** : comme Pgraphics, DirectX 12 d'abord, OpenGL en repli, jamais Vulkan par
+  défaut (`WGPU_BACKEND` impose un autre choix). Un essai vérifie, sans fenêtre, que ce poste reçoit
+  bien une carte DirectX 12.
+- **Plus de démarrage muet** : la carte choisie et toute panique sont écrites dans le journal
+  (`%APPDATA%\Project-On 3 (bêta)\data\logs`). Si la régie ne peut pas s'ouvrir, un message le dit.
+- **La base fournie** : l'installateur contient maintenant la base de l'installateur de la 2.8
+  (`data\project_on.db`). Au premier lancement, quand vos données de la 2.8 sont aussi sur le
+  poste, la bêta demande avec laquelle partir :
+  - « Mes données de Project-On 2.8 » : playlists, cantiques ajoutés, Bibles importées, réglages ;
+  - « La base fournie avec Project-On » : sans vos playlists, avec vos réglages de projection.
+
+  Sans 2.8 sur le poste, la base fournie est prise d'office. Un essai de l'interface vérifie le
+  choix, et que la 2.x reste intacte.
+
 ## Refaire les vérifications
 
 ```powershell
