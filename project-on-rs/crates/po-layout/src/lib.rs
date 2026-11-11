@@ -7,6 +7,7 @@
 
 mod backdrop;
 mod band;
+pub mod church;
 mod display;
 #[cfg(windows)]
 mod dwrite;

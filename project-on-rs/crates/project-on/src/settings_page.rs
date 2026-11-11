@@ -302,6 +302,9 @@ impl SettingsView {
                 );
             });
 
+            widgets::section(ui, "Profil de l'église");
+            church_profile(ui, draft, &families);
+
             widgets::section(ui, "Raccourcis");
             let mut keys: Map<String, Value> = draft
                 .other
@@ -330,6 +333,112 @@ impl SettingsView {
             ui.add_space(24.0);
         });
         actions
+    }
+}
+
+/// Une couleur du profil de l'église.
+fn rgba_edit(ui: &mut Ui, value: &mut Rgba) -> bool {
+    let mut c32 = Color32::from_rgba_unmultiplied(value.0[0], value.0[1], value.0[2], 255);
+    let changed =
+        egui::color_picker::color_edit_button_srgba(ui, &mut c32, egui::color_picker::Alpha::Opaque).changed();
+    if changed {
+        let [r, g, b, _] = c32.to_srgba_unmultiplied();
+        *value = Rgba::rgb(r, g, b);
+    }
+    changed
+}
+
+fn field(ui: &mut Ui, label: &str, value: &mut String, hint: &str, width: f32) -> bool {
+    let mut changed = false;
+    row(ui, label, |ui| {
+        let r = ui.add(egui::TextEdit::singleline(value).hint_text(hint).desired_width(width));
+        let name = format!("Champ : {label}");
+        ui.ctx().accesskit_node_builder(r.id, |n| n.set_label(name));
+        changed = r.changed();
+    });
+    changed
+}
+
+/// Le profil de l'église (section `church` des réglages, au format de la 2.x) : il sert aux
+/// écrans d'accueil, de l'orateur du jour et des réseaux sociaux.
+fn church_profile(ui: &mut Ui, draft: &mut Settings, families: &[String]) {
+    use po_design::church::{ChurchBackground, ChurchProfile, SOCIAL_PLATFORMS};
+    let mut p = ChurchProfile::from_settings(draft.other.get("church"));
+    let before = p.clone();
+    field(ui, "Nom de l'église", &mut p.name, "Assemblée de…", 360.0);
+    field(ui, "Titre d'accueil", &mut p.welcome_title, "Bienvenue", 240.0);
+    field(ui, "Devise ou verset", &mut p.motto, "", 480.0);
+    row(ui, "Horaires des cultes (un par ligne)", |ui| {
+        ui.add(egui::TextEdit::multiline(&mut p.service_times).desired_rows(3).desired_width(360.0));
+    });
+    field(ui, "Contact (adresse)", &mut p.contact, "", 480.0);
+    field(ui, "Logo (chemin du fichier)", &mut p.logo, r"C:\…\logo.png", 480.0);
+    row(ui, "Couleurs (fond, accent, texte)", |ui| {
+        rgba_edit(ui, &mut p.primary_color);
+        rgba_edit(ui, &mut p.accent_color);
+        rgba_edit(ui, &mut p.text_color);
+    });
+    row(ui, "Police", |ui| {
+        egui::ComboBox::from_id_salt("police-eglise").selected_text(p.font_family.as_str()).width(220.0).show_ui(
+            ui,
+            |ui| {
+                for f in families {
+                    if ui.selectable_label(p.font_family == *f, f).clicked() {
+                        p.font_family = f.clone();
+                    }
+                }
+            },
+        );
+    });
+    row(ui, "Fond des écrans", |ui| {
+        ui.radio_value(&mut p.background, ChurchBackground::Gradient, "Dégradé");
+        ui.radio_value(&mut p.background, ChurchBackground::Solid, "Uni");
+        ui.radio_value(&mut p.background, ChurchBackground::Image, "Image");
+    });
+    if p.background == ChurchBackground::Image {
+        field(ui, "Image de fond", &mut p.background_image, "", 480.0);
+        row(ui, "Assombrir l'image (%)", |ui| {
+            ui.add(egui::Slider::new(&mut p.background_dim, 0..=85));
+        });
+    }
+    field(ui, "Titre du pasteur", &mut p.pastor_title, "Pasteur", 200.0);
+    field(ui, "Nom du pasteur", &mut p.pastor_name, "", 300.0);
+    field(ui, "Photo du pasteur (PNG sans fond)", &mut p.pastor_photo, "", 480.0);
+    field(ui, "Orateur invité : titre", &mut p.speaker_title, "Frère", 200.0);
+    field(ui, "Orateur invité : nom (vide : le pasteur)", &mut p.speaker_name, "", 300.0);
+    field(ui, "Orateur invité : photo", &mut p.speaker_photo, "", 480.0);
+    field(ui, "Message du jour", &mut p.speaker_message, "", 480.0);
+    ui.label(RichText::new("Réseaux sociaux").font(semibold(12.5)).color(TEXT));
+    let mut socials: Vec<(String, String)> = Vec::new();
+    for platform in SOCIAL_PLATFORMS {
+        let mut value = p.social(platform.key).unwrap_or("").to_string();
+        field(ui, platform.label, &mut value, platform.placeholder, 320.0);
+        if !value.trim().is_empty() {
+            socials.push((platform.key.to_string(), value.trim().to_string()));
+        }
+    }
+    p.socials = socials;
+    row(ui, "QR code vers", |ui| {
+        let shown = po_design::church::platform(&p.qr_target).map_or("Aucun", |q| q.label);
+        egui::ComboBox::from_id_salt("qr-eglise").selected_text(shown).show_ui(ui, |ui| {
+            ui.selectable_value(&mut p.qr_target, String::new(), "Aucun");
+            for (k, _) in p.socials.clone() {
+                let label = po_design::church::platform(&k).map_or(k.clone(), |q| q.label.to_string());
+                ui.selectable_value(&mut p.qr_target, k, label);
+            }
+        });
+    });
+    row(ui, "Réseaux sur l'écran d'accueil", |ui| {
+        ui.checkbox(&mut p.show_socials_welcome, "");
+    });
+    if p != before {
+        let section = draft.other.entry("church".to_string()).or_insert_with(|| json!({}));
+        if !section.is_object() {
+            *section = json!({});
+        }
+        if let Some(map) = section.as_object_mut() {
+            p.write_into(map);
+        }
     }
 }
 

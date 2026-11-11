@@ -60,12 +60,12 @@ Le livrable de la phase 7 (audit, § 8) : chaque fonction de la 2.8, et où elle
 
 | Fonction de la 2.8 | 3.0 | Où, ou ce qui manque |
 |---|---|---|
-| Écran d'accueil (Ctrl+Shift+W) | ⏳ | |
-| Écran de l'orateur du jour (Ctrl+Shift+P) | ⏳ | |
-| Écran « Réseaux sociaux » (Ctrl+Shift+R) | ⏳ | |
+| Écran d'accueil (Ctrl+Shift+W) | ✅ | Logo, nom, devise, horaires, orateur du jour, réseaux, QR code ; le haut se resserre pour ne jamais toucher les réseaux ; projeté comme une image, comme la 2.8 (Web, NDI, HDMI compris) |
+| Écran de l'orateur du jour (Ctrl+Shift+P) | ✅ | Le pasteur, ou l'invité du jour (le pasteur en médaillon) ; photo, titre, nom, message |
+| Écran « Réseaux sociaux » (Ctrl+Shift+R) | ✅ | Chaque compte en grand avec sa pastille, QR code « Scannez » |
 | Image de citation du direct (Ctrl+Shift+I) | ⏳ | |
 | Galerie de photos | ⏳ | |
-| Profil de l'église (nom, logo, réseaux) | ⏳ | |
+| Profil de l'église (nom, logo, réseaux) | ✅ | Réglages → Profil de l'église ; lu et réécrit au format de la 2.x (les champs que la 3.0 ne connaît pas sont gardés) |
 
 ## Données et entretien
 

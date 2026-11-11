@@ -6,6 +6,7 @@
 //! phase 6, sur ce même modèle.
 
 mod band;
+pub mod church;
 mod color;
 pub mod graphics;
 pub mod library;

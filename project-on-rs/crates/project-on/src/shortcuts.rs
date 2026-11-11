@@ -27,10 +27,13 @@ pub enum Action {
     NextSection,
     Preflight,
     History,
+    Welcome,
+    Pastor,
+    Socials,
 }
 
 /// (action, identifiant de la 2.8, libellé, touche par défaut).
-pub const ACTIONS: [(Action, &str, &str, &str); 15] = [
+pub const ACTIONS: [(Action, &str, &str, &str); 18] = [
     (Action::Take, "take", "Envoyer l'aperçu au direct", "F2"),
     (Action::NextSlide, "next_slide", "Slide suivant (télécommande)", "PgDown"),
     (Action::PrevSlide, "prev_slide", "Slide précédent (télécommande)", "PgUp"),
@@ -46,13 +49,13 @@ pub const ACTIONS: [(Action, &str, &str, &str); 15] = [
     (Action::NextSection, "next_section", "Déroulé : section suivante", "Ctrl+Alt+N"),
     (Action::Preflight, "preflight", "Contrôle avant culte", "Ctrl+Shift+D"),
     (Action::History, "history", "Historique du culte", "Ctrl+H"),
+    (Action::Welcome, "welcome", "Projeter l'écran d'accueil", "Ctrl+Shift+W"),
+    (Action::Pastor, "pastor", "Projeter l'écran de l'orateur du jour", "Ctrl+Shift+P"),
+    (Action::Socials, "socials", "Projeter l'écran « Réseaux sociaux »", "Ctrl+Shift+R"),
 ];
 
 /// Les actions de la 2.8 qui arrivent dans une phase suivante (montrées dans l'aide).
-pub const LATER: [(&str, &str); 5] = [
-    ("Écran d'accueil (Ctrl+Shift+W)", "phase 7"),
-    ("Écran de l'orateur du jour (Ctrl+Shift+P)", "phase 7"),
-    ("Écran « Réseaux sociaux » (Ctrl+Shift+R)", "phase 7"),
+pub const LATER: [(&str, &str); 2] = [
     ("Image de citation du direct (Ctrl+Shift+I)", "phase 7"),
     ("Miniature YouTube (Ctrl+Shift+Y)", "retirée (couche 1)"),
 ];

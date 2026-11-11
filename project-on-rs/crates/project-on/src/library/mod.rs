@@ -82,6 +82,8 @@ pub enum Origin {
     Playlist(i64),
     /// Un diaporama d'images.
     Slideshow,
+    /// Un écran de l'église (accueil, orateur du jour, réseaux sociaux).
+    Church,
 }
 
 /// Un programme préparé par une bibliothèque, et d'où il vient.

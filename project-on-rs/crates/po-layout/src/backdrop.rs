@@ -82,6 +82,15 @@ fn scrim(look: Look, dimmer: f32, has_content: bool, w: f32, h: f32) -> Vec<Item
     }
 }
 
+/// La taille d'une image existante (vide ou introuvable : `None`).
+pub(crate) fn image_size_of(path: &str) -> Option<(f32, f32)> {
+    let path = path.trim();
+    if path.is_empty() || !std::path::Path::new(path).is_file() {
+        return None;
+    }
+    image_size(path)
+}
+
 /// La taille d'une image, lue dans son en-tête (sans la décoder).
 fn image_size(path: &str) -> Option<(f32, f32)> {
     let size = imagesize::size(path).ok()?;

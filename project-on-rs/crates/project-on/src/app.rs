@@ -755,6 +755,63 @@ impl App {
         }
     }
 
+    /// Projette un écran de l'église : rendu en image (aux couleurs et au profil de l'église), puis
+    /// mis au direct comme une image, comme la 2.8.
+    pub fn show_church(&mut self, screen: crate::media::ChurchScreen) {
+        use crate::media::ChurchScreen;
+        let profile = po_design::church::ChurchProfile::from_settings(self.settings.other.get("church"));
+        let (file, default_label) = screen.names();
+        let label = match screen {
+            ChurchScreen::Welcome if !profile.name.is_empty() => profile.name.clone(),
+            ChurchScreen::Speaker if !profile.speaker_label().is_empty() => profile.speaker_label(),
+            _ => default_label.to_string(),
+        };
+        let (w, h) = (1920, 1080);
+        let png = self.hub.render_png(w, h, |fonts| match screen {
+            ChurchScreen::Welcome => po_layout::church::layout_welcome(fonts, &profile, w as f32, h as f32),
+            ChurchScreen::Speaker => po_layout::church::layout_speaker(fonts, &profile, w as f32, h as f32),
+            ChurchScreen::Socials => po_layout::church::layout_socials(fonts, &profile, w as f32, h as f32),
+        });
+        let png = match png {
+            Ok(png) => png,
+            Err(e) => {
+                self.status = format!("Écran de l'église impossible : {e}");
+                return;
+            }
+        };
+        // Un nom propre à chaque rendu : une image déjà chargée ne masque jamais la nouvelle.
+        let dir = self
+            .data_dir()
+            .or_else(|| self.db_path.as_ref().and_then(|p| p.parent().map(std::path::Path::to_path_buf)))
+            .unwrap_or_else(std::env::temp_dir)
+            .join("church");
+        let digest: String = {
+            use sha2::Digest;
+            sha2::Sha256::digest(&png).iter().take(6).map(|b| format!("{b:02x}")).collect()
+        };
+        let path = dir.join(format!("{file}-{digest}.png"));
+        if let Ok(entries) = std::fs::read_dir(&dir) {
+            for old in entries.flatten() {
+                let name = old.file_name().to_string_lossy().to_string();
+                if name.starts_with(&format!("{file}-")) && old.path() != path {
+                    let _ = std::fs::remove_file(old.path());
+                }
+            }
+        }
+        if let Err(e) = std::fs::create_dir_all(&dir).and_then(|()| std::fs::write(&path, &png)) {
+            self.status = format!("Écran de l'église impossible : {e}");
+            return;
+        }
+        let media = crate::media::Media { name: label.clone(), path: path.to_string_lossy().to_string(), seconds: 0 };
+        let Some(program) = crate::media::cue(&[media], &label).and_then(|c| Program::from_cue(&c, &self.split)) else {
+            return;
+        };
+        self.abandon_slideshow();
+        self.live = Some(Shown { program, origin: Origin::Church, items: Vec::new() });
+        self.render(Target::Live);
+        self.status = format!("Au direct : {default_label}");
+    }
+
     /// Le diaporama en cours : l'image montrée et leur nombre.
     pub fn slideshow_position(&self) -> Option<(usize, usize)> {
         let live = self.live.as_ref().filter(|_| self.slideshow.active)?;
@@ -1436,6 +1493,9 @@ impl App {
                     self.preflight_open = true;
                 }
                 Key2::History => self.history_open = !self.history_open,
+                Key2::Welcome => self.show_church(crate::media::ChurchScreen::Welcome),
+                Key2::Pastor => self.show_church(crate::media::ChurchScreen::Speaker),
+                Key2::Socials => self.show_church(crate::media::ChurchScreen::Socials),
             }
         }
         let typing = self.ctx.egui_wants_keyboard_input();
@@ -1842,6 +1902,7 @@ impl App {
                 match action {
                     crate::media::MediaAction::Start(medias, title) => self.start_slideshow(medias, &title),
                     crate::media::MediaAction::Stop => self.stop_slideshow(),
+                    crate::media::MediaAction::Church(screen) => self.show_church(screen),
                 }
             }
             return;

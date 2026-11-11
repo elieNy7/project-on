@@ -145,6 +145,26 @@ impl Slideshow {
 pub enum MediaAction {
     Start(Vec<Media>, String),
     Stop,
+    Church(ChurchScreen),
+}
+
+/// Un écran de l'église.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChurchScreen {
+    Welcome,
+    Speaker,
+    Socials,
+}
+
+impl ChurchScreen {
+    /// (nom du fichier, libellé).
+    pub fn names(self) -> (&'static str, &'static str) {
+        match self {
+            ChurchScreen::Welcome => ("accueil", "Accueil"),
+            ChurchScreen::Speaker => ("orateur-du-jour", "Orateur du jour"),
+            ChurchScreen::Socials => ("reseaux-sociaux", "Réseaux sociaux"),
+        }
+    }
 }
 
 /// La page Médias.
@@ -177,6 +197,30 @@ impl MediaView {
         ui.add_space(12.0);
         ui.label(RichText::new("Médias").font(bold(20.0)).color(TEXT));
         ui.add_space(4.0);
+        widgets::card(ui, |ui| {
+            ui.set_width(ui.available_width());
+            ui.label(RichText::new("ÉCRANS DE L'ÉGLISE").font(semibold(10.5)).color(FAINT));
+            ui.add_space(4.0);
+            ui.horizontal(|ui| {
+                for (screen, label) in [
+                    (ChurchScreen::Welcome, "Accueil  Ctrl+Maj+W"),
+                    (ChurchScreen::Speaker, "Orateur du jour  Ctrl+Maj+P"),
+                    (ChurchScreen::Socials, "Réseaux sociaux  Ctrl+Maj+R"),
+                ] {
+                    if widgets::button(ui, None, label, Tone::Secondary).clicked() {
+                        actions.push(MediaAction::Church(screen));
+                    }
+                }
+            });
+            ui.label(
+                RichText::new(
+                    "Le nom, le logo, les horaires et les réseaux se règlent dans Réglages → Profil de l'église.",
+                )
+                .font(regular(11.5))
+                .color(FAINT),
+            );
+        });
+        ui.add_space(8.0);
         widgets::card(ui, |ui| {
             ui.set_width(ui.available_width());
             ui.label(RichText::new("DIAPORAMA D'UN DOSSIER").font(semibold(10.5)).color(FAINT));
