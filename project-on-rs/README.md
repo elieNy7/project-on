@@ -3,11 +3,13 @@
 La refonte de Project-On en Rust, décidée le 9 novembre 2026 : architecture, décisions et plan dans
 [`../AUDIT_ET_ARCHITECTURE_RUST_2026-11-09.md`](../AUDIT_ET_ARCHITECTURE_RUST_2026-11-09.md).
 
-**État : phase 6 terminée — designs, lower thirds, sous-titres, sorties NDI et HDMI.**
+**État : phase 7 (première partie) terminée — reprise après coupure, historique, sauvegardes,
+contrôle avant culte, page Réglages ; [liste de parité](docs/phase7/PARITE.md) avec la 2.8.**
 Rapports : [phase 0](docs/phase0/RAPPORT_PHASE0.md), [phase 1](docs/phase1/RAPPORT_PHASE1.md),
 [phase 2](docs/phase2/RAPPORT_PHASE2.md), [phase 3](docs/phase3/RAPPORT_PHASE3.md),
 [phase 4](docs/phase4/RAPPORT_PHASE4.md) ([essai guidé](docs/phase4/ESSAI_GUIDE.md)),
-[phase 5](docs/phase5/RAPPORT_PHASE5.md), [phase 6](docs/phase6/RAPPORT_PHASE6.md). La version livrée reste la
+[phase 5](docs/phase5/RAPPORT_PHASE5.md), [phase 6](docs/phase6/RAPPORT_PHASE6.md),
+[phase 7](docs/phase7/RAPPORT_PHASE7.md). La version livrée reste la
 2.8 (Python) jusqu'à la bascule 3.0. Ce code ne touche jamais aux vraies données : les essais et les
 mesures travaillent sur des copies.
 
@@ -25,7 +27,7 @@ mesures travaillent sur des copies.
 | `po-program` | le programme : ce qu'un clic prépare (tout le sermon, le chapitre, le cantique), découpé en slides « réf (i/n) » comme la 2.8 |
 | `po-web` | la projection Web : serveur local en lecture seule (axum), quatre genres d'écrans, registre des écrans, jeton du réseau local et QR code, adresses de la 2.8 (`/obs`, `/slide.json`), WebSocket, client navigateur (`web/`) aux transitions du vidéoprojecteur |
 | `po-ndi` | la source NDI (bibliothèque chargée à la demande, reprise de Pgraphics) : BGRA avec transparence |
-| `project-on` | l'application egui : rail, bibliothèques (Bible, Cantiques, Prédications, Exposé, Livres), playlist et déroulé du culte, Designs (bibliothèque, Mes designs, habillage en direct L / S), Aperçu / Direct, projection native sur la carte graphique, sorties HDMI et NDI, écrans Web (bouton « Web »), recherche globale, raccourcis ; données de la bêta (copie de la 2.x) |
+| `project-on` | l'application egui : rail, bibliothèques (Bible, Cantiques, Prédications, Exposé, Livres), playlist et déroulé du culte, Designs (bibliothèque, Mes designs, habillage en direct L / S), Réglages et entretien (sauvegardes, contrôle avant culte, historique, reprise après coupure), Aperçu / Direct, projection native sur la carte graphique, sorties HDMI et NDI, écrans Web (bouton « Web »), recherche globale, raccourcis ; données de la bêta (copie de la 2.x) |
 | `po-mesures` | les mesures et les planches de captures des phases 0 à 2 (jamais livré) |
 | `po-parite` | les tests dorés : la 3.0 rejoue les références de la 2.8 et compare (jamais livré) |
 
@@ -115,6 +117,11 @@ construit `installer\Output\Project-On_<version>_Setup.exe` (Inno Setup 7). La b
 côté de la 2.8 ; au premier lancement, elle copie dans `%APPDATA%\Project-On 3 (bêta)` vos données
 de la 2.x ou la base fournie (elle demande quand les deux existent) et ne touche jamais aux
 originaux. `PROJECT_ON_DATA` impose un autre dossier de données (essais).
+
+**La bascule** (phase 8, [document](docs/phase8/BASCULE.md)) : `construire-beta.ps1 -Bascule`
+construit `installer\Output\ProjectOn_<version>_Setup.exe`, qui **remplace** la 2.x (même identifiant
+d'application, même dossier) et travaille directement sur ses données, port Web 8080. À ne lancer
+et à ne publier qu'avec l'accord de l'utilisateur.
 
 **Carte graphique** : DirectX 12, puis OpenGL ; jamais Vulkan par défaut (le pilote Vulkan de
 l'Intel UHD 620 plante dès la première image). `WGPU_BACKEND=vulkan|dx12|gl` impose un choix. Le

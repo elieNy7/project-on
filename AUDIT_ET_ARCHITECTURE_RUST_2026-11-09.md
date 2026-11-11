@@ -19,7 +19,12 @@
   ([rapport](project-on-rs/docs/phase5/RAPPORT_PHASE5.md)). **Phase 6 terminée le 11 novembre** :
   page Designs (27 designs intégrés dont 13 lower thirds, Mes designs), lower third (L) et
   sous-titres (S) en direct, source NDI avec transparence, sorties HDMI sur couleur de clé, mire F8
-  ([rapport](project-on-rs/docs/phase6/RAPPORT_PHASE6.md)). Les phases 7 et 8 suivent sans attendre
+  ([rapport](project-on-rs/docs/phase6/RAPPORT_PHASE6.md)). **Phase 7, première partie, le 11
+  novembre** : reprise après coupure, historique du culte et ses exports, sauvegardes, contrôle
+  avant culte, page Réglages, mode PC modeste ; la [liste de parité](project-on-rs/docs/phase7/PARITE.md)
+  compte 29 fonctions faites, 3 en partie et 16 à faire, surtout les médias, les écrans de l'Église,
+  l'éditeur de cantiques et les imports
+  ([rapport](project-on-rs/docs/phase7/RAPPORT_PHASE7.md)). La phase 8 suit sans attendre
   (votre demande du 11 novembre), sauf la suppression du code de la 2.8 et la publication, qui vous
   seront demandées. Le code de la 2.8 n'a pas été modifié ; seul son module natif est rebranché
   sur `po-text`.

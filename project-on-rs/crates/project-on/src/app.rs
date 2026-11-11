@@ -151,6 +151,14 @@ pub struct App {
     /// La mire sur les sorties HDMI (F8).
     pub hdmi_pattern: bool,
     hdmi_key: po_design::Rgba,
+    /// Les réglages en vigueur (ceux de la bêta).
+    pub settings: Settings,
+    pub settings_view: crate::settings_page::SettingsView,
+    /// Le direct laissé par un arrêt brutal, proposé à la reprise.
+    pub recovery: Option<crate::recovery::Snapshot>,
+    /// Les fenêtres du contrôle avant culte et de l'historique.
+    pub preflight_open: bool,
+    pub history_open: bool,
     /// Le bandeau de la diffusion et des sous-titres (réglages « OBS » de la 2.x).
     band: po_design::Band,
     help: bool,
@@ -256,6 +264,11 @@ impl App {
             ndi: false,
             hdmi_pattern: false,
             hdmi_key: po_layout::graphics::key_color(&settings.hdmi.key_color),
+            settings: settings.clone(),
+            settings_view: crate::settings_page::SettingsView::default(),
+            recovery: None,
+            preflight_open: false,
+            history_open: false,
             band: band_2x,
             help: false,
             status: "Prêt".into(),
@@ -263,6 +276,7 @@ impl App {
             last_render_ms: 0.0,
             follow_live: false,
         };
+        app.apply_settings(config.settings.clone());
         if let Some(port) = config.web_port {
             let file = config.locations.as_ref().map(|l| l.beta.data().join("web.json"));
             app.web = Some(crate::web::Web::start(app.hub.clone(), port, file));
@@ -306,13 +320,103 @@ impl App {
     fn reload_settings(&mut self) {
         let Some(locations) = &self.locations else { return };
         let loaded = Settings::load(&locations.beta.settings()).settings;
+        self.apply_settings(loaded);
+    }
+
+    /// Met en vigueur des réglages : design de la salle, découpage, raccourcis, diffusion.
+    pub fn apply_settings(&mut self, loaded: Settings) {
         self.design = RoomDesign::from_projection(&loaded.projection);
+        self.design.identification.style = crate::settings_page::identification_style(&loaded);
+        if crate::settings_page::low_power(&loaded) {
+            self.design.animation.kind = AnimationKind::None;
+        }
+        self.designs.previews_enabled = !crate::settings_page::low_power(&loaded);
         self.split = loaded.split.clone();
         self.display_screen = loaded.projection.display_screen.clone();
         self.shortcuts = Shortcuts::from_settings(loaded.other.get("shortcuts"));
         self.band = band_of(&loaded);
         self.hdmi_key = po_layout::graphics::key_color(&loaded.hdmi.key_color);
         self.designs.refresh_builtin(&self.design, &self.band);
+        self.settings = loaded;
+    }
+
+    /// Le dossier de données de la bêta.
+    fn data_dir(&self) -> Option<PathBuf> {
+        self.locations.as_ref().map(|l| l.beta.data())
+    }
+
+    /// Enregistre les réglages (Réglages → Enregistrer).
+    fn save_settings(&mut self, settings: Settings) {
+        if let Some(locations) = &self.locations
+            && let Err(e) = settings.save(&locations.beta.settings())
+        {
+            self.status = format!("Réglages non enregistrés : {e}");
+            return;
+        }
+        self.apply_settings(settings);
+        self.settings_view.draft = None;
+        self.render(Target::Live);
+        self.render(Target::Preview);
+        self.status = "Réglages enregistrés".into();
+    }
+
+    /// Sauvegarde la base et les réglages maintenant.
+    fn backup_now(&mut self) {
+        let (Some(db), Some(locations)) = (&self.db_path, &self.locations) else {
+            self.status = "Sauvegarde impossible : pas de dossier de données".into();
+            return;
+        };
+        let root = locations.beta.data().join("sauvegardes");
+        let stamp = crate::maintenance::stamp(&today(), service::now_seconds());
+        match crate::maintenance::backup(db, &locations.beta.settings(), &root, &stamp) {
+            Ok(b) => {
+                self.status = format!("Sauvegarde faite : {}", b.dir.display());
+                self.settings_view.backups = crate::maintenance::list(&root);
+            }
+            Err(e) => self.status = format!("Sauvegarde impossible : {e}"),
+        }
+    }
+
+    /// Le contrôle avant culte (Ctrl+Shift+D).
+    pub fn preflight(&mut self) -> Vec<crate::maintenance::Check> {
+        let backups = self.data_dir().map(|d| crate::maintenance::list(&d.join("sauvegardes"))).unwrap_or_default();
+        let last_backup = backups.first().and_then(|b| b.when.elapsed().ok());
+        let (playlist, missing_media) = match (&self.db, self.playlist.folder) {
+            (Some(db), Some(folder)) => {
+                let items = db.list_items(Some(folder)).unwrap_or_default();
+                let name = db.folder(folder).ok().flatten().map(|f| f.name).unwrap_or_default();
+                let missing = items
+                    .iter()
+                    .filter(|i| {
+                        i.source == "media"
+                            && !i.background.is_empty()
+                            && !std::path::Path::new(&i.background).is_file()
+                    })
+                    .map(|i| {
+                        std::path::Path::new(&i.background)
+                            .file_name()
+                            .map_or(i.background.clone(), |n| n.to_string_lossy().to_string())
+                    })
+                    .collect();
+                (Some((name, items.len())), missing)
+            }
+            _ => (None, Vec::new()),
+        };
+        let situation = crate::maintenance::Situation {
+            database_open: self.db.is_some(),
+            screens: crate::screens::list().len(),
+            font_families: self.designs.families.len(),
+            web: self.web.as_ref().map(|w| match (&w.error, w.addr()) {
+                (None, Some(addr)) => Ok(addr.to_string()),
+                (Some(e), _) => Err(e.clone()),
+                (None, None) => Err("Serveur Web arrêté".into()),
+            }),
+            ndi: po_ndi::available(&[]).map(|p| p.display().to_string()),
+            last_backup,
+            missing_media,
+            playlist,
+        };
+        crate::maintenance::preflight(&situation)
     }
 
     /// Ouvre la base de la bêta (sa copie : la 2.x n'est jamais ouverte en écriture). Une copie
@@ -335,6 +439,10 @@ impl App {
                 self.warm_up = Some(crate::data::warm_up(path.clone()));
                 self.db_path = Some(path);
                 self.startup = Startup::Ready;
+                if let Some(dir) = self.data_dir() {
+                    self.recovery = crate::recovery::load(&crate::recovery::file(&dir));
+                    self.settings_view.backups = crate::maintenance::list(&dir.join("sauvegardes"));
+                }
             }
             Err(e) => self.startup = Startup::Failed(format!("Base illisible : {e}")),
         }
@@ -365,6 +473,22 @@ impl App {
         let blur = (target == Target::Live && self.design.animation.kind == AnimationKind::Blur)
             .then(|| blur_radius(&self.design.animation));
         if target == Target::Live {
+            if let Some(dir) = self.data_dir() {
+                let event = crate::history::Event {
+                    at: service::now_seconds(),
+                    reference: slide.reference.clone(),
+                    text: slide.text.clone(),
+                    kind: format!("{:?}", slide.source).to_lowercase(),
+                };
+                let _ = crate::history::record(&crate::history::file(&dir, &today()), &event);
+                let _ = crate::recovery::save(
+                    &crate::recovery::file(&dir),
+                    &shown.program,
+                    &shown.origin,
+                    &shown.items,
+                    self.live_stage.hidden(),
+                );
+            }
             self.taken = Some(slide.clone());
             self.follow_live = true;
             // Un slide de playlist passe au direct : la section qui commence par lui démarre.
@@ -1029,6 +1153,16 @@ impl App {
                 Key2::LowerThird => self.toggle_lower_third(),
                 Key2::Subtitles => self.toggle_subtitles(),
                 Key2::HdmiPattern => self.toggle_pattern(),
+                Key2::NextSection => {
+                    if self.tracker.next(service::now_seconds()) {
+                        self.status = "Déroulé : section suivante".into();
+                    }
+                }
+                Key2::Preflight => {
+                    self.settings_view.checks = self.preflight();
+                    self.preflight_open = true;
+                }
+                Key2::History => self.history_open = !self.history_open,
             }
         }
         let typing = self.ctx.egui_wants_keyboard_input();
@@ -1041,6 +1175,9 @@ impl App {
         }
         if self.ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, Key::Num7)) {
             self.page = Page::Designs;
+        }
+        if self.ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, Key::Num8)) {
+            self.page = Page::Settings;
         }
         if typing {
             return;
@@ -1069,7 +1206,125 @@ impl App {
             Page::Sermons => self.sermons.focus_search = true,
             Page::Expose => self.expose.focus_search = true,
             Page::Books => self.books.focus_search = true,
-            Page::Playlist | Page::Designs => {}
+            Page::Playlist | Page::Designs | Page::Settings => {}
+        }
+    }
+
+    /// Une fermeture normale : plus de reprise à proposer au prochain démarrage.
+    pub fn shutdown(&mut self) {
+        if let Some(dir) = self.data_dir() {
+            crate::recovery::clear(&crate::recovery::file(&dir));
+        }
+    }
+
+    /// Reprend le direct laissé par un arrêt brutal.
+    pub fn resume(&mut self) {
+        let Some(snapshot) = self.recovery.take() else { return };
+        self.live = Some(Shown { program: snapshot.program, origin: snapshot.origin, items: snapshot.items });
+        if snapshot.hidden != self.live_stage.hidden() {
+            self.toggle_hidden();
+        }
+        self.render(Target::Live);
+        self.status = "Direct repris".into();
+    }
+
+    fn recovery_banner(&mut self, ui: &mut Ui) {
+        let Some(snapshot) = &self.recovery else { return };
+        let title = snapshot.program.title.clone();
+        let row = snapshot.program.current() + 1;
+        let mut resume = false;
+        let mut dismiss = false;
+        egui::Panel::top("reprise").frame(bar_frame().fill(Color32::from_rgb(0x3a, 0x2a, 0x12))).show(ui, |ui| {
+            ui.horizontal(|ui| {
+                widgets::dot(ui, WARN);
+                ui.label(
+                    RichText::new(format!(
+                        "Project-On s'est arrêté pendant le direct : « {title} », slide {row}. Reprendre là où vous étiez ?"
+                    ))
+                    .font(medium(12.5))
+                    .color(TEXT),
+                );
+                if widgets::button(ui, None, "Reprendre le direct", Tone::Primary(ACCENT)).clicked() {
+                    resume = true;
+                }
+                if widgets::button(ui, None, "Ignorer", Tone::Secondary).clicked() {
+                    dismiss = true;
+                }
+            });
+        });
+        if resume {
+            self.resume();
+        } else if dismiss {
+            self.recovery = None;
+            self.shutdown();
+        }
+    }
+
+    fn preflight_window(&mut self, ui: &mut Ui) {
+        if !self.preflight_open {
+            return;
+        }
+        let mut open = true;
+        let checks = self.settings_view.checks.clone();
+        egui::Window::new("Contrôle avant culte").open(&mut open).collapsible(false).default_width(560.0).show(
+            ui.ctx(),
+            |ui| {
+                crate::settings_page::checks_list(ui, &checks);
+            },
+        );
+        self.preflight_open = open;
+    }
+
+    fn history_window(&mut self, ui: &mut Ui) {
+        if !self.history_open {
+            return;
+        }
+        let Some(dir) = self.data_dir() else {
+            self.history_open = false;
+            self.status = "Historique : pas de dossier de données".into();
+            return;
+        };
+        let path = crate::history::file(&dir, &today());
+        let events = crate::history::read(&path);
+        let mut open = true;
+        let mut export: Option<(&str, String)> = None;
+        egui::Window::new("Historique du culte").open(&mut open).default_size([640.0, 420.0]).show(ui.ctx(), |ui| {
+            ui.horizontal(|ui| {
+                ui.label(
+                    RichText::new(format!("{} slide(s) aujourd'hui", events.len())).font(medium(12.5)).color(TEXT),
+                );
+                if widgets::button(ui, None, "Exporter en tableur", Tone::Secondary).clicked() {
+                    export = Some(("csv", crate::history::to_csv(&events)));
+                }
+                if widgets::button(ui, None, "Exporter en sous-titres (SRT)", Tone::Secondary)
+                    .on_hover_text("Calés sur le premier slide du jour (le début de l'enregistrement)")
+                    .clicked()
+                {
+                    let origin = events.first().map_or(0.0, |e| e.at);
+                    export = Some(("srt", crate::history::to_srt(&events, origin)));
+                }
+            });
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                for e in events.iter().rev() {
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new(crate::history::clock(e.at)).font(semibold(12.0)).color(ACCENT));
+                        ui.label(RichText::new(e.reference.replace('\n', " · ")).font(medium(12.0)).color(TEXT));
+                        let preview: String = e.text.chars().take(80).collect();
+                        ui.label(RichText::new(preview).font(regular(11.5)).color(MUTED));
+                    });
+                }
+            });
+        });
+        self.history_open = open;
+        if let Some((ext, body)) = export {
+            let target = std::env::var_os("USERPROFILE")
+                .map(|h| PathBuf::from(h).join("Documents").join("Project-On exports"))
+                .unwrap_or_else(|| dir.join("exports"));
+            let file = target.join(format!("historique-{}.{ext}", today()));
+            self.status = match std::fs::create_dir_all(&target).and_then(|()| std::fs::write(&file, body)) {
+                Ok(()) => format!("Exporté : {}", file.display()),
+                Err(e) => format!("Export impossible : {e}"),
+            };
         }
     }
 
@@ -1196,6 +1451,7 @@ impl App {
             Startup::Ready => {}
         }
         self.keyboard();
+        self.recovery_banner(ui);
         egui::Panel::top("barre").exact_size(50.0).frame(bar_frame()).show(ui, |ui| self.command_bar(ui));
         egui::Panel::bottom("etat").exact_size(26.0).frame(bar_frame()).show(ui, |ui| self.status_bar(ui));
         egui::Panel::left("rail").exact_size(176.0).resizable(false).frame(bar_frame()).show(ui, |ui| self.rail(ui));
@@ -1207,6 +1463,8 @@ impl App {
         egui::CentralPanel::no_frame().frame(panel_frame().fill(BG)).show(ui, |ui| self.library(ui));
         self.global_results(ui);
         self.add_window(ui);
+        self.preflight_window(ui);
+        self.history_window(ui);
         if self.help {
             self.help_window(ui);
         }
@@ -1280,6 +1538,26 @@ impl App {
     }
 
     fn library(&mut self, ui: &mut Ui) {
+        if self.page == Page::Settings {
+            if self.settings_view.families.is_empty() {
+                self.settings_view.families = self.designs.families.clone();
+                self.settings_view.screens = crate::screens::list().into_iter().map(|s| s.device).collect();
+            }
+            let current = self.settings.clone();
+            for action in self.settings_view.ui(ui, &current) {
+                match action {
+                    crate::settings_page::SettingsAction::Save(settings) => self.save_settings(*settings),
+                    crate::settings_page::SettingsAction::Backup => self.backup_now(),
+                    crate::settings_page::SettingsAction::Preflight => {
+                        self.settings_view.checks = self.preflight();
+                    }
+                    crate::settings_page::SettingsAction::OpenFolder(dir) => {
+                        let _ = std::process::Command::new("explorer").arg(dir).spawn();
+                    }
+                }
+            }
+            return;
+        }
         if self.page == Page::Designs {
             let sample = self
                 .preview
@@ -1316,7 +1594,7 @@ impl App {
             Page::Hymns => self.hymns.ui(ui, db, &marks, search, self.split.hymn_repeat_chorus),
             Page::Expose => self.expose.ui(ui, db, &marks, search),
             Page::Books => self.books.ui(ui, db, &marks, search),
-            Page::Playlist | Page::Designs => None,
+            Page::Playlist | Page::Designs | Page::Settings => None,
         };
         if let Some(action) = action {
             self.apply(action);
@@ -1553,7 +1831,29 @@ impl App {
         if r.on_hover_text("Designs, lower thirds, sous-titres, NDI et HDMI (Ctrl+7)").clicked() {
             self.page = Page::Designs;
         }
-        for (label, icon, phase) in [("Médias", Icon::Image, "phase 7"), ("Réglages", Icon::Settings, "phase 7")] {
+        let settings = self.page == Page::Settings;
+        let (rect, r) = widgets::list_row(ui, settings, 38.0, Page::Settings.label());
+        ui.add_space(2.0);
+        icons::paint(
+            ui.painter(),
+            egui::Rect::from_center_size(pos2(rect.min.x + 22.0, rect.center().y), vec2(17.0, 17.0)),
+            Icon::Settings,
+            if settings { ACCENT } else { MUTED },
+        );
+        widgets::paint_text(
+            ui,
+            pos2(rect.min.x + 40.0, rect.center().y),
+            Align2::LEFT_CENTER,
+            Page::Settings.label(),
+            medium(13.5),
+            if settings { TEXT } else { MUTED },
+            rect.width() - 50.0,
+        );
+        if r.on_hover_text("Réglages, sauvegardes, contrôle avant culte (Ctrl+8)").clicked() {
+            self.page = Page::Settings;
+        }
+        {
+            let (label, icon, phase) = ("Médias", Icon::Image, "une prochaine version");
             let (rect, r) = ui.allocate_exact_size(vec2(ui.available_width(), 36.0), Sense::hover());
             icons::paint(
                 ui.painter(),
@@ -1855,6 +2155,22 @@ fn bar_frame() -> egui::Frame {
 
 fn panel_frame() -> egui::Frame {
     egui::Frame::new().fill(PANEL).inner_margin(Margin::same(12))
+}
+
+/// La date locale « 2026-11-11 ».
+fn today() -> String {
+    #[cfg(windows)]
+    {
+        use windows::Win32::System::SystemInformation::GetLocalTime;
+        // SAFETY : GetLocalTime remplit une structure qu'on lui donne, sans autre effet.
+        #[allow(unsafe_code)]
+        let t = unsafe { GetLocalTime() };
+        format!("{:04}-{:02}-{:02}", t.wYear, t.wMonth, t.wDay)
+    }
+    #[cfg(not(windows))]
+    {
+        "1970-01-01".into()
+    }
 }
 
 /// L'heure locale « 16:51 ».

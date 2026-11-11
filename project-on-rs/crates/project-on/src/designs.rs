@@ -161,6 +161,8 @@ pub struct DesignsView {
     asked: HashMap<String, String>,
     sample: Option<(String, String)>,
     pub families: Vec<String>,
+    /// Les aperçus rendus (non en mode PC modeste).
+    pub previews_enabled: bool,
 }
 
 impl DesignsView {
@@ -181,6 +183,7 @@ impl DesignsView {
             asked: HashMap::new(),
             sample: None,
             families: Vec::new(),
+            previews_enabled: true,
         }
     }
 
@@ -210,6 +213,9 @@ impl DesignsView {
 
     /// Demande les aperçus manquants (ou périmés) au fil de rendu.
     fn request_previews(&mut self, ctx: &egui::Context, designs: &[Design], slide: &Slide) {
+        if !self.previews_enabled {
+            return;
+        }
         let sample_key = (slide.text.clone(), slide.reference.clone());
         if self.sample.as_ref() != Some(&sample_key) {
             // Le contenu a changé : tous les aperçus sont à refaire.

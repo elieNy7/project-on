@@ -2300,6 +2300,7 @@ dependencies = [
  "po-settings",
  "po-text",
  "regex",
+ "serde",
 ]
 
 [[package]]
@@ -2461,6 +2462,7 @@ dependencies = [
  "pollster 0.4.0",
  "regex",
  "resvg",
+ "serde",
  "serde_json",
  "tempfile",
  "tiny-skia",

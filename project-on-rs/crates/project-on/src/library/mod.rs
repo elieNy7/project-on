@@ -28,6 +28,8 @@ pub enum Page {
     Playlist,
     /// La bibliothèque de designs et l'habillage en direct (hors du rail principal).
     Designs,
+    /// Les réglages et l'entretien.
+    Settings,
 }
 
 impl Page {
@@ -42,6 +44,7 @@ impl Page {
             Page::Books => "Livres",
             Page::Playlist => "Playlist",
             Page::Designs => "Designs",
+            Page::Settings => "Réglages",
         }
     }
 
@@ -54,12 +57,13 @@ impl Page {
             Page::Books => Icon::Library,
             Page::Playlist => Icon::ListVideo,
             Page::Designs => Icon::SwatchBook,
+            Page::Settings => Icon::Settings,
         }
     }
 }
 
 /// D'où vient un programme : pour retrouver ses lignes dans la bibliothèque.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 pub enum Origin {
     Sermon(i64),
     Chapter {

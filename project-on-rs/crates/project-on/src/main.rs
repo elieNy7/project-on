@@ -38,7 +38,7 @@ fn alert(message: &str) {
     // SAFETY : une boîte de message modale, avec deux chaînes valides.
     #[allow(unsafe_code)]
     unsafe {
-        MessageBoxW(None, &HSTRING::from(message), &HSTRING::from("Project-On 3 (bêta)"), MB_OK | MB_ICONERROR);
+        MessageBoxW(None, &HSTRING::from(message), &HSTRING::from(NAME), MB_OK | MB_ICONERROR);
     }
 }
 
@@ -47,8 +47,28 @@ fn alert(message: &str) {
     eprintln!("{message}");
 }
 
-/// Le port des écrans Web de la bêta (la 2.8 garde 8080 tant qu'elles cohabitent).
-const WEB_PORT: u16 = 8090;
+/// Le port des écrans Web : 8080 après la bascule (celui de la 2.x : les sources OBS restent
+/// bonnes) ; 8090 pour la bêta, qui cohabite avec la 2.8.
+const WEB_PORT: u16 = if cfg!(feature = "bascule") { 8080 } else { 8090 };
+
+/// Le nom de la fenêtre et des messages.
+const NAME: &str = if cfg!(feature = "bascule") { "Project-On 3.0" } else { "Project-On 3.0 bêta" };
+
+/// Le verrou d'instance unique de la 2.x (`AppMutex` de l'installateur) : l'installateur d'une mise
+/// à jour attend que Project-On soit fermé. Gardé ouvert jusqu'à la fin du programme.
+#[cfg(windows)]
+fn instance_lock() {
+    use windows::Win32::System::Threading::CreateMutexW;
+    use windows::core::w;
+    if cfg!(feature = "bascule") {
+        // SAFETY : un verrou nommé, jamais refermé avant la fin du processus.
+        #[allow(unsafe_code)]
+        let _ = unsafe { CreateMutexW(None, false, w!("ProjectOnMutex")) };
+    }
+}
+
+#[cfg(not(windows))]
+fn instance_lock() {}
 
 struct Shell {
     app: App,
@@ -58,9 +78,16 @@ impl eframe::App for Shell {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         self.app.ui(ui);
     }
+
+    fn on_exit(&mut self) {
+        // Fermeture normale : pas de reprise au prochain démarrage.
+        self.app.shutdown();
+        po_core::journal::line("fermeture normale");
+    }
 }
 
 fn main() {
+    instance_lock();
     let fonts = fonts_dir();
     let locations = Locations::current().ok().map(|l| l.with_bundled(bundled_database()));
     if let Some(l) = &locations {
@@ -83,7 +110,7 @@ fn main() {
         .unwrap_or_default();
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_title("Project-On 3.0 bêta")
+            .with_title(NAME)
             .with_inner_size([1600.0, 940.0])
             .with_min_inner_size([1200.0, 700.0])
             .with_maximized(true),
@@ -114,7 +141,7 @@ fn main() {
     if let Err(e) = result {
         po_core::journal::line(&format!("ERREUR au démarrage : {e}"));
         alert(&format!(
-            "Project-On 3 (bêta) ne peut pas s'ouvrir :\n\n{e}\n\nMettez à jour le pilote de la carte graphique, puis réessayez."
+            "{NAME} ne peut pas s'ouvrir :\n\n{e}\n\nMettez à jour le pilote de la carte graphique, puis réessayez."
         ));
     }
 }

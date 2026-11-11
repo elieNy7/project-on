@@ -53,7 +53,7 @@ impl Cue {
 }
 
 /// Un slide d'un programme, tel que stocké (avant sa présentation à l'écran).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct ProgramSlide {
     pub reference: String,
     pub text: String,
@@ -152,7 +152,7 @@ pub fn presentation(source: &SlideSource, slide: &ProgramSlide) -> Slide {
 }
 
 /// Un programme au direct (ou dans l'Aperçu) : ses slides et le slide montré.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Program {
     pub source: SlideSource,
     pub title: String,
