@@ -2,12 +2,12 @@
 //!
 //! La bêta travaille sur ses propres données, dans `%APPDATA%\Project-On 3 (bêta)` : au premier
 //! lancement, une COPIE de celles de la 2.x ou de la base fournie avec l'installateur. La 2.8 et ses
-//! données ne sont jamais modifiées. Le serveur Web écoute sur 127.0.0.1:8090 (la 2.8 garde 8080).
+//! données ne sont jamais modifiées. Le serveur Web écoute sur le port 8090 (la 2.8 garde 8080) ;
+//! ce poste seulement, sauf si l'opérateur ouvre les écrans au réseau local.
 
 #![windows_subsystem = "windows"]
 
 use std::path::PathBuf;
-use std::sync::Arc;
 
 use project_on::data::Locations;
 use project_on::{App, Config};
@@ -47,19 +47,16 @@ fn alert(message: &str) {
     eprintln!("{message}");
 }
 
+/// Le port des écrans Web de la bêta (la 2.8 garde 8080 tant qu'elles cohabitent).
+const WEB_PORT: u16 = 8090;
+
 struct Shell {
     app: App,
-    hub: Arc<po_web::Hub>,
-    _server: Option<po_web::Server>,
 }
 
 impl eframe::App for Shell {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        self.app.web_screens = self.hub.connected();
         self.app.ui(ui);
-        if let Some(slide) = self.app.taken.take() {
-            self.hub.publish(slide, self.app.design.clone());
-        }
     }
 }
 
@@ -84,8 +81,6 @@ fn main() {
             po_settings::Settings::load(&path).settings
         })
         .unwrap_or_default();
-    let hub = po_web::Hub::new(project_on::worker::fonts_from(&fonts));
-    let server = po_web::start(hub.clone(), ([127, 0, 0, 1], 8090).into()).ok();
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title("Project-On 3.0 bêta")
@@ -104,9 +99,16 @@ fn main() {
                 let info = state.adapter.get_info();
                 po_core::journal::line(&format!("carte graphique : {} ({:?})", info.name, info.backend));
             }
-            let config = Config { fonts_dir: fonts, locations, database: None, settings, windowed_projection: false };
+            let config = Config {
+                fonts_dir: fonts,
+                locations,
+                database: None,
+                settings,
+                windowed_projection: false,
+                web_port: Some(WEB_PORT),
+            };
             let app = App::new(&cc.egui_ctx, config);
-            Ok(Box::new(Shell { app, hub, _server: server }))
+            Ok(Box::new(Shell { app }))
         }),
     );
     if let Err(e) = result {

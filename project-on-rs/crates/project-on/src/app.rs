@@ -79,6 +79,8 @@ pub struct Config {
     pub settings: Settings,
     /// La projection s'ouvre dans une fenêtre, jamais en plein écran (essais).
     pub windowed_projection: bool,
+    /// Le port du serveur Web (0 : un port libre) ; `None` : pas d'écrans Web (essais).
+    pub web_port: Option<u16>,
 }
 
 #[derive(Default)]
@@ -129,7 +131,10 @@ pub struct App {
     projectors: Vec<Projector>,
     /// Ce qui vient de passer au direct, à diffuser aux écrans Web.
     pub taken: Option<Slide>,
-    pub web_screens: usize,
+    /// Les écrans Web (salle, diffusion, sous-titres, retour de scène).
+    pub web: Option<crate::web::Web>,
+    /// Le bandeau de la diffusion et des sous-titres (réglages « OBS » de la 2.x).
+    band: po_design::Band,
     help: bool,
     status: String,
     warm_up: Option<JoinHandle<(u64, Duration)>>,
@@ -137,6 +142,15 @@ pub struct App {
     pub last_render_ms: f64,
     /// La liste du programme au direct doit montrer le slide courant.
     follow_live: bool,
+}
+
+/// Le bandeau des écrans Web : les réglages « OBS » de la 2.x (`obs.output`), sinon ceux par défaut.
+fn band_of(settings: &Settings) -> po_design::Band {
+    settings
+        .other
+        .get("obs")
+        .and_then(|o| o.get("output"))
+        .map_or_else(po_design::Band::default, po_design::Band::from_obs_output)
 }
 
 fn animation_off() -> po_design::Animation {
@@ -183,13 +197,19 @@ impl App {
             global: GlobalSearch::default(),
             projectors: Vec::new(),
             taken: None,
-            web_screens: 0,
+            web: None,
+            band: band_of(settings),
             help: false,
             status: "Prêt".into(),
             warm_up: None,
             last_render_ms: 0.0,
             follow_live: false,
         };
+        if let Some(port) = config.web_port {
+            let hub = po_web::Hub::new(crate::worker::fonts_from(&config.fonts_dir));
+            let file = config.locations.as_ref().map(|l| l.beta.data().join("web.json"));
+            app.web = Some(crate::web::Web::start(hub, port, file));
+        }
         match (config.database, config.locations) {
             (Some(path), _) => app.open_database(path),
             (None, Some(locations)) => {
@@ -233,6 +253,7 @@ impl App {
         self.split = loaded.split.clone();
         self.display_screen = loaded.projection.display_screen.clone();
         self.shortcuts = Shortcuts::from_settings(loaded.other.get("shortcuts"));
+        self.band = band_of(&loaded);
     }
 
     /// Ouvre la base de la bêta (sa copie : la 2.x n'est jamais ouverte en écriture). Une copie
@@ -1012,8 +1033,37 @@ impl App {
         if self.live_stage.animating(now) || self.preview_stage.animating(now) {
             ui.ctx().request_repaint();
         }
-        // L'horloge de la barre.
+        self.sync_web();
+        // L'horloge de la barre (et celle du retour de scène).
         ui.ctx().request_repaint_after(Duration::from_secs(1));
+    }
+
+    /// Les écrans Web suivent le direct : le slide, le suivant, le texte masqué, le déroulé et
+    /// l'heure. Rien ne part si rien n'a changé.
+    fn sync_web(&mut self) {
+        let Some(web) = &self.web else { return };
+        let next = self.live.as_ref().and_then(|l| l.program.slide_at(l.program.current() + 1));
+        let context = po_web::Context {
+            design: self.design.clone(),
+            band: self.band.clone(),
+            next,
+            hidden: self.live_stage.hidden(),
+            clock: chrono_now(),
+            status: self.service_line(),
+        };
+        web.hub.update(self.taken.take(), context);
+    }
+
+    /// Le déroulé en une ligne, pour le retour de scène : « Prédication · 12:00 restantes ».
+    fn service_line(&self) -> String {
+        let now = service::now_seconds();
+        let base = service::parse_start_time(&self.playlist.start_time).map(|(h, m)| f64::from(h * 3600 + m * 60));
+        let Some(s) = self.tracker.status(now, base) else { return String::new() };
+        if s.remaining >= 0.0 {
+            format!("{} · {} restantes", s.name, service::format_duration(s.remaining))
+        } else {
+            format!("{} · {} de dépassement", s.name, service::format_duration(-s.remaining))
+        }
     }
 
     fn library(&mut self, ui: &mut Ui) {
@@ -1103,11 +1153,9 @@ impl App {
                 let clock = chrono_now();
                 ui.label(RichText::new(clock).font(medium(12.5)).color(MUTED));
                 ui.add_space(8.0);
-                widgets::chip(
-                    ui,
-                    &format!("Web · {}", self.web_screens),
-                    if self.web_screens > 0 { PREVIEW } else { FAINT },
-                );
+                if let Some(web) = self.web.as_mut() {
+                    web.button(ui);
+                }
                 ui.add_space(4.0);
                 let label = match self.projectors.as_slice() {
                     [] => "Projection fermée".to_string(),

@@ -13,7 +13,12 @@
   la 2.8 sur 936 programmes ([rapport](project-on-rs/docs/phase3/RAPPORT_PHASE3.md)). **Phase 4
   terminée le 11 novembre** : playlist et déroulé du culte de la 2.8 dans la bêta 2, identiques à la
   2.8 sur 30 playlists ([rapport](project-on-rs/docs/phase4/RAPPORT_PHASE4.md), essai guidé à faire).
-  La phase 5 attend votre feu vert. Le code de la 2.8 n'a pas été modifié ; seul son module natif est rebranché
+  **Phase 5 terminée le 11 novembre** : projection Web à quatre écrans (salle, diffusion pour OBS,
+  sous-titres, retour de scène), mise en page et transitions du vidéoprojecteur, état des écrans
+  dans la régie, réseau local avec jeton, adresse `/obs` de la 2.8 conservée
+  ([rapport](project-on-rs/docs/phase5/RAPPORT_PHASE5.md)). Les phases 6 à 8 suivent sans attendre
+  (votre demande du 11 novembre), sauf la suppression du code de la 2.8 et la publication, qui vous
+  seront demandées. Le code de la 2.8 n'a pas été modifié ; seul son module natif est rebranché
   sur `po-text`.
 - Cette demande remplace le choix du 29 octobre 2026 (« Rust hybride, pas de réécriture complète ») :
   la logique et l'interface passent toutes les deux en Rust.

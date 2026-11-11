@@ -304,6 +304,7 @@ fn ui_config(db_path: &Path, out_dir: &Path) -> project_on::Config {
         database: Some(db_path.to_path_buf()),
         settings,
         windowed_projection: true,
+        web_port: None,
     }
 }
 
@@ -494,24 +495,174 @@ fn tout(db_path: &Path, out_dir: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Un écran Web de démonstration : un paragraphe réel change toutes les 4 s.
+/// Des écrans Web de démonstration : un paragraphe réel change toutes les 4 s, avec à chaque fois
+/// une autre transition ; le bandeau suit vos réglages OBS de la 2.x (lus sans rien écrire).
 fn servir(db_path: &Path, port: u16) -> Result<()> {
+    use po_design::AnimationKind;
     let db = Database::open(db_path, Mode::ReadOnly)?;
-    let paragraphs = sample_paragraphs(&db)?;
-    let hub = po_web::Hub::new(projection_fonts());
+    let paragraphs: Vec<String> = sample_paragraphs(&db)?.into_iter().step_by(7).take(60).collect();
+    let hub = po_web::Hub::new(project_on::worker::fonts_from(&fonts_dir()));
     let server = po_web::start(hub.clone(), ([127, 0, 0, 1], port).into())?;
-    println!("Écran : http://{}/ecran/salle", server.addr);
+    println!("Écrans : http://{}/", server.addr);
+    let band = legacy_band();
     // Un fond image (servi aux navigateurs) et l'identification de Branham.
     let mut room = design();
     room.background.image =
         Some(po_layout::bundled_backgrounds_dir().join("bg-bleu-nuit_16x9.png").to_string_lossy().into_owned());
-    for (i, text) in paragraphs.iter().cycle().step_by(7).enumerate() {
-        hub.publish(
-            Slide::new(text.clone(), format!("Paragraphe d'essai n° {}", i + 1), SlideSource::Sermon),
-            room.clone(),
-        );
+    let kinds =
+        [AnimationKind::Fade, AnimationKind::Slide, AnimationKind::Scale, AnimationKind::Blur, AnimationKind::Reveal];
+    let slide = |i: usize| {
+        Slide::new(
+            paragraphs[i % paragraphs.len()].clone(),
+            format!("Paragraphe d'essai n° {}", i + 1),
+            SlideSource::Sermon,
+        )
+    };
+    // Jusqu'à l'arrêt du processus.
+    for i in 0..usize::MAX {
+        let mut design = room.clone();
+        design.animation.kind = kinds[i % kinds.len()];
+        design.animation.duration_ms = 700;
+        let context = po_web::Context {
+            design,
+            band: band.clone(),
+            next: Some(slide(i + 1)),
+            hidden: i % 7 == 6,
+            clock: format!("10:{:02}", i % 60),
+            status: format!("Prédication · {}:00 restantes", 30 - i % 30),
+        };
+        hub.update(Some(slide(i)), context);
         std::thread::sleep(Duration::from_secs(4));
     }
+    Ok(())
+}
+
+/// Le bandeau des réglages « OBS » de la 2.x de ce poste (lus sans rien écrire).
+fn legacy_band() -> po_design::Band {
+    std::env::var_os("APPDATA")
+        .map(|d| PathBuf::from(d).join("Project-On").join("data").join("settings.json"))
+        .and_then(|p| std::fs::read_to_string(p).ok())
+        .and_then(|t| serde_json::from_str::<Value>(&t).ok())
+        .and_then(|v| v.get("obs").and_then(|o| o.get("output")).cloned())
+        .map_or_else(po_design::Band::default, |output| po_design::Band::from_obs_output(&output))
+}
+
+/// Un damier, comme les logiciels de montage montrent la transparence (là où passe la vidéo).
+fn checkerboard(width: u32, height: u32) -> Result<tiny_skia::Pixmap> {
+    let mut pixmap = tiny_skia::Pixmap::new(width, height).ok_or("taille")?;
+    let cell = 24;
+    for (i, px) in pixmap.pixels_mut().iter_mut().enumerate() {
+        let (x, y) = (i as u32 % width / cell, i as u32 / width / cell);
+        let v = if (x + y) % 2 == 0 { 58 } else { 44 };
+        *px = tiny_skia::ColorU8::from_rgba(v, v + 4, v + 8, 255).premultiply();
+    }
+    Ok(pixmap)
+}
+
+/// Ce que reçoit chaque genre d'écran Web (mêmes listes d'affichage que le navigateur), en une
+/// planche, puis la régie avec ses écrans connectés et la fenêtre « Web » ouverte.
+fn capture_web(db_path: &Path, out_dir: &Path) -> Result<()> {
+    use po_web::ScreenKind;
+    std::fs::create_dir_all(out_dir)?;
+    let db = Database::open(db_path, Mode::ReadOnly)?;
+    let paragraphs = sample_paragraphs(&db)?;
+    let mut fonts = project_on::worker::fonts_from(&fonts_dir());
+    let hub = po_web::Hub::new(project_on::worker::fonts_from(&fonts_dir()));
+    let mut room = design();
+    room.background.image =
+        Some(po_layout::bundled_backgrounds_dir().join("bg-bleu-nuit_16x9.png").to_string_lossy().into_owned());
+    let slide = Slide::new(paragraphs[2].clone(), "La Foi · §12", SlideSource::Sermon);
+    let next = Slide::new(paragraphs[3].clone(), "La Foi · §13", SlideSource::Sermon);
+    hub.update(
+        Some(slide),
+        po_web::Context {
+            design: room,
+            band: legacy_band(),
+            next: Some(next),
+            hidden: false,
+            clock: "10:42".into(),
+            status: "Prédication · 32:15 restantes".into(),
+        },
+    );
+    let program = hub.program();
+    let (w, h, gap) = (960u32, 540u32, 24u32);
+    let mut sheet = tiny_skia::Pixmap::new(2 * w + 3 * gap, 2 * h + 3 * gap).ok_or("taille")?;
+    sheet.fill(tiny_skia::Color::from_rgba8(11, 18, 23, 255));
+    let mut renderer = Renderer::new();
+    let kinds = [ScreenKind::Room, ScreenKind::Broadcast, ScreenKind::Subtitles, ScreenKind::Stage];
+    for (i, kind) in kinds.into_iter().enumerate() {
+        let list = hub.layout(&program, kind, 1920.0, 1080.0);
+        let image = renderer.render(&mut fonts, &list, w, h)?;
+        let mut tile =
+            if kind.transparent() { checkerboard(w, h)? } else { tiny_skia::Pixmap::new(w, h).ok_or("taille")? };
+        let paint = tiny_skia::PixmapPaint::default();
+        tile.draw_pixmap(0, 0, image.as_ref(), &paint, tiny_skia::Transform::identity(), None);
+        let (x, y) = (gap + (i as u32 % 2) * (w + gap), gap + (i as u32 / 2) * (h + gap));
+        sheet.draw_pixmap(x as i32, y as i32, tile.as_ref(), &paint, tiny_skia::Transform::identity(), None);
+    }
+    std::fs::write(out_dir.join("ecrans.png"), encode_png(&sheet)?)?;
+    println!("Planche : {}", out_dir.join("ecrans.png").display());
+
+    // La régie : trois écrans connectés, un quatrième qui vient de se couper.
+    let mut config = ui_config(db_path, out_dir);
+    config.web_port = Some(0);
+    let mut harness = ui_harness(config);
+    harness.run_ok();
+    let app = harness.state_mut().app();
+    let addr = app.web.as_ref().and_then(|w| w.addr()).ok_or("serveur Web absent")?;
+    let (stop, stopped) = std::sync::mpsc::channel::<()>();
+    let clients = std::thread::spawn(move || -> std::result::Result<(), String> {
+        let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().map_err(|e| e.to_string())?;
+        runtime.block_on(async move {
+            let mut sockets = Vec::new();
+            let screens =
+                [("salle", 1920, 1080), ("diffusion", 1920, 1080), ("retour", 1280, 800), ("hall", 1366, 768)];
+            for (screen, w, h) in screens {
+                let (mut socket, _) = tokio_tungstenite::connect_async(format!("ws://{addr}/ws/{screen}"))
+                    .await
+                    .map_err(|e| e.to_string())?;
+                let hello = format!(r#"{{"type":"hello","width":{w},"height":{h}}}"#);
+                socket.send(Message::Text(hello.into())).await.map_err(|e| e.to_string())?;
+                sockets.push(socket);
+            }
+            tokio::time::sleep(Duration::from_millis(300)).await;
+            drop(sockets.pop());
+            while stopped.try_recv().is_err() {
+                for socket in &mut sockets {
+                    while let Ok(Some(Ok(Message::Text(text)))) =
+                        tokio::time::timeout(Duration::from_millis(20), socket.next()).await
+                    {
+                        if let Ok(po_web::ServerMessage::Frame { seq, .. }) = serde_json::from_str(&text) {
+                            let ack = format!(r#"{{"type":"ack","seq":{seq}}}"#);
+                            socket.send(Message::Text(ack.into())).await.map_err(|e| e.to_string())?;
+                        }
+                    }
+                }
+            }
+            Ok(())
+        })
+    });
+    std::thread::sleep(Duration::from_millis(800));
+    harness.state_mut().app().select_sermon(40);
+    harness.step();
+    harness.state_mut().app().cue_sermon_entry(3);
+    until(&mut harness, |a| !a.rendering() && a.preview_frame().is_some());
+    harness.state_mut().app().take();
+    until(&mut harness, |a| !a.rendering() && a.live_frame().is_some());
+    std::thread::sleep(Duration::from_millis(500));
+    harness.step();
+    {
+        use egui_kittest::kittest::Queryable;
+        harness.get_by_label_contains("Web ·").click();
+    }
+    for _ in 0..5 {
+        harness.step();
+    }
+    let image = harness.render()?;
+    image.save(out_dir.join("web-regie.png"))?;
+    println!("Capture : {}", out_dir.join("web-regie.png").display());
+    let _ = stop.send(());
+    clients.join().map_err(|_| "clients")??;
     Ok(())
 }
 
@@ -524,6 +675,7 @@ fn main() -> Result<()> {
         ["recherche", db, out] => recherche(Path::new(db), Path::new(out)),
         ["captures", refs, out] => captures::run(Path::new(refs), Path::new(out)),
         ["playlist", db, out] => capture_playlist(Path::new(db), Path::new(out)),
+        ["web", db, out] => capture_web(Path::new(db), Path::new(out)),
         ["trigramme", db, out] => {
             let report = trigramme::evaluate(Path::new(db), Path::new(out))?;
             std::fs::write(Path::new(out).join("trigramme.json"), serde_json::to_string_pretty(&report)?)?;
@@ -531,7 +683,7 @@ fn main() -> Result<()> {
         }
         _ => {
             eprintln!(
-                "usage : po-mesures tout <base.db> <dossier> | demarrage <base.db> | servir <base.db> <port> | recherche <base.db> <sortie.json> | trigramme <base.db> <dossier> | captures <références 2.8> <dossier> | playlist <base.db> <dossier>"
+                "usage : po-mesures tout <base.db> <dossier> | demarrage <base.db> | servir <base.db> <port> | recherche <base.db> <sortie.json> | trigramme <base.db> <dossier> | captures <références 2.8> <dossier> | playlist <base.db> <dossier> | web <base.db> <dossier>"
             );
             std::process::exit(2);
         }

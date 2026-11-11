@@ -43,6 +43,7 @@ fn config(database: Option<PathBuf>, locations: Option<Locations>) -> Config {
         database,
         settings: Settings::default(),
         windowed_projection: true,
+        web_port: None,
     }
 }
 

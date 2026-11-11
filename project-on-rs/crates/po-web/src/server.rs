@@ -1,36 +1,77 @@
 //! Le serveur HTTP + WebSocket (axum), sur son propre fil avec un petit runtime tokio.
 
-use std::net::SocketAddr;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::net::{IpAddr, SocketAddr};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use axum::Router;
-use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
-use axum::extract::{Path, State};
-use axum::http::{StatusCode, header};
-use axum::response::{Html, IntoResponse, Response};
+use axum::extract::ws::{CloseFrame, Message, WebSocket, WebSocketUpgrade};
+use axum::extract::{ConnectInfo, Path, RawQuery, Request, State};
+use axum::http::{HeaderValue, StatusCode, header};
+use axum::middleware::Next;
+use axum::response::{Html, IntoResponse, Redirect, Response};
 use axum::routing::get;
 use futures_util::{SinkExt, StreamExt};
-use po_design::{RoomDesign, SlideSource};
-use po_layout::{DisplayList, Fonts, Item, Slide, layout_room};
+use po_design::{Animation, Band, RoomDesign, SlideSource};
+use po_layout::{DisplayList, Fonts, Item, Slide, layout_band, layout_room, layout_stage};
 use po_render::Renderer;
 use tokio::sync::{oneshot, watch};
 
+use crate::access::{self, Access, COOKIE};
 use crate::protocol::{ClientMessage, PROTOCOL_VERSION, ServerMessage};
+use crate::screens::{PRESETS, Registry, ScreenInfo, ScreenKind};
+
+/// Tout ce qui, en plus du slide au direct, décide de ce que montrent les écrans.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Context {
+    /// Le design de la salle (écrans « salle »).
+    pub design: RoomDesign,
+    /// Le bandeau (écrans « diffusion » et « sous-titres »).
+    pub band: Band,
+    /// Le slide suivant (retour de scène).
+    pub next: Option<Slide>,
+    /// Le texte est masqué (le fond reste).
+    pub hidden: bool,
+    /// L'heure affichée sur le retour de scène (« 10:42 »).
+    pub clock: String,
+    /// Le déroulé du culte, pour le retour de scène (« Prédication · 12:00 restantes »).
+    pub status: String,
+}
 
 /// Ce qui est au direct.
 #[derive(Debug, Clone)]
 pub struct Program {
+    /// Augmente à chaque slide mis au direct.
     pub seq: u64,
     pub slide: Slide,
-    pub design: RoomDesign,
+    pub context: Context,
+    /// Quand le slide est passé au direct.
+    pub at: Instant,
 }
 
 impl Default for Program {
     fn default() -> Self {
-        Program { seq: 0, slide: Slide::new("", "", SlideSource::Custom), design: RoomDesign::default() }
+        Program {
+            seq: 0,
+            slide: Slide::new("", "", SlideSource::Custom),
+            context: Context::default(),
+            at: Instant::now(),
+        }
+    }
+}
+
+impl Program {
+    /// Deux états donnent-ils la même image sur un écran de ce genre ?
+    fn same_image(&self, other: &Program, kind: ScreenKind) -> bool {
+        let (a, b) = (&self.context, &other.context);
+        self.seq == other.seq
+            && a.hidden == b.hidden
+            && match kind {
+                ScreenKind::Room => a.design == b.design,
+                ScreenKind::Broadcast | ScreenKind::Subtitles => a.band == b.band,
+                ScreenKind::Stage => a.next == b.next && a.clock == b.clock && a.status == b.status,
+            }
     }
 }
 
@@ -52,7 +93,8 @@ pub struct Hub {
     /// Les images de fond servies aux navigateurs (`/images/{n}`) : seulement celles des slides
     /// mis au direct, jamais un chemin choisi par un navigateur.
     images: Mutex<Vec<std::path::PathBuf>>,
-    clients: AtomicUsize,
+    registry: Registry,
+    access: Mutex<Access>,
 }
 
 impl Hub {
@@ -84,15 +126,68 @@ impl Hub {
             renderer: Mutex::new(Renderer::new()),
             faces,
             images: Mutex::new(Vec::new()),
-            clients: AtomicUsize::new(0),
+            registry: Registry::default(),
+            access: Mutex::new(Access::default()),
         })
     }
 
-    /// Met un slide au direct : tous les écrans le reçoivent. Renvoie son numéro.
+    /// Met un slide au direct avec ce design de salle : tous les écrans le reçoivent. Renvoie son
+    /// numéro.
     pub fn publish(&self, slide: Slide, design: RoomDesign) -> u64 {
-        let seq = self.program.borrow().seq + 1;
-        self.program.send_replace(Arc::new(Program { seq, slide, design }));
+        let mut context = self.program.borrow().context.clone();
+        context.design = design;
+        self.update(Some(slide), context)
+    }
+
+    /// Met à jour ce que montrent les écrans : un nouveau slide au direct (`Some`), ou seulement le
+    /// contexte (texte masqué, slide suivant, heure…). Rien n'est envoyé si rien ne change ; la
+    /// régie peut donc l'appeler à chaque image. Le slide déjà au direct, remis au direct (la
+    /// projection rouverte), ne rejoue pas de transition. Renvoie le numéro du slide au direct.
+    pub fn update(&self, slide: Option<Slide>, context: Context) -> u64 {
+        let mut seq = 0;
+        self.program.send_if_modified(|current| {
+            let slide = slide.filter(|s| current.seq == 0 || *s != current.slide);
+            if slide.is_none() && current.context == context {
+                seq = current.seq;
+                return false;
+            }
+            let mut next = Program::clone(current);
+            if let Some(slide) = slide {
+                next.seq += 1;
+                next.slide = slide;
+                next.at = Instant::now();
+            }
+            next.context = context;
+            seq = next.seq;
+            *current = Arc::new(next);
+            true
+        });
         seq
+    }
+
+    /// Ce qui est au direct.
+    pub fn program(&self) -> Arc<Program> {
+        self.program.borrow().clone()
+    }
+
+    /// Le nombre d'écrans connectés.
+    pub fn connected(&self) -> usize {
+        self.registry.connected()
+    }
+
+    /// Les écrans connectés, et ceux qui viennent de se déconnecter.
+    pub fn screens(&self) -> Vec<ScreenInfo> {
+        let program = self.program();
+        self.registry.list(program.seq, program.at)
+    }
+
+    /// Change les règles d'accès (jeton du réseau local). Les écrans déjà ouverts restent ouverts.
+    pub fn set_access(&self, access: Access) {
+        *self.access.lock().unwrap_or_else(|e| e.into_inner()) = access;
+    }
+
+    pub fn access(&self) -> Access {
+        self.access.lock().unwrap_or_else(|e| e.into_inner()).clone()
     }
 
     /// Les chemins des images deviennent des adresses `/images/{n}` servies par le serveur.
@@ -114,22 +209,37 @@ impl Hub {
         }
     }
 
-    /// Le nombre d'écrans connectés.
-    pub fn connected(&self) -> usize {
-        self.clients.load(Ordering::Relaxed)
+    /// La liste d'affichage d'un écran de ce genre et de cette taille.
+    pub fn layout(&self, program: &Program, kind: ScreenKind, width: f32, height: f32) -> DisplayList {
+        // Un fil qui a paniqué en tenant le verrou ne doit pas éteindre les écrans.
+        let mut fonts = self.fonts.lock().unwrap_or_else(|e| e.into_inner());
+        let c = &program.context;
+        match kind {
+            ScreenKind::Room => {
+                let mut renderer = self.renderer.lock().unwrap_or_else(|e| e.into_inner());
+                let mut probe = |list: &DisplayList, zone: [f32; 4]| renderer.backdrop_luminance(list, zone);
+                layout_room(&mut fonts, &program.slide, &c.design, width, height, &mut probe)
+            }
+            ScreenKind::Broadcast => layout_band(&mut fonts, &program.slide, &c.band, width, height),
+            ScreenKind::Subtitles => layout_band(&mut fonts, &program.slide, &c.band.subtitles(), width, height),
+            ScreenKind::Stage => {
+                layout_stage(&mut fonts, &program.slide, c.next.as_ref(), &c.clock, &c.status, c.hidden, width, height)
+            }
+        }
     }
 
-    fn frame(&self, program: &Program, width: f32, height: f32) -> String {
-        let mut list = {
-            // Un fil qui a paniqué en tenant le verrou ne doit pas éteindre les écrans.
-            let mut fonts = self.fonts.lock().unwrap_or_else(|e| e.into_inner());
-            let mut renderer = self.renderer.lock().unwrap_or_else(|e| e.into_inner());
-            let mut probe = |list: &DisplayList, zone: [f32; 4]| renderer.backdrop_luminance(list, zone);
-            layout_room(&mut fonts, &program.slide, &program.design, width, height, &mut probe)
-        };
+    fn frame(&self, program: &Program, kind: ScreenKind, width: f32, height: f32) -> String {
+        let mut list = self.layout(program, kind, width, height);
         self.share_images(&mut list.backdrop);
         self.share_images(&mut list.items);
-        serde_json::to_string(&ServerMessage::Frame { seq: program.seq, list }).unwrap_or_default()
+        let c = &program.context;
+        let (animation, hidden): (Option<Animation>, bool) = match kind {
+            ScreenKind::Room => (Some(c.design.animation), c.hidden),
+            ScreenKind::Broadcast | ScreenKind::Subtitles => (Some(c.band.animation), c.hidden),
+            // Le retour de scène change sans transition, et montre le texte même masqué.
+            ScreenKind::Stage => (None, false),
+        };
+        serde_json::to_string(&ServerMessage::Frame { seq: program.seq, list, animation, hidden }).unwrap_or_default()
     }
 
     fn fonts_css(&self) -> String {
@@ -149,15 +259,18 @@ impl Hub {
 // fontdb, par cosmic-text (même version que la mise en page).
 use po_layout::fontdb as cosmic_text_fontdb;
 
-/// Le serveur en marche. Il s'arrête quand on le lâche.
+/// Le serveur en marche. Il s'arrête quand on le lâche, et ferme alors les écrans connectés (ils
+/// se reconnectent seuls quand un serveur revient).
 pub struct Server {
     pub addr: SocketAddr,
     shutdown: Option<oneshot::Sender<()>>,
+    stop_clients: watch::Sender<bool>,
     thread: Option<JoinHandle<()>>,
 }
 
 impl Drop for Server {
     fn drop(&mut self) {
+        let _ = self.stop_clients.send(true);
         if let Some(tx) = self.shutdown.take() {
             let _ = tx.send(());
         }
@@ -165,6 +278,13 @@ impl Drop for Server {
             let _ = thread.join();
         }
     }
+}
+
+/// L'état d'un serveur, partagé par ses routes.
+#[derive(Clone)]
+struct Shared {
+    hub: Arc<Hub>,
+    stop: watch::Receiver<bool>,
 }
 
 /// Démarre le serveur sur `addr` (port 0 : un port libre). Rend la main quand il écoute.
@@ -177,6 +297,8 @@ pub fn start(hub: Arc<Hub>, addr: SocketAddr) -> std::io::Result<Server> {
     listener.set_nonblocking(true)?;
     let addr = listener.local_addr()?;
     let (shutdown, stop) = oneshot::channel::<()>();
+    let (stop_clients, stop_rx) = watch::channel(false);
+    let shared = Shared { hub, stop: stop_rx };
     let app = Router::new()
         .route("/", get(index))
         .route("/ecran/{screen}", get(screen_page))
@@ -185,38 +307,154 @@ pub fn start(hub: Arc<Hub>, addr: SocketAddr) -> std::io::Result<Server> {
         .route("/polices/{id}", get(font_file))
         .route("/images/{id}", get(image_file))
         .route("/ws/{screen}", get(ws))
-        .with_state(hub);
+        // Les adresses de la 2.8 : la source navigateur d'OBS réglée sur `/obs` continue de marcher.
+        .route("/obs", get(obs))
+        .route("/obs.html", get(obs))
+        .route("/presentation/obs", get(obs))
+        .route("/presentation/obs.html", get(obs))
+        .route("/slide.json", get(slide_json))
+        .route("/presentation/slide.json", get(slide_json))
+        .layer(axum::middleware::from_fn_with_state(shared.clone(), guard))
+        .with_state(shared);
     let thread = std::thread::Builder::new().name("po-web".into()).spawn(move || {
         runtime.block_on(async move {
             let Ok(listener) = tokio::net::TcpListener::from_std(listener) else { return };
-            let _ = axum::serve(listener, app)
+            let _ = axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
                 .with_graceful_shutdown(async move {
                     let _ = stop.await;
                 })
                 .await;
         });
     })?;
-    Ok(Server { addr, shutdown: Some(shutdown), thread: Some(thread) })
+    Ok(Server { addr, shutdown: Some(shutdown), stop_clients, thread: Some(thread) })
 }
 
-async fn index() -> Html<&'static str> {
-    Html(include_str!("../web/index.html"))
+/// Démarre le serveur sur `port`, ou sur l'un des neuf suivants s'il est pris.
+pub fn start_near(hub: Arc<Hub>, ip: IpAddr, port: u16) -> std::io::Result<Server> {
+    let mut last = None;
+    for p in port..port.saturating_add(10) {
+        match start(hub.clone(), SocketAddr::new(ip, p)) {
+            Ok(server) => return Ok(server),
+            Err(e) => last = Some(e),
+        }
+    }
+    Err(last.unwrap_or_else(|| std::io::Error::other("aucun port libre")))
 }
 
-async fn screen_page() -> Html<&'static str> {
-    Html(include_str!("../web/ecran.html"))
+/// Refuse les appareils du réseau sans le jeton ; dépose le jeton en cookie quand il vient de
+/// l'adresse, pour les polices, les images et le WebSocket de la page.
+async fn guard(
+    State(shared): State<Shared>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    request: Request,
+    next: Next,
+) -> Response {
+    let access = shared.hub.access();
+    let query = request.uri().query().map(str::to_string);
+    let cookie = request.headers().get(header::COOKIE).and_then(|v| v.to_str().ok()).map(str::to_string);
+    if !access.allows(peer.ip(), query.as_deref(), cookie.as_deref()) {
+        return (StatusCode::FORBIDDEN, Html(FORBIDDEN)).into_response();
+    }
+    let mut response = next.run(request).await;
+    if let (Some(token), Some(q)) = (&access.token, query.as_deref())
+        && access::param(q, "t") == Some(token.as_str())
+        && let Ok(value) = HeaderValue::from_str(&format!("{COOKIE}={token}; Path=/; SameSite=Strict; HttpOnly"))
+    {
+        response.headers_mut().append(header::SET_COOKIE, value);
+    }
+    response
+}
+
+const FORBIDDEN: &str = "<!doctype html><meta charset=utf-8><title>Project-On</title>\
+<body style=\"font:16px system-ui;background:#0b1217;color:#f2f0e9;display:grid;place-items:center;height:100vh;margin:0\">\
+<p>Adresse incomplète : scannez le QR code affiché dans la régie de Project-On (bouton « Web »).</p>";
+
+fn escape(text: &str) -> String {
+    text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
+}
+
+/// La page d'accueil : les écrans proposés, ceux qui sont connectés.
+async fn index(State(shared): State<Shared>) -> Html<String> {
+    let screens = shared.hub.screens();
+    let mut rows = String::new();
+    let mut names: Vec<(String, ScreenKind, String)> =
+        PRESETS.iter().map(|(name, kind, _, about)| (name.to_string(), *kind, about.to_string())).collect();
+    for s in &screens {
+        if !names.iter().any(|(n, _, _)| *n == s.name) {
+            names.push((s.name.clone(), s.kind, format!("Un écran « {} » de plus.", s.kind.label())));
+        }
+    }
+    for (name, kind, about) in names {
+        let live = screens.iter().filter(|s| s.name == name && s.dropped.is_none()).count();
+        let badge = match live {
+            0 => String::new(),
+            1 => "<b>1 connecté</b>".to_string(),
+            n => format!("<b>{n} connectés</b>"),
+        };
+        rows.push_str(&format!(
+            "<a href=\"/ecran/{href}\"><div><strong>{label}</strong><small>{about}</small></div><span>/ecran/{name}{badge}</span></a>",
+            href = escape(&name),
+            label = escape(kind.label()),
+            about = escape(&about),
+            name = escape(&name),
+        ));
+    }
+    Html(include_str!("../web/index.html").replace("{{ROWS}}", &rows))
+}
+
+async fn screen_page(Path(screen): Path<String>) -> Html<String> {
+    let kind = ScreenKind::of(&screen);
+    let class = if kind.transparent() { "transparent" } else { "" };
+    Html(
+        include_str!("../web/ecran.html")
+            .replace("{{TITLE}}", &escape(&format!("{} — Project-On", kind.label())))
+            .replace("{{CLASS}}", class),
+    )
 }
 
 async fn screen_js() -> Response {
-    ([(header::CONTENT_TYPE, "text/javascript; charset=utf-8")], include_str!("../web/ecran.js")).into_response()
+    let js = include_str!("../web/ecran.js").replace("__PROTOCOL__", &PROTOCOL_VERSION.to_string());
+    ([(header::CONTENT_TYPE, "text/javascript; charset=utf-8"), (header::CACHE_CONTROL, "no-cache")], js)
+        .into_response()
 }
 
-async fn fonts_css(State(hub): State<Arc<Hub>>) -> Response {
-    ([(header::CONTENT_TYPE, "text/css; charset=utf-8")], hub.fonts_css()).into_response()
+/// `/obs` (2.8) : la diffusion, avec les mêmes paramètres.
+async fn obs(RawQuery(query): RawQuery) -> Redirect {
+    match query.filter(|q| !q.is_empty()) {
+        Some(q) => Redirect::temporary(&format!("/ecran/diffusion?{q}")),
+        None => Redirect::temporary("/ecran/diffusion"),
+    }
 }
 
-async fn font_file(State(hub): State<Arc<Hub>>, Path(id): Path<usize>) -> Response {
-    let Some(face) = hub.faces.get(id) else { return StatusCode::NOT_FOUND.into_response() };
+/// `/slide.json` (2.8) : le slide au direct, pour les intégrations écrites pour la 2.8.
+async fn slide_json(State(shared): State<Shared>) -> Response {
+    let program = shared.hub.program();
+    let source = match program.slide.source {
+        SlideSource::Bible => "bible",
+        SlideSource::Hymn => "hymn",
+        SlideSource::Sermon => "sermon",
+        SlideSource::Expose => "expose",
+        SlideSource::Brochure => "brochure",
+        SlideSource::Book => "book",
+        SlideSource::Custom => "custom",
+    };
+    let body = serde_json::json!({
+        "text": program.slide.text,
+        "reference": program.slide.reference,
+        "source": source,
+        "hidden": program.context.hidden || program.seq == 0,
+        "seq": program.seq,
+    });
+    ([(header::CONTENT_TYPE, "application/json"), (header::CACHE_CONTROL, "no-store")], body.to_string())
+        .into_response()
+}
+
+async fn fonts_css(State(shared): State<Shared>) -> Response {
+    ([(header::CONTENT_TYPE, "text/css; charset=utf-8")], shared.hub.fonts_css()).into_response()
+}
+
+async fn font_file(State(shared): State<Shared>, Path(id): Path<usize>) -> Response {
+    let Some(face) = shared.hub.faces.get(id) else { return StatusCode::NOT_FOUND.into_response() };
     match tokio::fs::read(&face.path).await {
         Ok(bytes) => {
             ([(header::CONTENT_TYPE, "font/ttf"), (header::CACHE_CONTROL, "max-age=86400")], bytes).into_response()
@@ -225,8 +463,8 @@ async fn font_file(State(hub): State<Arc<Hub>>, Path(id): Path<usize>) -> Respon
     }
 }
 
-async fn image_file(State(hub): State<Arc<Hub>>, Path(id): Path<usize>) -> Response {
-    let Some(path) = hub.images.lock().unwrap_or_else(|e| e.into_inner()).get(id).cloned() else {
+async fn image_file(State(shared): State<Shared>, Path(id): Path<usize>) -> Response {
+    let Some(path) = shared.hub.images.lock().unwrap_or_else(|e| e.into_inner()).get(id).cloned() else {
         return StatusCode::NOT_FOUND.into_response();
     };
     let kind = match path.extension().map(|e| e.to_string_lossy().to_lowercase()).as_deref() {
@@ -241,146 +479,116 @@ async fn image_file(State(hub): State<Arc<Hub>>, Path(id): Path<usize>) -> Respo
     }
 }
 
-async fn ws(ws: WebSocketUpgrade, Path(screen): Path<String>, State(hub): State<Arc<Hub>>) -> Response {
-    ws.on_upgrade(move |socket| client(socket, screen, hub))
+async fn ws(
+    ws: WebSocketUpgrade,
+    Path(screen): Path<String>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    State(shared): State<Shared>,
+) -> Response {
+    let screen: String = screen.chars().filter(|c| !c.is_control()).take(40).collect();
+    ws.on_upgrade(move |socket| client(socket, screen, peer, shared))
 }
 
-/// Compte un écran connecté tant qu'il vit.
-struct Connected(Arc<Hub>);
+/// Retire un écran du registre quand sa connexion se termine, quelle qu'en soit la raison.
+struct Leave(Arc<Hub>, u64);
 
-impl Drop for Connected {
+impl Drop for Leave {
     fn drop(&mut self) {
-        self.0.clients.fetch_sub(1, Ordering::Relaxed);
+        self.0.registry.leave(self.1);
     }
 }
 
-async fn client(socket: WebSocket, screen: String, hub: Arc<Hub>) {
-    hub.clients.fetch_add(1, Ordering::Relaxed);
-    let _connected = Connected(hub.clone());
+async fn client(socket: WebSocket, screen: String, peer: SocketAddr, shared: Shared) {
+    let Shared { hub, mut stop } = shared;
+    let kind = ScreenKind::of(&screen);
+    let id = hub.registry.next_id();
+    hub.registry.join(id, &screen, peer);
+    let _leave = Leave(hub.clone(), id);
     let (mut tx, mut rx) = socket.split();
-    let hello = ServerMessage::Hello { version: PROTOCOL_VERSION, screen };
+    let hello = ServerMessage::Hello {
+        version: PROTOCOL_VERSION,
+        screen,
+        kind: kind.slug().into(),
+        transparent: kind.transparent(),
+    };
     if tx.send(Message::Text(serde_json::to_string(&hello).unwrap_or_default().into())).await.is_err() {
         return;
     }
     let mut program = hub.program.subscribe();
     let mut viewport: Option<(f32, f32)> = None;
+    // Ce que l'écran montre déjà : un changement qui ne le concerne pas (l'heure pour la salle) ne
+    // lui renvoie rien.
+    let mut shown: Option<(Arc<Program>, (f32, f32))> = None;
     let mut ping = tokio::time::interval(Duration::from_secs(5));
     loop {
-        let outgoing = tokio::select! {
+        let wanted = tokio::select! {
             incoming = rx.next() => match incoming {
                 Some(Ok(Message::Text(text))) => match serde_json::from_str::<ClientMessage>(&text) {
                     Ok(ClientMessage::Hello { width, height }) => {
-                        viewport = Some((width.clamp(16.0, 8192.0), height.clamp(16.0, 8192.0)));
-                        let current = program.borrow_and_update().clone();
-                        viewport.map(|(w, h)| hub.frame(&current, w, h))
+                        let size = (width.clamp(16.0, 8192.0), height.clamp(16.0, 8192.0));
+                        viewport = Some(size);
+                        hub.registry.touch(id, |s| (s.width, s.height) = size);
+                        shown = None;
+                        true
                     }
-                    // Accusés de réception et pongs : rien à faire ; un message inconnu est ignoré.
-                    _ => None,
+                    Ok(ClientMessage::Ack { seq }) => {
+                        hub.registry.touch(id, |s| s.acked = s.acked.max(seq));
+                        false
+                    }
+                    Ok(ClientMessage::Pong) => {
+                        hub.registry.touch(id, |_| {});
+                        false
+                    }
+                    // Un message inconnu (une tentative de commande) est ignoré.
+                    Err(_) => false,
                 },
                 Some(Ok(Message::Close(_))) | None | Some(Err(_)) => break,
-                Some(Ok(_)) => None,
+                Some(Ok(_)) => false,
             },
             changed = program.changed() => {
                 if changed.is_err() {
                     break;
                 }
-                let current = program.borrow_and_update().clone();
-                viewport.map(|(w, h)| hub.frame(&current, w, h))
+                true
             }
-            _ = ping.tick() => Some(serde_json::to_string(&ServerMessage::Ping).unwrap_or_default()),
+            _ = stop.changed() => {
+                // Le serveur s'arrête (changement d'accès, fermeture) : l'écran se reconnectera.
+                let _ = tx.send(Message::Close(Some(CloseFrame { code: 1012, reason: "redémarrage".into() }))).await;
+                break;
+            }
+            _ = ping.tick() => {
+                if tx.send(Message::Text(serde_json::to_string(&ServerMessage::Ping).unwrap_or_default().into())).await.is_err() {
+                    break;
+                }
+                false
+            }
         };
-        if let Some(text) = outgoing
-            && tx.send(Message::Text(text.into())).await.is_err()
+        let Some(size) = viewport else { continue };
+        if !wanted {
+            continue;
+        }
+        let current = program.borrow_and_update().clone();
+        if let Some((before, at)) = &shown
+            && *at == size
+            && before.same_image(&current, kind)
         {
+            continue;
+        }
+        // La mise en page (quelques millisecondes) ne bloque pas les autres écrans.
+        let text = {
+            let hub = hub.clone();
+            let current = current.clone();
+            tokio::task::spawn_blocking(move || hub.frame(&current, kind, size.0, size.1)).await.unwrap_or_default()
+        };
+        if text.is_empty() {
+            continue;
+        }
+        if tx.send(Message::Text(text.into())).await.is_err() {
             break;
         }
+        shown = Some((current, size));
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use std::time::Instant;
-    use tokio_tungstenite::tungstenite::Message as WsMessage;
-
-    fn hub() -> Arc<Hub> {
-        let dir = po_layout::bundled_fonts_dir();
-        Hub::new(Fonts::from_files(&[dir.join("Passion One/PassionOne-Bold.ttf")]))
-    }
-
-    async fn next_frame<S>(stream: &mut S) -> (u64, po_layout::DisplayList)
-    where
-        S: StreamExt<Item = Result<WsMessage, tokio_tungstenite::tungstenite::Error>> + Unpin,
-    {
-        loop {
-            let msg = stream.next().await.unwrap().unwrap();
-            if let WsMessage::Text(text) = msg
-                && let Ok(ServerMessage::Frame { seq, list }) = serde_json::from_str(&text)
-            {
-                return (seq, list);
-            }
-        }
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn screens_receive_the_live_slide_at_their_own_size_and_after_reconnecting() {
-        let hub = hub();
-        let server = start(hub.clone(), "127.0.0.1:0".parse().unwrap()).unwrap();
-        let url = format!("ws://{}/ws/salle", server.addr);
-        hub.publish(Slide::new("Premier", "", SlideSource::Custom), RoomDesign::default());
-
-        // Deux écrans de tailles différentes.
-        let (mut wide, _) = tokio_tungstenite::connect_async(&url).await.unwrap();
-        let (mut square, _) = tokio_tungstenite::connect_async(&url).await.unwrap();
-        wide.send(WsMessage::Text(r#"{"type":"hello","width":1920,"height":1080}"#.into())).await.unwrap();
-        square.send(WsMessage::Text(r#"{"type":"hello","width":1024,"height":768}"#.into())).await.unwrap();
-        let (seq, list) = next_frame(&mut wide).await;
-        assert_eq!((seq, list.width, list.height), (1, 1920.0, 1080.0));
-        let (_, list) = next_frame(&mut square).await;
-        assert_eq!((list.width, list.height), (1024.0, 768.0));
-        assert_eq!(hub.connected(), 2);
-
-        // Un changement du direct arrive vite chez les deux.
-        let sent = Instant::now();
-        let seq = hub.publish(Slide::new("Deuxième", "Jean 3:16", SlideSource::Bible), RoomDesign::default());
-        let (got, list) = next_frame(&mut wide).await;
-        assert_eq!(got, seq);
-        assert!(list.text_lines().any(|l| l.text == "Deuxième"));
-        assert_eq!(next_frame(&mut square).await.0, seq);
-        assert!(sent.elapsed() < Duration::from_millis(500));
-
-        // Coupure puis reconnexion : l'état courant revient aussitôt.
-        drop(square);
-        let (mut again, _) = tokio_tungstenite::connect_async(&url).await.unwrap();
-        again.send(WsMessage::Text(r#"{"type":"hello","width":800,"height":600}"#.into())).await.unwrap();
-        assert_eq!(next_frame(&mut again).await.0, seq);
-
-        // Une « commande » envoyée par un écran ne change rien.
-        again.send(WsMessage::Text(r#"{"type":"take"}"#.into())).await.unwrap();
-        hub.publish(Slide::new("Troisième", "", SlideSource::Custom), RoomDesign::default());
-        assert_eq!(next_frame(&mut again).await.0, seq + 1);
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn serves_the_screen_page_and_fonts() {
-        let server = start(hub(), "127.0.0.1:0".parse().unwrap()).unwrap();
-        let get = |path: &str| {
-            let addr = server.addr;
-            let path = path.to_string();
-            async move {
-                use tokio::io::{AsyncReadExt, AsyncWriteExt};
-                let mut s = tokio::net::TcpStream::connect(addr).await.unwrap();
-                s.write_all(format!("GET {path} HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n").as_bytes())
-                    .await
-                    .unwrap();
-                let mut out = Vec::new();
-                s.read_to_end(&mut out).await.unwrap();
-                String::from_utf8_lossy(&out).to_string()
-            }
-        };
-        assert!(get("/ecran/salle").await.contains("ecran.js"));
-        assert!(get("/polices.css").await.contains("Passion One"));
-        assert!(get("/polices/0").await.starts_with("HTTP/1.1 200"));
-        assert!(get("/polices/99").await.starts_with("HTTP/1.1 404"));
-    }
-}
+mod tests;

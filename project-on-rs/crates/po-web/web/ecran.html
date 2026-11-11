@@ -3,21 +3,30 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Project-On — écran</title>
+  <title>{{TITLE}}</title>
   <link rel="stylesheet" href="/polices.css">
   <style>
-    html, body { margin: 0; height: 100%; background: #000; overflow: hidden; cursor: none; }
-    #stage { position: fixed; inset: 0; }
-    .layer { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; transition: opacity .25s ease; }
-    .layer.visible { opacity: 1; }
-    /* Hors ligne : la dernière image reste ; seul un point discret dans le coin le signale. */
+    html, body { margin: 0; height: 100%; overflow: hidden; cursor: none; }
+    body { background: #000; }
+    /* Diffusion et sous-titres se posent sur une vidéo (OBS, vMix) : aucun fond. */
+    body.transparent { background: transparent; }
+    #stage { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+    #content { transition: opacity .3s ease; }
+    #content.hidden { opacity: 0; }
+    /* Hors ligne : la dernière image reste ; seul un point discret dans le coin le signale
+       (jamais sur la diffusion, où il apparaîtrait dans le direct). */
     #offline { position: fixed; top: 6px; left: 6px; width: 6px; height: 6px; border-radius: 50%;
-               background: #f5b73b; opacity: 0; transition: opacity .3s; }
-    body.offline #offline { opacity: .8; }
+               background: #f5b73b; opacity: 0; transition: opacity .3s; pointer-events: none; }
+    body.offline:not(.transparent) #offline { opacity: .8; }
+    /* Avant la première image : le nom de l'écran, pour savoir ce qu'on a ouvert. */
+    #waiting { position: fixed; inset: 0; display: grid; place-items: center; color: #93a3ad;
+               font: 500 18px/1.4 system-ui, "Segoe UI", sans-serif; text-align: center; }
+    body.transparent #waiting, body.ready #waiting { display: none; }
   </style>
 </head>
-<body>
-  <div id="stage"></div>
+<body class="{{CLASS}}">
+  <svg id="stage" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet"></svg>
+  <div id="waiting">{{TITLE}}<br><small>En attente de Project-On…</small></div>
   <div id="offline" title="Connexion à Project-On perdue : nouvelle tentative…"></div>
   <script src="/ecran.js"></script>
 </body>

@@ -5,11 +5,13 @@
 //! Branham (couche 1). Les lower thirds, sous-titres et la bibliothèque de designs viendront en
 //! phase 6, sur ce même modèle.
 
+mod band;
 mod color;
 
 use po_settings::ProjectionSettings;
 use serde::{Deserialize, Serialize};
 
+pub use band::{Band, BandLayout, BandPosition, ReferenceLook};
 pub use color::{Rgba, contrast_ratio, parse_color};
 
 /// L'alignement horizontal du texte.

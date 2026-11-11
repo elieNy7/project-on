@@ -13,6 +13,7 @@ pub mod service;
 pub mod shortcuts;
 pub mod stage;
 pub mod theme;
+pub mod web;
 pub mod widgets;
 pub mod worker;
 

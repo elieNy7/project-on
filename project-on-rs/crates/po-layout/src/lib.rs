@@ -6,6 +6,7 @@
 //! - [`transition::frame`] : une image de transition entre deux slides.
 
 mod backdrop;
+mod band;
 mod display;
 #[cfg(windows)]
 mod dwrite;
@@ -15,6 +16,7 @@ pub mod identification;
 mod room;
 pub mod transition;
 
+pub use band::{layout_band, layout_stage};
 /// La base de polices de cosmic-text (pour lister les fichiers à servir aux navigateurs).
 pub use cosmic_text::fontdb;
 pub use display::{Anchor, DisplayList, Group, Item, Rgba, Stop, TextLine, TextShadow};

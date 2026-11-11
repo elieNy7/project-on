@@ -49,6 +49,7 @@ fn harness(db: PathBuf) -> Harness<'static, Boot> {
         database: Some(db),
         settings: Settings::default(),
         windowed_projection: true,
+        web_port: None,
     };
     let mut h = Harness::builder()
         .with_size([1600.0, 940.0])
