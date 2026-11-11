@@ -72,7 +72,7 @@ Le livrable de la phase 7 (audit, § 8) : chaque fonction de la 2.8, et où elle
 | Fonction de la 2.8 | 3.0 | Où, ou ce qui manque |
 |---|---|---|
 | Base SQLite de la 2.x, sans conversion | ✅ | Phase 1 |
-| Éditeur de cantiques | ⏳ | |
+| Éditeur de cantiques | ✅ | Créer, modifier, supprimer (avec confirmation) dans la page Cantiques : titre, numéro, langue, paroles en une zone (une ligne vide entre les strophes), bouton « Refrain », découpage reconnu en direct ; mêmes règles que la 2.8, vérifiées sur ses propres résultats |
 | Import de Bibles | ⏳ | |
 | Import PDF (sermons, cantiques) | ⏳ | |
 | Sauvegardes de la base | 🟡 | Phase 7 : base et réglages, copie cohérente, les 10 dernières gardées ; la restauration et l'archive avec médias de la 2.8 restent à faire |

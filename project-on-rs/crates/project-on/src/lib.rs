@@ -5,6 +5,7 @@ pub mod data;
 pub mod designs;
 pub mod gpu;
 pub mod history;
+pub mod hymn_editor;
 pub mod icons;
 pub mod library;
 pub mod maintenance;

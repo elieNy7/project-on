@@ -1652,6 +1652,33 @@ impl App {
         if let Some(action) = action {
             self.apply(action);
         }
+        // L'éditeur de cantiques écrit dans la base.
+        if let Some(request) = self.hymns.request.take()
+            && let Some(db) = self.db.as_mut()
+        {
+            match request {
+                crate::library::hymns::HymnRequest::Save(draft) => match draft.check() {
+                    Ok(stanzas) => {
+                        let saved = db.save_hymn(draft.id, &draft.title, &stanzas, draft.number(), &draft.language);
+                        match saved {
+                            Ok(id) => {
+                                self.hymns.saved(db, id);
+                                self.status = format!("Cantique « {} » enregistré", draft.title.trim());
+                            }
+                            Err(e) => self.hymns.editor_error = Some(format!("Enregistrement impossible : {e}")),
+                        }
+                    }
+                    Err(message) => self.hymns.editor_error = Some(message.into()),
+                },
+                crate::library::hymns::HymnRequest::Delete(id) => match db.delete_hymn(id) {
+                    Ok(()) => {
+                        self.hymns.deleted(db);
+                        self.status = "Cantique supprimé".into();
+                    }
+                    Err(e) => self.status = format!("Suppression impossible : {e}"),
+                },
+            }
+        }
     }
 
     fn command_bar(&mut self, ui: &mut Ui) {
