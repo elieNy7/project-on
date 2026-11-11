@@ -1,7 +1,8 @@
 # Liste de parité 2.8 → 3.0, fonction par fonction
 
 Le livrable de la phase 7 (audit, § 8) : chaque fonction de la 2.8, et où elle en est dans la 3.0.
-À cocher avec vous avant la bascule (phase 8). État au 11 novembre 2026, après la phase 7.
+À cocher avec vous avant la bascule (phase 8). État au 11 novembre 2026 (nuit) : toutes les fonctions de
+la 2.8 sont dans la 3.0, sauf le fond vidéo et l'effet Ken Burns.
 
 **Légende** :
 - ✅ dans la 3.0, vérifiée ;

@@ -89,11 +89,16 @@ Rien de cela n'a été fait.
 `installer\Output\ProjectOn_3.0.0_Setup.exe`, par `construire-beta.ps1 -Bascule`, version
 `3.0.0`. Il n'a **pas** été lancé ni publié, et le code de la 2.8 reste dans le dépôt.
 
-**Attention : lancer ce fichier remplace la 2.8 sur le poste** (même place, mêmes données). Il
-reste 8 fonctions de la [liste de parité](../phase7/PARITE.md) à porter (citation, galerie,
-PowerPoint, imports PDF et Bibles, restauration d'une sauvegarde, pilotage d'OBS, réglages détaillés
-du bandeau et du HDMI, mise à jour automatique). Retour à la 2.8 : réinstaller
-`ProjectOn_2.8.0_Setup.exe`.
+**Attention : lancer ce fichier remplace la 2.8 sur le poste** (même place, mêmes données). Retour
+à la 2.8 : réinstaller `ProjectOn_2.8.0_Setup.exe`.
+
+**Mis à jour le 11 novembre 2026 (nuit)** : les 8 fonctions qui restaient sont faites (image de citation,
+galerie, PowerPoint, imports PDF et Bibles, restauration d'une sauvegarde, pilotage d'OBS, réglages
+détaillés du bandeau et du HDMI, mise à jour), et l'installateur est reconstruit avec elles. Reste,
+hors de cette liste : le fond vidéo et l'effet Ken Burns (voir la
+[liste de parité](../phase7/PARITE.md)). Ce qui n'a pas pu être essayé sur ce poste : les moteurs
+PowerPoint et LibreOffice (aucun des deux n'y est installé), une vraie connexion à OBS, une vraie
+mise à jour (rien n'est publié).
 
 Ce qu'il apporte de plus que la bêta 6 :
 - **un seul design pour les sorties** : choisi dans la page Designs (« Utiliser pour Web, NDI,
