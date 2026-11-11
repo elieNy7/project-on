@@ -905,6 +905,41 @@ impl App {
                     PlaylistAction::NextSection => {
                         self.tracker.next(service::now_seconds());
                     }
+                    PlaylistAction::Export => {
+                        if let Some(f) = folder {
+                            let name = db.folder(f).ok().flatten().map(|f| f.name).unwrap_or_else(|| "Playlist".into());
+                            let items = db.list_items(Some(f)).unwrap_or_default();
+                            let message = match crate::library::playlist::exchange_dir() {
+                                Some(dir) => {
+                                    let file = dir.join(format!("{}.zip", po_design::library::slug(&name)));
+                                    match crate::transfer::export(&file, &name, &items) {
+                                        Ok(n) => format!("{n} élément(s) exporté(s) : {}", file.display()),
+                                        Err(e) => format!("Export impossible : {e}"),
+                                    }
+                                }
+                                None => "Dossier Documents introuvable".into(),
+                            };
+                            self.playlist.say(&message);
+                        }
+                    }
+                    PlaylistAction::Import(file) => {
+                        let media = self
+                            .locations
+                            .as_ref()
+                            .map_or_else(|| file.with_extension("medias"), |l| l.beta.data().join("media"));
+                        let message = match crate::transfer::read(&file, &media) {
+                            Ok((name, items)) => match db.import_folder(&name, &items) {
+                                Ok(id) => {
+                                    self.playlist.folder = Some(id);
+                                    self.playlist.selected.clear();
+                                    format!("Playlist « {name} » importée : {} élément(s)", items.len())
+                                }
+                                Err(e) => format!("Import impossible : {e}"),
+                            },
+                            Err(e) => format!("Import impossible : {e}"),
+                        };
+                        self.playlist.say(&message);
+                    }
                 }
                 self.playlist.reload(db, select);
             }
@@ -1191,6 +1226,11 @@ impl App {
         if pressed(Key::ArrowLeft) || pressed(Key::ArrowUp) {
             self.step(-1);
         }
+        // La projection couvre la régie (un seul écran) : Échap y revient, comme dans PowerPoint.
+        if self.projectors.iter().any(Projector::covers_regie) && pressed(Key::Escape) {
+            self.projectors.retain(|p| !p.covers_regie());
+            self.status = "Projection fermée".into();
+        }
         if pressed(Key::Home) {
             self.edge(true);
         }
@@ -1470,7 +1510,20 @@ impl App {
         }
         let before = self.projectors.len();
         let (ctx, stage, outputs) = (self.ctx.clone(), &self.live_stage, &self.outputs);
-        self.projectors.retain_mut(|p| p.show(&ctx, stage, outputs, now));
+        let (mut steps, mut hide) = (0, false);
+        self.projectors.retain_mut(|p| {
+            let keys = p.show(&ctx, stage, outputs, now);
+            steps += keys.step;
+            hide |= keys.hide;
+            keys.keep
+        });
+        // Les touches tapées dans la projection plein écran (comme dans PowerPoint).
+        for _ in 0..steps.unsigned_abs().min(5) {
+            self.step(steps.signum());
+        }
+        if hide {
+            self.toggle_hidden();
+        }
         if self.projectors.len() < before {
             self.status = "Projection fermée".into();
         }

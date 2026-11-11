@@ -149,10 +149,10 @@ fn a_playlist_is_played_from_the_chosen_item() {
         item(5, "custom", "", "Annonce sans référence.", ""),
     ];
     let p = program("Culte du dimanche", &items, Some(4), &[]).unwrap();
-    assert_eq!(p.item_of_entry, [1, 4, 5], "texte vide et média sautés");
-    assert_eq!(p.cue.focus, 1);
-    assert_eq!(p.cue.entries[2].reference, "Culte du dimanche", "sans référence : le titre");
-    assert_eq!(p.cue.kinds, [SlideSource::Bible, SlideSource::Sermon, SlideSource::Custom]);
+    assert_eq!(p.item_of_entry, [1, 3, 4, 5], "texte vide sauté ; l'image a son slide");
+    assert_eq!(p.cue.focus, 2);
+    assert_eq!(p.cue.entries[3].reference, "Culte du dimanche", "sans référence : le titre");
+    assert_eq!(p.cue.kinds, [SlideSource::Bible, SlideSource::Custom, SlideSource::Sermon, SlideSource::Custom]);
     let split = po_settings::SplitSettings::default();
     let mut prog = po_program::Program::from_cue(&p.cue, &split).unwrap();
     assert_eq!(prog.slide().source, SlideSource::Sermon, "la prédication garde son identification");
@@ -160,7 +160,8 @@ fn a_playlist_is_played_from_the_chosen_item() {
     assert_eq!(prog.slide().source, SlideSource::Custom);
     // Élément introuvable : le premier.
     assert_eq!(program("T", &items, Some(99), &[]).unwrap().cue.focus, 0);
-    assert!(program("T", &items[1..3], None, &[]).is_none());
+    assert!(program("T", &items[1..2], None, &[]).is_none(), "rien à projeter");
+    assert!(program("T", &items[1..3], None, &[]).is_some(), "une image seule se projette");
 }
 
 #[test]

@@ -67,6 +67,33 @@ pub enum PlaylistAction {
     StartService,
     StopService,
     NextSection,
+    /// Exporter la playlist choisie (archive au format de la 2.8).
+    Export,
+    /// Importer une playlist exportée (par la 2.8 ou la 3.0).
+    Import(std::path::PathBuf),
+}
+
+/// Le dossier d'échange des playlists : « Documents\Project-On playlists ».
+pub fn exchange_dir() -> Option<std::path::PathBuf> {
+    std::env::var_os("USERPROFILE").map(|h| std::path::PathBuf::from(h).join("Documents").join("Project-On playlists"))
+}
+
+/// Les playlists exportées du dossier d'échange (archives et anciens JSON), les plus récentes d'abord.
+pub fn exchange_files() -> Vec<std::path::PathBuf> {
+    let Some(dir) = exchange_dir() else { return Vec::new() };
+    let Ok(entries) = std::fs::read_dir(dir) else { return Vec::new() };
+    let mut files: Vec<(std::time::SystemTime, std::path::PathBuf)> = entries
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| {
+            p.extension()
+                .and_then(|e| e.to_str())
+                .is_some_and(|e| matches!(e.to_lowercase().as_str(), "zip" | "json" | "poplaylist"))
+        })
+        .map(|p| (std::fs::metadata(&p).and_then(|m| m.modified()).unwrap_or(std::time::UNIX_EPOCH), p))
+        .collect();
+    files.sort_by_key(|f| std::cmp::Reverse(f.0));
+    files.into_iter().map(|(_, p)| p).collect()
 }
 
 /// Une boîte de dialogue ouverte.
@@ -338,6 +365,29 @@ impl PlaylistView {
             {
                 actions.push(PlaylistAction::Undo);
             }
+            if widgets::button_at(ui, Size::Normal, None, "Exporter", Tone::Secondary, has_folder)
+                .on_hover_text("Dans « Documents\\Project-On playlists », avec ses images (format de la 2.8)")
+                .clicked()
+            {
+                actions.push(PlaylistAction::Export);
+            }
+            let import = widgets::button(ui, None, "Importer…", Tone::Secondary).on_hover_text(
+                "Une playlist exportée par la 2.8 ou la 3.0, déposée dans « Documents\\Project-On playlists »",
+            );
+            egui::Popup::menu(&import).show(|ui| {
+                ui.set_min_width(320.0);
+                let files = exchange_files();
+                if files.is_empty() {
+                    ui.label("Déposez les playlists exportées dans « Documents\\Project-On playlists ».");
+                }
+                for file in files.into_iter().take(30) {
+                    let name = file.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+                    if ui.button(name).clicked() {
+                        actions.push(PlaylistAction::Import(file));
+                        ui.close();
+                    }
+                }
+            });
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 let start = selection.first().copied().or_else(|| self.items.first().map(|i| i.id));
                 if widgets::button_at(

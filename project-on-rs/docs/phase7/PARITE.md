@@ -20,7 +20,7 @@ Le livrable de la phase 7 (audit, § 8) : chaque fonction de la 2.8, et où elle
 | Recherche globale (Ctrl+K) | ✅ | Phase 3, plus rapide que la 2.8 |
 | Aperçu / Direct, F2, slides suivant et précédent, Début / Fin | ✅ | Phase 3 |
 | Masquer le texte (B) | ✅ | Phase 3 ; aussi sur les écrans Web (phase 5) |
-| Projection plein écran, choix de l'écran, plusieurs écrans | ✅ | Phase 3, sur la carte graphique |
+| Projection plein écran, choix de l'écran, plusieurs écrans | ✅ | Phase 3, sur la carte graphique ; **plein écran comme PowerPoint même avec un seul écran** (→ ← Espace, B, Échap ou F5 pour revenir à la régie) |
 | Mise en page de la projection (taille, coupures, référence, filet) | ✅ | Phase 2 : identique à la 2.8 sur 2 208 slides |
 | Transitions (fondu, glissement, zoom, flou, balayage) | ✅ | Phases 2 et 3 |
 | Fond : couleur, dégradé, image, assombrissement | ✅ | Phase 2 |
@@ -41,7 +41,7 @@ Le livrable de la phase 7 (audit, § 8) : chaque fonction de la 2.8, et où elle
 | Section suivante (Ctrl+Alt+N) | ✅ | Phase 7 |
 | Images et vidéos dans une playlist | 🟡 | Les **images** se projettent à leur place, en entier sur du noir, et le fond propre d'un élément de texte le suit (identique à la 2.8 : 30 playlists, 0 différence) ; les **vidéos** restent à faire |
 | PowerPoint dans une playlist | ⏳ | Médias |
-| Import / export d'une playlist (fichier) | ⏳ | |
+| Import / export d'une playlist (fichier) | ✅ | Au format de la 2.8 (archive avec `manifest.json` et les images, ancien JSON lu aussi), dans « Documents\Project-On playlists » |
 | Diaporama d'un dossier d'images | ⏳ | Médias |
 | Historique du culte (Ctrl+H), tableur, SRT | ✅ | Phase 7 : un fichier par jour, exports CSV et SRT dans « Documents\Project-On exports » ; le rapport imprimable de la 2.8 reste à faire |
 

@@ -20,6 +20,7 @@ pub mod settings_page;
 pub mod shortcuts;
 pub mod stage;
 pub mod theme;
+pub mod transfer;
 pub mod web;
 pub mod widgets;
 pub mod worker;

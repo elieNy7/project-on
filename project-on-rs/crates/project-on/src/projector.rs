@@ -3,8 +3,10 @@
 //! Repris de Pgraphics (`projector.rs`).
 //!
 //! L'écran est celui de la 2.8 (`display_screen`, sinon le plus grand des écrans secondaires).
-//! Avec un seul écran branché, la projection s'ouvre dans une fenêtre : en plein écran, elle
-//! couvrirait la régie et l'opérateur ne verrait plus rien (la 2.8 le faisait).
+//! La projection est toujours **plein écran, comme un diaporama PowerPoint**, même avec un seul
+//! écran : elle couvre alors tout l'écran, barre des tâches comprise, et se pilote au clavier comme
+//! PowerPoint (→ ← Page↓ Page↑ Espace, B pour masquer le texte, Échap ou F5 pour revenir à la régie).
+//! Un rappel discret « Échap : revenir à la régie » s'affiche 3 secondes quand elle couvre la régie.
 //!
 //! Plusieurs écrans peuvent projeter en même temps (deux vidéoprojecteurs, un écran de retour) :
 //! chaque fenêtre pose les mêmes textures, sans rendu de plus.
@@ -26,6 +28,10 @@ pub struct Projector {
     /// L'écran en plein écran ; `None` : une fenêtre.
     pub screen: Option<Screen>,
     placed: bool,
+    /// Le seul écran du poste : la projection couvre la régie.
+    alone: bool,
+    /// Quand la fenêtre a été montrée la première fois (pour le rappel).
+    shown_at: Option<f64>,
     /// Ce que montre l'écran : la salle (le Direct), ou une sortie HDMI de diffusion (bandeau ou
     /// sous-titres sur la couleur de clé, retour de scène).
     pub kind: ScreenKind,
@@ -41,23 +47,29 @@ impl Projector {
     /// Ouvre la projection sur l'écran choisi par les réglages (`display_screen`).
     pub fn open(preferred: &str) -> Projector {
         let all = screens::list();
-        let screen = screens::choose(&all, preferred).cloned().filter(|_| all.len() >= 2);
-        Projector { screen, placed: false, kind: ScreenKind::Room }
+        let screen = screens::choose(&all, preferred).cloned();
+        Projector { screen, placed: false, alone: all.len() < 2, shown_at: None, kind: ScreenKind::Room }
     }
 
     /// Dans une fenêtre (un seul écran, ou essais).
     pub fn windowed() -> Projector {
-        Projector { screen: None, placed: true, kind: ScreenKind::Room }
+        Projector { screen: None, placed: true, alone: false, shown_at: None, kind: ScreenKind::Room }
     }
 
     /// En plein écran sur `screen`.
     pub fn on(screen: Screen) -> Projector {
-        Projector { screen: Some(screen), placed: false, kind: ScreenKind::Room }
+        let alone = screens::list().len() < 2;
+        Projector { screen: Some(screen), placed: false, alone, shown_at: None, kind: ScreenKind::Room }
     }
 
     /// Une sortie HDMI de ce genre sur `screen`.
     pub fn output(screen: Screen, kind: ScreenKind) -> Projector {
-        Projector { screen: Some(screen), placed: false, kind }
+        Projector { screen: Some(screen), placed: false, alone: false, shown_at: None, kind }
+    }
+
+    /// Plein écran sur le seul écran du poste : la projection couvre la régie.
+    pub fn covers_regie(&self) -> bool {
+        self.alone && self.screen.is_some()
     }
 
     /// Ce qui distingue deux projections : le nom Windows de l'écran, ou « fenêtre ».
@@ -91,8 +103,8 @@ impl Projector {
         if self.kind == ScreenKind::Room { place } else { format!("{place} · {}", self.kind.label()) }
     }
 
-    /// Montre la fenêtre de projection. Rend `false` si l'opérateur l'a fermée (Échap, fermeture).
-    pub fn show(&mut self, ctx: &Context, stage: &Stage, outputs: &Outputs, now: f64) -> bool {
+    /// Montre la fenêtre de projection, et rend ce que l'opérateur y a demandé au clavier.
+    pub fn show(&mut self, ctx: &Context, stage: &Stage, outputs: &Outputs, now: f64) -> Keys {
         let full = self.screen.is_some();
         let title = self.title();
         let mut builder = ViewportBuilder::default().with_title(&title).with_min_inner_size([320.0, 180.0]);
@@ -101,7 +113,9 @@ impl Projector {
         } else {
             builder.with_inner_size([960.0, 540.0])
         };
-        let mut keep = true;
+        let mut keys = Keys { keep: true, step: 0, hide: false };
+        let shown_at = *self.shown_at.get_or_insert(now);
+        let hint = full && self.alone && now - shown_at < 3.0;
         let id = ViewportId::from_hash_of(("projection", self.key()));
         ctx.show_viewport_immediate(id, builder, |ui, _| {
             let ctx = ui.ctx().clone();
@@ -110,8 +124,26 @@ impl Projector {
             {
                 self.placed = screens::place(&title, screen);
             }
-            if ctx.input(|i| i.viewport().close_requested() || i.key_pressed(egui::Key::Escape)) {
-                keep = false;
+            // Les touches d'un diaporama PowerPoint.
+            ctx.input(|i| {
+                use egui::Key;
+                if i.viewport().close_requested() || i.key_pressed(Key::Escape) || i.key_pressed(Key::F5) {
+                    keys.keep = false;
+                }
+                if [Key::ArrowRight, Key::ArrowDown, Key::PageDown, Key::Space, Key::Enter]
+                    .iter()
+                    .any(|k| i.key_pressed(*k))
+                {
+                    keys.step += 1;
+                }
+                if [Key::ArrowLeft, Key::ArrowUp, Key::PageUp, Key::Backspace].iter().any(|k| i.key_pressed(*k)) {
+                    keys.step -= 1;
+                }
+                if i.key_pressed(Key::B) {
+                    keys.hide = true;
+                }
+            });
+            if !keys.keep {
                 return;
             }
             CentralPanel::no_frame().show(ui, |ui| {
@@ -126,10 +158,31 @@ impl Projector {
                     // Pas de flèche sur l'écran de la salle.
                     ctx.set_cursor_icon(CursorIcon::None);
                 }
+                if hint {
+                    let text = "Échap : revenir à la régie   ·   ← → : slides   ·   B : masquer le texte";
+                    let font = egui::FontId::proportional(15.0);
+                    let galley = ui.painter().layout_no_wrap(text.into(), font, egui::Color32::WHITE);
+                    let pos = egui::pos2(area.center().x - galley.size().x / 2.0, area.max.y - 56.0);
+                    let back = egui::Rect::from_min_size(pos, galley.size()).expand2(egui::vec2(14.0, 8.0));
+                    ui.painter().rect_filled(back, 8.0, egui::Color32::from_black_alpha(170));
+                    ui.painter().galley(pos, galley, egui::Color32::WHITE);
+                    ctx.request_repaint_after(std::time::Duration::from_millis(500));
+                }
             });
         });
-        keep
+        keys
     }
+}
+
+/// Ce que l'opérateur a demandé dans la fenêtre de projection.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Keys {
+    /// Faux : la projection se ferme (Échap, F5, fermeture).
+    pub keep: bool,
+    /// Slides suivants (positif) ou précédents (négatif).
+    pub step: i32,
+    /// B : masquer ou afficher le texte.
+    pub hide: bool,
 }
 
 #[cfg(test)]
