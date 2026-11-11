@@ -23,6 +23,8 @@ pub enum HymnRequest {
 
 #[derive(Default)]
 pub struct HymnsView {
+    /// « Importer un PDF… » demandé.
+    pub import_pdf: bool,
     pub query: String,
     loaded: Option<String>,
     hymns: Vec<Hymn>,
@@ -99,6 +101,12 @@ impl HymnsView {
         self.editor_error = None;
     }
 
+    /// Après un import : la liste est relue.
+    pub fn reload(&mut self, db: &Database) {
+        self.loaded = None;
+        self.refresh(db);
+    }
+
     /// Après une suppression.
     pub fn deleted(&mut self, db: &Database) {
         self.loaded = None;
@@ -165,6 +173,12 @@ impl HymnsView {
         ui.horizontal(|ui| {
             if widgets::button(ui, Some(crate::icons::Icon::Plus), "Nouveau cantique", Tone::Secondary).clicked() {
                 self.edit(db, None);
+            }
+            if widgets::button(ui, None, "Importer un PDF…", Tone::Secondary)
+                .on_hover_text("Les cantiques d'un recueil en PDF (numéros, titres, strophes, refrains)")
+                .clicked()
+            {
+                self.import_pdf = true;
             }
         });
         if std::mem::take(&mut self.focus_search) {

@@ -17,6 +17,7 @@ members = [
     "crates/po-program",
     "crates/po-web",
     "crates/po-ndi",
+    "crates/po-pdf",
     "crates/project-on",
     "crates/po-mesures",
     "crates/po-parite",

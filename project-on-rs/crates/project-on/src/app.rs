@@ -187,6 +187,8 @@ pub struct App {
     pub obs: crate::obs::ObsRemote,
     /// « Gérer les Bibles ».
     pub bible_manager: crate::bible_manager::BibleManager,
+    /// L'import d'un recueil de cantiques en PDF.
+    pub pdf_import: crate::pdf_import::PdfImport,
     /// La préparation d'une restauration (vérification dans un fil à part).
     restore_job: Option<JoinHandle<Result<String, String>>>,
 }
@@ -311,6 +313,7 @@ impl App {
             restore_job: None,
             quote: crate::quote::QuoteWindow::default(),
             bible_manager: crate::bible_manager::BibleManager::default(),
+            pdf_import: crate::pdf_import::PdfImport::default(),
             obs: {
                 let wake = ctx.clone();
                 crate::obs::ObsRemote::start(move || wake.request_repaint())
@@ -2014,6 +2017,18 @@ impl App {
         self.preflight_window(ui);
         self.history_window(ui);
         self.quote_window(ui.ctx());
+        if std::mem::take(&mut self.hymns.import_pdf)
+            && let Some(file) =
+                rfd::FileDialog::new().set_title("Recueil de cantiques (PDF)").add_filter("PDF", &["pdf"]).pick_file()
+        {
+            self.pdf_import.read(file);
+        }
+        if let Some(path) = self.db_path.clone()
+            && self.pdf_import.show(ui.ctx(), &path)
+            && let Some(db) = self.db.as_ref()
+        {
+            self.hymns.reload(db);
+        }
         if std::mem::take(&mut self.bible.manage) {
             self.bible_manager.open = true;
         }

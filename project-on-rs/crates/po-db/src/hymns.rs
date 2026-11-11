@@ -232,6 +232,35 @@ impl Database {
         Ok(hymn_id)
     }
 
+    /// Les clés de tri des cantiques « PRÉFIXE-12. … » importés d'un recueil
+    /// (`_update_sort_keys_for_prefix` de la 2.8) : une lettre par recueil connu, puis le numéro.
+    pub fn update_prefix_sort_keys(&mut self, prefix: &str) -> Result<()> {
+        let letter = match prefix {
+            "CI" => 'A',
+            "CV" => 'B',
+            "PN" => 'C',
+            "AD" => 'D',
+            _ => 'I',
+        };
+        let tx = self.conn.transaction()?;
+        let rows: Vec<(i64, String)> = {
+            let mut stmt = tx.prepare("SELECT id, title FROM hymn WHERE title LIKE ?")?;
+            stmt.query_map([format!("{prefix}-%")], |r| Ok((r.get(0)?, r.get(1)?)))?.collect::<rusqlite::Result<_>>()?
+        };
+        for (id, title) in rows {
+            let rest = &title[prefix.len() + 1..];
+            let digits: String = rest.chars().take_while(char::is_ascii_digit).collect();
+            if !digits.is_empty()
+                && rest[digits.len()..].starts_with('.')
+                && let Ok(n) = digits.parse::<u32>()
+            {
+                tx.execute("UPDATE hymn SET sort_key = ? WHERE id = ?", params![format!("{letter}{n:04}"), id])?;
+            }
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
     /// Crée ou remplace un cantique (éditeur) : (texte, est un refrain) par strophe, le refrain étant
     /// marqué par l'opérateur. Tout se fait dans une transaction, index compris.
     pub fn save_hymn(

@@ -15,6 +15,7 @@ pub mod media;
 pub mod obs;
 pub mod outputs;
 pub mod overlay;
+pub mod pdf_import;
 pub mod playlist;
 pub mod projector;
 pub mod quote;
