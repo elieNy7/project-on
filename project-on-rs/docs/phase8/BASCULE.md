@@ -1,5 +1,10 @@
 # Phase 8 : la bascule vers Project-On 3.0
 
+> **Mise à jour du 12 novembre 2026.** À la demande de l'utilisateur : nouveau design (bleu nuit et
+> or, page Réglages par rubriques, logo partout), puis **retrait du code Python de la 2.8** du dépôt
+> (étiquette git `v2.8-python`) et publication de la 3.0.0. L'installateur livre maintenant aussi les
+> fonds fournis et la bibliothèque NDI (comme la 2.8). Ce qui suit décrit l'état du 11 novembre.
+
 **Date** : 11 novembre 2026. **État** : la bascule est **prête à être construite, pas faite**.
 L'installateur qui remplace la 2.x existe. Il n'a été ni lancé sur votre poste, ni publié, et le
 code de la 2.8 est toujours dans le dépôt. Ces trois gestes vous appartiennent (voir la fin).

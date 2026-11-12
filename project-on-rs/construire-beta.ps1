@@ -51,6 +51,15 @@ Copy-Item (Join-Path $root 'assets\backgrounds\*_16x9.png') (Join-Path $dist 'as
 Copy-Item (Join-Path $root 'assets\backgrounds\CREDITS.txt') (Join-Path $dist 'assets\backgrounds')
 # Les Bibles fournies (domaine public), installables depuis « Gérer les Bibles ».
 Copy-Item -Recurse (Join-Path $root 'bibles') (Join-Path $dist 'bibles')
+# La bibliothèque NDI, comme la 2.8 la livrait (ndi\bin du dépôt, non versionnée) : la sortie NDI
+# marche sans installer le runtime NDI. NDI® est une marque de Vizrt NDI AB.
+$ndi = Join-Path $root 'ndi\bin\Processing.NDI.Lib.x64.dll'
+if (Test-Path $ndi) {
+    New-Item -ItemType Directory -Force (Join-Path $dist 'ndi') | Out-Null
+    Copy-Item $ndi (Join-Path $dist 'ndi')
+} else {
+    Write-Warning "Bibliothèque NDI absente ($ndi) : la sortie NDI demandera le runtime NDI."
+}
 New-Item -ItemType Directory -Force (Join-Path $dist 'licences') | Out-Null
 Copy-Item (Join-Path $root 'LICENSE.txt') (Join-Path $dist 'licences\Project-On-LICENSE.txt')
 Copy-Item (Join-Path $rs 'crates\project-on\LICENSE-lucide.txt') (Join-Path $dist 'licences\LICENSE-lucide.txt')

@@ -3,16 +3,15 @@
 La refonte de Project-On en Rust, décidée le 9 novembre 2026 : architecture, décisions et plan dans
 [`../AUDIT_ET_ARCHITECTURE_RUST_2026-11-09.md`](../AUDIT_ET_ARCHITECTURE_RUST_2026-11-09.md).
 
-**État : phases 0 à 8 menées — version 3.0.0 : l'installateur définitif est construit, ni lancé ni publié
-([document](docs/phase8/BASCULE.md)) ; les fonctions de la 2.8 sont reprises
-([liste de parité](docs/phase7/PARITE.md) : reste le fond vidéo et l'effet Ken Burns), et le retrait
-de la 2.8 comme la publication attendent votre accord.**
+**État : version 3.0.0 — la 3.0 remplace la 2.8 ([document](docs/phase8/BASCULE.md)) ; les fonctions
+de la 2.8 sont reprises ([liste de parité](docs/phase7/PARITE.md) : reste le fond vidéo et l'effet Ken
+Burns). Le code Python de la 2.8 est retiré du dépôt le 12 novembre 2026 : il reste à l'étiquette git
+`v2.8-python`.**
 Rapports : [phase 0](docs/phase0/RAPPORT_PHASE0.md), [phase 1](docs/phase1/RAPPORT_PHASE1.md),
 [phase 2](docs/phase2/RAPPORT_PHASE2.md), [phase 3](docs/phase3/RAPPORT_PHASE3.md),
 [phase 4](docs/phase4/RAPPORT_PHASE4.md) ([essai guidé](docs/phase4/ESSAI_GUIDE.md)),
 [phase 5](docs/phase5/RAPPORT_PHASE5.md), [phase 6](docs/phase6/RAPPORT_PHASE6.md),
-[phase 7](docs/phase7/RAPPORT_PHASE7.md), [phase 8](docs/phase8/BASCULE.md). La version livrée reste la
-2.8 (Python) jusqu'à la bascule 3.0. Ce code ne touche jamais aux vraies données : les essais et les
+[phase 7](docs/phase7/RAPPORT_PHASE7.md), [phase 8](docs/phase8/BASCULE.md). Ce code ne touche jamais aux vraies données : les essais et les
 mesures travaillent sur des copies.
 
 ## Organisation
@@ -50,7 +49,9 @@ Les tests de l'interface la rendent hors écran (`egui_kittest` + wgpu) : aucune
 ## Les tests dorés (parité avec la 2.8)
 
 Le vrai code de la 2.8 écrit ses résultats sur une **copie** de la base, puis `po-parite` refait
-les mêmes appels en Rust et compare tout. Depuis la racine du dépôt (le module natif de la 2.8
+les mêmes appels en Rust et compare tout. Ce code n'est plus dans le dépôt : les scripts
+`outils/references_*.py` se lancent depuis une copie à l'étiquette `v2.8-python`
+(`git worktree add ..\po-28 v2.8-python`). Depuis la racine du dépôt (le module natif de la 2.8
 extrait d'un paquet `build/native/*.whl`) :
 
 ```powershell

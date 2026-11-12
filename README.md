@@ -1,11 +1,11 @@
 <div align="center">
 
-<img src="docs/app-icon.png" width="96" alt="Project-On" />
+<img src="assets/logo/app icon.png" width="96" alt="Project-On" />
 
 # Project-On
 
-**Logiciel de projection pour églises — Bible, Cantiques, Prédications, Exposés.**
-Sortie OBS (lower-third) · Projection plein écran cinématique · 100 % hors-ligne.
+**Logiciel de projection pour églises — Bible, cantiques, prédications, Exposé des Sept Âges.**
+Projection plein écran · écrans Web · NDI · HDMI pour mélangeur · 100 % hors ligne.
 
 [**🌐 Site web**](https://elieny7.github.io/paratech-web/project-on.html) · [**⬇️ Télécharger**](https://elieny7.github.io/paratech-web/project-on.html) · [Captures d'écran](#aperçu)
 
@@ -13,81 +13,50 @@ Sortie OBS (lower-third) · Projection plein écran cinématique · 100 % hors-l
 
 ---
 
+Depuis la **3.0**, Project-On est écrit entièrement en **Rust** (interface egui sur la carte
+graphique). Le code est dans [`project-on-rs/`](project-on-rs/README.md). La 2.8, écrite en Python
+(PySide6), est retirée du dépôt : son code reste disponible à l'étiquette git **`v2.8-python`**
+(`git checkout v2.8-python`), et son installateur sur la
+[page des versions](https://github.com/elieNy7/paratech-web/releases/tag/project-on-v2.8.0).
+
 ## ✨ Fonctionnalités
 
-- **Bible** — navigation livre par livre, recherche et projection du verset avec sa référence ; **7 Bibles libres fournies** (Martin, Crampon, Perret-Gentil, Bovet-Bonnet, KJV, BSB, Reina-Valera), 15 autres à télécharger, import Zefania / Beblia / JSON.
-- **Déroulé du culte** — sections, heures prévues, avance ou retard en direct, section démarrée par son slide.
-- **Éditeur de cantiques** — création, modification, refrain répété automatiquement ; import OpenLyrics, OpenSong et CCLI SongSelect.
-- **Historique du culte** — rapport, tableur, sous-titres SRT et images transparentes pour le montage vidéo.
-- **Profil de l'église** — pasteur (nom, titre, photo sans arrière-plan) présent sur toutes les publications, orateur du jour et son écran, écran d'accueil (horaires, réseaux, QR code), écran « Réseaux sociaux » de fin de culte, images de citations (carré, story, paysage) ; fond dégradé, uni ou photo, couleurs, police et style personnalisables.
-- **Fiabilité** — reprise après coupure de courant, contrôle avant culte au démarrage, mode PC modeste, mise à jour intégrée.
-- **Raccourcis configurables** — télécommande de présentation et Stream Deck.
-- **Cantiques** — bibliothèque organisée par strophes.
-- **Prédications & Livres** — sermons (alinéas fidèles au PDF), Exposé des Sept Âges, livres et brochures, présentés par chapitre et par page.
-- **Aperçu et Direct** — un clic prépare un verset, une strophe, un paragraphe ou un média dans l'Aperçu (rendu exact de la projection), **F2** l'envoie au Direct ; voyant « EN DIRECT / MASQUÉ / VIDE » sur le moniteur Direct.
-- **Projection directe (sans playlist)** — double-clic, Entrée ou bouton « Projeter » sur un verset, strophe ou paragraphe : tout le document (chapitre, cantique, sermon) devient le programme de lecture, textes longs découpés en parties navigables.
-- **Découpage intelligent** — paragraphes longs coupés entre alinéas puis en fin de phrase, en parties équilibrées ; cantiques projetés deux lignes par slide ; réglable dans Réglages → Découpage des textes.
-- **Recherche globale (Ctrl+K)** — références bibliques (« Jean 3:16 », « 1 co 13 ») ou texte libre, dans la Bible, les prédications, les exposés, les médias et les playlists.
-- **Interface Windows 11** — menu latéral repliable, barre de commandes avec l'état des sorties (projection, OBS, HDMI, NDI), effet Mica, une seule page Réglages à application immédiate.
-- **Texte rapide** — projetez une annonce ou un texte libre en un instant depuis l'aperçu.
-- **Sortie OBS · Lower Third** — bandeau « broadcast » personnalisable (position, police, couleurs, dégradé, flou, ombres, contour) avec aperçu en direct.
-- **Animation mot à mot (broadcast)** — le texte des slides se révèle mot par mot en cascade, avec entrée de bandeau chorégraphiée (barre d'accent, badge source, référence).
-- **Styles par scène OBS** — plusieurs looks indépendants (louange plein écran, prédication discrète…) via des URL dédiées `?scene=…`, gérés et prévisualisés dans les réglages.
-- **Sortie HDMI pour mélangeur (ATEM, Roland…)** — le texte en **sous-titre OBS** sur fond de clé chroma (vert, magenta ou bleu), style de la page OBS ou style propre au HDMI (police, tailles, position, bandeau, couleurs, ombre et contour, animation), mire de calibrage (F8), retour automatique sur l'écran du mélangeur après un débranchement.
-- **Contrôle OBS (WebSocket)** — bascule automatique de scène OBS à la projection/masquage, chargement des scènes et création de la source Navigateur Project-On en un clic.
-- **Projection cinématique** — transitions Fondu, Glissement, Zoom, Flou et Reveal + zoom lent (Ken Burns) sur les images de fond.
-- **Arrière-plans chrétiens** — fonds sobres et lisibles (croix, aigle, lion, agneau). Fonds animés : vidéo en boucle derrière le texte.
-- **Contrôle avant service** — diagnostic des données, écrans, stockage et sortie OBS avec rapport exportable.
-- **Sauvegarde sûre** — copie transactionnelle SQLite vérifiée, même lorsque l'application est ouverte.
-- **Mises à niveau sans perte** — l'installeur conserve la base, les playlists et les paramètres utilisateur.
-- **Typographie professionnelle** — labels et contenus plus lisibles, filtres et numéros plus compacts, hiérarchie homogène dans tous les onglets et dialogues.
-- **Playlist améliorée** — cartes plus aérées, références mieux séparées et compteurs plus discrets.
+- **Bible** — 7 Bibles libres fournies, d'autres à télécharger, import XML et JSON (lingala, swahili…), recherche « Jean 3:16 » ou par mots.
+- **Cantiques** — bibliothèque par strophes, refrain répété tout seul, éditeur, import d'un recueil PDF.
+- **Prédications, Exposé et livres** — alinéas fidèles au PDF, identification de Branham au choix.
+- **Aperçu puis Direct** — un clic prépare, **F2** envoie ; tout le chapitre, le cantique ou la prédication devient le programme, découpé en parties équilibrées.
+- **Playlist et déroulé du culte** — glisser-déposer, sections avec heures prévues, avance ou retard en direct ; PowerPoint, images et vidéos.
+- **Designs** — une bibliothèque de designs, lower thirds et sous-titres ; le design choisi sert au Web, à NDI et au HDMI.
+- **Sorties** — projection plein écran, écrans Web (salle, diffusion transparente, sous-titres, retour de scène), NDI transparent, HDMI sur fond de clé pour ATEM ou Roland, pilotage d'OBS.
+- **L'église** — écran d'accueil, orateur du jour, réseaux sociaux avec QR code, images de citation (Ctrl+Maj+I), galerie de photos.
+- **Fiabilité** — reprise après une coupure de courant, contrôle avant culte, sauvegardes et restauration, mise à jour intégrée.
 
 ## ⬇️ Installation (Windows)
 
-1. Téléchargez **`ProjectOn_2.8.0_Setup.exe`** depuis la [page Project-On](https://elieny7.github.io/paratech-web/project-on.html).
-2. Lancez l'installeur (français). Si Windows affiche **SmartScreen**, cliquez sur « Informations complémentaires » → « Exécuter quand même ».
-3. Ouvrez **Project-On**. Tout fonctionne hors-ligne.
+1. Téléchargez **`ProjectOn_3.0.0_Setup.exe`** depuis la [page Project-On](https://elieny7.github.io/paratech-web/project-on.html).
+2. Lancez l'installateur. Si Windows affiche **SmartScreen** : « Informations complémentaires » → « Exécuter quand même ».
+3. Ouvrez **Project-On** : la 3.0 reprend la base, les playlists et les réglages de la 2.x.
 
-> Windows 10 / 11 (64 bits) · ~500 Mo d'espace · un second écran ou projecteur recommandé.
+> Windows 10 / 11 (64 bits) · environ 1 Go d'espace · un second écran ou projecteur recommandé.
 
 ## 🖼️ Aperçu
 
-| Interface | Projection |
+| Régie | Réglages |
 |---|---|
-| ![Interface](docs/screenshots/ui-main.png) | ![Projection](docs/screenshots/04-projection-bible.png) |
+| ![Régie](docs/screenshots/3.0/bible.jpg) | ![Réglages](docs/screenshots/3.0/reglages.jpg) |
 
 ## 🛠️ Développement
 
-```bash
-py -3 -m pip install -r requirements.txt
-py -3 main.py
-```
-
-> La base de données fournie (`data/project_on.db`) et les binaires NDI sont distribués via l'installeur — ils ne sont pas versionnés ici (taille). Tests : `py -3 -m pytest tests -q`.
-
-Module natif Rust (`rust/project_on_core`, facultatif en développement) : il accélère la recherche sans accents (×20 sur les sermons). Sans lui, l'application utilise la version Python, avec les mêmes résultats. Il demande [Rust](https://rustup.rs) et `maturin` :
-
-```bash
-py -3 -m pip install maturin
-py -3 -m maturin build --release -m rust/project_on_core/Cargo.toml --out build/native
-py -3 -m pip install --force-reinstall build/native/project_on_core-0.1.0-cp310-abi3-win_amd64.whl
-```
-
-Construire l'installeur (Rust + PyInstaller + Inno Setup ; `--skip-native` pour s'en passer) :
-
-```bat
-build_installer.bat
-```
+Voir [`project-on-rs/README.md`](project-on-rs/README.md) : construire, vérifier (`cargo test`),
+installateur (`construire-beta.ps1 -Bascule`).
 
 ## 📜 Licence & crédits
 
-- Code : voir [LICENSE.txt](LICENSE.txt).
+- Code : voir [LICENSE.txt](LICENSE.txt) (MIT).
 - Bibles fournies et catalogue : [scrollmapper/bible_databases](https://github.com/scrollmapper/bible_databases), domaine public (détail dans `licenses/BIBLES.txt`).
 - Silhouettes aigle / lion / agneau dérivées de [game-icons.net](https://game-icons.net/) (Lorc, Delapouite) — **CC BY 3.0**.
-- Logos des réseaux sociaux : [Simple Icons](https://simpleicons.org) — **CC0** (marques de leurs propriétaires, détail dans `licenses/SIMPLE-ICONS-CC0.txt`).
-- Icônes d’interface SVG issues de [Lucide](https://lucide.dev/) — licence **ISC**, texte fourni dans `licenses/LUCIDE-ISC.txt`.
-- Interface construite avec [Qt for Python (PySide6)](https://doc.qt.io/qtforpython-6/) — licence **LGPL v3** ; les bibliothèques Qt sont livrées sous forme de DLL séparées et remplaçables.
+- Logos des réseaux sociaux : [Simple Icons](https://simpleicons.org) — **CC0** (détail dans `licenses/SIMPLE-ICONS-CC0.txt`).
+- Icônes d'interface issues de [Lucide](https://lucide.dev/) — licence **ISC** (`licenses/LUCIDE-ISC.txt`).
 
 <div align="center">
 
