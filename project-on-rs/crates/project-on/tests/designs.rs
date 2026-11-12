@@ -1,6 +1,6 @@
 //! La page Designs et l'habillage en direct, hors écran (aucune fenêtre) : un design de salle essayé
-//! dans l'Aperçu puis appliqué au direct, le lower third (L) et les sous-titres (S) qui avancent
-//! dans un long paragraphe avant de changer de slide.
+//! dans l'Aperçu puis appliqué au direct, le lower third (L) et les sous-titres (S), qui montrent
+//! tout le texte du slide.
 
 // Un essai qui échoue s'arrête : `unwrap` y est permis, aussi dans les fonctions d'aide.
 #![allow(clippy::unwrap_used)]
@@ -97,7 +97,7 @@ fn a_room_design_is_tried_in_the_preview_then_applied_live() {
 }
 
 #[test]
-fn l_shows_the_lower_third_and_s_steps_the_subtitles_through_a_paragraph() {
+fn l_shows_the_lower_third_and_s_shows_the_whole_slide_as_subtitle() {
     let mut h = harness();
     // Un long paragraphe de sermon au direct.
     h.get_by_label("La Foi").click();
@@ -116,24 +116,27 @@ fn l_shows_the_lower_third_and_s_steps_the_subtitles_through_a_paragraph() {
     assert!(overlay.shown);
     assert!(!overlay.text.title.is_empty(), "{:?}", overlay.text);
 
-    // S : les sous-titres s'affichent ; → avance dans le paragraphe sans changer de slide.
-    h.state_mut().app().subtitles.style.max_lines = 1;
+    // S : le sous-titre montre tout le texte du slide (plus de morceaux) ; → passe au slide suivant.
     h.state_mut().app().subtitles.cut_for = None;
     h.key_press(Key::S);
     h.run_ok();
     until(&mut h, |a| a.hub.program().context.subtitle.is_some());
     let app = h.state_mut().app();
-    let chunks = app.subtitles.chunks.len();
-    assert!(chunks >= 2, "{chunks} sous-titres");
-    let row = app.live.as_ref().unwrap().program.current();
-    let first = app.hub.program().context.subtitle.clone().unwrap().1;
-    h.key_press(Key::ArrowRight);
+    assert_eq!(app.subtitles.chunks.len(), 1);
+    let live = app.live.as_ref().unwrap().program.slide();
+    let shown = app.hub.program().context.subtitle.clone().unwrap().1;
+    let words = |t: &str| po_text::words(t).join(" ").to_lowercase();
+    assert_eq!(words(&shown), words(&live.text), "tout le texte");
+    // Une flèche change de slide (← au dernier slide), et le sous-titre suit.
+    let (row, count) = app.live.as_ref().map(|l| (l.program.current(), l.program.len())).unwrap();
+    assert!(count > 1);
+    let (key, expected) = if row + 1 < count { (Key::ArrowRight, row + 1) } else { (Key::ArrowLeft, row - 1) };
+    h.key_press(key);
     h.run_ok();
-    until(&mut h, |a| a.hub.program().context.subtitle.as_ref().is_some_and(|s| s.1 != first));
+    until(&mut h, |a| a.hub.program().context.subtitle.as_ref().is_some_and(|s| s.1 != shown));
     let app = h.state_mut().app();
-    assert_eq!(app.live.as_ref().unwrap().program.current(), row, "le slide reste");
-    assert_eq!(app.subtitles.index, 1);
-    // S de nouveau : masqués, → change de slide.
+    assert_eq!(app.live.as_ref().unwrap().program.current(), expected, "la flèche change de slide");
+    // S de nouveau : masqués.
     h.key_press(Key::S);
     h.run_ok();
     until(&mut h, |a| a.hub.program().context.subtitle.is_none());

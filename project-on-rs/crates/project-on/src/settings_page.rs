@@ -204,7 +204,15 @@ const NAV_WIDTH: f32 = 172.0;
 fn row(ui: &mut Ui, label: &str, add: impl FnOnce(&mut Ui)) {
     let width = (ui.available_width() * 0.36).clamp(150.0, 230.0);
     ui.horizontal(|ui| {
-        ui.add_sized([width, 24.0], egui::Label::new(RichText::new(label).font(regular(12.5)).color(MUTED)).wrap());
+        // Le libellé, aligné à gauche dans sa colonne.
+        ui.allocate_ui_with_layout(
+            vec2(width, 24.0),
+            egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(true),
+            |ui| {
+                ui.set_min_width(width);
+                ui.add(egui::Label::new(RichText::new(label).font(regular(12.5)).color(MUTED)).wrap());
+            },
+        );
         add(ui);
     });
     ui.add_space(4.0);

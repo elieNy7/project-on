@@ -2078,7 +2078,7 @@ impl App {
     pub fn toggle_subtitles(&mut self) {
         self.subtitles.shown = !self.subtitles.shown;
         self.status = if self.subtitles.shown {
-            "Sous-titres affichés : ← et → avancent dans le paragraphe".into()
+            "Sous-titres affichés : tout le texte du slide".into()
         } else {
             "Sous-titres masqués".into()
         };

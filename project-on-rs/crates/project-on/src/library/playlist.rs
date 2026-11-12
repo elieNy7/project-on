@@ -294,7 +294,8 @@ impl PlaylistView {
     fn toolbar(&mut self, ui: &mut Ui, undo_available: bool, actions: &mut Vec<PlaylistAction>) {
         let has_folder = self.folder.is_some();
         let selection = self.selection();
-        ui.horizontal(|ui| {
+        // Sur une régie étroite, la barre passe à la ligne au lieu de déborder sous les moniteurs.
+        ui.horizontal_wrapped(|ui| {
             if widgets::button_at(
                 ui,
                 Size::Normal,
@@ -589,6 +590,55 @@ impl PlaylistView {
         });
     }
 
+    /// Les outils de la section choisie (+ Section, Modifier, Supprimer, monter, descendre), à droite.
+    fn section_tools(&mut self, ui: &mut Ui, actions: &mut Vec<PlaylistAction>) {
+        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+            let chosen = self.selected_section;
+            if widgets::button_at(
+                ui,
+                Size::Small,
+                Some(icons::Icon::ChevronDown),
+                "",
+                Tone::Secondary,
+                chosen.is_some(),
+            )
+            .clicked()
+                && let Some(id) = chosen
+            {
+                actions.push(PlaylistAction::MoveSection(id, 1));
+            }
+            if widgets::button_at(ui, Size::Small, Some(icons::Icon::ChevronUp), "", Tone::Secondary, chosen.is_some())
+                .clicked()
+                && let Some(id) = chosen
+            {
+                actions.push(PlaylistAction::MoveSection(id, -1));
+            }
+            if widgets::button_at(ui, Size::Small, None, "Supprimer", Tone::Danger, chosen.is_some()).clicked()
+                && let Some(id) = chosen
+            {
+                actions.push(PlaylistAction::DeleteSection(id));
+                self.selected_section = None;
+            }
+            if widgets::button_at(ui, Size::Small, None, "Modifier", Tone::Secondary, chosen.is_some()).clicked()
+                && let Some(s) = self.sections.iter().find(|s| Some(s.id) == chosen)
+            {
+                self.dialog = Some(Dialog::Section {
+                    id: Some(s.id),
+                    name: s.name.clone(),
+                    duration: s.duration_min,
+                    link: s.item_id,
+                    linked: s.item_id.is_some(),
+                });
+            }
+            if widgets::button_at(ui, Size::Small, Some(icons::Icon::Plus), "Section", Tone::Secondary, true).clicked()
+            {
+                let link = self.selection().first().copied();
+                self.dialog =
+                    Some(Dialog::Section { id: None, name: String::new(), duration: 10, link, linked: false });
+            }
+        });
+    }
+
     fn item_row(
         &mut self,
         ui: &mut Ui,
@@ -827,6 +877,8 @@ impl PlaylistView {
             return;
         }
         ui.add_space(6.0);
+        // Sur une régie étroite, les outils de section passent sur leur propre ligne.
+        let narrow = ui.available_width() < 680.0;
         ui.horizontal(|ui| {
             ui.label(RichText::new("Début prévu").font(regular(12.0)).color(MUTED));
             let r = ui.add(egui::TextEdit::singleline(&mut self.start_time).desired_width(60.0).hint_text("9:30"));
@@ -853,60 +905,13 @@ impl PlaylistView {
             {
                 actions.push(PlaylistAction::StartService);
             }
-            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                let chosen = self.selected_section;
-                if widgets::button_at(
-                    ui,
-                    Size::Small,
-                    Some(icons::Icon::ChevronDown),
-                    "",
-                    Tone::Secondary,
-                    chosen.is_some(),
-                )
-                .clicked()
-                    && let Some(id) = chosen
-                {
-                    actions.push(PlaylistAction::MoveSection(id, 1));
-                }
-                if widgets::button_at(
-                    ui,
-                    Size::Small,
-                    Some(icons::Icon::ChevronUp),
-                    "",
-                    Tone::Secondary,
-                    chosen.is_some(),
-                )
-                .clicked()
-                    && let Some(id) = chosen
-                {
-                    actions.push(PlaylistAction::MoveSection(id, -1));
-                }
-                if widgets::button_at(ui, Size::Small, None, "Supprimer", Tone::Danger, chosen.is_some()).clicked()
-                    && let Some(id) = chosen
-                {
-                    actions.push(PlaylistAction::DeleteSection(id));
-                    self.selected_section = None;
-                }
-                if widgets::button_at(ui, Size::Small, None, "Modifier", Tone::Secondary, chosen.is_some()).clicked()
-                    && let Some(s) = self.sections.iter().find(|s| Some(s.id) == chosen)
-                {
-                    self.dialog = Some(Dialog::Section {
-                        id: Some(s.id),
-                        name: s.name.clone(),
-                        duration: s.duration_min,
-                        link: s.item_id,
-                        linked: s.item_id.is_some(),
-                    });
-                }
-                if widgets::button_at(ui, Size::Small, Some(icons::Icon::Plus), "Section", Tone::Secondary, true)
-                    .clicked()
-                {
-                    let link = self.selection().first().copied();
-                    self.dialog =
-                        Some(Dialog::Section { id: None, name: String::new(), duration: 10, link, linked: false });
-                }
-            });
+            if !narrow {
+                self.section_tools(ui, actions);
+            }
         });
+        if narrow {
+            ui.horizontal(|ui| self.section_tools(ui, actions));
+        }
         ui.add_space(4.0);
         let base = service::parse_start_time(&self.start_time)
             .map(|(h, m)| f64::from(h * 3600 + m * 60))

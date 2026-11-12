@@ -14,6 +14,7 @@
 - **Écrans Web** : salle, diffusion transparente (source navigateur d'OBS), sous-titres, retour de scène ; adresse à copier et QR code.
 - **NDI transparent**, **HDMI** sur fond de clé (vert, magenta, bleu) avec marges 16:9, taille et position du texte, mire F8.
 - **Designs** : une bibliothèque de designs, lower thirds (L) et sous-titres (S) en direct, « Mes designs ».
+- **Sous-titres entiers** : le sous-titre montre tout le texte du slide, comme les autres sorties ; un texte long prend des lignes de plus, puis rétrécit juste ce qu'il faut.
 - **Pilotage d'OBS** (obs-websocket 5) : la scène change au direct et au masquage ; le mot de passe de la 2.x est repris.
 - Transitions fondu, glissement, zoom, flou et balayage, dessinées par la carte graphique ; projection plein écran même avec un seul écran (Échap ou F5 pour revenir).
 
@@ -32,3 +33,5 @@
 - Les **vidéos** de la playlist demandent FFmpeg installé sur l'ordinateur.
 
 Windows peut afficher un avertissement SmartScreen : « Informations complémentaires », puis « Exécuter quand même ».
+
+SHA-256 : 86f3bb35336f474c79b83146fa6ad3e8f975406d87f794ff8aacc7f4d440edfd

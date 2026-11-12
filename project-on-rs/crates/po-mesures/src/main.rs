@@ -949,17 +949,20 @@ fn capture_site(db_path: &Path, out_dir: &Path) -> Result<()> {
     let mut room = design();
     room.background.image =
         Some(po_layout::bundled_backgrounds_dir().join("bg-bleu-nuit_16x9.png").to_string_lossy().into_owned());
-    let text = |i: usize| sermon.get(i).map_or_else(String::new, |e| e.text.clone());
-    let reference = |i: usize| sermon.get(i).map_or_else(String::new, |e| e.reference.clone());
+    // Jean 3:16 au direct, 3:17 en suivant (le programme du chapitre commence au verset 1).
+    let text = |i: usize| bible.get(i).map_or_else(String::new, |e| e.text.clone());
+    let reference = |i: usize| bible.get(i).map_or_else(String::new, |e| e.reference.clone());
+    let subtitle = po_design::graphics::SubtitleStyle::new(po_design::graphics::SubtitleLook::BoxPerLine);
     hub.update(
-        Some(Slide::new(text(0), reference(0), SlideSource::Sermon)),
+        Some(Slide::new(text(15), reference(15), SlideSource::Bible)),
         po_web::Context {
             design: room,
             broadcast: po_web::Look::Band(po_design::Band::default()),
-            next: Some(Slide::new(text(1), reference(1), SlideSource::Sermon)),
+            next: Some(Slide::new(text(16), reference(16), SlideSource::Bible)),
             hidden: false,
             clock: "10:42".into(),
-            status: "Prédication · 32:15 restantes".into(),
+            status: "Lecture · 4:15 restantes".into(),
+            subtitle: Some((subtitle, text(15))),
             ..po_web::Context::default()
         },
     );

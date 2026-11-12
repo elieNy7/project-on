@@ -8,7 +8,7 @@ use po_design::graphics::{
 use po_design::{Align, BandPosition, Direction, Rgba};
 
 use crate::display::{Anchor as TextAnchor, Group, Item, Stop, TextLine, TextOutline, TextShadow};
-use crate::fit::{FontSpec, balanced_lines, wrap_lines};
+use crate::fit::{FontSpec, balanced_lines};
 use crate::fonts::Fonts;
 
 /// Un habillage mis en page : la boîte (fond, filet) et les lignes de texte, avec la fin de
@@ -222,32 +222,15 @@ pub fn layout_lower_third(
     graphic
 }
 
-/// Découpe un long texte en sous-titres d'au plus `style.max_lines` lignes pour un écran de 1920 ×
-/// 1080 : on les fait avancer un par un. Les sous-titres ont des longueurs voisines (pas de mot
-/// isolé à la fin).
-pub fn subtitle_chunks(fonts: &mut Fonts, text: &str, style: &SubtitleStyle) -> Vec<String> {
+/// Le sous-titre d'un slide : **tout son texte**, comme les autres sorties (demande du 12 novembre
+/// 2026 : le texte n'est plus coupé en morceaux qu'on fait avancer). `layout_subtitle` ajoute des
+/// lignes, puis réduit la taille, pour qu'il tienne en entier.
+pub fn subtitle_chunks(_fonts: &mut Fonts, text: &str, style: &SubtitleStyle) -> Vec<String> {
     let text = po_text::py::strip(text);
     if text.is_empty() {
         return Vec::new();
     }
-    let (width, k) = (1920.0, 1.0);
-    let (family, size, spacing) = scaled_font(fonts, &style.font, k);
-    let inner = width * style.width / 100.0 - 2.0 * subtitle_pad(style, k).0;
-    let spec = FontSpec { family: &family, weight: style.font.weight, letter_spacing: spacing };
-    let one_line: String = po_text::words(&transform(text, &style.font)).join(" ");
-    let lines = wrap_lines(fonts, &one_line, spec, size, inner.max(80.0));
-    let per = style.max_lines.clamp(1, 3);
-    if lines.len() <= per {
-        return vec![one_line];
-    }
-    let count = lines.len().div_ceil(per);
-    // Les mots répartis à parts égales (en lignes) entre les sous-titres.
-    let mut chunks = Vec::with_capacity(count);
-    for c in 0..count {
-        let (from, to) = (c * lines.len() / count, (c + 1) * lines.len() / count);
-        chunks.push(lines[from..to].join(" "));
-    }
-    chunks
+    vec![po_text::words(&transform(text, &style.font)).join(" ")]
 }
 
 fn subtitle_pad(style: &SubtitleStyle, k: f32) -> (f32, f32) {
@@ -258,7 +241,9 @@ fn subtitle_pad(style: &SubtitleStyle, k: f32) -> (f32, f32) {
     }
 }
 
-/// Un sous-titre (déjà découpé), sur un écran `width` × `height` : 1 à 3 lignes équilibrées.
+/// Un sous-titre sur un écran `width` × `height`, en lignes équilibrées. Jusqu'à `style.max_lines`
+/// lignes il garde sa taille (ou presque) ; un texte plus long prend plus de lignes, et la taille
+/// baisse seulement s'il ne tient pas dans sa zone (la moitié de l'écran, l'écran entier au centre).
 pub fn layout_subtitle(fonts: &mut Fonts, text: &str, style: &SubtitleStyle, width: f32, height: f32) -> Graphic {
     let mut graphic = Graphic { width, height, ..Graphic::default() };
     let text = transform(po_text::py::strip(text), &style.font);
@@ -270,11 +255,23 @@ pub fn layout_subtitle(fonts: &mut Fonts, text: &str, style: &SubtitleStyle, wid
     let (family, mut size, spacing) = scaled_font(fonts, &style.font, k);
     let inner = width * style.width / 100.0 - 2.0 * pad_x;
     let max_lines = style.max_lines.clamp(1, 3);
+    let margin = height * style.margin / 100.0;
+    let room = match style.position {
+        BandPosition::Center => height - 2.0 * margin,
+        BandPosition::Top | BandPosition::Bottom => height / 2.0 - margin,
+    };
+    // Au-delà de `max_lines` lignes, la taille ne descend pas sous 72 % de la sienne tant que le
+    // texte tient dans sa zone : on préfère des lignes de plus à des lettres trop petites.
+    let soft_floor = (size * 0.72).max(12.0 * k);
     let mut lines;
     loop {
         let spec = FontSpec { family: &family, weight: style.font.weight, letter_spacing: spacing };
         lines = balanced_lines(fonts, &text, spec, size, inner.max(40.0));
-        if lines.len() <= max_lines || size <= 12.0 * k {
+        let m = fonts.qt_metrics(&family, style.font.weight, size);
+        let step = m.line_spacing as f32 * style.font.line_height.max(1.0);
+        let block = m.height as f32 + step * (lines.len() as f32 - 1.0) + 2.0 * pad_y;
+        let fits = block <= room;
+        if (fits && (lines.len() <= max_lines || size <= soft_floor)) || size <= 12.0 * k {
             break;
         }
         size -= 1.0;
@@ -283,7 +280,6 @@ pub fn layout_subtitle(fonts: &mut Fonts, text: &str, style: &SubtitleStyle, wid
     let step = m.line_spacing as f32 * style.font.line_height.max(1.0);
     let text_h = m.height as f32 + step * (lines.len() as f32 - 1.0);
     let block_h = text_h + 2.0 * pad_y;
-    let margin = height * style.margin / 100.0;
     let top = match style.position {
         BandPosition::Top => margin,
         BandPosition::Center => (height - block_h) / 2.0,
@@ -536,7 +532,7 @@ mod tests {
     }
 
     #[test]
-    fn subtitles_are_cut_into_balanced_chunks_of_at_most_n_lines() {
+    fn a_subtitle_shows_the_whole_text_of_the_slide() {
         let mut fonts = fonts();
         let text = "Et il arriva, comme il était en prière en un certain lieu, qu'après qu'il eut cessé, \
                     un de ses disciples lui dit : Seigneur, enseigne-nous à prier, comme aussi Jean l'a \
@@ -544,18 +540,19 @@ mod tests {
                     soit sanctifié ; que ton règne vienne.";
         for (_, _, style) in builtin_subtitles() {
             let chunks = subtitle_chunks(&mut fonts, text, &style);
-            assert!(chunks.len() >= 2, "{chunks:?}");
-            // Rien ne se perd, rien ne se répète.
-            assert_eq!(chunks.join(" "), po_text::words(text).join(" "));
-            for chunk in &chunks {
-                let g = layout_subtitle(&mut fonts, chunk, &style, 1920.0, 1080.0);
-                assert!(g.lines.len() <= style.max_lines, "{chunk}");
-                assert!(g.rect[1] + g.rect[3] <= 1080.0);
-            }
-            // Équilibrés : le plus court fait au moins la moitié du plus long.
-            let lengths: Vec<usize> = chunks.iter().map(|c| c.len()).collect();
-            let (min, max) = (lengths.iter().min().unwrap(), lengths.iter().max().unwrap());
-            assert!(min * 2 >= *max, "{lengths:?}");
+            // Un seul sous-titre : tout le texte, rien ne se perd.
+            assert_eq!(chunks.len(), 1, "{chunks:?}");
+            let g = layout_subtitle(&mut fonts, &chunks[0], &style, 1920.0, 1080.0);
+            let shown: Vec<String> = g.lines.iter().map(|(l, _)| l.text.clone()).collect();
+            assert_eq!(
+                po_text::words(&shown.join(" ")).join(" ").to_lowercase(),
+                po_text::words(text).join(" ").to_lowercase()
+            );
+            assert!(g.lines.len() > style.max_lines, "un long texte prend des lignes de plus");
+            assert!(g.rect[1] >= 0.0 && g.rect[1] + g.rect[3] <= 1080.0, "{:?}", g.rect);
+            // Un texte court garde sa taille et ses lignes.
+            let short = layout_subtitle(&mut fonts, "Que ton règne vienne", &style, 1920.0, 1080.0);
+            assert_eq!(short.lines.len(), 1);
         }
         assert!(subtitle_chunks(&mut fonts, "  ", &builtin_subtitles()[0].2).is_empty());
     }

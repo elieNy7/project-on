@@ -712,7 +712,8 @@ fn live_card(
                 actions.push(DesignAction::ToggleSubtitles);
             }
             ui.label(RichText::new(&subtitles.name).font(medium(12.0)).color(MUTED));
-            if subtitles.shown && !subtitles.chunks.is_empty() {
+            // Un texte long n'est plus coupé : les flèches ne servent que s'il y a plusieurs parties.
+            if subtitles.shown && subtitles.chunks.len() > 1 {
                 if widgets::button(ui, None, "◀", Tone::Secondary).clicked() {
                     actions.push(DesignAction::StepSubtitle(-1));
                 }
@@ -1075,7 +1076,7 @@ fn editor(ui: &mut Ui, design: &mut Design, families: &[String]) -> bool {
             changed |= color_edit(ui, "Texte", &mut s.font.color);
             changed |= color_edit(ui, "Boîte", &mut s.box_color);
             let mut lines = s.max_lines as f32;
-            if size_edit(ui, "Lignes", &mut lines, 1.0..=3.0) {
+            if size_edit(ui, "Lignes à pleine taille", &mut lines, 1.0..=3.0) {
                 s.max_lines = lines as usize;
                 changed = true;
             }

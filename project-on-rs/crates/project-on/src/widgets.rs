@@ -233,6 +233,12 @@ fn paint_button(
     let alpha = if enabled { 1.0 } else { 0.4 };
     let painter = ui.painter();
     let fg = match tone {
+        Tone::Primary(_) if !enabled => {
+            // Désactivé : un ton neutre (l'or ou le rouge éteints paraissaient sales).
+            painter.rect_filled(rect, radius, RAISED.gamma_multiply(0.7));
+            painter.rect_stroke(rect, radius, Stroke::new(1.0, BORDER), egui::StrokeKind::Inside);
+            FAINT
+        }
         Tone::Primary(c) => {
             let fill = if pressed { lift(c, -0.14) } else { lift(c, 0.10 * t) };
             // Le bouton principal se détache : une lueur de sa couleur, plus vive au survol.
@@ -271,6 +277,8 @@ fn paint_button(
             MUTED.lerp_to_gamma(PGM, t)
         }
     };
+    // Le texte : déjà neutre sur un bouton principal désactivé, estompé ailleurs.
+    let ink = if !enabled && matches!(tone, Tone::Primary(_)) { fg } else { fg.gamma_multiply(alpha) };
     let gap = if icon.is_some() && text.is_some() { GAP } else { 0.0 };
     let content_w = icon.map_or(0.0, |_| icon_size) + gap + text.as_ref().map_or(0.0, |g| g.size().x);
     // À l'appui, le contenu s'enfonce d'un pixel.
@@ -278,12 +286,12 @@ fn paint_button(
     let mut x = rect.center().x - content_w / 2.0;
     if let Some(icon) = icon {
         let r = Rect::from_center_size(pos2(x + icon_size / 2.0, rect.center().y + dy), Vec2::splat(icon_size));
-        icons::paint(painter, r, icon, fg.gamma_multiply(alpha));
+        icons::paint(painter, r, icon, ink);
         x += icon_size + gap;
     }
     if let Some(g) = text {
         let pos = pos2(x, rect.center().y - g.size().y / 2.0 + dy);
-        painter.galley(pos, g, fg.gamma_multiply(alpha));
+        painter.galley(pos, g, ink);
     }
 }
 
