@@ -245,11 +245,28 @@ fn subtitle_pad(style: &SubtitleStyle, k: f32) -> (f32, f32) {
 /// lignes il garde sa taille (ou presque) ; un texte plus long prend plus de lignes, et la taille
 /// baisse seulement s'il ne tient pas dans sa zone (la moitié de l'écran, l'écran entier au centre).
 pub fn layout_subtitle(fonts: &mut Fonts, text: &str, style: &SubtitleStyle, width: f32, height: f32) -> Graphic {
+    layout_subtitle_with_reference(fonts, text, "", style, width, height)
+}
+
+/// La taille de la référence sous un sous-titre, par rapport au texte.
+const REFERENCE_SCALE: f32 = 0.56;
+
+/// [`layout_subtitle`], avec la **référence** du slide (« Jean 3:16 », « 47-0412 · E-12 ») en
+/// petit sous le texte (demande du 12 novembre 2026). Vide : pas de ligne.
+pub fn layout_subtitle_with_reference(
+    fonts: &mut Fonts,
+    text: &str,
+    reference: &str,
+    style: &SubtitleStyle,
+    width: f32,
+    height: f32,
+) -> Graphic {
     let mut graphic = Graphic { width, height, ..Graphic::default() };
     let text = transform(po_text::py::strip(text), &style.font);
     if text.is_empty() {
         return graphic;
     }
+    let reference = po_text::py::strip(reference).to_string();
     let k = height / 1080.0;
     let (pad_x, pad_y) = subtitle_pad(style, k);
     let (family, mut size, spacing) = scaled_font(fonts, &style.font, k);
@@ -263,13 +280,21 @@ pub fn layout_subtitle(fonts: &mut Fonts, text: &str, style: &SubtitleStyle, wid
     // Au-delà de `max_lines` lignes, la taille ne descend pas sous 72 % de la sienne tant que le
     // texte tient dans sa zone : on préfère des lignes de plus à des lettres trop petites.
     let soft_floor = (size * 0.72).max(12.0 * k);
+    // La hauteur de la ligne de référence (et de son écart avec le texte) à la taille `size`.
+    let reference_h = |fonts: &mut Fonts, size: f32| -> f32 {
+        if reference.is_empty() {
+            return 0.0;
+        }
+        let r = fonts.qt_metrics(&family, style.font.weight, (size * REFERENCE_SCALE).max(10.0 * k));
+        r.height as f32 + 0.3 * size + if style.look == SubtitleLook::BoxPerLine { 2.0 * pad_y } else { 0.0 }
+    };
     let mut lines;
     loop {
         let spec = FontSpec { family: &family, weight: style.font.weight, letter_spacing: spacing };
         lines = balanced_lines(fonts, &text, spec, size, inner.max(40.0));
         let m = fonts.qt_metrics(&family, style.font.weight, size);
         let step = m.line_spacing as f32 * style.font.line_height.max(1.0);
-        let block = m.height as f32 + step * (lines.len() as f32 - 1.0) + 2.0 * pad_y;
+        let block = m.height as f32 + step * (lines.len() as f32 - 1.0) + 2.0 * pad_y + reference_h(fonts, size);
         let fits = block <= room;
         if (fits && (lines.len() <= max_lines || size <= soft_floor)) || size <= 12.0 * k {
             break;
@@ -279,7 +304,7 @@ pub fn layout_subtitle(fonts: &mut Fonts, text: &str, style: &SubtitleStyle, wid
     let m = fonts.qt_metrics(&family, style.font.weight, size);
     let step = m.line_spacing as f32 * style.font.line_height.max(1.0);
     let text_h = m.height as f32 + step * (lines.len() as f32 - 1.0);
-    let block_h = text_h + 2.0 * pad_y;
+    let block_h = text_h + 2.0 * pad_y + reference_h(fonts, size);
     let top = match style.position {
         BandPosition::Top => margin,
         BandPosition::Center => (height - block_h) / 2.0,
@@ -288,7 +313,17 @@ pub fn layout_subtitle(fonts: &mut Fonts, text: &str, style: &SubtitleStyle, wid
     let cx = width / 2.0;
     let widths: Vec<f32> =
         lines.iter().map(|l| fonts.qt_advance(l, &family, style.font.weight, size, spacing)).collect();
-    let widest = widths.iter().copied().fold(0.0, f32::max);
+    // La référence : même police, plus petite et un peu estompée, centrée sous le texte.
+    let ref_size = (size * REFERENCE_SCALE).max(10.0 * k);
+    let rm = fonts.qt_metrics(&family, style.font.weight, ref_size);
+    let ref_w = if reference.is_empty() {
+        0.0
+    } else {
+        fonts.qt_advance(&reference, &family, style.font.weight, ref_size, spacing * REFERENCE_SCALE)
+    };
+    let ref_top =
+        top + pad_y + text_h + 0.3 * size + if style.look == SubtitleLook::BoxPerLine { 2.0 * pad_y } else { 0.0 };
+    let widest = widths.iter().copied().fold(ref_w, f32::max);
     graphic.rect = [cx - widest / 2.0 - pad_x, top, widest + 2.0 * pad_x, block_h];
     match style.look {
         SubtitleLook::Translucent => {
@@ -307,12 +342,41 @@ pub fn layout_subtitle(fonts: &mut Fonts, text: &str, style: &SubtitleStyle, wid
                     color: style.box_color,
                 });
             }
+            if !reference.is_empty() {
+                graphic.backing.push(Item::Rect {
+                    x: cx - ref_w / 2.0 - pad_x,
+                    y: ref_top - pad_y,
+                    w: ref_w + 2.0 * pad_x,
+                    h: rm.height as f32 + 2.0 * pad_y,
+                    radius: 4.0 * k,
+                    color: style.box_color,
+                });
+            }
         }
         SubtitleLook::Transparent | SubtitleLook::Outline => {}
     }
     for (i, l) in lines.iter().enumerate() {
         let baseline = top + pad_y + m.ascent as f32 + i as f32 * step;
         graphic.lines.push(line(fonts, l, &family, &style.font, size, spacing, cx, TextAnchor::Middle, baseline, k));
+    }
+    if !reference.is_empty() {
+        let mut font = style.font.clone();
+        font.uppercase = false;
+        font.color.0[3] = (f32::from(font.color.0[3]) * 0.85).round() as u8;
+        let baseline = ref_top + rm.ascent as f32;
+        let spacing = spacing * REFERENCE_SCALE;
+        graphic.lines.push(line(
+            fonts,
+            &reference,
+            &family,
+            &font,
+            ref_size,
+            spacing,
+            cx,
+            TextAnchor::Middle,
+            baseline,
+            k,
+        ));
     }
     graphic
 }
@@ -553,6 +617,21 @@ mod tests {
             // Un texte court garde sa taille et ses lignes.
             let short = layout_subtitle(&mut fonts, "Que ton règne vienne", &style, 1920.0, 1080.0);
             assert_eq!(short.lines.len(), 1);
+            // La référence, en petit sous le texte, dans le cadre du sous-titre.
+            let with = layout_subtitle_with_reference(
+                &mut fonts,
+                "Que ton règne vienne",
+                "Matthieu 6:10",
+                &style,
+                1920.0,
+                1080.0,
+            );
+            assert_eq!(with.lines.len(), 2);
+            let (text_line, reference) = (&with.lines[0].0, &with.lines[1].0);
+            assert_eq!(reference.text, "Matthieu 6:10");
+            assert!(reference.baseline > text_line.baseline, "sous le texte");
+            assert!(reference.size < text_line.size, "plus petite");
+            assert!(with.rect[1] + with.rect[3] <= 1080.0 && with.rect[3] > short.rect[3]);
         }
         assert!(subtitle_chunks(&mut fonts, "  ", &builtin_subtitles()[0].2).is_empty());
     }

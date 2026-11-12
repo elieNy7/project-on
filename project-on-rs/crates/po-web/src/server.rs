@@ -15,7 +15,7 @@ use axum::routing::get;
 use futures_util::{SinkExt, StreamExt};
 use po_design::graphics::{LowerThirdStyle, LowerThirdText, SubtitleStyle};
 use po_design::{Animation, Band, Rgba, RoomDesign, SlideSource};
-use po_layout::graphics::{graphic_frame, layout_lower_third, layout_subtitle, test_pattern};
+use po_layout::graphics::{graphic_frame, layout_lower_third, layout_subtitle_with_reference, test_pattern};
 use po_layout::{DisplayList, Fonts, Item, Slide, layout_band, layout_room, layout_stage};
 use po_render::Renderer;
 use tokio::sync::{oneshot, watch};
@@ -438,7 +438,9 @@ impl Hub {
             ScreenKind::Subtitles => {
                 let mut list = DisplayList::blank(width, height, Rgba::TRANSPARENT);
                 if let Some((style, text)) = &c.subtitle {
-                    let graphic = layout_subtitle(&mut fonts, text, style, width, height);
+                    // La référence du slide au direct, en petit sous le texte.
+                    let reference = &program.slide.reference;
+                    let graphic = layout_subtitle_with_reference(&mut fonts, text, reference, style, width, height);
                     list.stage = graphic.rect;
                     list.items = graphic.items();
                 }

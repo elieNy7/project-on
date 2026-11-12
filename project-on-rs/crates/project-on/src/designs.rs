@@ -188,7 +188,8 @@ pub fn render_preview(fonts: &mut Fonts, renderer: &mut Renderer, body: &DesignB
         DesignBody::Subtitles(style) => {
             let text =
                 po_layout::graphics::subtitle_chunks(fonts, &slide.text, style).into_iter().next().unwrap_or_default();
-            let graphic = po_layout::graphics::layout_subtitle(fonts, &text, style, w, h);
+            let graphic =
+                po_layout::graphics::layout_subtitle_with_reference(fonts, &text, &slide.reference, style, w, h);
             let mut list = DisplayList::blank(w, h, Rgba::TRANSPARENT);
             list.items = graphic.items();
             checker(&mut list);

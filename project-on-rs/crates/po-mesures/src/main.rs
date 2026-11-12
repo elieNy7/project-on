@@ -541,6 +541,75 @@ fn servir(db_path: &Path, port: u16) -> Result<()> {
     Ok(())
 }
 
+/// La vraie régie, hors écran, avec ses écrans Web sur 127.0.0.1:`port` : un paragraphe au direct,
+/// puis le suivant toutes les 4 s (diagnostic des écrans Web et des sorties, sans fenêtre).
+fn regie_web(db_path: &Path, port: u16, seconds: u64) -> Result<()> {
+    let out = db_path.parent().map_or_else(|| PathBuf::from("."), Path::to_path_buf);
+    // Une copie des réglages de ce poste (comme la vraie régie), sans recherche de mise à jour.
+    let mut config = ui_config(db_path, &out);
+    config.settings.appearance.check_updates = false;
+    config.web_port = Some(port);
+    let mut harness = ui_harness(config);
+    harness.run_ok();
+    // Le design des sorties choisi sur ce poste (PO_SORTIES, sinon celui de designs-choisis.json).
+    let chosen = std::env::var("PO_SORTIES").ok().or_else(|| {
+        let file =
+            PathBuf::from(std::env::var_os("APPDATA")?).join("Project-On").join("data").join("designs-choisis.json");
+        let v: Value = serde_json::from_str(&std::fs::read_to_string(file).ok()?).ok()?;
+        v.get("sorties").and_then(Value::as_str).map(str::to_string)
+    });
+    if let Some(id) = chosen {
+        let app = harness.state_mut().app();
+        if let Some(output) = app.designs.find(&id).and_then(project_on::designs::Output::of) {
+            println!("Sorties : {}", output.name);
+            app.output = output;
+        }
+    }
+    let addr = harness.state_mut().app().web.as_ref().and_then(|w| w.addr()).ok_or("serveur Web absent")?;
+    println!("Écrans : http://{addr}/");
+    harness.state_mut().app().select_sermon(40);
+    harness.step();
+    harness.state_mut().app().cue_sermon_entry(3);
+    until(&mut harness, |a| !a.rendering() && a.preview_frame().is_some());
+    harness.state_mut().app().take();
+    if std::env::var_os("PO_SOUS_TITRES").is_some() {
+        harness.state_mut().app().toggle_subtitles();
+    }
+    let start = Instant::now();
+    let mut last = Instant::now();
+    let mut saved = false;
+    while start.elapsed() < Duration::from_secs(seconds) {
+        harness.step();
+        // L'image exacte de la source NDI (le genre « diffusion », 1920 × 1080), une fois.
+        if !saved && start.elapsed() > Duration::from_secs(3) {
+            let hub = harness.state_mut().app().hub.clone();
+            let (pixels, _) = hub.render_rgba(&hub.program(), po_web::ScreenKind::Broadcast, 1920, 1080, None, false);
+            let mut board = checkerboard(1920, 1080)?;
+            if let Some(image) =
+                tiny_skia::Pixmap::from_vec(pixels, tiny_skia::IntSize::from_wh(1920, 1080).ok_or("taille")?)
+            {
+                board.draw_pixmap(
+                    0,
+                    0,
+                    image.as_ref(),
+                    &tiny_skia::PixmapPaint::default(),
+                    tiny_skia::Transform::identity(),
+                    None,
+                );
+            }
+            std::fs::write(out.join("ndi-diffusion.png"), encode_png(&board)?)?;
+            println!("NDI : {}", out.join("ndi-diffusion.png").display());
+            saved = true;
+        }
+        if last.elapsed() > Duration::from_secs(4) {
+            harness.state_mut().app().step(1);
+            last = Instant::now();
+        }
+        std::thread::sleep(Duration::from_millis(30));
+    }
+    Ok(())
+}
+
 /// Le bandeau des réglages « OBS » de la 2.x de ce poste (lus sans rien écrire).
 fn legacy_band() -> po_design::Band {
     std::env::var_os("APPDATA")
@@ -1004,6 +1073,7 @@ fn main() -> Result<()> {
         ["web", db, out] => capture_web(Path::new(db), Path::new(out)),
         ["designs", db, out] => capture_designs(Path::new(db), Path::new(out)),
         ["site", db, out] => capture_site(Path::new(db), Path::new(out)),
+        ["regie-web", db, port, seconds] => regie_web(Path::new(db), port.parse()?, seconds.parse()?),
         ["trigramme", db, out] => {
             let report = trigramme::evaluate(Path::new(db), Path::new(out))?;
             std::fs::write(Path::new(out).join("trigramme.json"), serde_json::to_string_pretty(&report)?)?;
