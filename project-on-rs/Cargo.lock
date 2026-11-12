@@ -2907,6 +2907,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "po-ui"
+version = "3.0.1"
+dependencies = [
+ "egui",
+ "image",
+ "resvg",
+]
+
+[[package]]
 name = "po-web"
 version = "3.0.1"
 dependencies = [
@@ -3052,6 +3061,7 @@ dependencies = [
  "po-render",
  "po-settings",
  "po-text",
+ "po-ui",
  "po-web",
  "pollster 0.4.0",
  "regex",

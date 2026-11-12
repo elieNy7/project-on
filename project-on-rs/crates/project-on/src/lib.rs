@@ -8,7 +8,7 @@ pub mod gallery;
 pub mod gpu;
 pub mod history;
 pub mod hymn_editor;
-pub mod icons;
+pub use po_ui::icons;
 pub mod library;
 pub mod maintenance;
 pub mod media;
@@ -33,7 +33,7 @@ pub mod transfer;
 pub mod updater;
 pub mod video;
 pub mod web;
-pub mod widgets;
+pub use po_ui::widgets;
 pub mod worker;
 
 pub use app::{App, Boot, Config};
