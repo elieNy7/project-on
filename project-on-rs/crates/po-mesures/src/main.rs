@@ -572,9 +572,6 @@ fn regie_web(db_path: &Path, port: u16, seconds: u64) -> Result<()> {
     harness.state_mut().app().cue_sermon_entry(3);
     until(&mut harness, |a| !a.rendering() && a.preview_frame().is_some());
     harness.state_mut().app().take();
-    if std::env::var_os("PO_SOUS_TITRES").is_some() {
-        harness.state_mut().app().toggle_subtitles();
-    }
     let start = Instant::now();
     let mut last = Instant::now();
     let mut saved = false;
@@ -819,7 +816,6 @@ fn capture_designs(db_path: &Path, out_dir: &Path) -> Result<()> {
     app.page = project_on::library::Page::Designs;
     app.lower_third.auto = true;
     app.toggle_lower_third();
-    app.toggle_subtitles();
     app.designs.selected = Some("lt-moderne".into());
     for _ in 0..40 {
         harness.step();
@@ -980,7 +976,6 @@ fn capture_site(db_path: &Path, out_dir: &Path) -> Result<()> {
         app.page = Page::Designs;
         app.lower_third.auto = true;
         app.toggle_lower_third();
-        app.toggle_subtitles();
         app.designs.selected = Some("lt-moderne".into());
     }
     save(&mut harness, "designs")?;
@@ -988,7 +983,6 @@ fn capture_site(db_path: &Path, out_dir: &Path) -> Result<()> {
     {
         let app = harness.state_mut().app();
         app.toggle_lower_third();
-        app.toggle_subtitles();
         let mut settings = app.settings.clone();
         settings.projection.bg_mode = "image".into();
         settings.projection.bg_image =

@@ -116,10 +116,9 @@ fn l_shows_the_lower_third_and_s_shows_the_whole_slide_as_subtitle() {
     assert!(overlay.shown);
     assert!(!overlay.text.title.is_empty(), "{:?}", overlay.text);
 
-    // S : le sous-titre montre tout le texte du slide (plus de morceaux) ; → passe au slide suivant.
+    // Les sous-titres sont affichés d'office : tout le texte du slide (plus de morceaux).
     h.state_mut().app().subtitles.cut_for = None;
-    h.key_press(Key::S);
-    h.run_ok();
+    assert!(h.state_mut().app().subtitles.shown, "affichés d'office");
     until(&mut h, |a| a.hub.program().context.subtitle.is_some());
     let app = h.state_mut().app();
     assert_eq!(app.subtitles.chunks.len(), 1);
@@ -136,10 +135,13 @@ fn l_shows_the_lower_third_and_s_shows_the_whole_slide_as_subtitle() {
     until(&mut h, |a| a.hub.program().context.subtitle.as_ref().is_some_and(|s| s.1 != shown));
     let app = h.state_mut().app();
     assert_eq!(app.live.as_ref().unwrap().program.current(), expected, "la flèche change de slide");
-    // S de nouveau : masqués.
+    // S : masqués ; S de nouveau : réaffichés.
     h.key_press(Key::S);
     h.run_ok();
     until(&mut h, |a| a.hub.program().context.subtitle.is_none());
+    h.key_press(Key::S);
+    h.run_ok();
+    until(&mut h, |a| a.hub.program().context.subtitle.is_some());
 }
 
 #[test]

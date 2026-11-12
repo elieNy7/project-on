@@ -104,7 +104,8 @@ pub struct Subtitles {
     pub id: String,
     pub name: String,
     pub style: SubtitleStyle,
-    /// Affichés (touche S) : ← et → avancent alors dans les morceaux avant de changer de slide.
+    /// Affichés : d'office (l'écran « sous-titres » montre le direct dès qu'on l'ouvre, demande
+    /// du 12 novembre 2026) ; la touche S les masque et les réaffiche.
     pub shown: bool,
     /// Les morceaux du slide au direct, et celui affiché.
     pub chunks: Vec<String>,
@@ -115,7 +116,7 @@ pub struct Subtitles {
 
 impl Subtitles {
     pub fn new(id: &str, name: &str, style: SubtitleStyle) -> Self {
-        Subtitles { id: id.into(), name: name.into(), style, shown: false, chunks: Vec::new(), index: 0, cut_for: None }
+        Subtitles { id: id.into(), name: name.into(), style, shown: true, chunks: Vec::new(), index: 0, cut_for: None }
     }
 
     /// Le morceau affiché.
@@ -189,7 +190,9 @@ mod tests {
         let mut st = Subtitles::new("st", "Essai", SubtitleStyle::new(SubtitleLook::Translucent));
         let slide = Slide::new("a b c", "Réf", SlideSource::Custom);
         st.cut(&slide, vec!["a".into(), "b".into(), "c".into()], false);
-        assert_eq!(st.current(), None, "masqués par défaut");
+        assert_eq!(st.current(), Some("a"), "affichés d'office");
+        st.shown = false;
+        assert_eq!(st.current(), None, "masqués (S)");
         assert!(!st.step(1), "masqués : le slide change");
         st.shown = true;
         assert_eq!(st.current(), Some("a"));
