@@ -99,16 +99,17 @@ impl Choices {
 pub const PREVIEW_SIZE: [u32; 2] = [384, 216];
 
 /// Une demande d'aperçu : identifiant, empreinte, design.
-type PreviewJob = (String, String, DesignBody);
+pub(crate) type PreviewJob = (String, String, DesignBody);
 
-/// Les aperçus, rendus dans un fil à part avec le contenu en cours.
-struct Previews {
-    jobs: Sender<(Vec<PreviewJob>, Slide)>,
-    done: Receiver<(String, String, Vec<u8>)>,
+/// Les aperçus, rendus dans un fil à part avec le contenu en cours (la page Designs, et l'aperçu
+/// de la projection dans les Réglages).
+pub(crate) struct Previews {
+    pub(crate) jobs: Sender<(Vec<PreviewJob>, Slide)>,
+    pub(crate) done: Receiver<(String, String, Vec<u8>)>,
 }
 
 impl Previews {
-    fn start(fonts_dir: PathBuf, wake: impl Fn() + Send + 'static) -> Option<Previews> {
+    pub(crate) fn start(fonts_dir: PathBuf, wake: impl Fn() + Send + 'static) -> Option<Previews> {
         let (jobs, incoming) = channel::<(Vec<PreviewJob>, Slide)>();
         let (out, done) = channel();
         std::thread::Builder::new()
@@ -242,6 +243,11 @@ impl DesignsView {
             families: Vec::new(),
             previews_enabled: true,
         }
+    }
+
+    /// Le dossier des polices (les fonds fournis sont à côté).
+    pub fn fonts_dir(&self) -> &std::path::Path {
+        &self.fonts_dir
     }
 
     /// Les designs intégrés suivent les réglages de la 2.x (« Mon design 2.x »).
@@ -410,9 +416,26 @@ impl DesignsView {
     fn card(&self, ui: &mut Ui, d: &Design, width: f32, selected: bool, in_use: bool) -> egui::Response {
         let height = width * 9.0 / 16.0 + 44.0;
         let (rect, response) = ui.allocate_exact_size(vec2(width, height), Sense::click());
+        let t = widgets::hover_t(ui, &response, response.hovered());
         let painter = ui.painter();
-        let stroke = if selected { Stroke::new(2.0, ACCENT) } else { Stroke::new(1.0, BORDER) };
-        painter.rect(rect, CornerRadius::same(8), SURFACE, stroke, egui::StrokeKind::Inside);
+        let radius = CornerRadius::same(12);
+        if selected {
+            crate::theme::paint_glow(painter, rect, radius, ACCENT, 0.35);
+        } else {
+            crate::theme::paint_shadow(
+                painter,
+                rect,
+                radius,
+                4,
+                14,
+                Color32::from_black_alpha((70.0 + 50.0 * t) as u8),
+            );
+        }
+        let stroke =
+            if selected { Stroke::new(2.0, ACCENT) } else { Stroke::new(1.0, BORDER.lerp_to_gamma(BORDER_STRONG, t)) };
+        painter.rect_filled(rect, radius, SURFACE.lerp_to_gamma(RAISED, 0.5 * t));
+        crate::theme::paint_relief(painter, rect, radius, 0.8);
+        painter.rect_stroke(rect, radius, stroke, egui::StrokeKind::Inside);
         let image = egui::Rect::from_min_size(rect.min + vec2(4.0, 4.0), vec2(width - 8.0, (width - 8.0) * 9.0 / 16.0));
         match self.textures.get(&d.id) {
             Some((_, texture)) => {

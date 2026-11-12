@@ -1271,6 +1271,36 @@ impl App {
         }
     }
 
+    /// Choisit le cantique de rang `index` dans la liste.
+    pub fn select_hymn(&mut self, index: usize) {
+        if let Some(db) = &self.db {
+            self.page = Page::Hymns;
+            self.hymns.select(db, index);
+        }
+    }
+
+    /// Prépare dans l'Aperçu le cantique choisi, à partir de sa strophe `index`.
+    pub fn cue_hymn_entry(&mut self, index: usize) {
+        if let Some(p) = self.hymns.prepare(index, self.split.hymn_repeat_chorus) {
+            self.cue(p);
+        }
+    }
+
+    /// Choisit le chapitre de rang `index` de l'Exposé.
+    pub fn select_expose(&mut self, index: usize) {
+        if let Some(db) = &self.db {
+            self.page = Page::Expose;
+            self.expose.select(db, index);
+        }
+    }
+
+    /// Prépare dans l'Aperçu le chapitre choisi de l'Exposé, à partir de son paragraphe `index`.
+    pub fn cue_expose_entry(&mut self, index: usize) {
+        if let Some(p) = self.expose.prepare(index) {
+            self.cue(p);
+        }
+    }
+
     /// Lance la recherche globale (comme si l'opérateur tapait `query` après Ctrl+K).
     pub fn search_everywhere(&mut self, query: &str) {
         self.global.query = query.to_string();
@@ -2168,15 +2198,41 @@ impl App {
         }
         self.keyboard();
         self.recovery_banner(ui);
-        egui::Panel::top("barre").exact_size(50.0).frame(bar_frame()).show(ui, |ui| self.command_bar(ui));
-        egui::Panel::bottom("etat").exact_size(26.0).frame(bar_frame()).show(ui, |ui| self.status_bar(ui));
-        egui::Panel::left("rail").exact_size(176.0).resizable(false).frame(bar_frame()).show(ui, |ui| self.rail(ui));
-        egui::Panel::right("moniteurs")
-            .exact_size(480.0)
+        // Le fond bleu nuit, puis les cartes de la régie posées dessus avec un espace entre elles.
+        crate::theme::paint_backdrop(ui.painter(), ui.ctx().content_rect());
+        let gap = |left: i8, right: i8| Margin { left, right, top: 2, bottom: 2 };
+        egui::Panel::top("barre")
+            .exact_size(54.0)
+            .show_separator_line(false)
+            .frame(bar_frame())
+            .show(ui, |ui| self.command_bar(ui));
+        egui::Panel::bottom("etat")
+            .exact_size(28.0)
+            .show_separator_line(false)
+            .frame(bar_frame())
+            .show(ui, |ui| self.status_bar(ui));
+        egui::Panel::left("rail")
+            .exact_size(188.0)
             .resizable(false)
-            .frame(panel_frame())
-            .show(ui, |ui| self.monitors(ui, now));
-        egui::CentralPanel::no_frame().frame(panel_frame().fill(BG)).show(ui, |ui| self.library(ui));
+            .show_separator_line(false)
+            .frame(crate::theme::card_frame(10, gap(10, 5)))
+            .show(ui, |ui| {
+                crate::theme::card_sheen(ui, 10.0);
+                self.rail(ui);
+            });
+        egui::Panel::right("moniteurs")
+            .exact_size(496.0)
+            .resizable(false)
+            .show_separator_line(false)
+            .frame(crate::theme::card_frame(14, gap(5, 10)))
+            .show(ui, |ui| {
+                crate::theme::card_sheen(ui, 14.0);
+                self.monitors(ui, now);
+            });
+        egui::CentralPanel::no_frame().frame(crate::theme::card_frame(14, gap(5, 5))).show(ui, |ui| {
+            crate::theme::card_sheen(ui, 14.0);
+            self.library(ui);
+        });
         self.global_results(ui);
         self.add_window(ui);
         self.preflight_window(ui);
@@ -2318,6 +2374,7 @@ impl App {
         if self.page == Page::Settings {
             if self.settings_view.families.is_empty() {
                 self.settings_view.families = self.designs.families.clone();
+                self.settings_view.fonts_dir = Some(self.designs.fonts_dir().to_path_buf());
                 self.settings_view.screens = crate::screens::list().into_iter().map(|s| s.device).collect();
             }
             self.settings_view.obs = (self.obs.state(), self.obs.scenes(), self.obs.message());
@@ -2459,7 +2516,8 @@ impl App {
 
     fn command_bar(&mut self, ui: &mut Ui) {
         ui.horizontal_centered(|ui| {
-            ui.label(RichText::new("Project-On").font(bold(17.0)).color(TEXT));
+            logo_mark(ui);
+            ui.label(RichText::new("Project-On").font(bold(17.5)).color(TEXT));
             widgets::chip(ui, if cfg!(feature = "bascule") { "3.0" } else { "3.0 bêta" }, ACCENT);
             ui.add_space(24.0);
             let r = widgets::search_field(ui, &mut self.global.query, "Rechercher partout…  Ctrl+K", 440.0);
@@ -2743,11 +2801,19 @@ impl App {
         // Aperçu.
         monitor_header(ui, "APERÇU", PREVIEW, self.preview.as_ref());
         let (rect, _) = ui.allocate_exact_size(vec2(width, height), Sense::hover());
+        crate::theme::paint_glow(
+            ui.painter(),
+            rect,
+            CornerRadius::same(6),
+            PREVIEW,
+            if self.preview.is_some() { 0.32 } else { 0.10 },
+        );
+        ui.painter().rect_filled(rect, CornerRadius::same(4), WELL);
         self.preview_stage.paint(ui.painter(), rect, now);
         ui.painter().rect_stroke(
-            rect,
-            CornerRadius::same(4),
-            Stroke::new(2.0, PREVIEW.gamma_multiply(0.7)),
+            rect.expand(1.0),
+            CornerRadius::same(6),
+            Stroke::new(1.5, PREVIEW.gamma_multiply(0.75)),
             egui::StrokeKind::Outside,
         );
         if self.preview.is_none() {
@@ -2778,14 +2844,22 @@ impl App {
         // Direct.
         monitor_header(ui, "DIRECT", LIVE, self.live.as_ref());
         let (rect, _) = ui.allocate_exact_size(vec2(width, height), Sense::hover());
+        crate::theme::paint_glow(
+            ui.painter(),
+            rect,
+            CornerRadius::same(6),
+            LIVE,
+            if self.live.is_some() { 0.40 } else { 0.10 },
+        );
+        ui.painter().rect_filled(rect, CornerRadius::same(4), WELL);
         self.live_stage.paint(ui.painter(), rect, now);
         if let Some(texture) = self.video.as_ref().and_then(|v| v.texture()) {
             crate::video::paint(ui.painter(), rect, texture);
         }
         ui.painter().rect_stroke(
-            rect,
-            CornerRadius::same(4),
-            Stroke::new(2.0, LIVE.gamma_multiply(0.8)),
+            rect.expand(1.0),
+            CornerRadius::same(6),
+            Stroke::new(1.5, LIVE.gamma_multiply(0.85)),
             egui::StrokeKind::Outside,
         );
         if self.live_stage.hidden() {
@@ -2939,10 +3013,18 @@ impl GlobalSearch {
     }
 }
 
+/// Le logo de Project-On dans la barre du haut, sur une ombre douce.
+fn logo_mark(ui: &mut Ui) {
+    let (rect, _) = ui.allocate_exact_size(vec2(30.0, 30.0), Sense::hover());
+    let painter = ui.painter();
+    crate::theme::paint_shadow(painter, rect, CornerRadius::same(8), 2, 10, Color32::from_black_alpha(140));
+    crate::theme::paint_glow(painter, rect, CornerRadius::same(8), ACCENT, 0.10);
+    crate::theme::paint_logo(painter, rect);
+}
+
 fn monitor_header(ui: &mut Ui, title: &str, color: Color32, shown: Option<&Shown>) {
     ui.horizontal(|ui| {
-        widgets::dot(ui, color);
-        ui.label(RichText::new(title).font(semibold(12.0)).color(color).extra_letter_spacing(0.8));
+        widgets::status_pill(ui, title, color);
         if let Some(s) = shown {
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 ui.label(
@@ -2958,13 +3040,25 @@ fn monitor_header(ui: &mut Ui, title: &str, color: Color32, shown: Option<&Shown
     ui.add_space(4.0);
 }
 
+/// Le grand logo des écrans d'accueil et d'attente.
+fn big_logo(ui: &mut Ui) {
+    let (rect, _) = ui.allocate_exact_size(vec2(96.0, 96.0), Sense::hover());
+    let painter = ui.painter();
+    crate::theme::paint_shadow(painter, rect, CornerRadius::same(22), 10, 32, Color32::from_black_alpha(160));
+    crate::theme::paint_glow(painter, rect, CornerRadius::same(22), ACCENT, 0.12);
+    crate::theme::paint_logo(painter, rect);
+    ui.add_space(18.0);
+}
+
 /// Le premier lancement : vos données de la 2.8, ou la base fournie avec Project-On.
 fn choose_origin(ui: &mut Ui) -> Option<crate::data::Origin> {
     use crate::data::Origin;
     let mut chosen = None;
-    egui::CentralPanel::default().frame(egui::Frame::NONE.fill(BG)).show(ui, |ui| {
-        ui.add_space(ui.available_height() / 4.0);
+    crate::theme::paint_backdrop(ui.painter(), ui.ctx().content_rect());
+    egui::CentralPanel::default().frame(egui::Frame::NONE).show(ui, |ui| {
+        ui.add_space(ui.available_height() / 5.0);
         ui.vertical_centered(|ui| {
+            big_logo(ui);
             ui.label(RichText::new("Bienvenue dans Project-On 3 (bêta)").font(semibold(22.0)).color(TEXT));
             ui.add_space(6.0);
             ui.label(
@@ -3000,9 +3094,11 @@ fn choose_origin(ui: &mut Ui) -> Option<crate::data::Origin> {
 }
 
 fn waiting(ui: &mut Ui, title: &str, message: &str) {
-    egui::CentralPanel::default().frame(egui::Frame::NONE.fill(BG)).show(ui, |ui| {
-        ui.add_space(ui.available_height() / 3.0);
+    crate::theme::paint_backdrop(ui.painter(), ui.ctx().content_rect());
+    egui::CentralPanel::default().frame(egui::Frame::NONE).show(ui, |ui| {
+        ui.add_space(ui.available_height() / 4.0);
         ui.vertical_centered(|ui| {
+            big_logo(ui);
             ui.label(RichText::new(title).font(semibold(20.0)).color(TEXT));
             ui.add_space(10.0);
             ui.label(RichText::new(message).font(regular(13.5)).color(MUTED));
@@ -3010,12 +3106,9 @@ fn waiting(ui: &mut Ui, title: &str, message: &str) {
     });
 }
 
+/// Les barres du haut et du bas : posées sur le fond, sans carte.
 fn bar_frame() -> egui::Frame {
-    egui::Frame::new().fill(PANEL).inner_margin(Margin::symmetric(12, 6))
-}
-
-fn panel_frame() -> egui::Frame {
-    egui::Frame::new().fill(PANEL).inner_margin(Margin::same(12))
+    egui::Frame::new().inner_margin(Margin::symmetric(16, 6))
 }
 
 /// La date locale « 2026-11-11 ».

@@ -62,6 +62,23 @@ pub fn thumbnail(path: &Path) -> Option<([usize; 2], Vec<u8>)> {
     Some(([filled.width() as usize, filled.height() as usize], filled.into_raw()))
 }
 
+/// Une vignette entière (logo, portrait), sans recadrage, dans 256 × 256.
+pub fn thumbnail_fit(path: &Path) -> Option<([usize; 2], Vec<u8>)> {
+    let image = image::ImageReader::open(path).ok()?.with_guessed_format().ok()?.decode().ok()?;
+    let fitted = image.resize(256, 256, image::imageops::FilterType::Triangle).to_rgba8();
+    Some(([fitted.width() as usize, fitted.height() as usize], fitted.into_raw()))
+}
+
+/// La clé d'une vignette entière (sans recadrage).
+const FIT: &str = "entiere|";
+
+/// Où en est une vignette demandée.
+pub enum Thumb {
+    Ready(egui::TextureHandle),
+    Loading,
+    Failed,
+}
+
 /// Copie une photo dans `folder`, sans doublon (`copy_church_photo` de la 2.8) : un fichier du
 /// même nom mais différent reçoit « -1 », « -2 »… Sans dossier, ou si la copie échoue, le chemin
 /// d'origine est gardé.
@@ -119,13 +136,36 @@ impl Gallery {
         let wake = ctx.clone();
         std::thread::spawn(move || {
             for path in missing {
-                let decoded = thumbnail(Path::new(&path));
+                let decoded = match path.strip_prefix(FIT) {
+                    Some(file) => thumbnail_fit(Path::new(file)),
+                    None => thumbnail(Path::new(&path)),
+                };
                 if tx.send((path, decoded)).is_err() {
                     return;
                 }
                 wake.request_repaint();
             }
         });
+    }
+
+    /// Demande d'un coup les vignettes de plusieurs images (un seul fil pour toutes).
+    pub fn prefetch(&mut self, ctx: &egui::Context, paths: &[String], fit: bool) {
+        let keys: Vec<String> = paths.iter().map(|p| if fit { format!("{FIT}{p}") } else { p.clone() }).collect();
+        self.refresh(ctx, &keys);
+    }
+
+    /// La vignette d'une image quelconque (`fit` : entière, sinon recadrée au 16:9), décodée dans
+    /// un fil à part la première fois.
+    pub fn thumb(&mut self, ctx: &egui::Context, path: &str, fit: bool) -> Thumb {
+        let key = if fit { format!("{FIT}{path}") } else { path.to_string() };
+        self.refresh(ctx, std::slice::from_ref(&key));
+        if let Some(texture) = self.thumbs.get(&key) {
+            Thumb::Ready(texture.clone())
+        } else if self.failed.contains(&key) {
+            Thumb::Failed
+        } else {
+            Thumb::Loading
+        }
     }
 
     /// La galerie : vignettes (✕ pour retirer), ajout, projection. Rend vrai si la liste a changé.

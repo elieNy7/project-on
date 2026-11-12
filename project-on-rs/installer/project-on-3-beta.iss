@@ -34,6 +34,8 @@ DefaultDirName={autopf}\Project-On 3 beta
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 WizardStyle=modern
+WizardImageFile=wizard\wizard-100.bmp,wizard\wizard-150.bmp,wizard\wizard-200.bmp
+WizardSmallImageFile=wizard\small-100.bmp,wizard\small-150.bmp,wizard\small-200.bmp
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
 CloseApplications=force
@@ -59,8 +61,8 @@ Name: "desktopicon"; Description: "Créer une icône sur le Bureau"; GroupDescri
 Source: "..\dist\Project-On-3-beta\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\{#MyAppExeName}"
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "Lancer {#MyAppName}"; Flags: nowait postinstall skipifsilent

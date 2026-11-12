@@ -13,6 +13,9 @@ path = "src/lib.rs"
 name = "project-on"
 path = "src/main.rs"
 
+[build-dependencies]
+winresource = "0.1.34"
+
 [dependencies]
 po-core = { path = "../po-core" }
 po-db.workspace = true

@@ -304,10 +304,18 @@ fn chip_button(ui: &mut Ui, text: &str, color: Color32) -> egui::Response {
     let g = ui.painter().layout_no_wrap(text.to_string(), semibold(10.5), color);
     let size = vec2(g.size().x + 26.0, 22.0);
     let (rect, response) = ui.allocate_exact_size(size, Sense::click());
-    let fill = if response.hovered() { color.gamma_multiply(0.26) } else { color.gamma_multiply(0.16) };
+    let t = crate::widgets::hover_t(ui, &response, response.hovered());
     let painter = ui.painter();
-    painter.rect_filled(rect, CornerRadius::same(11), fill);
-    painter.circle_filled(pos2(rect.min.x + 10.0, rect.center().y), 3.5, color);
+    painter.rect_filled(rect, CornerRadius::same(11), color.gamma_multiply(0.16 + 0.10 * t));
+    painter.rect_stroke(
+        rect,
+        CornerRadius::same(11),
+        egui::Stroke::new(1.0, color.gamma_multiply(0.35 + 0.25 * t)),
+        egui::StrokeKind::Inside,
+    );
+    let dot = pos2(rect.min.x + 10.0, rect.center().y);
+    painter.circle_filled(dot, 6.0, color.gamma_multiply(0.25));
+    painter.circle_filled(dot, 3.5, color);
     painter.galley(pos2(rect.min.x + 18.0, rect.center().y - g.size().y / 2.0), g, color);
     let label = text.to_string();
     ui.ctx().accesskit_node_builder(response.id, |n| {

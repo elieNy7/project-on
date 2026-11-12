@@ -115,6 +115,9 @@ impl Projector {
         let full = self.screen.is_some();
         let title = self.title();
         let mut builder = ViewportBuilder::default().with_title(&title).with_min_inner_size([320.0, 180.0]);
+        if let Some(icon) = crate::theme::window_icon() {
+            builder = builder.with_icon(icon);
+        }
         builder = if full {
             builder.with_decorations(false).with_always_on_top().with_taskbar(false)
         } else {

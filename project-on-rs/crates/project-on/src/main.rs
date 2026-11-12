@@ -113,12 +113,17 @@ fn main() {
             po_settings::Settings::load(&path).settings
         })
         .unwrap_or_default();
+    let mut viewport = egui::ViewportBuilder::default()
+        .with_title(NAME)
+        .with_inner_size([1600.0, 940.0])
+        .with_min_inner_size([1200.0, 700.0])
+        .with_maximized(true);
+    // Le logo de Project-On dans la barre de titre et la barre des tâches.
+    if let Some(icon) = project_on::theme::window_icon() {
+        viewport = viewport.with_icon(icon);
+    }
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_title(NAME)
-            .with_inner_size([1600.0, 940.0])
-            .with_min_inner_size([1200.0, 700.0])
-            .with_maximized(true),
+        viewport,
         renderer: eframe::Renderer::Wgpu,
         wgpu_options: project_on::gpu::configuration(),
         ..Default::default()

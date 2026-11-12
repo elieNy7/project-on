@@ -10,7 +10,7 @@ pub mod hymns;
 pub mod playlist;
 pub mod sermons;
 
-use egui::{Align2, Color32, CornerRadius, Rect, Response, Sense, Ui, pos2, vec2};
+use egui::{Align2, CornerRadius, Rect, Response, Sense, Stroke, Ui, pos2, vec2};
 use po_program::{Cue, Entry};
 
 use crate::icons::Icon;
@@ -145,7 +145,7 @@ pub fn item_row(ui: &mut Ui, selected: bool, title: &str, subtitle: &str, chip: 
         let g = ui.painter().layout_no_wrap(chip.to_string(), semibold(10.0), MUTED);
         let w = g.size().x + 12.0;
         let r = Rect::from_min_size(pos2(rect.max.x - w - 8.0, rect.center().y - 9.0), vec2(w, 18.0));
-        ui.painter().rect_filled(r, CornerRadius::same(9), RAISED);
+        ui.painter().rect(r, CornerRadius::same(9), RAISED, Stroke::new(1.0, BORDER), egui::StrokeKind::Inside);
         ui.painter().galley(pos2(r.min.x + 6.0, r.center().y - g.size().y / 2.0), g, MUTED);
         w + 12.0
     } else {
@@ -180,26 +180,14 @@ pub fn entry_row(ui: &mut Ui, marker: &str, text: &str, preview: bool, live: boo
     let (rect, response) = ui.allocate_exact_size(vec2(width, ENTRY_ROW - 4.0), Sense::click());
     response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, format!("{marker} {text}")));
     ui.add_space(4.0);
-    let painter = ui.painter();
-    let fill = if live {
-        LIVE.gamma_multiply(0.12)
+    let mark = if live {
+        widgets::Mark::Live
     } else if preview {
-        PREVIEW.gamma_multiply(0.10)
-    } else if response.hovered() {
-        SURFACE
+        widgets::Mark::Preview
     } else {
-        PANEL.lerp_to_gamma(SURFACE, 0.45)
+        widgets::Mark::None
     };
-    painter.rect_filled(rect, CornerRadius::same(8), fill);
-    let bar = |c: Color32| {
-        let r = Rect::from_min_size(pos2(rect.min.x, rect.min.y + 6.0), vec2(3.0, rect.height() - 12.0));
-        painter.rect_filled(r, CornerRadius::same(2), c);
-    };
-    if live {
-        bar(LIVE);
-    } else if preview {
-        bar(PREVIEW);
-    }
+    widgets::paint_tile(ui, rect, &response, mark);
     let marker_w = 54.0;
     widgets::paint_text(
         ui,

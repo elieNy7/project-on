@@ -576,6 +576,8 @@ pub fn start(hub: Arc<Hub>, addr: SocketAddr) -> std::io::Result<Server> {
         .route("/ecran/{screen}", get(screen_page))
         .route("/ecran.js", get(screen_js))
         .route("/polices.css", get(fonts_css))
+        .route("/logo.png", get(logo))
+        .route("/favicon.ico", get(logo))
         .route("/polices/{id}", get(font_file))
         .route("/images/{id}", get(image_file))
         .route("/ws/{screen}", get(ws))
@@ -719,6 +721,13 @@ async fn slide_json(State(shared): State<Shared>) -> Response {
     });
     ([(header::CONTENT_TYPE, "application/json"), (header::CACHE_CONTROL, "no-store")], body.to_string())
         .into_response()
+}
+
+/// Le logo de Project-On (icône des onglets et en-tête de la page d'accueil).
+const LOGO_PNG: &[u8] = include_bytes!("../../../../assets/logo/app icon.png");
+
+async fn logo() -> Response {
+    ([(header::CONTENT_TYPE, "image/png"), (header::CACHE_CONTROL, "max-age=86400")], LOGO_PNG).into_response()
 }
 
 async fn fonts_css(State(shared): State<Shared>) -> Response {

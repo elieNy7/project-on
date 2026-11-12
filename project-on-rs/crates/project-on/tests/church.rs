@@ -75,6 +75,8 @@ fn the_church_screens_are_projected_and_the_profile_is_set_in_the_settings() {
     // Réglages → Profil de l'église : l'orateur invité, enregistré au format de la 2.x.
     h.get_by_label("Réglages").click();
     h.run_ok();
+    h.get_by_label("Réglages · Église").click();
+    h.run_ok();
     // La section est loin dans la page : on la fait venir à l'écran.
     h.get_by_label("Champ : Orateur invité : nom (vide : le pasteur)").scroll_to_me();
     h.run_ok();
@@ -181,6 +183,8 @@ fn the_church_photos_are_listed_projected_and_removed() {
         .build_ui_state(|ui, boot: &mut Boot| boot.ui(ui), Boot::new(config));
     h.run_ok();
     h.get_by_label("Réglages").click();
+    h.run_ok();
+    h.get_by_label("Réglages · Église").click();
     h.run_ok();
     h.get_by_label("Projeter en diaporama").scroll_to_me();
     h.run_ok();

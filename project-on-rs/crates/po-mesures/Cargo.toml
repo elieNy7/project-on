@@ -11,6 +11,7 @@ publish = false
 po-db.workspace = true
 po-design.workspace = true
 po-settings = { path = "../po-settings" }
+po-program = { path = "../po-program" }
 tiny-skia.workspace = true
 po-text.workspace = true
 rusqlite = { version = "0.41.1", features = ["bundled"] }
@@ -28,3 +29,8 @@ futures-util = { version = "0.3", default-features = false, features = ["sink", 
 
 [lints]
 workspace = true
+
+[features]
+# Les captures du site : l'interface de la version définitive (« 3.0 », pas « bêta »). Seulement
+# avec `-p po-mesures --features site` : la fonctionnalité ne doit pas gagner les essais.
+site = ["project-on/bascule"]

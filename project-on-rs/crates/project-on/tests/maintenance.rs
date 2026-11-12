@@ -113,6 +113,8 @@ fn the_settings_page_saves_backs_up_and_checks() {
     let mut h = harness(&beta);
     h.get_by_label("Réglages").click();
     h.run_ok();
+    h.get_by_label("Réglages · Général").click();
+    h.run_ok();
     // Mode PC modeste : enregistré dans le settings.json de la bêta, et appliqué.
     h.get_by_label_contains("Sans transitions").click();
     h.run_ok();
@@ -124,7 +126,9 @@ fn the_settings_page_saves_backs_up_and_checks() {
     // La mise à jour : la version installée et la recherche (pas lancée ici : pas de réseau).
     h.get_by_label(&format!("Version installée : {}", env!("CARGO_PKG_VERSION")));
     h.get_by_label("Rechercher une mise à jour");
-    // Une sauvegarde : la base et les réglages, listés ensuite.
+    // Une sauvegarde : la base et les réglages, listés ensuite (rubrique Entretien).
+    h.get_by_label("Réglages · Entretien").click();
+    h.run_ok();
     h.get_by_label("Sauvegarder maintenant").click();
     h.run_ok();
     let backups = project_on::maintenance::list(&locations.beta.data().join("sauvegardes"));
@@ -145,6 +149,8 @@ fn a_backup_is_restored_at_the_next_start_and_the_state_before_is_kept() {
     let locations = Locations::at(&beta, None);
     let mut h = harness(&beta);
     h.get_by_label("Réglages").click();
+    h.run_ok();
+    h.get_by_label("Réglages · Entretien").click();
     h.run_ok();
     h.get_by_label("Sauvegarder maintenant").click();
     h.run_ok();
@@ -186,6 +192,8 @@ fn obs_control_is_set_in_the_settings_with_its_password_encrypted() {
     let mut h = harness(&beta);
     h.get_by_label("Réglages").click();
     h.run_ok();
+    h.get_by_label("Réglages · OBS").click();
+    h.run_ok();
     h.get_by_label_contains("Changer de scène au direct").scroll_to_me();
     h.run_ok();
     h.get_by_label_contains("Changer de scène au direct").click();
@@ -205,4 +213,38 @@ fn obs_control_is_set_in_the_settings_with_its_password_encrypted() {
     assert!(obs.enabled);
     assert_eq!(obs.password, "secret-obs");
     assert_eq!(obs.port, 4455);
+}
+
+#[test]
+fn the_settings_page_has_tabs_and_a_bundled_background_is_picked_from_its_thumbnail() {
+    let (_dir, beta) = beta();
+    let locations = Locations::at(&beta, None);
+    let mut h = harness(&beta);
+    h.get_by_label("Réglages").click();
+    h.run_ok();
+    // La rubrique Projection s'ouvre d'office ; « Image » montre les fonds fournis en vignettes.
+    h.get_by_label("Image").scroll_to_me();
+    h.run_ok();
+    h.get_by_label("Image").click();
+    h.run_ok();
+    h.get_by_label("Fond : Croix aube").scroll_to_me();
+    h.run_ok();
+    h.get_by_label("Fond : Croix aube").click();
+    h.run_ok();
+    let draft = h.state_mut().app().settings_view.draft.clone().unwrap();
+    assert_eq!(draft.projection.bg_mode, "image");
+    assert!(draft.projection.bg_image.ends_with("bg-photo-croix-aube_16x9.png"), "{}", draft.projection.bg_image);
+    h.get_by_label("Non enregistré");
+    h.get_by_label("Enregistrer").click();
+    h.run_ok();
+    let saved = Settings::load(&locations.beta.settings()).settings;
+    assert_eq!(saved.projection.bg_mode, "image");
+    // Les autres rubriques : chacune montre ses propres réglages.
+    h.get_by_label("Réglages · Sorties HDMI").click();
+    h.run_ok();
+    h.get_by_label("Couleur de clé");
+    h.get_by_label("Réglages · Église").click();
+    h.run_ok();
+    h.get_by_label("Champ : Nom de l'église");
+    assert!(h.query_by_label("Couleur de clé").is_none());
 }

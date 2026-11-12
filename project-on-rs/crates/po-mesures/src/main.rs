@@ -762,6 +762,233 @@ fn capture_designs(db_path: &Path, out_dir: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Les captures du site (1600 × 960), sur une copie de la base fournie et avec les réglages par
+/// défaut : aucune donnée de l'église ni de l'opérateur n'y apparaît.
+fn capture_site(db_path: &Path, out_dir: &Path) -> Result<()> {
+    use project_on::library::Page;
+    use project_on::library::playlist::PlaylistAction;
+    std::fs::create_dir_all(out_dir)?;
+    // Aucune recherche de mise à jour pendant les captures (la version définitive en fait une).
+    let mut settings = po_settings::Settings::default();
+    settings.appearance.check_updates = false;
+    let config = project_on::Config {
+        fonts_dir: fonts_dir(),
+        locations: None,
+        database: Some(db_path.to_path_buf()),
+        settings,
+        windowed_projection: true,
+        web_port: None,
+    };
+    let mut harness = egui_kittest::Harness::builder()
+        .with_size([1600.0, 960.0])
+        .with_accessibility_check(false)
+        .wgpu()
+        .build_ui_state(|ui, boot: &mut project_on::Boot| boot.ui(ui), project_on::Boot::new(config));
+    harness.run_ok();
+    let save = |harness: &mut egui_kittest::Harness<'static, project_on::Boot>, name: &str| -> Result<()> {
+        for _ in 0..30 {
+            harness.step();
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        let image = harness.render()?;
+        let path = out_dir.join(format!("{name}.png"));
+        image.save(&path)?;
+        println!("Capture : {}", path.display());
+        Ok(())
+    };
+    let program_of = |app: &project_on::App| -> Vec<po_program::Entry> {
+        app.preview.as_ref().map_or_else(Vec::new, |s| {
+            s.program.slides.iter().map(|p| po_program::Entry::new(p.reference.clone(), p.text.clone())).collect()
+        })
+    };
+    let ready = |a: &project_on::App| !a.rendering() && a.preview_frame().is_some();
+    let live = |a: &project_on::App| !a.rendering() && a.live_frame().is_some();
+
+    // Bible : Jean 3:16 au direct, 3:17 dans l'Aperçu.
+    let (translation, john) = {
+        let db = harness.state_mut().app().database().ok_or("base absente")?;
+        let t = db
+            .list_translations()?
+            .into_iter()
+            .find(|t| t.lang.as_deref() == Some("fr"))
+            .ok_or("aucune Bible française")?
+            .id;
+        let john = db.list_translation_books(t)?.into_iter().find(|b| b.name == "Jean").ok_or("Jean")?.id;
+        (t, john)
+    };
+    harness.state_mut().app().open_bible(translation, john, 3, Some(16));
+    until(&mut harness, ready);
+    let bible = program_of(harness.state_mut().app());
+    harness.state_mut().app().take();
+    until(&mut harness, live);
+    harness.state_mut().app().open_bible(translation, john, 3, Some(17));
+    until(&mut harness, ready);
+    save(&mut harness, "bible")?;
+
+    // Cantiques : une strophe au direct, la suivante dans l'Aperçu.
+    let hymn = std::env::var("PO_CANTIQUE").ok().and_then(|v| v.parse().ok()).unwrap_or(0);
+    harness.state_mut().app().select_hymn(hymn);
+    harness.step();
+    harness.state_mut().app().cue_hymn_entry(0);
+    until(&mut harness, ready);
+    let hymn_entries = program_of(harness.state_mut().app());
+    harness.state_mut().app().take();
+    until(&mut harness, live);
+    harness.state_mut().app().cue_hymn_entry(1);
+    until(&mut harness, ready);
+    save(&mut harness, "cantiques")?;
+
+    // Prédications : un paragraphe au direct, le suivant dans l'Aperçu.
+    harness.state_mut().app().select_sermon(40);
+    harness.step();
+    harness.state_mut().app().cue_sermon_entry(3);
+    until(&mut harness, ready);
+    let sermon = program_of(harness.state_mut().app());
+    harness.state_mut().app().take();
+    until(&mut harness, live);
+    harness.state_mut().app().cue_sermon_entry(4);
+    until(&mut harness, ready);
+    save(&mut harness, "predications")?;
+
+    // L'Exposé des Sept Âges.
+    harness.state_mut().app().select_expose(1);
+    harness.step();
+    harness.state_mut().app().cue_expose_entry(2);
+    until(&mut harness, ready);
+    harness.state_mut().app().take();
+    until(&mut harness, live);
+    harness.state_mut().app().cue_expose_entry(3);
+    until(&mut harness, ready);
+    save(&mut harness, "expose")?;
+
+    // Playlist : un culte préparé (cantique, versets, prédication), en sections, un slide au direct.
+    {
+        let app = harness.state_mut().app();
+        app.apply_playlist(vec![PlaylistAction::CreateFolder("Culte du dimanche".into())]);
+        app.playlists_add(&hymn_entries, "hymn");
+        app.playlists_add(&bible[..bible.len().min(3)], "bible");
+        app.playlists_add(&sermon[..sermon.len().min(6)], "sermon");
+        app.page = Page::Playlist;
+    }
+    harness.step();
+    let app = harness.state_mut().app();
+    let ids: Vec<i64> = app.playlist.items.iter().map(|i| i.id).collect();
+    let (first_bible, first_sermon) = (hymn_entries.len(), hymn_entries.len() + bible.len().min(3));
+    if ids.len() > first_sermon {
+        app.apply_playlist(vec![
+            PlaylistAction::StartSectionAt { section: None, item: ids[0], name: "Louange".into(), duration: 20 },
+            PlaylistAction::StartSectionAt {
+                section: None,
+                item: ids[first_bible],
+                name: "Lecture".into(),
+                duration: 10,
+            },
+            PlaylistAction::StartSectionAt {
+                section: None,
+                item: ids[first_sermon],
+                name: "Prédication".into(),
+                duration: 45,
+            },
+            PlaylistAction::SetStartTime("9:30".into()),
+        ]);
+    }
+    app.playlist.show_plan = true;
+    let start = ids.get(first_bible).copied().unwrap_or_default();
+    app.play_playlist(start, true);
+    until(&mut harness, live);
+    harness.state_mut().app().playlist.selected = vec![start];
+    save(&mut harness, "playlist")?;
+
+    // Designs : le lower third et les sous-titres affichés sur le paragraphe au direct.
+    harness.state_mut().app().select_sermon(40);
+    harness.step();
+    harness.state_mut().app().cue_sermon_entry(3);
+    until(&mut harness, ready);
+    harness.state_mut().app().take();
+    until(&mut harness, live);
+    {
+        let app = harness.state_mut().app();
+        app.page = Page::Designs;
+        app.lower_third.auto = true;
+        app.toggle_lower_third();
+        app.toggle_subtitles();
+        app.designs.selected = Some("lt-moderne".into());
+    }
+    save(&mut harness, "designs")?;
+    // Réglages → Projection : un fond fourni choisi, l'aperçu en direct et la galerie des fonds.
+    {
+        let app = harness.state_mut().app();
+        app.toggle_lower_third();
+        app.toggle_subtitles();
+        let mut settings = app.settings.clone();
+        settings.projection.bg_mode = "image".into();
+        settings.projection.bg_image =
+            po_layout::bundled_backgrounds_dir().join("bg-photo-croix-aube_16x9.png").to_string_lossy().into_owned();
+        settings.projection.background_dimmer = 0.45;
+        app.apply_settings(settings);
+        app.settings_view.draft = None;
+        app.page = Page::Settings;
+    }
+    // Les vignettes des fonds et l'aperçu se préparent dans leurs fils.
+    for _ in 0..160 {
+        harness.step();
+        std::thread::sleep(Duration::from_millis(25));
+    }
+    save(&mut harness, "reglages")?;
+    {
+        use egui_kittest::kittest::Queryable;
+        harness.get_by_label("Fond : Croix aube").scroll_to_me();
+    }
+    save(&mut harness, "reglages-fonds")?;
+    harness.state_mut().app().page = Page::Media;
+    save(&mut harness, "medias")?;
+
+    // Les écrans Web : salle, diffusion (transparente), sous-titres, retour de scène.
+    let mut fonts = project_on::worker::fonts_from(&fonts_dir());
+    let hub = po_web::Hub::new(project_on::worker::fonts_from(&fonts_dir()));
+    let mut room = design();
+    room.background.image =
+        Some(po_layout::bundled_backgrounds_dir().join("bg-bleu-nuit_16x9.png").to_string_lossy().into_owned());
+    let text = |i: usize| sermon.get(i).map_or_else(String::new, |e| e.text.clone());
+    let reference = |i: usize| sermon.get(i).map_or_else(String::new, |e| e.reference.clone());
+    hub.update(
+        Some(Slide::new(text(0), reference(0), SlideSource::Sermon)),
+        po_web::Context {
+            design: room,
+            broadcast: po_web::Look::Band(po_design::Band::default()),
+            next: Some(Slide::new(text(1), reference(1), SlideSource::Sermon)),
+            hidden: false,
+            clock: "10:42".into(),
+            status: "Prédication · 32:15 restantes".into(),
+            ..po_web::Context::default()
+        },
+    );
+    let program = hub.program();
+    let (w, h, gap) = (960u32, 540u32, 24u32);
+    let mut sheet = tiny_skia::Pixmap::new(2 * w + 3 * gap, 2 * h + 3 * gap).ok_or("taille")?;
+    sheet.fill(tiny_skia::Color::from_rgba8(11, 18, 23, 255));
+    let mut renderer = Renderer::new();
+    let kinds = [
+        po_web::ScreenKind::Room,
+        po_web::ScreenKind::Broadcast,
+        po_web::ScreenKind::Subtitles,
+        po_web::ScreenKind::Stage,
+    ];
+    for (i, kind) in kinds.into_iter().enumerate() {
+        let list = hub.layout(&program, kind, 1920.0, 1080.0);
+        let image = renderer.render(&mut fonts, &list, w, h)?;
+        let mut tile =
+            if kind.transparent() { checkerboard(w, h)? } else { tiny_skia::Pixmap::new(w, h).ok_or("taille")? };
+        let paint = tiny_skia::PixmapPaint::default();
+        tile.draw_pixmap(0, 0, image.as_ref(), &paint, tiny_skia::Transform::identity(), None);
+        let (x, y) = (gap + (i as u32 % 2) * (w + gap), gap + (i as u32 / 2) * (h + gap));
+        sheet.draw_pixmap(x as i32, y as i32, tile.as_ref(), &paint, tiny_skia::Transform::identity(), None);
+    }
+    std::fs::write(out_dir.join("ecrans.png"), encode_png(&sheet)?)?;
+    println!("Planche : {}", out_dir.join("ecrans.png").display());
+    Ok(())
+}
+
 fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.iter().map(String::as_str).collect::<Vec<_>>().as_slice() {
@@ -773,6 +1000,7 @@ fn main() -> Result<()> {
         ["playlist", db, out] => capture_playlist(Path::new(db), Path::new(out)),
         ["web", db, out] => capture_web(Path::new(db), Path::new(out)),
         ["designs", db, out] => capture_designs(Path::new(db), Path::new(out)),
+        ["site", db, out] => capture_site(Path::new(db), Path::new(out)),
         ["trigramme", db, out] => {
             let report = trigramme::evaluate(Path::new(db), Path::new(out))?;
             std::fs::write(Path::new(out).join("trigramme.json"), serde_json::to_string_pretty(&report)?)?;
@@ -780,7 +1008,7 @@ fn main() -> Result<()> {
         }
         _ => {
             eprintln!(
-                "usage : po-mesures tout <base.db> <dossier> | demarrage <base.db> | servir <base.db> <port> | recherche <base.db> <sortie.json> | trigramme <base.db> <dossier> | captures <références 2.8> <dossier> | playlist <base.db> <dossier> | web <base.db> <dossier> | designs <base.db> <dossier>"
+                "usage : po-mesures tout <base.db> <dossier> | demarrage <base.db> | servir <base.db> <port> | recherche <base.db> <sortie.json> | trigramme <base.db> <dossier> | captures <références 2.8> <dossier> | playlist <base.db> <dossier> | web <base.db> <dossier> | designs <base.db> <dossier> | site <base.db> <dossier>"
             );
             std::process::exit(2);
         }

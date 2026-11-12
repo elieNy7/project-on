@@ -45,6 +45,10 @@ Copy-Item (Join-Path $rs 'target\release\project-on.exe') (Join-Path $dist $exe)
 # Les polices : celles de l'interface (Inter) et toutes celles que les réglages de projection
 # peuvent choisir. Leurs licences (OFL…) sont dans leurs dossiers.
 Copy-Item -Recurse (Join-Path $root 'assets\fonts') (Join-Path $dist 'assets\fonts')
+# Les fonds fournis (16:9), proposés dans Réglages → Projection, avec leurs crédits.
+New-Item -ItemType Directory -Force (Join-Path $dist 'assets\backgrounds') | Out-Null
+Copy-Item (Join-Path $root 'assets\backgrounds\*_16x9.png') (Join-Path $dist 'assets\backgrounds')
+Copy-Item (Join-Path $root 'assets\backgrounds\CREDITS.txt') (Join-Path $dist 'assets\backgrounds')
 # Les Bibles fournies (domaine public), installables depuis « Gérer les Bibles ».
 Copy-Item -Recurse (Join-Path $root 'bibles') (Join-Path $dist 'bibles')
 New-Item -ItemType Directory -Force (Join-Path $dist 'licences') | Out-Null

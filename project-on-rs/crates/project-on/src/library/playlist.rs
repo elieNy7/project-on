@@ -608,35 +608,17 @@ impl PlaylistView {
         });
         let selected = self.selected.contains(&item.id);
         let (preview, live) = (marks.preview == Some(item.id), marks.live == Some(item.id));
+        let mark = if live {
+            widgets::Mark::Live
+        } else if preview {
+            widgets::Mark::Preview
+        } else if selected {
+            widgets::Mark::Selected
+        } else {
+            widgets::Mark::None
+        };
+        widgets::paint_tile(ui, rect, &r, mark);
         let painter = ui.painter();
-        let fill = if live {
-            LIVE.gamma_multiply(0.12)
-        } else if selected {
-            RAISED
-        } else if preview {
-            PREVIEW.gamma_multiply(0.10)
-        } else if r.hovered() {
-            SURFACE
-        } else {
-            PANEL.lerp_to_gamma(SURFACE, 0.45)
-        };
-        painter.rect_filled(rect, CornerRadius::same(8), fill);
-        let bar = if live {
-            Some(LIVE)
-        } else if preview {
-            Some(PREVIEW)
-        } else if selected {
-            Some(ACCENT)
-        } else {
-            None
-        };
-        if let Some(c) = bar {
-            painter.rect_filled(
-                Rect::from_min_size(pos2(rect.min.x, rect.min.y + 6.0), vec2(3.0, rect.height() - 12.0)),
-                CornerRadius::same(2),
-                c,
-            );
-        }
         icons::paint(
             painter,
             Rect::from_center_size(pos2(rect.min.x + 20.0, rect.min.y + 18.0), vec2(16.0, 16.0)),
