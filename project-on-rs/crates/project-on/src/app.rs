@@ -144,6 +144,9 @@ pub struct App {
     pub subtitles: Subtitles,
     /// On recule : le slide précédent montre son dernier sous-titre.
     subtitles_backwards: bool,
+    /// Réglages → Habillage : la police, la taille, l'alignement et les couleurs des sous-titres,
+    /// de la diffusion et du lower third, par-dessus les designs choisis.
+    pub tunings: po_design::tuning::Tunings,
     pub designs: DesignsView,
     /// Un design de salle essayé dans l'Aperçu (bibliothèque de designs).
     pub preview_design: Option<RoomDesign>,
@@ -294,6 +297,7 @@ impl App {
             lower_third,
             subtitles,
             subtitles_backwards: false,
+            tunings: po_design::tuning::Tunings::default(),
             designs,
             preview_design: None,
             ndi: false,
@@ -408,6 +412,11 @@ impl App {
         self.hdmi_key = po_layout::graphics::key_color(&loaded.hdmi.key_color);
         self.obs.configure(crate::obs::ObsSettings::from_settings(&loaded));
         self.designs.refresh_builtin(&self.design, &band_of(&loaded));
+        self.tunings = po_design::tuning::Tunings::from_section(loaded.other.get(crate::settings_page::SECTION_3));
+        self.designs.tuned =
+            [self.tunings.subtitles.enabled, self.tunings.broadcast.enabled, self.tunings.lower_third.enabled];
+        // Les sous-titres sont recalculés avec leurs nouveaux réglages (capitales comprises).
+        self.subtitles.cut_for = None;
         // Les designs « 2.x » suivent les réglages : celui des sorties aussi.
         if let Some(output) = self.designs.find(&self.output.id).and_then(crate::designs::Output::of) {
             self.output = output;
@@ -2303,29 +2312,31 @@ impl App {
         if let Some(slide) = self.live.as_ref().map(|l| l.program.slide())
             && self.subtitles.needs_cut(&slide)
         {
-            let chunks = self.hub.subtitle_chunks(&slide.text, &self.subtitles.style);
+            let chunks = self.hub.subtitle_chunks(&slide.text, &self.subtitle_style());
             self.subtitles.cut(&slide, chunks, self.subtitles_backwards);
             self.subtitles_backwards = false;
         }
         let live = self.live.as_ref().map(|l| (l.program.slide(), l.program.title.clone()));
         let text = self.lower_third.current_text(live.as_ref().map(|(s, t)| (s, t.as_str())));
         let lower_third = (self.lower_third.visible(now) && !text.is_empty()).then(|| po_web::Overlay {
-            style: self.lower_third.style.clone(),
+            style: self.tunings.lower_third.apply_lower_third(&self.lower_third.style),
             text,
             shown: self.lower_third.shown,
             since: self.lower_third.since,
         });
-        let subtitle = self.subtitles.current().map(|t| (self.subtitles.style.clone(), t.to_string()));
+        let subtitle = self.subtitles.current().map(|t| (self.subtitle_style(), t.to_string()));
         let next = self.live.as_ref().and_then(|l| l.program.slide_at(l.program.current() + 1));
-        // Le design choisi pour les sorties habille la diffusion (Web, NDI, HDMI) ; un design de slide
-        // habille aussi les écrans Web de salle. La projection locale garde le sien.
-        let room = match &self.output.look {
+        // Le design choisi pour les sorties, avec les réglages de la diffusion (Réglages → Habillage),
+        // habille la diffusion (Web, NDI, HDMI) ; un design de slide habille aussi les écrans Web de
+        // salle. La projection locale garde le sien.
+        let broadcast = crate::designs::tuned_look(&self.tunings.broadcast, &self.output.look);
+        let room = match &broadcast {
             po_web::Look::Slide(design) => design.clone(),
             po_web::Look::Band(_) => self.design.clone(),
         };
         let context = po_web::Context {
             design: room,
-            broadcast: self.output.look.clone(),
+            broadcast,
             next,
             hidden: self.live_stage.hidden(),
             clock: chrono_now(),
@@ -2345,6 +2356,11 @@ impl App {
         let adjust = po_web::Adjust::from_settings(self.settings.hdmi.text_scale, self.settings.hdmi.offset_y);
         self.outputs.want(Wanted { ndi: self.ndi, hdmi, key: Some(self.hdmi_key), pattern: self.hdmi_pattern, adjust });
         self.outputs.upload(&self.ctx);
+    }
+
+    /// Le style des sous-titres au direct : le design choisi, avec les réglages de l'habillage.
+    pub fn subtitle_style(&self) -> po_design::graphics::SubtitleStyle {
+        self.tunings.subtitles.apply_subtitles(&self.subtitles.style)
     }
 
     /// Le déroulé en une ligne, pour le retour de scène : « Prédication · 12:00 restantes ».
@@ -2378,6 +2394,12 @@ impl App {
                 self.settings_view.screens = crate::screens::list().into_iter().map(|s| s.device).collect();
             }
             self.settings_view.obs = (self.obs.state(), self.obs.scenes(), self.obs.message());
+            // Les designs choisis : la rubrique Habillage part d'eux et les montre en aperçu.
+            self.settings_view.dressing = Some(crate::settings_page::Dressing {
+                subtitles: (self.subtitles.name.clone(), self.subtitles.style.clone()),
+                broadcast: (self.output.name.clone(), self.output.look.clone()),
+                lower_third: (self.lower_third.name.clone(), self.lower_third.style.clone()),
+            });
             let current = self.settings.clone();
             for action in self.settings_view.ui(ui, &current) {
                 match action {

@@ -1,10 +1,16 @@
 //! La page « Réglages » : la projection (texte, fond, transitions, écran), le découpage des slides,
-//! la diffusion (couleur de clé HDMI), les raccourcis, le mode PC modeste et l'entretien
+//! l'habillage (police, taille, alignement et couleurs des sous-titres, de la diffusion et du lower
+//! third), la diffusion (couleur de clé HDMI), les raccourcis, le mode PC modeste et l'entretien
 //! (sauvegardes, contrôle avant culte). Les réglages sont ceux du `settings.json` de la bêta, écrits
 //! avec les mêmes règles que la 2.x (écriture d'un coup, copie `.bak`).
 
+use std::collections::HashMap;
+
 use egui::{Align2, Color32, CornerRadius, Rect, RichText, Sense, Stroke, Ui, pos2, vec2};
-use po_design::{IdentificationStyle, Rgba, parse_color};
+use po_design::graphics::{LowerThirdStyle, SubtitleLook, SubtitleStyle};
+use po_design::library::DesignBody;
+use po_design::tuning::{Tuning, Tunings};
+use po_design::{Align, BandPosition, IdentificationStyle, Rgba, parse_color};
 use po_settings::Settings;
 use serde_json::{Map, Value, json};
 
@@ -105,6 +111,7 @@ pub enum Tab {
     #[default]
     Projection,
     Slides,
+    Dressing,
     Church,
     Outputs,
     Obs,
@@ -114,9 +121,10 @@ pub enum Tab {
 }
 
 impl Tab {
-    pub const ALL: [Tab; 8] = [
+    pub const ALL: [Tab; 9] = [
         Tab::Projection,
         Tab::Slides,
+        Tab::Dressing,
         Tab::Church,
         Tab::Outputs,
         Tab::Obs,
@@ -129,6 +137,7 @@ impl Tab {
         match self {
             Tab::Projection => "Projection",
             Tab::Slides => "Slides",
+            Tab::Dressing => "Habillage",
             Tab::Church => "Église",
             Tab::Outputs => "Sorties HDMI",
             Tab::Obs => "OBS",
@@ -142,6 +151,9 @@ impl Tab {
         match self {
             Tab::Projection => "Le texte, le fond, les transitions et l'écran de la salle",
             Tab::Slides => "Le découpage des longs textes et des strophes",
+            Tab::Dressing => {
+                "La police, la taille, l'alignement et les couleurs des sous-titres, de la diffusion et du lower third"
+            }
             Tab::Church => "Le nom, le logo, le pasteur, les réseaux et les photos",
             Tab::Outputs => "La couleur de clé, la taille et la position du texte",
             Tab::Obs => "Changer de scène au direct et au masquage",
@@ -155,6 +167,7 @@ impl Tab {
         match self {
             Tab::Projection => Icon::Monitor,
             Tab::Slides => Icon::Presentation,
+            Tab::Dressing => Icon::SwatchBook,
             Tab::Church => Icon::Image,
             Tab::Outputs => Icon::Cast,
             Tab::Obs => Icon::ListVideo,
@@ -164,6 +177,20 @@ impl Tab {
         }
     }
 }
+
+/// Les designs choisis pour l'habillage (nom et style) : la rubrique Habillage part d'eux.
+#[derive(Debug, Clone)]
+pub struct Dressing {
+    pub subtitles: (String, SubtitleStyle),
+    pub broadcast: (String, po_web::Look),
+    pub lower_third: (String, LowerThirdStyle),
+}
+
+/// L'aperçu de la projection, puis ceux des trois habillages.
+const PREVIEW_ROOM: &str = "reglages";
+const PREVIEW_SUBTITLES: &str = "habillage-sous-titres";
+const PREVIEW_BROADCAST: &str = "habillage-diffusion";
+const PREVIEW_LOWER_THIRD: &str = "habillage-lower-third";
 
 /// La page : un brouillon des réglages, enregistré d'un clic.
 #[derive(Default)]
@@ -192,9 +219,13 @@ pub struct SettingsView {
     /// Le dossier des polices (`assets/fonts`) : l'aperçu en a besoin, et les fonds fournis sont
     /// à côté (`assets/backgrounds`).
     pub fonts_dir: Option<std::path::PathBuf>,
+    /// Les designs choisis pour l'habillage (donnés par la régie).
+    pub dressing: Option<Dressing>,
     preview: Option<crate::designs::Previews>,
-    preview_key: String,
-    preview_texture: Option<egui::TextureHandle>,
+    /// La dernière demande faite au fil des aperçus, et l'empreinte de chaque aperçu reçu.
+    preview_sent: Vec<(String, String)>,
+    preview_have: HashMap<String, String>,
+    preview_textures: HashMap<String, egui::TextureHandle>,
     backgrounds: Option<Vec<String>>,
 }
 
@@ -540,37 +571,68 @@ impl SettingsView {
             });
     }
 
-    /// L'aperçu de la projection avec le brouillon (rendu dans un fil à part, comme les designs).
-    fn refresh_preview(&mut self, ctx: &egui::Context, current: &Settings) {
-        let settings = self.draft.as_ref().unwrap_or(current);
-        let mut design = po_design::RoomDesign::from_projection(&settings.projection);
-        design.identification.style = identification_style(settings);
-        let body = po_design::library::DesignBody::Room(design);
-        let key = serde_json::to_string(&body).unwrap_or_default();
+    /// Les aperçus voulus (rendus dans un fil à part, comme les designs) : seuls ceux qui manquent
+    /// ou ont changé sont demandés. Le fil ne garde que la dernière demande : elle reprend donc
+    /// tous les aperçus encore attendus.
+    fn want_previews(&mut self, ctx: &egui::Context, bodies: Vec<(&str, DesignBody)>) {
         if self.preview.is_none() {
             let Some(dir) = self.fonts_dir.clone() else { return };
             let wake = ctx.clone();
             self.preview = crate::designs::Previews::start(dir, move || wake.request_repaint());
         }
         let Some(previews) = &self.preview else { return };
-        if key != self.preview_key {
-            self.preview_key = key.clone();
-            let _ = previews.jobs.send((vec![("reglages".to_string(), key, body)], crate::designs::sample_slide()));
+        let missing: Vec<crate::designs::PreviewJob> = bodies
+            .into_iter()
+            .map(|(id, body)| (id.to_string(), serde_json::to_string(&body).unwrap_or_default(), body))
+            .filter(|(id, key, _)| self.preview_have.get(id) != Some(key))
+            .collect();
+        let wanted: Vec<(String, String)> = missing.iter().map(|(id, key, _)| (id.clone(), key.clone())).collect();
+        if !missing.is_empty() && wanted != self.preview_sent {
+            self.preview_sent = wanted;
+            let _ = previews.jobs.send((missing, crate::designs::sample_slide()));
         }
         let [w, h] = crate::designs::PREVIEW_SIZE;
-        while let Ok((_, _, pixels)) = previews.done.try_recv() {
+        while let Ok((id, key, pixels)) = previews.done.try_recv() {
             if pixels.len() != (w * h * 4) as usize {
                 continue;
             }
             let image = egui::ColorImage::from_rgba_premultiplied([w as usize, h as usize], &pixels);
-            match &mut self.preview_texture {
+            match self.preview_textures.get_mut(&id) {
                 Some(texture) => texture.set(image, egui::TextureOptions::LINEAR),
                 None => {
-                    self.preview_texture =
-                        Some(ctx.load_texture("apercu-reglages", image, egui::TextureOptions::LINEAR))
+                    let texture = ctx.load_texture(format!("apercu-{id}"), image, egui::TextureOptions::LINEAR);
+                    self.preview_textures.insert(id.clone(), texture);
                 }
             }
+            self.preview_have.insert(id, key);
         }
+    }
+
+    /// L'aperçu de la projection avec le brouillon.
+    fn refresh_preview(&mut self, ctx: &egui::Context, current: &Settings) {
+        let settings = self.draft.as_ref().unwrap_or(current);
+        let mut design = po_design::RoomDesign::from_projection(&settings.projection);
+        design.identification.style = identification_style(settings);
+        self.want_previews(ctx, vec![(PREVIEW_ROOM, DesignBody::Room(design))]);
+    }
+
+    /// Les aperçus des trois habillages avec le brouillon.
+    fn refresh_dressing_previews(&mut self, ctx: &egui::Context, current: &Settings) {
+        let Some(base) = self.dressing.clone() else { return };
+        let settings = self.draft.as_ref().unwrap_or(current);
+        let t = Tunings::from_section(settings.other.get(SECTION_3));
+        let broadcast = match crate::designs::tuned_look(&t.broadcast, &base.broadcast.1) {
+            po_web::Look::Band(band) => DesignBody::Band(band),
+            po_web::Look::Slide(design) => DesignBody::Room(design),
+        };
+        self.want_previews(
+            ctx,
+            vec![
+                (PREVIEW_SUBTITLES, DesignBody::Subtitles(t.subtitles.apply_subtitles(&base.subtitles.1))),
+                (PREVIEW_BROADCAST, broadcast),
+                (PREVIEW_LOWER_THIRD, DesignBody::LowerThird(t.lower_third.apply_lower_third(&base.lower_third.1))),
+            ],
+        );
     }
 
     /// Les fonds fournis (16:9), à côté des polices : photos, puis symboles, puis couleurs.
@@ -611,6 +673,9 @@ impl SettingsView {
         } else {
             Vec::new()
         };
+        if self.tab == Tab::Dressing {
+            self.refresh_dressing_previews(ui.ctx(), current);
+        }
         let draft = self.draft.get_or_insert_with(|| current.clone());
         let families = self.families.clone();
         let screens = self.screens.clone();
@@ -682,11 +747,14 @@ impl SettingsView {
                                 draft,
                                 &families,
                                 &screens,
-                                self.preview_texture.as_ref(),
+                                self.preview_textures.get(PREVIEW_ROOM),
                                 &backgrounds,
                                 &mut self.gallery,
                             ),
                             Tab::Slides => slides_tab(ui, draft),
+                            Tab::Dressing => {
+                                dressing_tab(ui, draft, &families, self.dressing.as_ref(), &self.preview_textures)
+                            }
                             Tab::Church => {
                                 church_profile(ui, draft, &families, &mut self.gallery, &mut actions);
                             }
@@ -781,6 +849,23 @@ impl SettingsView {
     }
 }
 
+/// Un aperçu 16:9 (ou son attente), au plus `max_width` de large.
+fn preview_image(ui: &mut Ui, preview: Option<&egui::TextureHandle>, max_width: f32) {
+    let width = ui.available_width().min(max_width);
+    let (rect, _) = ui.allocate_exact_size(vec2(width, width * 9.0 / 16.0), Sense::hover());
+    let painter = ui.painter();
+    let radius = CornerRadius::same(8);
+    crate::theme::paint_shadow(painter, rect, radius, 6, 22, Color32::from_black_alpha(150));
+    match preview {
+        Some(texture) => widgets::paint_image_rounded(painter, rect, texture.id(), radius),
+        None => {
+            painter.rect_filled(rect, radius, WELL);
+            painter.text(rect.center(), Align2::CENTER_CENTER, "Aperçu en préparation…", regular(12.0), FAINT);
+        }
+    }
+    painter.rect_stroke(rect, radius, Stroke::new(1.0, BORDER_STRONG), egui::StrokeKind::Inside);
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Background {
     Color,
@@ -799,19 +884,7 @@ fn projection_tab(
     gallery: &mut crate::gallery::Gallery,
 ) {
     group(ui, "Aperçu", "Ce que verra l'assemblée avec ces réglages, avant même de les enregistrer.", |ui| {
-        let width = ui.available_width().min(560.0);
-        let (rect, _) = ui.allocate_exact_size(vec2(width, width * 9.0 / 16.0), Sense::hover());
-        let painter = ui.painter();
-        let radius = CornerRadius::same(8);
-        crate::theme::paint_shadow(painter, rect, radius, 6, 22, Color32::from_black_alpha(150));
-        match preview {
-            Some(texture) => widgets::paint_image_rounded(painter, rect, texture.id(), radius),
-            None => {
-                painter.rect_filled(rect, radius, WELL);
-                painter.text(rect.center(), Align2::CENTER_CENTER, "Aperçu en préparation…", regular(12.0), FAINT);
-            }
-        }
-        painter.rect_stroke(rect, radius, Stroke::new(1.0, BORDER_STRONG), egui::StrokeKind::Inside);
+        preview_image(ui, preview, 560.0);
     });
 
     let mut style = identification_style(draft);
@@ -964,6 +1037,284 @@ fn projection_tab(
             IdentificationStyle::Transparent => "transparent",
         };
         set_3(draft, "identification", json!(key));
+    }
+}
+
+/// Les trois habillages de la rubrique.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Dress {
+    Subtitles,
+    Broadcast,
+    LowerThird,
+}
+
+impl Dress {
+    fn label(self) -> &'static str {
+        match self {
+            Dress::Subtitles => "Sous-titres",
+            Dress::Broadcast => "Diffusion",
+            Dress::LowerThird => "Lower third",
+        }
+    }
+}
+
+/// Une couleur avec son opacité : le nuancier, puis « #rrggbb · 80 % ».
+fn rgba_alpha_edit(ui: &mut Ui, value: &mut Rgba) -> bool {
+    let mut c32 = Color32::from_rgba_unmultiplied(value.0[0], value.0[1], value.0[2], value.0[3]);
+    let changed =
+        egui::color_picker::color_edit_button_srgba(ui, &mut c32, egui::color_picker::Alpha::OnlyBlend).changed();
+    if changed {
+        *value = Rgba(c32.to_srgba_unmultiplied());
+    }
+    let [r, g, b, a] = value.0;
+    let text = if a == 255 {
+        format!("#{r:02x}{g:02x}{b:02x}")
+    } else {
+        format!("#{r:02x}{g:02x}{b:02x} · {} %", (f32::from(a) / 2.55).round())
+    };
+    ui.label(RichText::new(text).font(regular(11.5)).color(FAINT));
+    changed
+}
+
+/// Une police de la liste ; `same` : une première entrée (« Comme le titre ») qui laisse vide.
+fn family_choice(ui: &mut Ui, id: &str, value: &mut String, families: &[String], same: Option<&str>) {
+    let shown = match (value.trim().is_empty(), same) {
+        (true, Some(label)) => label.to_string(),
+        _ => value.clone(),
+    };
+    egui::ComboBox::from_id_salt(id).selected_text(shown).width(220.0).show_ui(ui, |ui| {
+        if let Some(label) = same
+            && ui.selectable_label(value.trim().is_empty(), label).clicked()
+        {
+            value.clear();
+        }
+        for f in families {
+            if ui.selectable_label(value == f, f).clicked() {
+                *value = f.clone();
+            }
+        }
+    });
+}
+
+const WEIGHTS: [(u16, &str); 6] =
+    [(300, "Fine"), (400, "Normale"), (500, "Moyenne"), (600, "Demi-grasse"), (700, "Grasse"), (800, "Extra-grasse")];
+
+fn weight_choice(ui: &mut Ui, id: &str, value: &mut u16) {
+    let shown = WEIGHTS.iter().find(|(w, _)| w == value).map_or_else(|| value.to_string(), |(_, l)| (*l).to_string());
+    egui::ComboBox::from_id_salt(id).selected_text(shown).width(220.0).show_ui(ui, |ui| {
+        for (w, l) in WEIGHTS {
+            ui.selectable_value(value, w, l);
+        }
+    });
+}
+
+/// Habillage : les sous-titres, la diffusion (Web, NDI, HDMI) et le lower third. Chacun part du
+/// design choisi dans la page Designs ; « Personnaliser » remplace sa police, sa taille, son
+/// alignement et ses couleurs.
+fn dressing_tab(
+    ui: &mut Ui,
+    draft: &mut Settings,
+    families: &[String],
+    dressing: Option<&Dressing>,
+    previews: &HashMap<String, egui::TextureHandle>,
+) {
+    let Some(base) = dressing else {
+        ui.label(RichText::new("Les designs choisis se chargent…").font(regular(12.5)).color(MUTED));
+        return;
+    };
+    let mut tunings = Tunings::from_section(draft.other.get(SECTION_3));
+    let before = tunings.clone();
+    group(
+        ui,
+        Dress::Subtitles.label(),
+        "L'écran Web « sous-titres » : tout le texte du slide, la référence en petit dessous.",
+        |ui| {
+            let preview = previews.get(PREVIEW_SUBTITLES);
+            tuning_ui(ui, Dress::Subtitles, &mut tunings.subtitles, base, families, preview);
+        },
+    );
+    group(
+        ui,
+        Dress::Broadcast.label(),
+        "L'écran Web « diffusion », la source NDI et les sorties HDMI, sur fond transparent.",
+        |ui| {
+            let preview = previews.get(PREVIEW_BROADCAST);
+            tuning_ui(ui, Dress::Broadcast, &mut tunings.broadcast, base, families, preview);
+        },
+    );
+    group(ui, Dress::LowerThird.label(), "Le titre et le second champ (touche L), par-dessus la diffusion.", |ui| {
+        let preview = previews.get(PREVIEW_LOWER_THIRD);
+        tuning_ui(ui, Dress::LowerThird, &mut tunings.lower_third, base, families, preview);
+    });
+    if tunings != before {
+        set_3(draft, po_design::tuning::KEY, tunings.to_value());
+    }
+}
+
+/// Les valeurs du design choisi pour cet habillage.
+fn design_tuning(dress: Dress, base: &Dressing) -> Tuning {
+    match dress {
+        Dress::Subtitles => Tuning::of_subtitles(&base.subtitles.1),
+        Dress::Broadcast => crate::designs::look_tuning(&base.broadcast.1),
+        Dress::LowerThird => Tuning::of_lower_third(&base.lower_third.1),
+    }
+}
+
+/// Un habillage : son aperçu, « Personnaliser », puis la police, la taille, les couleurs et la place.
+fn tuning_ui(
+    ui: &mut Ui,
+    dress: Dress,
+    tuning: &mut Tuning,
+    base: &Dressing,
+    families: &[String],
+    preview: Option<&egui::TextureHandle>,
+) {
+    let id = |what: &str| format!("habillage-{dress:?}-{what}");
+    let name = match dress {
+        Dress::Subtitles => &base.subtitles.0,
+        Dress::Broadcast => &base.broadcast.0,
+        Dress::LowerThird => &base.lower_third.0,
+    };
+    // Un design de slide sert à la diffusion : son texte seul, sans bande.
+    let slide = dress == Dress::Broadcast && matches!(&base.broadcast.1, po_web::Look::Slide(_));
+    preview_image(ui, preview, 480.0);
+    ui.add_space(4.0);
+    ui.add(
+        egui::Label::new(
+            RichText::new(format!("Design choisi : « {name} » (page Designs)")).font(regular(11.5)).color(MUTED),
+        )
+        .wrap(),
+    );
+    ui.add_space(8.0);
+    row(ui, "Personnaliser", |ui| {
+        let mut on = tuning.enabled;
+        let r = ui.checkbox(&mut on, "Remplacer sa police, sa taille, sa place et ses couleurs");
+        let label = format!("Personnaliser : {}", dress.label());
+        ui.ctx().accesskit_node_builder(r.id, |n| n.set_label(label));
+        if r.changed() {
+            // On part du design : rien ne bouge tant qu'on ne change pas une valeur.
+            *tuning = if on { design_tuning(dress, base) } else { Tuning { enabled: false, ..tuning.clone() } };
+        }
+    });
+    let mut t = if tuning.enabled { tuning.clone() } else { design_tuning(dress, base) };
+    ui.add_enabled_ui(tuning.enabled, |ui| {
+        if dress == Dress::Subtitles {
+            row(ui, "Style", |ui| {
+                egui::ComboBox::from_id_salt(id("style")).selected_text(t.look.label()).width(220.0).show_ui(
+                    ui,
+                    |ui| {
+                        for look in SubtitleLook::ALL {
+                            if ui.selectable_label(t.look == look, look.label()).clicked() && t.look != look {
+                                // La boîte et la couleur de référence de la nouvelle apparence ; la
+                                // police, la taille et la place restent.
+                                let fresh = Tuning::of_subtitles(&SubtitleStyle::new(look));
+                                t.look = look;
+                                t.background = fresh.background;
+                                t.second_color = fresh.second_color;
+                            }
+                        }
+                    },
+                );
+            });
+        }
+        let title = if dress == Dress::LowerThird { "Police du titre" } else { "Police" };
+        row(ui, title, |ui| family_choice(ui, &id("police"), &mut t.family, families, None));
+        row(ui, "Graisse", |ui| weight_choice(ui, &id("graisse"), &mut t.weight));
+        let range = match dress {
+            Dress::Subtitles => 20.0..=120.0,
+            Dress::Broadcast => 12.0..=200.0,
+            Dress::LowerThird => 16.0..=120.0,
+        };
+        row(ui, "Taille du texte (px en 1080p)", |ui| {
+            ui.add(egui::Slider::new(&mut t.size, range).integer());
+        });
+        row(ui, "Capitales", |ui| {
+            ui.checkbox(&mut t.uppercase, "Tout en capitales");
+        });
+        row(ui, "Couleur du texte", |ui| {
+            rgba_alpha_edit(ui, &mut t.color);
+        });
+        let second = if dress == Dress::LowerThird { "du second champ" } else { "de la référence" };
+        if dress == Dress::LowerThird {
+            row(ui, "Police du second champ", |ui| {
+                family_choice(ui, &id("police-2"), &mut t.second_family, families, Some("Comme le titre"));
+            });
+        }
+        row(ui, &format!("Taille {second}"), |ui| {
+            ui.add(egui::Slider::new(&mut t.second_size, 10.0..=90.0).integer());
+        });
+        row(ui, &format!("Couleur {second}"), |ui| {
+            rgba_alpha_edit(ui, &mut t.second_color);
+        });
+        match dress {
+            Dress::Subtitles if t.look.has_box() => {
+                row(ui, "Couleur de la boîte", |ui| {
+                    let mut color = t.background.unwrap_or(Rgba::new(10, 14, 22, 175));
+                    if rgba_alpha_edit(ui, &mut color) {
+                        t.background = Some(color);
+                    }
+                });
+            }
+            Dress::Broadcast | Dress::LowerThird if !slide => {
+                let what = if dress == Dress::Broadcast { "Bande derrière le texte" } else { "Boîte derrière le texte" };
+                row(ui, what, |ui| {
+                    let mut on = t.background.is_some();
+                    if ui.checkbox(&mut on, "").changed() {
+                        t.background = on.then_some(Rgba::new(10, 14, 22, 215));
+                    }
+                    match &mut t.background {
+                        Some(color) => {
+                            rgba_alpha_edit(ui, color);
+                        }
+                        None => {
+                            ui.label(RichText::new("Le texte seul").font(regular(11.5)).color(FAINT));
+                        }
+                    }
+                });
+            }
+            _ => {}
+        }
+        row(ui, "Alignement", |ui| {
+            widgets::segmented(
+                ui,
+                &mut t.align,
+                &[(Align::Left, "À gauche"), (Align::Center, "Centré"), (Align::Right, "À droite")],
+            );
+        });
+        row(ui, "Position", |ui| {
+            widgets::segmented(
+                ui,
+                &mut t.position,
+                &[(BandPosition::Top, "En haut"), (BandPosition::Center, "Au centre"), (BandPosition::Bottom, "En bas")],
+            );
+        });
+        if dress == Dress::Broadcast && !slide {
+            ui.label(
+                RichText::new(
+                    "La position vaut pour un bandeau en sous-titre ; en lower third, en panneau ou en carte, sa place reste celle du design.",
+                )
+                .font(regular(11.0))
+                .color(FAINT),
+            );
+        }
+    });
+    if tuning.enabled {
+        if t != *tuning {
+            *tuning = t;
+        }
+        ui.add_space(4.0);
+        if widgets::button_at(ui, widgets::Size::Small, None, "Reprendre les valeurs du design", Tone::Secondary, true)
+            .on_hover_text(format!("Les valeurs de « {name} », le design choisi dans la page Designs"))
+            .clicked()
+        {
+            *tuning = design_tuning(dress, base);
+        }
+    } else {
+        ui.label(
+            RichText::new("Le design choisi dans la page Designs s'applique tel quel.")
+                .font(regular(11.5))
+                .color(FAINT),
+        );
     }
 }
 

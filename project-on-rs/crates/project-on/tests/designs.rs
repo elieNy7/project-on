@@ -202,3 +202,101 @@ fn the_chosen_designs_are_kept_between_launches() {
     assert_eq!(project_on::designs::Choices::load(&file.with_extension("absent")), Default::default());
     std::fs::remove_dir_all(file.parent().unwrap()).unwrap();
 }
+
+#[test]
+fn the_dressing_settings_restyle_the_subtitles_the_broadcast_and_the_lower_third() {
+    use po_design::tuning::Tunings;
+    use po_design::{Align, BandPosition, Rgba};
+    let mut h = harness();
+    // Un paragraphe de sermon au direct, le lower third affiché (L).
+    h.get_by_label("La Foi").click();
+    h.run_ok();
+    h.get_by_label_contains("Elle prend Dieu au mot").click();
+    h.run_ok();
+    h.state_mut().app().take();
+    until(&mut h, |a| a.live_frame().is_some() && !a.rendering());
+    h.state_mut().app().lower_third.auto = true;
+    h.key_press(Key::L);
+    h.run_ok();
+    until(&mut h, |a| a.hub.program().context.lower_third.is_some() && a.hub.program().context.subtitle.is_some());
+    let designed = h.state_mut().app().hub.program().context.subtitle.clone().unwrap().0;
+
+    // Réglages → Habillage : les trois habillages, chacun parti de son design.
+    h.get_by_label("Réglages").click();
+    h.run_ok();
+    h.get_by_label("Réglages · Habillage").click();
+    h.run_ok();
+    let groups = ["Sous-titres", "Diffusion", "Lower third"];
+    let personalize = |group: &str| format!("Personnaliser : {group}");
+    // Chaque habillage nomme le design dont il part.
+    let subtitles = h.state_mut().app().subtitles.name.clone();
+    h.get_by_label(&format!("Design choisi : « {subtitles} » (page Designs)"));
+    for group in groups {
+        h.get_by_label(&personalize(group)).scroll_to_me();
+        h.run_ok();
+        h.get_by_label(&personalize(group)).click();
+        h.run_ok();
+    }
+    let tunings = |h: &mut Harness<'static, Boot>| {
+        let draft = h.state_mut().app().settings_view.draft.clone().unwrap();
+        Tunings::from_section(draft.other.get("refonte_3"))
+    };
+    let mut t = tunings(&mut h);
+    assert!(t.subtitles.enabled && t.broadcast.enabled && t.lower_third.enabled);
+    // Personnaliser part du design : tant qu'aucune valeur ne change, rien ne bouge.
+    assert_eq!(t.subtitles.apply_subtitles(&designed).font, designed.font);
+    h.get_by_label("Non enregistré");
+
+    // La police, la taille, l'alignement et les couleurs changent, puis « Enregistrer ».
+    let gold = Rgba::rgb(0xe7, 0xc0, 0x7e);
+    t.subtitles.size = 64.0;
+    t.subtitles.align = Align::Left;
+    t.subtitles.family = "Montserrat".into();
+    t.broadcast.size = 40.0;
+    t.broadcast.color = gold;
+    t.lower_third.align = Align::Right;
+    t.lower_third.position = BandPosition::Top;
+    {
+        let app = h.state_mut().app();
+        let draft = app.settings_view.draft.as_mut().unwrap();
+        let section = draft.other.entry("refonte_3".to_string()).or_insert_with(|| serde_json::json!({}));
+        section.as_object_mut().unwrap().insert(po_design::tuning::KEY.into(), t.to_value());
+    }
+    h.run_ok();
+    h.get_by_label("Enregistrer").click();
+    h.run_ok();
+    until(&mut h, |a| {
+        a.hub.program().context.subtitle.as_ref().is_some_and(|(s, _)| s.font.size == 64.0 && s.align == Align::Left)
+    });
+    let context = h.state_mut().app().hub.program().context.clone();
+    let (subtitle, _) = context.subtitle.unwrap();
+    assert_eq!(subtitle.font.family, "Montserrat");
+    assert_eq!(subtitle.look, designed.look, "le style du design reste");
+    let po_web::Look::Band(band) = context.broadcast else { panic!("le bandeau de la 2.x") };
+    assert_eq!((band.size, band.text_color), (40.0, gold));
+    let lower_third = context.lower_third.unwrap().style;
+    assert_eq!((lower_third.align, lower_third.anchor), (Align::Right, po_design::graphics::Anchor::TopRight));
+    // Les sous-titres au direct (écran Web) : le texte à gauche, plus grand.
+    let program = h.state_mut().app().hub.program();
+    let list = h.state_mut().app().hub.layout(&program, po_web::ScreenKind::Subtitles, 1920.0, 1080.0);
+    let first = list.text_lines().next().unwrap();
+    assert_eq!(first.anchor, po_layout::Anchor::Start);
+    assert!(first.x < 1920.0 * 0.2, "{}", first.x);
+    // La page Designs le signale.
+    h.get_by_label("Designs").click();
+    h.run_ok();
+    assert_eq!(h.query_all_by_label("· police et couleurs : Réglages → Habillage").count(), 3);
+
+    // Ne plus personnaliser : le design revient tel quel.
+    h.get_by_label("Réglages").click();
+    h.run_ok();
+    h.get_by_label(&personalize(groups[0])).scroll_to_me();
+    h.run_ok();
+    h.get_by_label(&personalize(groups[0])).click();
+    h.run_ok();
+    assert!(!tunings(&mut h).subtitles.enabled);
+    h.get_by_label("Enregistrer").click();
+    h.run_ok();
+    until(&mut h, |a| a.hub.program().context.subtitle.as_ref().is_some_and(|(s, _)| s.font == designed.font));
+    assert!(h.state_mut().app().tunings.lower_third.enabled, "les autres restent personnalisés");
+}

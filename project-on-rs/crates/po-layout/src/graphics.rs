@@ -233,10 +233,13 @@ pub fn subtitle_chunks(_fonts: &mut Fonts, text: &str, style: &SubtitleStyle) ->
     vec![po_text::words(&transform(text, &style.font)).join(" ")]
 }
 
-fn subtitle_pad(style: &SubtitleStyle, k: f32) -> (f32, f32) {
-    match style.look {
-        SubtitleLook::Translucent => (40.0 * k, 18.0 * k),
-        SubtitleLook::BoxPerLine => (18.0 * k, 6.0 * k),
+/// Les marges intérieures d'un sous-titre (horizontale, verticale) à la taille `size` : elles
+/// suivent le texte, pour qu'un grand sous-titre garde une boîte aussi aérée qu'un petit.
+fn subtitle_pad(look: SubtitleLook, size: f32) -> (f32, f32) {
+    match look {
+        SubtitleLook::Translucent => (0.8 * size, 0.38 * size),
+        SubtitleLook::BoxPerLine => (0.36 * size, 0.12 * size),
+        SubtitleLook::Bar => (0.0, 0.42 * size),
         SubtitleLook::Transparent | SubtitleLook::Outline => (0.0, 0.0),
     }
 }
@@ -248,11 +251,23 @@ pub fn layout_subtitle(fonts: &mut Fonts, text: &str, style: &SubtitleStyle, wid
     layout_subtitle_with_reference(fonts, text, "", style, width, height)
 }
 
-/// La taille de la référence sous un sous-titre, par rapport au texte.
-const REFERENCE_SCALE: f32 = 0.56;
+/// L'écart entre le texte et la référence, à la taille `size` : plus large avec un filet entre
+/// les deux.
+fn reference_gap(style: &SubtitleStyle, size: f32) -> f32 {
+    if subtitle_rule(style) { 0.6 * size } else { 0.3 * size }
+}
+
+/// Un filet court entre le texte et la référence (la bande pleine largeur a le sien en haut ; les
+/// boîtes par ligne n'en ont pas).
+fn subtitle_rule(style: &SubtitleStyle) -> bool {
+    style.accent.is_some() && !matches!(style.look, SubtitleLook::Bar | SubtitleLook::BoxPerLine)
+}
 
 /// [`layout_subtitle`], avec la **référence** du slide (« Jean 3:16 », « 47-0412 · E-12 ») en
 /// petit sous le texte (demande du 12 novembre 2026). Vide : pas de ligne.
+///
+/// L'alignement range le texte et sa boîte à gauche, au centre ou à droite de la largeur utile ;
+/// la référence prend sa couleur (l'or des modèles à boîte), et un filet peut la séparer du texte.
 pub fn layout_subtitle_with_reference(
     fonts: &mut Fonts,
     text: &str,
@@ -267,10 +282,13 @@ pub fn layout_subtitle_with_reference(
         return graphic;
     }
     let reference = po_text::py::strip(reference).to_string();
+    let boxes = style.look == SubtitleLook::BoxPerLine;
     let k = height / 1080.0;
-    let (pad_x, pad_y) = subtitle_pad(style, k);
+    let ref_scale = style.reference_scale.clamp(0.3, 1.0);
     let (family, mut size, spacing) = scaled_font(fonts, &style.font, k);
-    let inner = width * style.width / 100.0 - 2.0 * pad_x;
+    // La zone utile : centrée dans l'écran, `style.width` % de sa largeur.
+    let zone_w = (width * style.width.clamp(20.0, 100.0) / 100.0).min(width);
+    let zone_x = (width - zone_w) / 2.0;
     let max_lines = style.max_lines.clamp(1, 3);
     let margin = height * style.margin / 100.0;
     let room = match style.position {
@@ -285,13 +303,15 @@ pub fn layout_subtitle_with_reference(
         if reference.is_empty() {
             return 0.0;
         }
-        let r = fonts.qt_metrics(&family, style.font.weight, (size * REFERENCE_SCALE).max(10.0 * k));
-        r.height as f32 + 0.3 * size + if style.look == SubtitleLook::BoxPerLine { 2.0 * pad_y } else { 0.0 }
+        let pad_y = subtitle_pad(style.look, size).1;
+        let r = fonts.qt_metrics(&family, style.font.weight, (size * ref_scale).max(10.0 * k));
+        r.height as f32 + reference_gap(style, size) + if boxes { 2.0 * pad_y } else { 0.0 }
     };
     let mut lines;
     loop {
+        let (pad_x, pad_y) = subtitle_pad(style.look, size);
         let spec = FontSpec { family: &family, weight: style.font.weight, letter_spacing: spacing };
-        lines = balanced_lines(fonts, &text, spec, size, inner.max(40.0));
+        lines = balanced_lines(fonts, &text, spec, size, (zone_w - 2.0 * pad_x).max(40.0));
         let m = fonts.qt_metrics(&family, style.font.weight, size);
         let step = m.line_spacing as f32 * style.font.line_height.max(1.0);
         let block = m.height as f32 + step * (lines.len() as f32 - 1.0) + 2.0 * pad_y + reference_h(fonts, size);
@@ -301,6 +321,7 @@ pub fn layout_subtitle_with_reference(
         }
         size -= 1.0;
     }
+    let (pad_x, pad_y) = subtitle_pad(style.look, size);
     let m = fonts.qt_metrics(&family, style.font.weight, size);
     let step = m.line_spacing as f32 * style.font.line_height.max(1.0);
     let text_h = m.height as f32 + step * (lines.len() as f32 - 1.0);
@@ -310,73 +331,97 @@ pub fn layout_subtitle_with_reference(
         BandPosition::Center => (height - block_h) / 2.0,
         BandPosition::Bottom => height - margin - block_h,
     };
-    let cx = width / 2.0;
+    // Le point d'accroche du texte, et le bord gauche d'une boîte de largeur `w` (texte compris).
+    let (tx, anchor) = match style.align {
+        Align::Left => (zone_x + pad_x, TextAnchor::Start),
+        Align::Center => (width / 2.0, TextAnchor::Middle),
+        Align::Right => (zone_x + zone_w - pad_x, TextAnchor::End),
+    };
+    let box_x = |w: f32| match style.align {
+        Align::Left => zone_x,
+        Align::Center => width / 2.0 - w / 2.0 - pad_x,
+        Align::Right => zone_x + zone_w - w - 2.0 * pad_x,
+    };
     let widths: Vec<f32> =
         lines.iter().map(|l| fonts.qt_advance(l, &family, style.font.weight, size, spacing)).collect();
-    // La référence : même police, plus petite et un peu estompée, centrée sous le texte.
-    let ref_size = (size * REFERENCE_SCALE).max(10.0 * k);
+    // La référence : même police, plus petite, dans sa couleur, sous le texte.
+    let ref_size = (size * ref_scale).max(10.0 * k);
+    let ref_spacing = spacing * ref_scale;
     let rm = fonts.qt_metrics(&family, style.font.weight, ref_size);
     let ref_w = if reference.is_empty() {
         0.0
     } else {
-        fonts.qt_advance(&reference, &family, style.font.weight, ref_size, spacing * REFERENCE_SCALE)
+        fonts.qt_advance(&reference, &family, style.font.weight, ref_size, ref_spacing)
     };
-    let ref_top =
-        top + pad_y + text_h + 0.3 * size + if style.look == SubtitleLook::BoxPerLine { 2.0 * pad_y } else { 0.0 };
+    let gap = reference_gap(style, size);
+    let ref_top = top + pad_y + text_h + gap + if boxes { 2.0 * pad_y } else { 0.0 };
     let widest = widths.iter().copied().fold(ref_w, f32::max);
-    graphic.rect = [cx - widest / 2.0 - pad_x, top, widest + 2.0 * pad_x, block_h];
+    graphic.rect = if style.look == SubtitleLook::Bar {
+        [0.0, top, width, block_h]
+    } else {
+        [box_x(widest), top, widest + 2.0 * pad_x, block_h]
+    };
     match style.look {
         SubtitleLook::Translucent => {
             let [x, y, w, h] = graphic.rect;
-            graphic.backing.push(Item::Rect { x, y, w, h, radius: 8.0 * k, color: style.box_color });
+            let radius = (0.24 * size).max(4.0 * k);
+            graphic.backing.push(Item::Rect { x, y, w, h, radius, color: style.box_color });
+        }
+        SubtitleLook::Bar => {
+            let [x, y, w, h] = graphic.rect;
+            graphic.backing.push(Item::Rect { x, y, w, h, radius: 0.0, color: style.box_color });
+            if let Some(color) = style.accent {
+                let t = (0.07 * size).max(2.0 * k).round();
+                graphic.backing.push(Item::Rect { x, y, w, h: t, radius: 0.0, color });
+            }
         }
         SubtitleLook::BoxPerLine => {
+            let radius = (0.1 * size).max(3.0 * k);
             for (i, w) in widths.iter().enumerate() {
-                let y = top + pad_y + i as f32 * step - pad_y + (step - m.height as f32).min(0.0);
+                let y = top + i as f32 * step + (step - m.height as f32).min(0.0);
                 graphic.backing.push(Item::Rect {
-                    x: cx - w / 2.0 - pad_x,
+                    x: box_x(*w),
                     y,
                     w: w + 2.0 * pad_x,
                     h: m.height as f32 + 2.0 * pad_y,
-                    radius: 4.0 * k,
+                    radius,
                     color: style.box_color,
                 });
             }
             if !reference.is_empty() {
                 graphic.backing.push(Item::Rect {
-                    x: cx - ref_w / 2.0 - pad_x,
+                    x: box_x(ref_w),
                     y: ref_top - pad_y,
                     w: ref_w + 2.0 * pad_x,
                     h: rm.height as f32 + 2.0 * pad_y,
-                    radius: 4.0 * k,
+                    radius,
                     color: style.box_color,
                 });
             }
         }
         SubtitleLook::Transparent | SubtitleLook::Outline => {}
     }
+    // Le filet court entre le texte et la référence, aligné comme eux.
+    if let Some(color) = style.accent.filter(|_| subtitle_rule(style) && !reference.is_empty()) {
+        let (w, t) = ((1.2 * size).min(widest), (0.06 * size).max(2.0 * k).round());
+        let x = match anchor {
+            TextAnchor::Start => tx,
+            TextAnchor::Middle => tx - w / 2.0,
+            TextAnchor::End => tx - w,
+        };
+        let y = (top + pad_y + text_h + gap / 2.0 - t / 2.0).round();
+        graphic.backing.push(Item::Rect { x, y, w, h: t, radius: t / 2.0, color });
+    }
     for (i, l) in lines.iter().enumerate() {
         let baseline = top + pad_y + m.ascent as f32 + i as f32 * step;
-        graphic.lines.push(line(fonts, l, &family, &style.font, size, spacing, cx, TextAnchor::Middle, baseline, k));
+        graphic.lines.push(line(fonts, l, &family, &style.font, size, spacing, tx, anchor, baseline, k));
     }
     if !reference.is_empty() {
         let mut font = style.font.clone();
         font.uppercase = false;
-        font.color.0[3] = (f32::from(font.color.0[3]) * 0.85).round() as u8;
+        font.color = style.reference_color();
         let baseline = ref_top + rm.ascent as f32;
-        let spacing = spacing * REFERENCE_SCALE;
-        graphic.lines.push(line(
-            fonts,
-            &reference,
-            &family,
-            &font,
-            ref_size,
-            spacing,
-            cx,
-            TextAnchor::Middle,
-            baseline,
-            k,
-        ));
+        graphic.lines.push(line(fonts, &reference, &family, &font, ref_size, ref_spacing, tx, anchor, baseline, k));
     }
     graphic
 }
@@ -649,6 +694,48 @@ mod tests {
         assert!(outline.backing.is_empty() && outline.lines[0].0.outline.is_some());
         let per_line = count(3);
         assert_eq!(per_line.backing.len(), per_line.lines.len(), "une boîte par ligne");
+        let bar = count(4);
+        assert_eq!(bar.backing.len(), 2, "la bande et son filet");
+        assert_eq!((bar.rect[0], bar.rect[2]), (0.0, 1920.0), "toute la largeur");
+    }
+
+    #[test]
+    fn subtitles_follow_their_alignment_and_show_the_reference_in_its_color() {
+        let mut fonts = fonts();
+        let (text, reference) = ("Que ton règne vienne", "Matthieu 6:10");
+        for look in SubtitleLook::ALL {
+            let mut style = SubtitleStyle::new(look);
+            let mut at = |align: Align| {
+                style.align = align;
+                layout_subtitle_with_reference(&mut fonts, text, reference, &style, 1920.0, 1080.0)
+            };
+            let (left, center, right) = (at(Align::Left), at(Align::Center), at(Align::Right));
+            for (g, anchor) in [(&left, TextAnchor::Start), (&center, TextAnchor::Middle), (&right, TextAnchor::End)] {
+                // Le texte et la référence, accrochés du même côté, au même point.
+                let (first, under) = (&g.lines[0].0, &g.lines[1].0);
+                assert_eq!((first.anchor, under.anchor), (anchor, anchor), "{look:?}");
+                assert!((first.x - under.x).abs() < 0.01, "{look:?}");
+                let [x, _, w, _] = g.rect;
+                assert!(x >= -0.5 && x + w <= 1920.5, "{look:?} hors écran : {:?}", g.rect);
+            }
+            assert!(left.lines[0].0.x < 1920.0 * 0.25 && right.lines[0].0.x > 1920.0 * 0.75, "{look:?}");
+            if look != SubtitleLook::Bar {
+                assert!(left.rect[0] < center.rect[0] && center.rect[0] < right.rect[0], "{look:?}");
+            }
+            assert_eq!(center.lines[1].0.color, SubtitleStyle::new(look).reference_color(), "{look:?}");
+        }
+        // Le modèle semi-transparent : la boîte, et un filet doré entre le texte et la référence.
+        let style = SubtitleStyle::new(SubtitleLook::Translucent);
+        let g = layout_subtitle_with_reference(&mut fonts, text, reference, &style, 1920.0, 1080.0);
+        assert_eq!(g.backing.len(), 2);
+        let Item::Rect { y, color, .. } = g.backing[1] else { panic!("un filet") };
+        assert_eq!(Some(color), style.accent);
+        assert!(y > g.lines[0].0.baseline && y < g.lines[1].0.baseline, "entre le texte et la référence");
+        // Une taille plus grande : une boîte plus grande, aussi aérée.
+        let mut big = style.clone();
+        big.font.size = 72.0;
+        let large = layout_subtitle_with_reference(&mut fonts, text, reference, &big, 1920.0, 1080.0);
+        assert!(large.rect[3] > g.rect[3] && large.lines[0].0.size > g.lines[0].0.size);
     }
 
     #[test]

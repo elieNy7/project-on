@@ -65,6 +65,22 @@ impl Output {
     }
 }
 
+/// Le design des sorties avec les réglages de l'habillage (Réglages → Habillage → Diffusion).
+pub fn tuned_look(tuning: &po_design::tuning::Tuning, look: &po_web::Look) -> po_web::Look {
+    match look {
+        po_web::Look::Band(band) => po_web::Look::Band(tuning.apply_band(band)),
+        po_web::Look::Slide(design) => po_web::Look::Slide(tuning.apply_room(design)),
+    }
+}
+
+/// Les valeurs d'un design des sorties (pour partir de lui en personnalisant).
+pub fn look_tuning(look: &po_web::Look) -> po_design::tuning::Tuning {
+    match look {
+        po_web::Look::Band(band) => po_design::tuning::Tuning::of_band(band),
+        po_web::Look::Slide(design) => po_design::tuning::Tuning::of_room(design),
+    }
+}
+
 /// Les designs choisis, gardés d'un lancement à l'autre : sorties, lower third, sous-titres.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Choices {
@@ -222,6 +238,8 @@ pub struct DesignsView {
     pub families: Vec<String>,
     /// Les aperçus rendus (non en mode PC modeste).
     pub previews_enabled: bool,
+    /// Les habillages réglés dans Réglages → Habillage : sous-titres, diffusion, lower third.
+    pub tuned: [bool; 3],
 }
 
 impl DesignsView {
@@ -243,6 +261,7 @@ impl DesignsView {
             sample: None,
             families: Vec::new(),
             previews_enabled: true,
+            tuned: [false; 3],
         }
     }
 
@@ -332,7 +351,7 @@ impl DesignsView {
             ui.add_space(12.0);
             ui.label(RichText::new("Designs").font(bold(20.0)).color(TEXT));
             ui.add_space(4.0);
-            live_card(ui, lower_third, subtitles, ndi, hdmi_count, output, &mut actions);
+            live_card(ui, lower_third, subtitles, ndi, hdmi_count, output, self.tuned, &mut actions);
             ui.add_space(10.0);
             self.filters(ui);
             let designs = self.shown();
@@ -669,8 +688,14 @@ fn live_card(
     (ndi_on, ndi_status, receivers): (bool, Option<Result<String, String>>, i32),
     hdmi_count: usize,
     output: &Output,
+    [tuned_subtitles, tuned_output, tuned_lower_third]: [bool; 3],
     actions: &mut Vec<DesignAction>,
 ) {
+    let tuned_note = |ui: &mut Ui, tuned: bool| {
+        if tuned {
+            ui.label(RichText::new("· police et couleurs : Réglages → Habillage").font(regular(11.5)).color(FAINT));
+        }
+    };
     widgets::card(ui, |ui| {
         ui.set_width(ui.available_width());
         ui.label(RichText::new("HABILLAGE EN DIRECT").font(semibold(10.5)).color(FAINT));
@@ -685,6 +710,7 @@ fn live_card(
             ui.label(
                 RichText::new(format!("({what}) · la projection garde son design")).font(regular(11.5)).color(FAINT),
             );
+            tuned_note(ui, tuned_output);
         });
         ui.add_space(6.0);
         ui.horizontal(|ui| {
@@ -695,6 +721,7 @@ fn live_card(
             }
             ui.label(RichText::new(&lower_third.name).font(medium(12.0)).color(MUTED));
             ui.checkbox(&mut lower_third.auto, "Suivre le direct");
+            tuned_note(ui, tuned_lower_third);
         });
         if !lower_third.auto {
             let (first, second) = lower_third.style.purpose.fields();
@@ -713,6 +740,7 @@ fn live_card(
                 actions.push(DesignAction::ToggleSubtitles);
             }
             ui.label(RichText::new(&subtitles.name).font(medium(12.0)).color(MUTED));
+            tuned_note(ui, tuned_subtitles);
             // Un texte long n'est plus coupé : les flèches ne servent que s'il y a plusieurs parties.
             if subtitles.shown && subtitles.chunks.len() > 1 {
                 if widgets::button(ui, None, "◀", Tone::Secondary).clicked() {
@@ -1061,26 +1089,41 @@ fn editor(ui: &mut Ui, design: &mut Design, families: &[String]) -> bool {
             }
         }
         DesignBody::Subtitles(s) => {
-            ui.horizontal(|ui| {
-                for look in SubtitleLook::ALL {
-                    if ui.radio_value(&mut s.look, look, look.label()).changed() {
-                        let fresh = po_design::graphics::SubtitleStyle::new(look);
-                        s.font.shadow = fresh.font.shadow;
-                        s.font.outline = fresh.font.outline;
-                        s.box_color = fresh.box_color;
-                        changed = true;
-                    }
+            ui.horizontal_wrapped(|ui| {
+                let mut look = s.look;
+                for l in SubtitleLook::ALL {
+                    ui.radio_value(&mut look, l, l.label());
+                }
+                if look != s.look {
+                    s.set_look(look);
+                    changed = true;
                 }
             });
             changed |= family_edit(ui, "Police", &mut s.font.family, families);
             changed |= size_edit(ui, "Taille", &mut s.font.size, 20.0..=100.0);
             changed |= color_edit(ui, "Texte", &mut s.font.color);
-            changed |= color_edit(ui, "Boîte", &mut s.box_color);
+            if s.look.has_box() {
+                changed |= color_edit(ui, "Boîte", &mut s.box_color);
+            }
+            let mut reference = s.reference_color();
+            if color_edit(ui, "Référence", &mut reference) {
+                s.reference_color = Some(reference);
+                changed = true;
+            }
+            let mut accent = s.accent.is_some();
+            if ui.checkbox(&mut accent, "Filet doré").changed() {
+                s.accent = accent.then_some(Rgba::rgb(0xe7, 0xc0, 0x7e).with_alpha(0.9));
+                changed = true;
+            }
+            if let Some(color) = &mut s.accent {
+                changed |= color_edit(ui, "Couleur du filet", color);
+            }
             let mut lines = s.max_lines as f32;
             if size_edit(ui, "Lignes à pleine taille", &mut lines, 1.0..=3.0) {
                 s.max_lines = lines as usize;
                 changed = true;
             }
+            changed |= align_edit(ui, "Alignement", &mut s.align);
             ui.horizontal(|ui| {
                 ui.label(RichText::new("Position").font(regular(12.0)).color(MUTED));
                 changed |= ui.radio_value(&mut s.position, po_design::BandPosition::Bottom, "En bas").changed();

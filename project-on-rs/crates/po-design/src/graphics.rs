@@ -424,11 +424,19 @@ pub enum SubtitleLook {
     Outline,
     /// Une boîte ajustée derrière chaque ligne (à la télévision).
     BoxPerLine,
+    /// Une bande sur toute la largeur de l'image, soulignée d'un filet en haut (comme un bandeau
+    /// d'information).
+    Bar,
 }
 
 impl SubtitleLook {
-    pub const ALL: [SubtitleLook; 4] =
-        [SubtitleLook::Transparent, SubtitleLook::Translucent, SubtitleLook::Outline, SubtitleLook::BoxPerLine];
+    pub const ALL: [SubtitleLook; 5] = [
+        SubtitleLook::Transparent,
+        SubtitleLook::Translucent,
+        SubtitleLook::Outline,
+        SubtitleLook::BoxPerLine,
+        SubtitleLook::Bar,
+    ];
 
     pub fn label(self) -> &'static str {
         match self {
@@ -436,11 +444,29 @@ impl SubtitleLook {
             SubtitleLook::Translucent => "Semi-transparent",
             SubtitleLook::Outline => "Contour",
             SubtitleLook::BoxPerLine => "Boîte par ligne",
+            SubtitleLook::Bar => "Bande pleine largeur",
         }
+    }
+
+    /// Une boîte ou une bande derrière le texte (sa couleur compte).
+    pub fn has_box(self) -> bool {
+        matches!(self, SubtitleLook::Translucent | SubtitleLook::BoxPerLine | SubtitleLook::Bar)
     }
 }
 
-/// Le style des sous-titres.
+fn centered() -> Align {
+    Align::Center
+}
+
+/// La taille de la référence sous un sous-titre, par rapport au texte.
+pub const REFERENCE_SCALE: f32 = 0.56;
+
+fn reference_scale() -> f32 {
+    REFERENCE_SCALE
+}
+
+/// Le style des sous-titres. Les champs ajoutés après la 3.0.1 ont une valeur par défaut : les
+/// designs enregistrés avant (« Mes designs ») se lisent toujours, avec leur apparence d'alors.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SubtitleStyle {
     pub look: SubtitleLook,
@@ -454,6 +480,18 @@ pub struct SubtitleStyle {
     pub width: f32,
     /// Marge depuis le bord (haut ou bas), en pourcentage.
     pub margin: f32,
+    /// L'alignement du texte ; le bloc se range du même côté de sa zone.
+    #[serde(default = "centered")]
+    pub align: Align,
+    /// La couleur de la référence sous le texte ; aucune : celle du texte, un peu estompée.
+    #[serde(default)]
+    pub reference_color: Option<Rgba>,
+    /// La taille de la référence par rapport au texte.
+    #[serde(default = "reference_scale")]
+    pub reference_scale: f32,
+    /// Le filet : entre le texte et la référence, ou en haut de la bande pleine largeur.
+    #[serde(default)]
+    pub accent: Option<Rgba>,
 }
 
 impl SubtitleStyle {
@@ -463,17 +501,49 @@ impl SubtitleStyle {
         match look {
             SubtitleLook::Transparent => font.shadow = Some((Rgba::new(0, 0, 0, 220), 10.0)),
             SubtitleLook::Outline => font.outline = Some((Rgba::BLACK, 3.0)),
-            SubtitleLook::Translucent | SubtitleLook::BoxPerLine => {}
+            SubtitleLook::Translucent | SubtitleLook::BoxPerLine | SubtitleLook::Bar => {}
         }
+        // Le bleu nuit et l'or de Project-On : une boîte sombre et douce, la référence et le filet
+        // dorés. Sans boîte, la référence reste blanche (plus lisible sur la vidéo).
+        let box_color = match look {
+            SubtitleLook::BoxPerLine => Rgba::new(0, 0, 0, 200),
+            SubtitleLook::Bar => Rgba::new(10, 14, 22, 215),
+            _ => Rgba::new(10, 14, 22, 175),
+        };
         SubtitleStyle {
             look,
             font,
-            box_color: Rgba::new(0, 0, 0, if look == SubtitleLook::BoxPerLine { 200 } else { 150 }),
+            box_color,
             position: BandPosition::Bottom,
             max_lines: 2,
             width: 80.0,
             margin: 7.0,
+            align: Align::Center,
+            reference_color: look.has_box().then_some(GOLD),
+            reference_scale: REFERENCE_SCALE,
+            accent: matches!(look, SubtitleLook::Translucent | SubtitleLook::Bar).then_some(GOLD.with_alpha(0.9)),
         }
+    }
+
+    /// La couleur de la référence : la sienne, sinon celle du texte, un peu estompée.
+    pub fn reference_color(&self) -> Rgba {
+        self.reference_color.unwrap_or_else(|| {
+            let mut c = self.font.color;
+            c.0[3] = (f32::from(c.0[3]) * 0.85).round() as u8;
+            c
+        })
+    }
+
+    /// Change d'apparence en reprenant l'ombre, le contour, la boîte, la référence et le filet
+    /// de la nouvelle (la police, la taille, la couleur du texte et la place restent).
+    pub fn set_look(&mut self, look: SubtitleLook) {
+        let fresh = SubtitleStyle::new(look);
+        self.look = look;
+        self.font.shadow = fresh.font.shadow;
+        self.font.outline = fresh.font.outline;
+        self.box_color = fresh.box_color;
+        self.reference_color = fresh.reference_color;
+        self.accent = fresh.accent;
     }
 }
 
@@ -487,6 +557,7 @@ pub fn builtin_subtitles() -> Vec<(&'static str, &'static str, SubtitleStyle)> {
                 SubtitleLook::Translucent => "st-semi-transparent",
                 SubtitleLook::Outline => "st-contour",
                 SubtitleLook::BoxPerLine => "st-boite-par-ligne",
+                SubtitleLook::Bar => "st-bande",
             };
             (id, look.label(), SubtitleStyle::new(look))
         })
@@ -526,7 +597,29 @@ mod tests {
             assert_eq!(curve.apply(1.0), 1.0);
             assert!(curve.apply(0.5) > 0.0 && curve.apply(0.5) < 1.0);
         }
-        assert_eq!(builtin_subtitles().len(), 4);
+        assert_eq!(builtin_subtitles().len(), SubtitleLook::ALL.len());
         assert!(SubtitleStyle::new(SubtitleLook::Outline).font.outline.is_some());
+    }
+
+    #[test]
+    fn subtitle_designs_saved_before_the_new_fields_still_load() {
+        // Un design de « Mes designs » de la 3.0.1 : sans alignement, référence ni filet.
+        let old = r#"{"look":"translucent","font":{"family":"Inter","weight":600,"size":48.0,
+            "color":[255,255,255,255],"uppercase":false,"letter_spacing":0.0,"line_height":1.25,
+            "shadow":null,"outline":null},"box_color":[0,0,0,150],"position":"bottom",
+            "max_lines":2,"width":80.0,"margin":7.0}"#;
+        let style: SubtitleStyle = serde_json::from_str(old).unwrap();
+        assert_eq!((style.align, style.reference_color, style.accent), (Align::Center, None, None));
+        assert_eq!(style.reference_scale, REFERENCE_SCALE);
+        // Sans couleur propre, la référence prend celle du texte, estompée.
+        assert_eq!(style.reference_color(), Rgba::new(255, 255, 255, 217));
+        // Changer d'apparence reprend la boîte et le filet de la nouvelle, pas la police.
+        let mut style = style;
+        style.font.size = 60.0;
+        style.set_look(SubtitleLook::Bar);
+        assert_eq!((style.look, style.font.size), (SubtitleLook::Bar, 60.0));
+        assert!(style.accent.is_some() && style.look.has_box());
+        style.set_look(SubtitleLook::Outline);
+        assert!(style.font.outline.is_some() && style.accent.is_none() && !style.look.has_box());
     }
 }

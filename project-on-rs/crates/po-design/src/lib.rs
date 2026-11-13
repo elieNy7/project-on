@@ -10,6 +10,7 @@ pub mod church;
 mod color;
 pub mod graphics;
 pub mod library;
+pub mod tuning;
 
 use po_settings::ProjectionSettings;
 use serde::{Deserialize, Serialize};
