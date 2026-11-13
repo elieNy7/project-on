@@ -43,9 +43,13 @@ pub enum Icon {
     /// L'étoile pleine (un favori).
     StarFilled,
     History,
+    /// Une note (le carnet).
+    Note,
+    /// Le carnet.
+    Notebook,
 }
 
-pub const ALL: [Icon; 34] = [
+pub const ALL: [Icon; 36] = [
     Icon::Monitor,
     Icon::Settings,
     Icon::Eye,
@@ -80,6 +84,8 @@ pub const ALL: [Icon; 34] = [
     Icon::Star,
     Icon::StarFilled,
     Icon::History,
+    Icon::Note,
+    Icon::Notebook,
 ];
 
 /// Le contenu SVG (grille 24 × 24, trait de 2) de chaque icône.
@@ -156,6 +162,12 @@ fn body(icon: Icon) -> &'static str {
         }
         Icon::History => {
             r#"<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>"#
+        }
+        Icon::Note => {
+            r#"<path d="M16 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8Z"/><path d="M15 3v4a2 2 0 0 0 2 2h4"/>"#
+        }
+        Icon::Notebook => {
+            r#"<path d="M13.4 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7.4"/><path d="M2 6h4"/><path d="M2 10h4"/><path d="M2 14h4"/><path d="M2 18h4"/><path d="M21.378 5.626a1 1 0 1 0-3.004-3.004l-5.01 5.012a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506z"/>"#
         }
     }
 }
