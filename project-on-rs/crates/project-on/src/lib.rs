@@ -23,7 +23,8 @@ pub mod quote;
 pub mod recovery;
 pub mod restore;
 pub mod screens;
-pub mod search;
+/// La recherche, partagée avec MEDITATION.
+pub use po_search as search;
 pub mod service;
 pub mod settings_page;
 pub mod shortcuts;

@@ -1,5 +1,7 @@
 //! Les recherches, sur un fil à part avec sa propre connexion (en lecture seule) : la recherche
 //! plein texte peut prendre plusieurs secondes au premier appel, l'interface ne l'attend jamais.
+//! Partagée par Project-On (`project_on::search`) et MEDITATION (son onglet Recherche) : les deux
+//! trouvent les mêmes résultats.
 //!
 //! La recherche globale (Ctrl+K) est celle de la 2.8 (`app/utils/global_search.py`) : la Bible
 //! (une référence tapée, sinon les versets de la traduction choisie), les prédications (titres,
@@ -127,7 +129,8 @@ pub struct Searcher {
     verses: HashMap<i64, Vec<IndexedVerse>>,
 }
 
-fn one_line(text: &str, limit: usize) -> String {
+/// `text` sur une ligne, coupé à `limit` lettres (« … »).
+pub fn one_line(text: &str, limit: usize) -> String {
     let flat = text.split_whitespace().collect::<Vec<_>>().join(" ");
     if flat.chars().count() <= limit {
         flat
@@ -139,6 +142,11 @@ fn one_line(text: &str, limit: usize) -> String {
 impl Searcher {
     pub fn new(db: Database) -> Self {
         Searcher { db, verses: HashMap::new() }
+    }
+
+    /// La base où il cherche (pour les recherches qu'il n'enveloppe pas).
+    pub fn database(&self) -> &Database {
+        &self.db
     }
 
     fn verse_index(&mut self, translation: i64) -> &[IndexedVerse] {
@@ -186,6 +194,12 @@ impl Searcher {
     }
 
     fn bible(&mut self, query: &str, translation: Option<i64>) -> Vec<Hit> {
+        self.bible_hits(query, translation, PER_KIND)
+    }
+
+    /// La Bible : une référence tapée (« Jean 3:16 »), sinon au plus `limit` versets de la
+    /// traduction `translation` qui contiennent `query`.
+    pub fn bible_hits(&mut self, query: &str, translation: Option<i64>, limit: usize) -> Vec<Hit> {
         let Some(tid) = translation else { return Vec::new() };
         let books: Vec<po_text::Book> = self
             .db
@@ -217,7 +231,7 @@ impl Searcher {
         if query.trim().chars().count() < MIN_TEXT_QUERY {
             return Vec::new();
         }
-        self.verses(query, tid, PER_KIND)
+        self.verses(query, tid, limit)
     }
 
     fn sermons(&mut self, query: &str) -> Vec<Hit> {

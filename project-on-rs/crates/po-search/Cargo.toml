@@ -1,0 +1,15 @@
+[package]
+name = "po-search"
+description = "Project-On et MEDITATION : la recherche (Bible, prédications, livres, cantiques), sur un fil à part"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+po-core = { path = "../po-core" }
+po-db.workspace = true
+po-text.workspace = true
+
+[lints]
+workspace = true

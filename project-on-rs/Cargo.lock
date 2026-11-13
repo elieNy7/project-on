@@ -2887,6 +2887,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "po-search"
+version = "3.0.1"
+dependencies = [
+ "po-core",
+ "po-db",
+ "po-text",
+]
+
+[[package]]
 name = "po-settings"
 version = "3.0.1"
 dependencies = [
@@ -3059,6 +3068,7 @@ dependencies = [
  "po-pdf",
  "po-program",
  "po-render",
+ "po-search",
  "po-settings",
  "po-text",
  "po-ui",

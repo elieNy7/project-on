@@ -39,9 +39,13 @@ pub enum Icon {
     FileText,
     Library,
     Play,
+    Star,
+    /// L'étoile pleine (un favori).
+    StarFilled,
+    History,
 }
 
-pub const ALL: [Icon; 31] = [
+pub const ALL: [Icon; 34] = [
     Icon::Monitor,
     Icon::Settings,
     Icon::Eye,
@@ -73,6 +77,9 @@ pub const ALL: [Icon; 31] = [
     Icon::FileText,
     Icon::Library,
     Icon::Play,
+    Icon::Star,
+    Icon::StarFilled,
+    Icon::History,
 ];
 
 /// Le contenu SVG (grille 24 × 24, trait de 2) de chaque icône.
@@ -141,6 +148,15 @@ fn body(icon: Icon) -> &'static str {
         }
         Icon::Library => r#"<path d="m16 6 4 14"/><path d="M12 6v14"/><path d="M8 8v12"/><path d="M4 4v16"/>"#,
         Icon::Play => r#"<polygon points="6 3 20 12 6 21 6 3"/>"#,
+        Icon::Star => {
+            r#"<path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/>"#
+        }
+        Icon::StarFilled => {
+            r##"<path fill="#ffffff" d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/>"##
+        }
+        Icon::History => {
+            r#"<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>"#
+        }
     }
 }
 

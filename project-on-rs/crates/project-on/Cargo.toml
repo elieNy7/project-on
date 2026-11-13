@@ -28,6 +28,7 @@ po-render.workspace = true
 po-web.workspace = true
 po-ndi.workspace = true
 po-ui.workspace = true
+po-search.workspace = true
 po-pdf = { path = "../po-pdf" }
 egui.workspace = true
 eframe = { version = "0.37.0", default-features = false, features = ["wgpu", "default_fonts", "clipboard", "links"] }
