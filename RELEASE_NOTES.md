@@ -1,20 +1,23 @@
-# Project-On 3.0.1
+# Project-On 3.0.2
 
-**Les sous-titres sur le Web, et leur référence** — une correction de la 3.0.0. La mise à jour garde votre base, vos playlists et vos réglages.
+**Des sous-titres plus beaux, et l'habillage réglé dans les Réglages** — la mise à jour garde votre base, vos playlists et vos réglages.
 
-## Corrigé
+## Nouveau
 
-- **Le lien des sous-titres affichait une page vide** (`/ecran/sous-titres`, dans un navigateur, OBS ou Pgraphics) : les sous-titres étaient masqués au démarrage et n'apparaissaient qu'après la touche S. Ils sont maintenant affichés d'office ; S les masque puis les réaffiche.
+- **Réglages → Habillage** : pour les **sous-titres**, la **diffusion** (écran Web « diffusion », source NDI, sorties HDMI) et le **lower third**, cochez « Personnaliser » puis réglez la police, la graisse, la taille, les capitales, la couleur du texte, la taille et la couleur de la référence (ou du second champ), la couleur de la boîte ou de la bande, l'alignement (à gauche, centré, à droite) et la position (en haut, au centre, en bas). Un aperçu montre chaque habillage avant d'enregistrer. On part toujours du design choisi dans la page Designs : rien ne change tant qu'on ne touche pas une valeur.
+- **Nouveau style de sous-titres « Bande pleine largeur »** : une bande sur toute la largeur de l'image, soulignée d'un filet doré.
 
 ## Amélioré
 
-- **La référence sous les sous-titres** : « Jean 3:16 », « 47-0412 … §3 » s'affiche en petit sous le texte, dans le même cadre (Web, HDMI, aperçu de la page Designs).
+- **Le design des sous-titres** : boîte bleu nuit aux coins arrondis, marges qui suivent la taille du texte, référence dorée et petit filet doré entre le texte et la référence.
+- **Les sous-titres s'alignent** à gauche, au centre ou à droite (avant : toujours centrés), la référence avec eux.
+- Les designs de sous-titres de « Mes designs » se lisent toujours, avec leur apparence ; leur éditeur gagne l'alignement, la couleur de la référence et le filet.
 
 ## À savoir
 
-- La source NDI « Project-On Diffusion » est transparente. Pour la voir transparente dans Pgraphics, il faut **Pgraphics 0.5.2** ou plus récent (les versions précédentes la posaient sur du noir).
+- La position réglée pour la diffusion vaut pour un bandeau en sous-titre ; en lower third, en panneau ou en carte, sa place reste celle du design.
 - Toujours pas dans la 3.0 : le fond vidéo et l'effet Ken Burns. Les vidéos de la playlist demandent FFmpeg installé sur l'ordinateur.
 
 Windows peut afficher un avertissement SmartScreen : « Informations complémentaires », puis « Exécuter quand même ».
 
-SHA-256 : 39b6fd8723c7cd35ac981a53d2122c5bd6eadc1629b9a75631ea1eb33794387f
+SHA-256 : 299250179a95083d7394b3d01ae24b9ccb6740cb2d07758f2baed82fbff46d76

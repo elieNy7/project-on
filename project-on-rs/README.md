@@ -3,7 +3,7 @@
 La refonte de Project-On en Rust, décidée le 9 novembre 2026 : architecture, décisions et plan dans
 [`../AUDIT_ET_ARCHITECTURE_RUST_2026-11-09.md`](../AUDIT_ET_ARCHITECTURE_RUST_2026-11-09.md).
 
-**État : version 3.0.1 — la 3.0 remplace la 2.8 ([document](docs/phase8/BASCULE.md)) ; les fonctions
+**État : version 3.0.2 — la 3.0 remplace la 2.8 ([document](docs/phase8/BASCULE.md)) ; les fonctions
 de la 2.8 sont reprises ([liste de parité](docs/phase7/PARITE.md) : reste le fond vidéo et l'effet Ken
 Burns). Le code Python de la 2.8 est retiré du dépôt le 12 novembre 2026 : il reste à l'étiquette git
 `v2.8-python`.**

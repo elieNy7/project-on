@@ -33,7 +33,7 @@ graphique). Le code est dans [`project-on-rs/`](project-on-rs/README.md). La 2.8
 
 ## ⬇️ Installation (Windows)
 
-1. Téléchargez **`ProjectOn_3.0.1_Setup.exe`** depuis la [page Project-On](https://elieny7.github.io/paratech-web/project-on.html).
+1. Téléchargez **`ProjectOn_3.0.2_Setup.exe`** depuis la [page Project-On](https://elieny7.github.io/paratech-web/project-on.html).
 2. Lancez l'installateur. Si Windows affiche **SmartScreen** : « Informations complémentaires » → « Exécuter quand même ».
 3. Ouvrez **Project-On** : la 3.0 reprend la base, les playlists et les réglages de la 2.x.
 
