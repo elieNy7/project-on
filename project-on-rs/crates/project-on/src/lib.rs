@@ -5,6 +5,7 @@ pub mod bible_manager;
 pub mod data;
 pub mod designs;
 pub mod gallery;
+pub mod global_search;
 pub mod gpu;
 pub mod history;
 pub mod hymn_editor;

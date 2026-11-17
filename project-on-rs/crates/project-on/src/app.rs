@@ -20,6 +20,7 @@ use po_settings::{Settings, SplitSettings};
 
 use crate::data::{CopyReport, Locations};
 use crate::designs::{DesignAction, DesignsView};
+use crate::global_search::{Found, GlobalSearch};
 use crate::icons::{self, Icon};
 use crate::library::books::{BOOK_KEYS, BooksView, EXPOSE_KEYS};
 use crate::library::playlist::{PlaylistAction, PlaylistMarks, PlaylistView};
@@ -28,7 +29,7 @@ use crate::outputs::{Outputs, Wanted};
 use crate::overlay::{LowerThird, Subtitles};
 use crate::playlist::Playlists;
 use crate::projector::Projector;
-use crate::search::{self, Hit, Kind, Request, Response, SearchThread};
+use crate::search::{self, Response, SearchThread};
 use crate::service::{self, Tracker};
 use crate::shortcuts::{self, Action as Key2, Shortcuts};
 use crate::stage::{Frame, Stage};
@@ -85,18 +86,6 @@ pub struct Config {
     pub windowed_projection: bool,
     /// Le port du serveur Web (0 : un port libre) ; `None` : pas d'écrans Web (essais).
     pub web_port: Option<u16>,
-}
-
-#[derive(Default)]
-struct GlobalSearch {
-    query: String,
-    asked: String,
-    hits: Vec<Hit>,
-    searching: bool,
-    selected: usize,
-    open: bool,
-    focus: bool,
-    anchor_rect: Option<egui::Rect>,
 }
 
 pub struct App {
@@ -1310,21 +1299,23 @@ impl App {
         }
     }
 
-    /// Lance la recherche globale (comme si l'opérateur tapait `query` après Ctrl+K).
+    /// Lance la recherche globale (comme si l'opérateur tapait `query` après Ctrl+K, puis Entrée).
     pub fn search_everywhere(&mut self, query: &str) {
         self.global.query = query.to_string();
-        self.global.open = true;
+        self.global.search_now();
+        self.page = Page::Search;
     }
 
     /// Les résultats de la recherche globale, et si elle tourne encore.
-    pub fn global_results_now(&self) -> (&[Hit], bool) {
-        (&self.global.hits, self.global.searching)
+    pub fn global_results_now(&self) -> (&[Found], bool) {
+        (&self.global.results, self.global.searching)
     }
 
-    /// Ouvre le résultat `index` de la recherche globale.
+    /// Ouvre le résultat `index` de la recherche globale (comme un clic : dans l'Aperçu).
     pub fn open_global(&mut self, index: usize) {
-        if let Some(hit) = self.global.hits.get(index).cloned() {
-            self.open_hit(&hit);
+        if let Some(found) = self.global.results.get(index) {
+            let target = found.target.clone();
+            self.open_target(&target, false);
         }
     }
 
@@ -1843,15 +1834,10 @@ impl App {
         let answers = self.search.as_ref().map(SearchThread::answers).unwrap_or_default();
         for answer in answers {
             match answer {
-                Response::Global { query, hits } => {
-                    if query == self.global.asked {
-                        self.global.hits = hits;
-                        self.global.searching = false;
-                        self.global.selected = 0;
-                    }
-                }
+                // La recherche globale a son propre fil (la page Recherche) ; les versets se
+                // cherchent là, plus dans la page Bible.
+                Response::Global { .. } | Response::Verses { .. } => {}
                 Response::Paragraphs { query, hits } => self.sermons.receive(query, hits),
-                Response::Verses { query, hits } => self.bible.receive(query, hits),
                 Response::Stanzas { query, hits } => self.hymns.receive(query, hits),
                 Response::Book { query, key, hits } => {
                     if self.expose.handles(&key) {
@@ -1876,7 +1862,10 @@ impl App {
                 Key2::PrevSlide => self.step(-1),
                 Key2::Hide => self.toggle_hidden(),
                 Key2::Projection => self.toggle_projection(),
-                Key2::GlobalSearch => self.global.focus = true,
+                Key2::GlobalSearch => {
+                    self.page = Page::Search;
+                    self.global.focus = true;
+                }
                 Key2::Search => self.focus_page_search(),
                 Key2::ParagraphSearch => {
                     self.page = Page::Sermons;
@@ -1952,6 +1941,7 @@ impl App {
             Page::Sermons => self.sermons.focus_search = true,
             Page::Expose => self.expose.focus_search = true,
             Page::Books => self.books.focus_search = true,
+            Page::Search => self.global.focus = true,
             Page::Playlist | Page::Designs | Page::Settings | Page::Media => {}
         }
     }
@@ -2242,7 +2232,6 @@ impl App {
             crate::theme::card_sheen(ui, 14.0);
             self.library(ui);
         });
-        self.global_results(ui);
         self.add_window(ui);
         self.preflight_window(ui);
         self.history_window(ui);
@@ -2376,6 +2365,12 @@ impl App {
     }
 
     fn library(&mut self, ui: &mut Ui) {
+        if self.page == Page::Search {
+            if let Some((target, take)) = self.global.ui(ui) {
+                self.open_target(&target, take);
+            }
+            return;
+        }
         if self.page == Page::Media {
             let running = self.slideshow_position();
             for action in self.media_view.ui(ui, running) {
@@ -2498,11 +2493,11 @@ impl App {
         let search = self.search.as_ref();
         let action = match self.page {
             Page::Sermons => self.sermons.ui(ui, db, &marks, search),
-            Page::Bible => self.bible.ui(ui, db, &marks, search),
+            Page::Bible => self.bible.ui(ui, db, &marks),
             Page::Hymns => self.hymns.ui(ui, db, &marks, search, self.split.hymn_repeat_chorus),
             Page::Expose => self.expose.ui(ui, db, &marks, search),
             Page::Books => self.books.ui(ui, db, &marks, search),
-            Page::Playlist | Page::Designs | Page::Settings | Page::Media => None,
+            Page::Playlist | Page::Designs | Page::Settings | Page::Media | Page::Search => None,
         };
         if let Some(action) = action {
             self.apply(action);
@@ -2546,51 +2541,18 @@ impl App {
             if std::mem::take(&mut self.global.focus) {
                 r.request_focus();
             }
-            if r.has_focus() || r.changed() {
-                self.global.open = !self.global.query.trim().is_empty();
-            }
-            let q = self.global.query.trim().to_string();
-            if q != self.global.asked {
-                self.global.asked = q.clone();
-                self.global.hits.clear();
-                self.global.searching = false;
-                if q.chars().count() >= search::MIN_QUERY
-                    && let Some(s) = &self.search
-                {
-                    s.ask(Request::Global { query: q, translation: self.bible.translation });
-                    self.global.searching = true;
+            // Taper ici mène à la page Recherche (ses filtres et ses résultats).
+            if r.changed() {
+                self.global.typed();
+                if !self.global.query.trim().is_empty() {
+                    self.page = Page::Search;
                 }
             }
-            if r.has_focus() {
-                let (down, up, enter, escape) = ui.input(|i| {
-                    (
-                        i.key_pressed(Key::ArrowDown),
-                        i.key_pressed(Key::ArrowUp),
-                        i.key_pressed(Key::Enter),
-                        i.key_pressed(Key::Escape),
-                    )
-                });
-                if down {
-                    self.global.selected = (self.global.selected + 1).min(self.global.hits.len().saturating_sub(1));
-                }
-                if up {
-                    self.global.selected = self.global.selected.saturating_sub(1);
-                }
-                if escape {
-                    self.global.open = false;
-                    r.surrender_focus();
-                }
-                if enter && let Some(hit) = self.global.hits.get(self.global.selected).cloned() {
-                    self.open_hit(&hit);
-                }
-            } else if r.lost_focus()
-                && ui.input(|i| i.key_pressed(Key::Enter))
-                && let Some(hit) = self.global.hits.get(self.global.selected).cloned()
-            {
-                // Entrée fait perdre le clavier au champ : le résultat choisi s'ouvre quand même.
-                self.open_hit(&hit);
+            if r.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter)) {
+                self.global.search_now();
+                self.page = Page::Search;
             }
-            self.global.anchor(r.rect);
+            self.global.advance(ui.ctx(), self.db_path.as_ref(), self.bible.translation);
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 let clock = chrono_now();
                 ui.label(RichText::new(clock).font(medium(12.5)).color(MUTED));
@@ -2618,9 +2580,11 @@ impl App {
         });
     }
 
-    fn open_hit(&mut self, hit: &Hit) {
+    /// Ouvre un résultat de la recherche globale dans sa bibliothèque et le prépare dans l'Aperçu ;
+    /// `take` : l'envoie aussi au direct.
+    fn open_target(&mut self, target: &search::Target, take: bool) {
         let Some(db) = self.db.as_ref() else { return };
-        let prepared = match &hit.target {
+        let prepared = match target {
             search::Target::Verse { translation, book, chapter, verse } => {
                 self.page = Page::Bible;
                 self.bible.open(db, *translation, *book, *chapter, *verse)
@@ -2641,81 +2605,10 @@ impl App {
                 }
             }
         };
-        self.global.open = false;
-        self.global.query.clear();
+        // Les résultats restent dans la page Recherche (le rail, ou Ctrl+K, y ramène).
         self.ctx.memory_mut(|m| m.stop_text_input());
         if let Some(p) = prepared {
-            self.cue(p);
-        }
-    }
-
-    fn global_results(&mut self, ui: &mut Ui) {
-        if !self.global.open || self.global.query.trim().is_empty() {
-            return;
-        }
-        let Some(anchor) = self.global.anchor_rect else { return };
-        let mut opened = None;
-        let area = egui::Area::new(egui::Id::unique("resultats-globaux"))
-            .order(egui::Order::Foreground)
-            .fixed_pos(pos2(anchor.min.x, anchor.max.y + 4.0))
-            .show(ui.ctx(), |ui| {
-                egui::Frame::NONE
-                    .fill(PANEL)
-                    .stroke(Stroke::new(1.0, BORDER_STRONG))
-                    .corner_radius(10.0)
-                    .inner_margin(Margin::same(8))
-                    .shadow(egui::Shadow { offset: [0, 8], blur: 24, spread: 0, color: Color32::from_black_alpha(140) })
-                    .show(ui, |ui| {
-                        ui.set_width(anchor.width().max(440.0));
-                        if self.global.hits.is_empty() {
-                            let text = if self.global.searching {
-                                "Recherche…"
-                            } else if self.global.asked.chars().count() < search::MIN_QUERY {
-                                "Au moins deux lettres"
-                            } else {
-                                "Aucun résultat"
-                            };
-                            ui.label(RichText::new(text).font(regular(12.5)).color(FAINT));
-                            return;
-                        }
-                        ScrollArea::vertical().max_height(420.0).show(ui, |ui| {
-                            let mut kind: Option<Kind> = None;
-                            for (i, hit) in self.global.hits.iter().enumerate() {
-                                if kind != Some(hit.kind) {
-                                    kind = Some(hit.kind);
-                                    widgets::section(ui, hit.kind.label());
-                                }
-                                let selected = i == self.global.selected;
-                                let (rect, r) = widgets::list_row(ui, selected, 42.0, &hit.title);
-                                widgets::paint_text(
-                                    ui,
-                                    pos2(rect.min.x + 12.0, rect.min.y + 5.0),
-                                    Align2::LEFT_TOP,
-                                    &hit.title,
-                                    semibold(12.5),
-                                    TEXT,
-                                    rect.width() - 20.0,
-                                );
-                                widgets::paint_text(
-                                    ui,
-                                    pos2(rect.min.x + 12.0, rect.min.y + 23.0),
-                                    Align2::LEFT_TOP,
-                                    &hit.subtitle,
-                                    regular(11.5),
-                                    MUTED,
-                                    rect.width() - 20.0,
-                                );
-                                if r.clicked() {
-                                    opened = Some(hit.clone());
-                                }
-                            }
-                        });
-                    });
-            });
-        if let Some(hit) = opened {
-            self.open_hit(&hit);
-        } else if ui.input(|i| i.pointer.any_click()) && !area.response.hovered() && !self.global.anchor_hovered(ui) {
-            self.global.open = false;
+            self.apply(if take { Action::Take(p) } else { Action::Cue(p) });
         }
     }
 
@@ -2808,6 +2701,28 @@ impl App {
         );
         if r.on_hover_text("Le diaporama d'un dossier d'images (Ctrl+9)").clicked() {
             self.page = Page::Media;
+        }
+        let searching = self.page == Page::Search;
+        let (rect, r) = widgets::list_row(ui, searching, 38.0, Page::Search.label());
+        ui.add_space(2.0);
+        icons::paint(
+            ui.painter(),
+            egui::Rect::from_center_size(pos2(rect.min.x + 22.0, rect.center().y), vec2(17.0, 17.0)),
+            Icon::Search,
+            if searching { ACCENT } else { MUTED },
+        );
+        widgets::paint_text(
+            ui,
+            pos2(rect.min.x + 40.0, rect.center().y),
+            Align2::LEFT_CENTER,
+            Page::Search.label(),
+            medium(13.5),
+            if searching { TEXT } else { MUTED },
+            rect.width() - 50.0,
+        );
+        if r.on_hover_text("Chercher dans la Bible, les prédications, l'Exposé et les livres (Ctrl+K)").clicked() {
+            self.page = Page::Search;
+            self.global.focus = true;
         }
         ui.with_layout(Layout::bottom_up(Align::Min), |ui| {
             ui.add_space(6.0);
@@ -3022,16 +2937,6 @@ impl App {
                 }
             });
         self.help = open;
-    }
-}
-
-impl GlobalSearch {
-    fn anchor(&mut self, rect: egui::Rect) {
-        self.anchor_rect = Some(rect);
-    }
-
-    fn anchor_hovered(&self, ui: &Ui) -> bool {
-        self.anchor_rect.is_some_and(|r| ui.rect_contains_pointer(r))
     }
 }
 

@@ -32,6 +32,8 @@ pub enum Page {
     Settings,
     /// Les médias : le diaporama.
     Media,
+    /// La recherche globale (Ctrl+K), comme l'onglet Recherche de MEDITATION.
+    Search,
 }
 
 impl Page {
@@ -48,6 +50,7 @@ impl Page {
             Page::Designs => "Designs",
             Page::Settings => "Réglages",
             Page::Media => "Médias",
+            Page::Search => "Recherche",
         }
     }
 
@@ -62,6 +65,7 @@ impl Page {
             Page::Designs => Icon::SwatchBook,
             Page::Settings => Icon::Settings,
             Page::Media => Icon::Image,
+            Page::Search => Icon::Search,
         }
     }
 }

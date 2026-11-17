@@ -1,16 +1,14 @@
-//! Bible : la traduction, les livres, la grille des chapitres, les versets ; la recherche accepte
-//! une référence (« Jean 3:16 », « Ps 23 ») ou des mots (dans toute la traduction).
+//! Bible : la traduction, les livres, la grille des chapitres, les versets. Le champ filtre les
+//! livres par leur nom (« jea » : Jean, 1 Jean…) et ouvre une référence (« Jean 3:16 », « Ps 23 »)
+//! sur Entrée ; les mots du texte se cherchent dans la recherche globale (Ctrl+K).
 
 use egui::{Align, Layout, RichText, ScrollArea, Ui, vec2};
 use po_db::{Database, Translation, TranslationBook};
 use po_design::SlideSource;
 use po_program::{Cue, Entry, bible_entries, bible_title};
-use po_text::parse_reference;
+use po_text::{fold, parse_reference};
 
-use super::{
-    Action, ENTRY_ROW, ITEM_ROW, Marks, Origin, Prepared, choice_action, entry_menu, entry_row, item_row, scroll_offset,
-};
-use crate::search::{Hit, Request, SearchThread, Target};
+use super::{Action, ENTRY_ROW, Marks, Origin, Prepared, choice_action, entry_menu, entry_row, scroll_offset};
 use crate::theme::*;
 use crate::widgets;
 
@@ -24,9 +22,6 @@ pub struct BibleView {
     chapter: Option<i64>,
     entries: Vec<Entry>,
     pub query: String,
-    asked: String,
-    hits: Vec<Hit>,
-    searching: bool,
     pub focus_search: bool,
     scroll_book: Option<usize>,
     scroll_verse: Option<usize>,
@@ -141,24 +136,32 @@ impl BibleView {
         self.prepare(index)
     }
 
-    pub fn receive(&mut self, query: String, hits: Vec<Hit>) {
-        if query == self.asked {
-            self.hits = hits;
-            self.searching = false;
-        }
+    /// Les livres dont le nom correspond au champ (tous s'il est vide).
+    fn shown_books(&self) -> Vec<usize> {
+        let filter = book_filter(&self.query);
+        (0..self.books.len()).filter(|i| filter.is_empty() || name_matches(&self.books[*i].name, &filter)).collect()
     }
 
-    /// Entrée dans le champ de recherche : une référence ouvre son chapitre et le prépare.
+    /// Entrée dans le champ : une référence ouvre son chapitre et le prépare ; sinon le premier
+    /// livre trouvé s'ouvre.
     fn submit(&mut self, db: &Database) -> Option<Prepared> {
         let t = self.translation?;
         let books: Vec<po_text::Book> =
             self.books.iter().map(|b| po_text::Book { id: b.id, name: b.name.clone() }).collect();
-        let r = parse_reference(&self.query, &books)?;
+        if let Some(r) = parse_reference(&self.query, &books) {
+            self.query.clear();
+            return self.open(db, t, r.book_id, i64::from(r.chapter), r.verse.map(i64::from));
+        }
+        let first = self.shown_books().first().map(|i| self.books[*i].id)?;
         self.query.clear();
-        self.open(db, t, r.book_id, i64::from(r.chapter), r.verse.map(i64::from))
+        self.set_book(db, first);
+        if let Some(i) = self.books.iter().position(|b| b.id == first) {
+            self.scroll_book = Some(i);
+        }
+        None
     }
 
-    pub fn ui(&mut self, ui: &mut Ui, db: &Database, marks: &Marks, search: Option<&SearchThread>) -> Option<Action> {
+    pub fn ui(&mut self, ui: &mut Ui, db: &Database, marks: &Marks) -> Option<Action> {
         self.ensure_loaded(db);
         let mut action = None;
         let books_w = 200.0;
@@ -177,14 +180,32 @@ impl BibleView {
                     self.manage = true;
                 }
                 ui.add_space(4.0);
+                let r = widgets::search_field(ui, &mut self.query, "Livre ou Référence (Jean 3:16)…", books_w);
+                if std::mem::take(&mut self.focus_search) {
+                    r.request_focus();
+                }
+                if r.lost_focus()
+                    && ui.input(|i| i.key_pressed(egui::Key::Enter))
+                    && let Some(p) = self.submit(db)
+                {
+                    action = Some(Action::Cue(p));
+                }
+                ui.add_space(6.0);
+                let shown = self.shown_books();
+                if shown.is_empty() {
+                    ui.label(RichText::new("Aucun livre de ce nom").font(regular(11.5)).color(FAINT));
+                }
+                let filtered = shown.len() != self.books.len();
                 let mut chosen = None;
                 let mut area = ScrollArea::vertical().id_salt("livres-bible").auto_shrink([false, false]);
-                if let Some(row) = self.scroll_book.take() {
+                if let Some(row) = self.scroll_book.take()
+                    && !filtered
+                {
                     area = area.vertical_scroll_offset(scroll_offset(ui, row, 34.0));
                 }
-                area.show_rows(ui, 34.0, self.books.len(), |ui, range| {
+                area.show_rows(ui, 34.0, shown.len(), |ui, range| {
                     for i in range {
-                        let b = &self.books[i];
+                        let b = &self.books[shown[i]];
                         let (rect, r) = widgets::list_row(ui, Some(b.id) == self.book, 32.0, &b.name);
                         ui.add_space(2.0);
                         widgets::paint_text(
@@ -207,7 +228,9 @@ impl BibleView {
             });
             ui.add_space(10.0);
             ui.allocate_ui_with_layout(ui.available_size(), Layout::top_down(Align::Min), |ui| {
-                action = self.chapter_column(ui, db, marks, search);
+                if let Some(a) = self.chapter_column(ui, db, marks) {
+                    action = Some(a);
+                }
             });
         });
         action
@@ -237,13 +260,7 @@ impl BibleView {
         }
     }
 
-    fn chapter_column(
-        &mut self,
-        ui: &mut Ui,
-        db: &Database,
-        marks: &Marks,
-        search: Option<&SearchThread>,
-    ) -> Option<Action> {
+    fn chapter_column(&mut self, ui: &mut Ui, db: &Database, marks: &Marks) -> Option<Action> {
         // La grille des chapitres.
         let mut chosen = None;
         ScrollArea::vertical().id_salt("chapitres").max_height(112.0).show(ui, |ui| {
@@ -265,55 +282,6 @@ impl BibleView {
         }
         ui.add_space(8.0);
         let mut action = None;
-        let r = widgets::search_field(ui, &mut self.query, "Référence (Jean 3:16) ou mots…", ui.available_width());
-        if std::mem::take(&mut self.focus_search) {
-            r.request_focus();
-        }
-        if r.lost_focus()
-            && ui.input(|i| i.key_pressed(egui::Key::Enter))
-            && let Some(p) = self.submit(db)
-        {
-            action = Some(Action::Cue(p));
-        }
-        ui.add_space(8.0);
-        // Des mots (pas une référence) : la recherche dans la traduction.
-        let q = self.query.trim().to_string();
-        let words = q.chars().count() >= crate::search::MIN_TEXT_QUERY && !po_text::looks_like_reference(&q);
-        if q != self.asked {
-            self.asked = q.clone();
-            self.hits.clear();
-            self.searching = false;
-            if words && let (Some(search), Some(t)) = (search, self.translation) {
-                search.ask(Request::Verses { query: q, translation: t });
-                self.searching = true;
-            }
-        }
-        if words {
-            let status =
-                if self.searching { "Recherche…".to_string() } else { format!("{} versets", self.hits.len()) };
-            ui.label(RichText::new(status).font(regular(11.5)).color(FAINT));
-            let mut opened = None;
-            ScrollArea::vertical().id_salt("resultats-bible").auto_shrink([false, false]).show_rows(
-                ui,
-                ITEM_ROW,
-                self.hits.len(),
-                |ui, range| {
-                    for i in range {
-                        let h = &self.hits[i];
-                        let r = item_row(ui, false, &h.title, &h.subtitle, None);
-                        if r.clicked() || r.double_clicked() {
-                            opened = Some((h.target.clone(), r.double_clicked()));
-                        }
-                    }
-                },
-            );
-            if let Some((Target::Verse { translation, book, chapter, verse }, take)) = opened {
-                self.query.clear();
-                let p = self.open(db, translation, book, chapter, verse)?;
-                return Some(if take { Action::Take(p) } else { Action::Cue(p) });
-            }
-            return action;
-        }
         let (Some(t), Some(book), Some(chapter)) = (self.translation, self.book, self.chapter) else {
             super::empty(ui, "Aucune Bible installée.");
             return action;
@@ -357,5 +325,43 @@ impl BibleView {
             action = Some(a);
         }
         action
+    }
+}
+
+/// La partie « livre » de ce qui est tapé, pliée : sans le chapitre ni le verset (« jean 3:16 »
+/// → « jean », « 1 jn 2 » → « 1 jn »).
+fn book_filter(query: &str) -> String {
+    let mut words: Vec<&str> = query.split_whitespace().collect();
+    while words.len() > 1 && words.last().is_some_and(|w| w.starts_with(|c: char| c.is_ascii_digit())) {
+        words.pop();
+    }
+    fold(&words.join(" "))
+}
+
+/// Le nom du livre contient-il le filtre (sans accents, majuscules ni espaces) ?
+fn name_matches(name: &str, filter: &str) -> bool {
+    let name = fold(name);
+    let compact = |s: &str| s.chars().filter(|c| !c.is_whitespace()).collect::<String>();
+    name.contains(filter) || compact(&name).contains(&compact(filter))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_filter_keeps_the_book_part_only() {
+        assert_eq!(book_filter("Jean 3:16"), "jean");
+        assert_eq!(book_filter("1 Jean 2"), "1 jean");
+        assert_eq!(book_filter("  Ésaïe "), "esaie");
+        assert_eq!(book_filter("1"), "1");
+    }
+
+    #[test]
+    fn names_match_without_accents_or_spaces() {
+        assert!(name_matches("Ésaïe", "esa"));
+        assert!(name_matches("1 Jean", "jean"));
+        assert!(name_matches("1 Jean", "1jean"));
+        assert!(!name_matches("Genèse", "jean"));
     }
 }

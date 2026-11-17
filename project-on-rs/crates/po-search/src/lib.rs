@@ -15,6 +15,8 @@ use std::sync::mpsc::{Receiver, Sender, channel};
 use po_db::{BookHit, Database, Hymn, HymnHit, Mode, ParagraphHit, ParagraphSearch, SermonFilter};
 use po_text::{fold, looks_like_reference, parse_reference};
 
+pub mod words;
+
 /// Moins de caractères : pas de recherche (titres, références).
 pub const MIN_QUERY: usize = 2;
 /// Moins de caractères : pas de recherche plein texte (versets, paragraphes).

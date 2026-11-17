@@ -160,7 +160,7 @@ fn global_search_with_accents_like_a_french_keyboard() {
     until(&mut h, |a| !a.global_results_now().1 && !a.global_results_now().0.is_empty());
     let app = h.state_mut().app();
     let (hits, _) = app.global_results_now();
-    assert!(hits.iter().any(|hit| hit.kind == project_on::search::Kind::Bible), "des versets");
+    assert!(hits.iter().any(|hit| hit.source == project_on::global_search::Source::Bible), "des versets");
     // « Jean 3:16 » : la référence d'abord.
     app.search_everywhere("Jean 3:16");
     h.step();
