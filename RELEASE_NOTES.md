@@ -1,23 +1,19 @@
-# Project-On 3.0.2
+# Project-On 3.0.3
 
-**Des sous-titres plus beaux, et l'habillage réglé dans les Réglages** — la mise à jour garde votre base, vos playlists et vos réglages.
+**Une vraie page Recherche, et une Bible plus rapide à parcourir** — la mise à jour garde votre base, vos playlists et vos réglages.
 
 ## Nouveau
 
-- **Réglages → Habillage** : pour les **sous-titres**, la **diffusion** (écran Web « diffusion », source NDI, sorties HDMI) et le **lower third**, cochez « Personnaliser » puis réglez la police, la graisse, la taille, les capitales, la couleur du texte, la taille et la couleur de la référence (ou du second champ), la couleur de la boîte ou de la bande, l'alignement (à gauche, centré, à droite) et la position (en haut, au centre, en bas). Un aperçu montre chaque habillage avant d'enregistrer. On part toujours du design choisi dans la page Designs : rien ne change tant qu'on ne touche pas une valeur.
-- **Nouveau style de sous-titres « Bande pleine largeur »** : une bande sur toute la largeur de l'image, soulignée d'un filet doré.
+- **La page Recherche** (Ctrl+K, le champ « Rechercher partout » en haut, ou « Recherche » dans la colonne de gauche) remplace la petite liste qui s'ouvrait sous le champ. On tape des mots, une « expression » entre guillemets ou une référence (Jean 3:16), et la recherche parcourt la **Bible**, les **Prédications** et l'**Exposé et les livres**. Des pastilles permettent de cocher ou décocher chaque source. Les résultats sont groupés par source, avec les mots trouvés **surlignés en or**, et il y en a beaucoup plus qu'avant (jusqu'à 10 000 par source au lieu de 5). Un clic ouvre le passage dans sa page et le met dans l'Aperçu ; un double-clic l'envoie au direct. Les résultats restent dans la page Recherche quand on y revient.
 
 ## Amélioré
 
-- **Le design des sous-titres** : boîte bleu nuit aux coins arrondis, marges qui suivent la taille du texte, référence dorée et petit filet doré entre le texte et la référence.
-- **Les sous-titres s'alignent** à gauche, au centre ou à droite (avant : toujours centrés), la référence avec eux.
-- Les designs de sous-titres de « Mes designs » se lisent toujours, avec leur apparence ; leur éditeur gagne l'alignement, la couleur de la référence et le filet.
+- **Onglet Bible** : le champ est maintenant au-dessus de la liste des livres et cherche **le nom du livre** : « esa » montre Ésaïe, « jean » montre Jean, 1 Jean, 2 Jean, 3 Jean (sans tenir compte des accents ni des majuscules). Une référence comme « Jean 3:16 » suivie d'Entrée ouvre toujours le verset. Pour chercher des mots dans le texte de la Bible, utilisez la page Recherche.
 
 ## À savoir
 
-- La position réglée pour la diffusion vaut pour un bandeau en sous-titre ; en lower third, en panneau ou en carte, sa place reste celle du design.
 - Toujours pas dans la 3.0 : le fond vidéo et l'effet Ken Burns. Les vidéos de la playlist demandent FFmpeg installé sur l'ordinateur.
 
 Windows peut afficher un avertissement SmartScreen : « Informations complémentaires », puis « Exécuter quand même ».
 
-SHA-256 : 299250179a95083d7394b3d01ae24b9ccb6740cb2d07758f2baed82fbff46d76
+SHA-256 : 255ba49f153ce5c268af52d6db0b46759fd631e7bf7f7a26a4daefcfe8b06036
