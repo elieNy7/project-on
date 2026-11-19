@@ -229,11 +229,19 @@ pub struct SettingsView {
     backgrounds: Option<Vec<String>>,
 }
 
-/// La largeur du menu des rubriques.
-const NAV_WIDTH: f32 = 172.0;
+/// La largeur du menu des rubriques (avec les libellés, puis les icônes seules).
+const NAV_WIDTH: f32 = 156.0;
+const NAV_ICONS: f32 = 40.0;
 
 fn row(ui: &mut Ui, label: &str, add: impl FnOnce(&mut Ui)) {
-    let width = (ui.available_width() * 0.36).clamp(150.0, 230.0);
+    // Une page étroite (fenêtre en moitié d'écran) : le libellé au-dessus de son contrôle.
+    if ui.available_width() < 400.0 {
+        ui.add(egui::Label::new(RichText::new(label).font(regular(12.0)).color(MUTED)).wrap());
+        ui.horizontal_wrapped(add);
+        ui.add_space(6.0);
+        return;
+    }
+    let width = (ui.available_width() * 0.36).clamp(130.0, 220.0);
     ui.horizontal(|ui| {
         // Le libellé, aligné à gauche dans sa colonne.
         ui.allocate_ui_with_layout(
@@ -241,50 +249,54 @@ fn row(ui: &mut Ui, label: &str, add: impl FnOnce(&mut Ui)) {
             egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(true),
             |ui| {
                 ui.set_min_width(width);
-                ui.add(egui::Label::new(RichText::new(label).font(regular(12.5)).color(MUTED)).wrap());
+                ui.add(egui::Label::new(RichText::new(label).font(regular(12.0)).color(MUTED)).wrap());
             },
         );
         add(ui);
     });
-    ui.add_space(4.0);
+    ui.add_space(3.0);
 }
 
 /// Un groupe de réglages : une carte avec son titre et une phrase d'explication.
 fn group(ui: &mut Ui, title: &str, note: &str, add: impl FnOnce(&mut Ui)) {
     widgets::card(ui, |ui| {
         ui.set_width(ui.available_width());
-        ui.label(RichText::new(title).font(semibold(14.5)).color(TEXT));
+        ui.label(RichText::new(title).font(semibold(14.0)).color(TEXT));
         if !note.is_empty() {
             ui.label(RichText::new(note).font(regular(11.5)).color(FAINT));
         }
-        ui.add_space(10.0);
+        ui.add_space(8.0);
         add(ui);
     });
-    ui.add_space(14.0);
+    ui.add_space(10.0);
 }
 
-/// Le menu des rubriques.
-fn nav(ui: &mut Ui, tab: &mut Tab) {
+/// Le menu des rubriques ; `labels` faux : les icônes seules (page étroite), le nom en infobulle.
+fn nav(ui: &mut Ui, tab: &mut Tab, labels: bool) {
     for t in Tab::ALL {
         let selected = *tab == t;
-        let (rect, r) = widgets::list_row(ui, selected, 40.0, &format!("Réglages · {}", t.label()));
-        ui.add_space(3.0);
+        let (rect, r) = widgets::list_row(ui, selected, 32.0, &format!("Réglages · {}", t.label()));
+        ui.add_space(2.0);
+        let center = if labels { pos2(rect.min.x + 18.0, rect.center().y) } else { rect.center() };
         crate::icons::paint(
             ui.painter(),
-            Rect::from_center_size(pos2(rect.min.x + 20.0, rect.center().y), vec2(16.0, 16.0)),
+            Rect::from_center_size(center, vec2(15.0, 15.0)),
             t.icon(),
             if selected { ACCENT } else { MUTED },
         );
-        widgets::paint_text(
-            ui,
-            pos2(rect.min.x + 38.0, rect.center().y),
-            Align2::LEFT_CENTER,
-            t.label(),
-            medium(13.0),
-            if selected { TEXT } else { MUTED },
-            rect.width() - 46.0,
-        );
-        if r.on_hover_text(t.hint()).clicked() {
+        if labels {
+            widgets::paint_text(
+                ui,
+                pos2(rect.min.x + 34.0, rect.center().y),
+                Align2::LEFT_CENTER,
+                t.label(),
+                medium(12.5),
+                if selected { TEXT } else { MUTED },
+                rect.width() - 42.0,
+            );
+        }
+        let tip = if labels { t.hint().to_string() } else { format!("{} — {}", t.label(), t.hint()) };
+        if r.on_hover_text(tip).clicked() {
             *tab = t;
         }
     }
@@ -682,23 +694,24 @@ impl SettingsView {
         let changed = draft != current;
 
         // L'en-tête : le titre, et l'enregistrement toujours à portée de main.
+        let narrow = ui.available_width() < 640.0;
         ui.horizontal(|ui| {
             ui.vertical(|ui| {
-                ui.label(RichText::new("Réglages").font(bold(22.0)).color(TEXT));
+                ui.label(RichText::new("Réglages").font(bold(19.0)).color(TEXT));
                 ui.label(
                     RichText::new(if cfg!(feature = "bascule") {
                         "Ces réglages sont ceux de Project-On (les mêmes fichiers que la 2.x)."
                     } else {
                         "Ces réglages sont ceux de la bêta : la 2.8 garde les siens."
                     })
-                    .font(regular(12.0))
+                    .font(regular(11.5))
                     .color(FAINT),
                 );
             });
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if widgets::button_at(
                     ui,
-                    widgets::Size::Large,
+                    widgets::Size::Normal,
                     Some(Icon::Check),
                     "Enregistrer",
                     Tone::Primary(ACCENT),
@@ -711,9 +724,9 @@ impl SettingsView {
                 if changed {
                     if widgets::button_at(
                         ui,
-                        widgets::Size::Large,
+                        widgets::Size::Normal,
                         None,
-                        "Annuler les changements",
+                        if narrow { "Annuler" } else { "Annuler les changements" },
                         Tone::Secondary,
                         true,
                     )
@@ -721,22 +734,26 @@ impl SettingsView {
                     {
                         *draft = current.clone();
                     }
-                    widgets::status_pill(ui, "Non enregistré", WARN);
+                    if !narrow {
+                        widgets::status_pill(ui, "Non enregistré", WARN);
+                    }
                 }
             });
         });
-        ui.add_space(14.0);
+        ui.add_space(10.0);
 
         let height = ui.available_height();
+        let nav_w = if narrow { NAV_ICONS } else { NAV_WIDTH };
         ui.horizontal_top(|ui| {
-            ui.allocate_ui_with_layout(vec2(NAV_WIDTH, height), egui::Layout::top_down(egui::Align::Min), |ui| {
-                ui.set_width(NAV_WIDTH);
-                nav(ui, &mut self.tab);
+            ui.allocate_ui_with_layout(vec2(nav_w, height), egui::Layout::top_down(egui::Align::Min), |ui| {
+                ui.set_width(nav_w);
+                nav(ui, &mut self.tab, !narrow);
             });
-            ui.add_space(14.0);
+            ui.add_space(if narrow { 8.0 } else { 12.0 });
             let width = ui.available_width();
             ui.allocate_ui_with_layout(vec2(width, height), egui::Layout::top_down(egui::Align::Min), |ui| {
-                egui::ScrollArea::vertical().id_salt(("reglages", self.tab)).auto_shrink([false, false]).show(
+                // Les deux sens : un contrôle trop large pour une page étroite reste atteignable.
+                egui::ScrollArea::both().id_salt(("reglages", self.tab)).auto_shrink([false, false]).show(
                     ui,
                     |ui| {
                         ui.set_width(ui.available_width() - 12.0);

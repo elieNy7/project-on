@@ -347,9 +347,12 @@ impl DesignsView {
         output: &Output,
     ) -> Vec<DesignAction> {
         let mut actions = Vec::new();
-        egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-            ui.add_space(12.0);
-            ui.label(RichText::new("Designs").font(bold(20.0)).color(TEXT));
+        // Les deux sens : une page étroite (fenêtre en moitié d'écran) garde tout atteignable.
+        egui::ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
+            // La largeur de la page, avant que des lignes trop longues ne l'élargissent.
+            let page_w = ui.available_width();
+            ui.add_space(6.0);
+            ui.label(RichText::new("Designs").font(bold(19.0)).color(TEXT));
             ui.add_space(4.0);
             live_card(ui, lower_third, subtitles, ndi, hdmi_count, output, self.tuned, &mut actions);
             ui.add_space(10.0);
@@ -363,7 +366,7 @@ impl DesignsView {
                 self.details(ui, &design, output, &mut actions);
                 ui.add_space(10.0);
             }
-            self.grid(ui, &designs, lower_third, subtitles, output, &mut actions);
+            self.grid(ui, page_w, &designs, lower_third, subtitles, output, &mut actions);
         });
         actions
     }
@@ -381,9 +384,11 @@ impl DesignsView {
         ui.add_space(8.0);
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn grid(
         &mut self,
         ui: &mut Ui,
+        page_w: f32,
         designs: &[Design],
         lower_third: &LowerThird,
         subtitles: &Subtitles,
@@ -398,8 +403,11 @@ impl DesignsView {
             );
             return;
         }
-        let card_w = 232.0;
-        let columns = ((ui.available_width() + 12.0) / (card_w + 12.0)).floor().max(1.0) as usize;
+        // Des cartes de 190 à 240 points, autant de colonnes que la page en tient.
+        let gap = ui.spacing().item_spacing.x;
+        let columns = ((page_w + gap) / (190.0 + gap)).floor().max(1.0);
+        let card_w = ((page_w - gap * (columns - 1.0)) / columns).clamp(150.0, 240.0);
+        let columns = columns as usize;
         for row in designs.chunks(columns) {
             ui.horizontal(|ui| {
                 for d in row {

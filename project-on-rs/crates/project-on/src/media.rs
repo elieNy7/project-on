@@ -194,14 +194,15 @@ impl MediaView {
     pub fn ui(&mut self, ui: &mut Ui, running: Option<(usize, usize)>) -> Vec<MediaAction> {
         let mut actions = Vec::new();
         self.rescan();
-        ui.add_space(12.0);
-        ui.label(RichText::new("Médias").font(bold(20.0)).color(TEXT));
+        ui.add_space(6.0);
+        ui.label(RichText::new("Médias").font(bold(19.0)).color(TEXT));
         ui.add_space(4.0);
         widgets::card(ui, |ui| {
             ui.set_width(ui.available_width());
             ui.label(RichText::new("ÉCRANS DE L'ÉGLISE").font(semibold(10.5)).color(FAINT));
             ui.add_space(4.0);
-            ui.horizontal(|ui| {
+            // Les boutons passent à la ligne dans une page étroite.
+            ui.horizontal_wrapped(|ui| {
                 for (screen, label) in [
                     (ChurchScreen::Welcome, "Accueil  Ctrl+Maj+W"),
                     (ChurchScreen::Speaker, "Orateur du jour  Ctrl+Maj+P"),
@@ -229,7 +230,7 @@ impl MediaView {
                 let r = ui.add(
                     egui::TextEdit::singleline(&mut self.folder)
                         .hint_text("C:\\Users\\…\\Images\\Annonces")
-                        .desired_width(420.0),
+                        .desired_width((ui.available_width() - 90.0).clamp(120.0, 420.0)),
                 );
                 ui.ctx().accesskit_node_builder(r.id, |n| n.set_label("Dossier d'images"));
                 if widgets::button(ui, None, "Choisir…", Tone::Secondary).clicked()
@@ -245,13 +246,13 @@ impl MediaView {
                 (false, n) => format!("{n} média(s)"),
             };
             ui.label(RichText::new(detail).font(regular(12.0)).color(MUTED));
-            ui.horizontal(|ui| {
+            ui.horizontal_wrapped(|ui| {
                 ui.label(RichText::new("Durée par image").font(regular(12.5)).color(MUTED));
                 ui.add(egui::DragValue::new(&mut self.seconds).range(0..=600).suffix(" s"));
                 ui.label(RichText::new("(0 : on avance à la main)").font(regular(11.5)).color(FAINT));
             });
             ui.add_space(6.0);
-            ui.horizontal(|ui| match running {
+            ui.horizontal_wrapped(|ui| match running {
                 Some((index, total)) => {
                     if widgets::button(ui, None, "Arrêter le diaporama", Tone::Primary(LIVE)).clicked() {
                         actions.push(MediaAction::Stop);

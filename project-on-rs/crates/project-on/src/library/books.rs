@@ -169,7 +169,7 @@ impl BooksView {
     pub fn ui(&mut self, ui: &mut Ui, db: &Database, marks: &Marks, search: Option<&SearchThread>) -> Option<Action> {
         self.ensure_loaded(db);
         let mut action = None;
-        let left = (ui.available_width() * 0.36).clamp(240.0, 340.0);
+        let left = super::left_column(ui.available_width(), 0.34, 220.0, 320.0);
         ui.horizontal_top(|ui| {
             ui.allocate_ui_with_layout(egui::vec2(left, ui.available_height()), Layout::top_down(Align::Min), |ui| {
                 ui.set_width(left);

@@ -116,7 +116,7 @@ fn main() {
     let mut viewport = egui::ViewportBuilder::default()
         .with_title(NAME)
         .with_inner_size([1600.0, 940.0])
-        .with_min_inner_size([1200.0, 700.0])
+        .with_min_inner_size([640.0, 480.0])
         .with_maximized(true);
     // Le logo de Project-On dans la barre de titre et la barre des tâches.
     if let Some(icon) = project_on::theme::window_icon() {

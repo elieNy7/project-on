@@ -138,8 +138,8 @@ impl Marks {
 }
 
 /// La hauteur d'une ligne d'élément (sermon, cantique, chapitre) et d'une ligne d'entrée.
-pub const ITEM_ROW: f32 = 46.0;
-pub const ENTRY_ROW: f32 = 58.0;
+pub const ITEM_ROW: f32 = 42.0;
+pub const ENTRY_ROW: f32 = 52.0;
 
 /// Une ligne d'élément : titre, sous-titre, pastille à droite.
 pub fn item_row(ui: &mut Ui, selected: bool, title: &str, subtitle: &str, chip: Option<&str>) -> Response {
@@ -158,16 +158,16 @@ pub fn item_row(ui: &mut Ui, selected: bool, title: &str, subtitle: &str, chip: 
     let width = rect.width() - 24.0 - chip_w;
     widgets::paint_text(
         ui,
-        pos2(rect.min.x + 12.0, rect.min.y + 7.0),
+        pos2(rect.min.x + 12.0, rect.min.y + 5.0),
         Align2::LEFT_TOP,
         title,
-        semibold(13.0),
+        semibold(12.5),
         if selected { TEXT } else { TEXT.gamma_multiply(0.92) },
         width,
     );
     widgets::paint_text(
         ui,
-        pos2(rect.min.x + 12.0, rect.min.y + 25.0),
+        pos2(rect.min.x + 12.0, rect.min.y + 22.0),
         Align2::LEFT_TOP,
         subtitle,
         regular(11.5),
@@ -192,10 +192,10 @@ pub fn entry_row(ui: &mut Ui, marker: &str, text: &str, preview: bool, live: boo
         widgets::Mark::None
     };
     widgets::paint_tile(ui, rect, &response, mark);
-    let marker_w = 54.0;
+    let marker_w = if width < 360.0 { 40.0 } else { 50.0 };
     widgets::paint_text(
         ui,
-        pos2(rect.min.x + 12.0, rect.min.y + 9.0),
+        pos2(rect.min.x + 12.0, rect.min.y + 7.0),
         Align2::LEFT_TOP,
         marker,
         semibold(11.5),
@@ -204,7 +204,7 @@ pub fn entry_row(ui: &mut Ui, marker: &str, text: &str, preview: bool, live: boo
     );
     widgets::paint_wrapped(
         ui,
-        pos2(rect.min.x + 12.0 + marker_w, rect.min.y + 8.0),
+        pos2(rect.min.x + 12.0 + marker_w, rect.min.y + 6.0),
         &text.replace('\n', " "),
         regular(12.5),
         TEXT.gamma_multiply(0.94),
@@ -212,6 +212,13 @@ pub fn entry_row(ui: &mut Ui, marker: &str, text: &str, preview: bool, live: boo
         2,
     );
     response
+}
+
+/// La largeur de la colonne de gauche d'une page en deux colonnes (liste | contenu) : `share` de
+/// la largeur entre `min` et `max`, mais moins quand la page est étroite (fenêtre en moitié
+/// d'écran), pour que le contenu garde sa place.
+pub fn left_column(width: f32, share: f32, min: f32, max: f32) -> f32 {
+    if width < min * 2.4 { (width * 0.40).max(120.0) } else { (width * share).clamp(min, max) }
 }
 
 /// Le menu contextuel d'une entrée : projeter, préparer, ajouter à la playlist (seule, en plage,

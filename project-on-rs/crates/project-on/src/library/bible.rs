@@ -164,7 +164,7 @@ impl BibleView {
     pub fn ui(&mut self, ui: &mut Ui, db: &Database, marks: &Marks) -> Option<Action> {
         self.ensure_loaded(db);
         let mut action = None;
-        let books_w = 200.0;
+        let books_w = super::left_column(ui.available_width(), 0.28, 170.0, 200.0);
         ui.horizontal_top(|ui| {
             ui.allocate_ui_with_layout(vec2(books_w, ui.available_height()), Layout::top_down(Align::Min), |ui| {
                 ui.set_width(books_w);
@@ -180,7 +180,9 @@ impl BibleView {
                     self.manage = true;
                 }
                 ui.add_space(4.0);
-                let r = widgets::search_field(ui, &mut self.query, "Livre ou Référence (Jean 3:16)…", books_w);
+                let hint =
+                    if books_w < 190.0 { "Livre ou Jean 3:16…" } else { "Livre ou Référence (Jean 3:16)…" };
+                let r = widgets::search_field(ui, &mut self.query, hint, books_w);
                 if std::mem::take(&mut self.focus_search) {
                     r.request_focus();
                 }
@@ -201,19 +203,19 @@ impl BibleView {
                 if let Some(row) = self.scroll_book.take()
                     && !filtered
                 {
-                    area = area.vertical_scroll_offset(scroll_offset(ui, row, 34.0));
+                    area = area.vertical_scroll_offset(scroll_offset(ui, row, 32.0));
                 }
-                area.show_rows(ui, 34.0, shown.len(), |ui, range| {
+                area.show_rows(ui, 32.0, shown.len(), |ui, range| {
                     for i in range {
                         let b = &self.books[shown[i]];
-                        let (rect, r) = widgets::list_row(ui, Some(b.id) == self.book, 32.0, &b.name);
+                        let (rect, r) = widgets::list_row(ui, Some(b.id) == self.book, 30.0, &b.name);
                         ui.add_space(2.0);
                         widgets::paint_text(
                             ui,
                             egui::pos2(rect.min.x + 12.0, rect.center().y),
                             egui::Align2::LEFT_CENTER,
                             &b.name,
-                            medium(13.0),
+                            medium(12.5),
                             TEXT,
                             rect.width() - 20.0,
                         );
@@ -226,7 +228,7 @@ impl BibleView {
                     self.set_book(db, b);
                 }
             });
-            ui.add_space(10.0);
+            ui.add_space(8.0);
             ui.allocate_ui_with_layout(ui.available_size(), Layout::top_down(Align::Min), |ui| {
                 if let Some(a) = self.chapter_column(ui, db, marks) {
                     action = Some(a);
@@ -263,14 +265,13 @@ impl BibleView {
     fn chapter_column(&mut self, ui: &mut Ui, db: &Database, marks: &Marks) -> Option<Action> {
         // La grille des chapitres.
         let mut chosen = None;
-        ScrollArea::vertical().id_salt("chapitres").max_height(112.0).show(ui, |ui| {
+        ScrollArea::vertical().id_salt("chapitres").max_height(84.0).show(ui, |ui| {
             ui.horizontal_wrapped(|ui| {
                 ui.spacing_mut().item_spacing = vec2(4.0, 4.0);
                 for c in &self.chapters {
                     let selected = Some(*c) == self.chapter;
                     let tone = if selected { widgets::Tone::Primary(ACCENT) } else { widgets::Tone::Secondary };
-                    if widgets::button_sized(ui, 38.0, widgets::Size::Normal, None, &c.to_string(), tone, true)
-                        .clicked()
+                    if widgets::button_sized(ui, 32.0, widgets::Size::Small, None, &c.to_string(), tone, true).clicked()
                     {
                         chosen = Some(*c);
                     }
@@ -280,7 +281,7 @@ impl BibleView {
         if let Some(c) = chosen {
             self.set_chapter(db, c);
         }
-        ui.add_space(8.0);
+        ui.add_space(6.0);
         let mut action = None;
         let (Some(t), Some(book), Some(chapter)) = (self.translation, self.book, self.chapter) else {
             super::empty(ui, "Aucune Bible installée.");

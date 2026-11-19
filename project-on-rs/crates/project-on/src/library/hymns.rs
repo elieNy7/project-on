@@ -149,7 +149,7 @@ impl HymnsView {
         self.editor_window(ui);
         self.delete_window(ui);
         let mut action = None;
-        let left = (ui.available_width() * 0.40).clamp(240.0, 360.0);
+        let left = super::left_column(ui.available_width(), 0.38, 220.0, 340.0);
         ui.horizontal_top(|ui| {
             ui.allocate_ui_with_layout(egui::vec2(left, ui.available_height()), Layout::top_down(Align::Min), |ui| {
                 ui.set_width(left);
@@ -169,9 +169,15 @@ impl HymnsView {
 
     fn list_column(&mut self, ui: &mut Ui, db: &Database, search: Option<&SearchThread>) {
         let hint = if self.in_lyrics { "Mots des paroles…" } else { "Numéro ou titre…" };
-        let r = widgets::search_field(ui, &mut self.query, hint, ui.available_width() - 96.0);
-        ui.horizontal(|ui| {
-            if widgets::button(ui, Some(crate::icons::Icon::Plus), "Nouveau cantique", Tone::Secondary).clicked() {
+        let r = widgets::search_field(ui, &mut self.query, hint, ui.available_width());
+        ui.add_space(4.0);
+        let narrow = ui.available_width() < 280.0;
+        ui.horizontal_wrapped(|ui| {
+            let new = if narrow { "Nouveau" } else { "Nouveau cantique" };
+            if widgets::button(ui, Some(crate::icons::Icon::Plus), new, Tone::Secondary)
+                .on_hover_text("Créer un cantique")
+                .clicked()
+            {
                 self.edit(db, None);
             }
             if widgets::button(ui, None, "Importer un PDF…", Tone::Secondary)

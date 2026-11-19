@@ -158,7 +158,7 @@ impl SermonsView {
         self.refresh(db);
         let mut action = None;
         let width = ui.available_width();
-        let left = (width * 0.40).clamp(260.0, 380.0);
+        let left = super::left_column(width, 0.38, 230.0, 360.0);
         ui.horizontal_top(|ui| {
             ui.allocate_ui_with_layout(egui::vec2(left, ui.available_height()), Layout::top_down(Align::Min), |ui| {
                 ui.set_width(left);
@@ -168,7 +168,7 @@ impl SermonsView {
                     self.list_column(ui, db);
                 }
             });
-            ui.add_space(10.0);
+            ui.add_space(8.0);
             ui.allocate_ui_with_layout(ui.available_size(), Layout::top_down(Align::Min), |ui| {
                 if let Some(a) = self.paragraph_column(ui, marks) {
                     action = Some(a);
@@ -179,8 +179,11 @@ impl SermonsView {
     }
 
     fn list_column(&mut self, ui: &mut Ui, db: &Database) {
-        ui.horizontal(|ui| {
-            let r = widgets::search_field(ui, &mut self.query, "Rechercher un sermon…", ui.available_width() - 108.0);
+        // Une colonne étroite : le bouton « Paragraphes » passe sous le champ.
+        let stacked = ui.available_width() < 250.0;
+        let header = |ui: &mut Ui| {
+            let room = if stacked { ui.available_width() } else { ui.available_width() - 100.0 };
+            let r = widgets::search_field(ui, &mut self.query, "Rechercher un sermon…", room.max(60.0));
             if std::mem::take(&mut self.focus_search) {
                 r.request_focus();
             }
@@ -191,7 +194,12 @@ impl SermonsView {
                 self.search_mode = true;
                 self.focus_search = true;
             }
-        });
+        };
+        if stacked {
+            ui.vertical(header);
+        } else {
+            ui.horizontal(header);
+        }
         ui.add_space(6.0);
         let mut t = self.translator();
         if widgets::segmented(
@@ -238,7 +246,7 @@ impl SermonsView {
                 ui,
                 &mut self.paragraph_query,
                 "Mots d'un paragraphe…",
-                ui.available_width() - 80.0,
+                (ui.available_width() - 80.0).max(60.0),
             );
             if std::mem::take(&mut self.focus_search) {
                 r.request_focus();
@@ -298,7 +306,7 @@ impl SermonsView {
         };
         ui.horizontal(|ui| {
             ui.vertical(|ui| {
-                ui.label(RichText::new(&sermon.title).font(semibold(16.0)).color(TEXT));
+                ui.label(RichText::new(&sermon.title).font(semibold(15.0)).color(TEXT));
                 let date = sermon.date.as_deref().unwrap_or("");
                 let info = [date, sermon.location.as_str(), sermon.tradition.as_str()]
                     .into_iter()
@@ -308,7 +316,8 @@ impl SermonsView {
                 ui.label(RichText::new(info).font(regular(12.0)).color(MUTED));
             });
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                widgets::search_field(ui, &mut self.filter, "Filtrer (§12 ou mot)…", 200.0);
+                let w = (ui.available_width() * 0.45).clamp(90.0, 200.0);
+                widgets::search_field(ui, &mut self.filter, "Filtrer (§12 ou mot)…", w);
             });
         });
         ui.add_space(8.0);

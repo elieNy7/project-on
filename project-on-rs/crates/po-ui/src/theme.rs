@@ -80,6 +80,20 @@ pub const LIVE: Color32 = PGM;
 /// La hauteur des contrôles ordinaires (le bouton « Normal » de Pgraphics).
 pub const CONTROL_HEIGHT: f32 = 26.0;
 
+static COMPACT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// L'interface compacte (Project-On) : boutons, textes et espacements plus petits, pour tenir dans
+/// une moitié d'écran à côté d'un autre logiciel. À choisir avant [`install`] ; MEDITATION garde
+/// l'échelle d'origine.
+pub fn set_compact(on: bool) {
+    COMPACT.store(on, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// Vrai si l'interface est compacte (voir [`set_compact`]).
+pub fn compact() -> bool {
+    COMPACT.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 pub fn regular(size: f32) -> FontId {
     FontId::new(size, FontFamily::Proportional)
 }
@@ -305,28 +319,30 @@ pub fn install(ctx: &egui::Context, fonts_dir: &std::path::Path) {
     ctx.set_theme(egui::Theme::Dark);
     ctx.all_styles_mut(|s| {
         s.visuals = v.clone();
+        let c = compact();
+        let pick = |normal: f32, small: f32| if c { small } else { normal };
         s.text_styles = [
-            (TextStyle::Small, regular(11.5)),
-            (TextStyle::Body, regular(13.5)),
-            (TextStyle::Button, medium(13.0)),
-            (TextStyle::Heading, semibold(17.0)),
-            (TextStyle::Monospace, FontId::monospace(12.5)),
+            (TextStyle::Small, regular(pick(11.5, 11.0))),
+            (TextStyle::Body, regular(pick(13.5, 12.75))),
+            (TextStyle::Button, medium(pick(13.0, 12.25))),
+            (TextStyle::Heading, semibold(pick(17.0, 15.5))),
+            (TextStyle::Monospace, FontId::monospace(pick(12.5, 12.0))),
         ]
         .into();
         let sp = &mut s.spacing;
-        sp.item_spacing = Vec2::new(8.0, 6.0);
+        sp.item_spacing = Vec2::new(pick(8.0, 6.0), pick(6.0, 4.0));
         // Les contrôles d'egui (listes, champs, valeurs) à la hauteur du bouton ordinaire (`widgets::Size`).
-        sp.button_padding = Vec2::new(10.0, 4.0);
-        sp.interact_size = Vec2::new(36.0, CONTROL_HEIGHT);
-        sp.slider_width = 150.0;
+        sp.button_padding = Vec2::new(pick(10.0, 8.0), pick(4.0, 3.0));
+        sp.interact_size = Vec2::new(pick(36.0, 32.0), pick(CONTROL_HEIGHT, CONTROL_HEIGHT - 2.0));
+        sp.slider_width = pick(150.0, 130.0);
         sp.slider_rail_height = 4.0;
-        sp.combo_width = 160.0;
-        sp.icon_width = 16.0;
-        sp.icon_width_inner = 9.0;
-        sp.icon_spacing = 6.0;
-        sp.menu_margin = Margin::same(6);
-        sp.window_margin = Margin::same(12);
-        sp.indent = 16.0;
+        sp.combo_width = pick(160.0, 140.0);
+        sp.icon_width = pick(16.0, 15.0);
+        sp.icon_width_inner = pick(9.0, 8.0);
+        sp.icon_spacing = pick(6.0, 5.0);
+        sp.menu_margin = Margin::same(if c { 5 } else { 6 });
+        sp.window_margin = Margin::same(if c { 10 } else { 12 });
+        sp.indent = pick(16.0, 14.0);
         sp.scroll.bar_width = 6.0;
         sp.scroll.floating = true;
         s.interaction.tooltip_delay = 0.35;

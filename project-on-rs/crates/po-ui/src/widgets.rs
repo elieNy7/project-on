@@ -28,49 +28,61 @@ pub enum Size {
 }
 
 impl Size {
-    pub const fn height(self) -> f32 {
-        match self {
-            Size::Small => 22.0,
-            Size::Normal => 26.0,
-            Size::Large => 32.0,
-            Size::Hero => 40.0,
+    /// La hauteur, plus basse quand l'interface est compacte ([`crate::theme::set_compact`]).
+    pub fn height(self) -> f32 {
+        match (self, compact()) {
+            (Size::Small, false) => 22.0,
+            (Size::Normal, false) => 26.0,
+            (Size::Large, false) => 32.0,
+            (Size::Hero, false) => 40.0,
+            (Size::Small, true) => 20.0,
+            (Size::Normal, true) => 24.0,
+            (Size::Large, true) => 28.0,
+            (Size::Hero, true) => 34.0,
         }
     }
 
     pub fn font(self) -> FontId {
-        match self {
-            Size::Small => medium(11.0),
-            Size::Normal => medium(12.5),
-            Size::Large => semibold(13.0),
-            Size::Hero => bold(14.5),
+        match (self, compact()) {
+            (Size::Small, false) => medium(11.0),
+            (Size::Normal, false) => medium(12.5),
+            (Size::Large, false) => semibold(13.0),
+            (Size::Hero, false) => bold(14.5),
+            (Size::Small, true) => medium(10.5),
+            (Size::Normal, true) => medium(12.0),
+            (Size::Large, true) => semibold(12.5),
+            (Size::Hero, true) => bold(13.5),
         }
     }
 
-    const fn glyph(self) -> f32 {
-        match self {
+    fn glyph(self) -> f32 {
+        let side = match self {
             Size::Small => 12.0,
             Size::Normal => 14.0,
             Size::Large => 16.0,
             Size::Hero => 18.0,
-        }
+        };
+        if compact() { side - 1.0 } else { side }
     }
 
-    const fn pad(self) -> f32 {
-        match self {
+    fn pad(self) -> f32 {
+        let pad = match self {
             Size::Small => 8.0,
             Size::Normal => 10.0,
             Size::Large => 12.0,
             Size::Hero => 14.0,
-        }
+        };
+        if compact() { pad - 2.0 } else { pad }
     }
 
-    const fn radius(self) -> u8 {
-        match self {
+    fn radius(self) -> u8 {
+        let radius = match self {
             Size::Small => 6,
             Size::Normal => 8,
             Size::Large => 9,
             Size::Hero => 11,
-        }
+        };
+        if compact() { radius - 1 } else { radius }
     }
 }
 
@@ -82,8 +94,10 @@ pub fn hover_t(ui: &Ui, response: &Response, on: bool) -> f32 {
     ui.ctx().animate_bool_with_time(response.id.with("survol"), on, HOVER_TIME)
 }
 
-/// Le côté d'un bouton icône seul.
-pub const ICON_BUTTON: f32 = 26.0;
+/// Le côté d'un bouton icône seul (celui d'un bouton ordinaire).
+pub fn icon_button_side() -> f32 {
+    Size::Normal.height()
+}
 const GAP: f32 = 6.0;
 
 /// Mélange vers le blanc (survol) ou le noir (appui).
@@ -96,7 +110,7 @@ const SECTION: Color32 = Color32::from_rgb(0xa8, 0x95, 0x6c);
 
 /// Un en-tête de section : petites capitales espacées, or éteint, suivies d'un filet.
 pub fn section(ui: &mut Ui, title: &str) {
-    ui.add_space(12.0);
+    ui.add_space(if compact() { 8.0 } else { 12.0 });
     let r = ui.label(RichText::new(title.to_uppercase()).font(semibold(10.5)).color(SECTION).extra_letter_spacing(1.0));
     let (x0, x1, y) = (r.rect.max.x + 10.0, ui.max_rect().max.x, r.rect.center().y);
     if x1 > x0 + 8.0 {
@@ -107,7 +121,7 @@ pub fn section(ui: &mut Ui, title: &str) {
 
 /// Un en-tête de section avec des actions alignées à droite.
 pub fn section_with(ui: &mut Ui, title: &str, actions: impl FnOnce(&mut Ui)) {
-    ui.add_space(8.0);
+    ui.add_space(if compact() { 5.0 } else { 8.0 });
     ui.horizontal(|ui| {
         ui.label(RichText::new(title.to_uppercase()).font(semibold(10.5)).color(SECTION).extra_letter_spacing(1.0));
         ui.with_layout(Layout::right_to_left(Align::Center), actions);
@@ -120,14 +134,14 @@ pub fn card<R>(ui: &mut Ui, add: impl FnOnce(&mut Ui) -> R) -> egui::InnerRespon
         .fill(SURFACE)
         .stroke(Stroke::new(1.0, BORDER))
         .corner_radius(12.0)
-        .inner_margin(Margin::same(14))
+        .inner_margin(Margin::same(if compact() { 10 } else { 14 }))
         .shadow(egui::Shadow { offset: [0, 4], blur: 16, spread: 0, color: Color32::from_black_alpha(90) })
         .show(ui, add)
 }
 
 /// Un bouton icône seul, discret (il s'éclaire au survol).
 pub fn icon_button(ui: &mut Ui, icon: Icon, tip: &str) -> Response {
-    icon_button_sized(ui, icon, tip, ICON_BUTTON, MUTED)
+    icon_button_sized(ui, icon, tip, icon_button_side(), MUTED)
 }
 
 pub fn icon_button_sized(ui: &mut Ui, icon: Icon, tip: &str, size: f32, color: Color32) -> Response {
@@ -144,7 +158,7 @@ pub fn icon_button_sized(ui: &mut Ui, icon: Icon, tip: &str, size: f32, color: C
 
 /// Un bouton icône à deux états.
 pub fn icon_toggle(ui: &mut Ui, icon: Icon, on: bool, color: Color32, tip: &str) -> Response {
-    let (rect, response) = ui.allocate_exact_size(Vec2::splat(ICON_BUTTON), Sense::click());
+    let (rect, response) = ui.allocate_exact_size(Vec2::splat(icon_button_side()), Sense::click());
     let t = hover_t(ui, &response, response.hovered());
     let painter = ui.painter();
     if on {

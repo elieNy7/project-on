@@ -212,6 +212,8 @@ fn animation_off() -> po_design::Animation {
 
 impl App {
     pub fn new(ctx: &egui::Context, config: Config) -> Self {
+        // Boutons, textes et espacements compacts : la régie tient aussi dans une moitié d'écran.
+        crate::theme::set_compact(true);
         crate::theme::install(ctx, &config.fonts_dir);
         icons::load(ctx);
         let settings = &config.settings;
@@ -2199,39 +2201,42 @@ impl App {
         self.recovery_banner(ui);
         // Le fond bleu nuit, puis les cartes de la régie posées dessus avec un espace entre elles.
         crate::theme::paint_backdrop(ui.painter(), ui.ctx().content_rect());
-        let gap = |left: i8, right: i8| Margin { left, right, top: 2, bottom: 2 };
+        let shell = Shell::of(ui.ctx().content_rect().size());
+        let gap = |left: i8, right: i8| Margin { left, right, top: 1, bottom: 1 };
         egui::Panel::top("barre")
-            .exact_size(54.0)
+            .exact_size(Shell::BAR)
             .show_separator_line(false)
             .frame(bar_frame())
-            .show(ui, |ui| self.command_bar(ui));
+            .show(ui, |ui| self.command_bar(ui, shell));
         egui::Panel::bottom("etat")
-            .exact_size(28.0)
+            .exact_size(Shell::STATUS)
             .show_separator_line(false)
             .frame(bar_frame())
-            .show(ui, |ui| self.status_bar(ui));
+            .show(ui, |ui| self.status_bar(ui, shell));
         egui::Panel::left("rail")
-            .exact_size(188.0)
+            .exact_size(shell.rail)
             .resizable(false)
             .show_separator_line(false)
-            .frame(crate::theme::card_frame(10, gap(10, 5)))
+            .frame(crate::theme::card_frame(Shell::RAIL_INNER as i8, gap(Shell::EDGE, Shell::GAP)))
             .show(ui, |ui| {
-                crate::theme::card_sheen(ui, 10.0);
-                self.rail(ui);
+                crate::theme::card_sheen(ui, Shell::RAIL_INNER);
+                self.rail(ui, shell);
             });
         egui::Panel::right("moniteurs")
-            .exact_size(496.0)
+            .exact_size(shell.monitors)
             .resizable(false)
             .show_separator_line(false)
-            .frame(crate::theme::card_frame(14, gap(5, 10)))
+            .frame(crate::theme::card_frame(Shell::INNER as i8, gap(Shell::GAP, Shell::EDGE)))
             .show(ui, |ui| {
-                crate::theme::card_sheen(ui, 14.0);
-                self.monitors(ui, now);
+                crate::theme::card_sheen(ui, Shell::INNER);
+                self.monitors(ui, now, shell);
             });
-        egui::CentralPanel::no_frame().frame(crate::theme::card_frame(14, gap(5, 5))).show(ui, |ui| {
-            crate::theme::card_sheen(ui, 14.0);
-            self.library(ui);
-        });
+        egui::CentralPanel::no_frame()
+            .frame(crate::theme::card_frame(Shell::INNER as i8, gap(Shell::GAP, Shell::GAP)))
+            .show(ui, |ui| {
+                crate::theme::card_sheen(ui, Shell::INNER);
+                self.library(ui);
+            });
         self.add_window(ui);
         self.preflight_window(ui);
         self.history_window(ui);
@@ -2531,13 +2536,21 @@ impl App {
         }
     }
 
-    fn command_bar(&mut self, ui: &mut Ui) {
+    fn command_bar(&mut self, ui: &mut Ui, shell: Shell) {
         ui.horizontal_centered(|ui| {
             logo_mark(ui);
-            ui.label(RichText::new("Project-On").font(bold(17.5)).color(TEXT));
-            widgets::chip(ui, if cfg!(feature = "bascule") { "3.0" } else { "3.0 bêta" }, ACCENT);
-            ui.add_space(24.0);
-            let r = widgets::search_field(ui, &mut self.global.query, "Rechercher partout…  Ctrl+K", 440.0);
+            if shell.width >= 1100.0 {
+                ui.label(RichText::new("Project-On").font(bold(16.0)).color(TEXT));
+            }
+            if shell.width >= 1280.0 {
+                widgets::chip(ui, if cfg!(feature = "bascule") { "3.0" } else { "3.0 bêta" }, ACCENT);
+            }
+            ui.add_space(if shell.narrow() { 6.0 } else { 16.0 });
+            // La place laissée à droite : l'horloge, les écrans Web et la projection.
+            let right = if shell.narrow() { 150.0 } else { 330.0 };
+            let width = (ui.available_width() - right).clamp(140.0, 440.0);
+            let hint = if width < 260.0 { "Rechercher…  Ctrl+K" } else { "Rechercher partout…  Ctrl+K" };
+            let r = widgets::search_field(ui, &mut self.global.query, hint, width);
             if std::mem::take(&mut self.global.focus) {
                 r.request_focus();
             }
@@ -2554,9 +2567,11 @@ impl App {
             }
             self.global.advance(ui.ctx(), self.db_path.as_ref(), self.bible.translation);
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                let clock = chrono_now();
-                ui.label(RichText::new(clock).font(medium(12.5)).color(MUTED));
-                ui.add_space(8.0);
+                if !shell.narrow() {
+                    let clock = chrono_now();
+                    ui.label(RichText::new(clock).font(medium(12.0)).color(MUTED));
+                    ui.add_space(6.0);
+                }
                 if let Some(web) = self.web.as_mut() {
                     web.button(ui);
                 }
@@ -2567,11 +2582,13 @@ impl App {
                     many => format!("Projection · {} écrans", many.len()),
                 };
                 let tip = format!(
-                    "Ouvrir ou fermer la projection ({}) ; clic droit : choisir les écrans",
+                    "{label}\nOuvrir ou fermer la projection ({}) ; clic droit : choisir les écrans",
                     self.shortcuts.text(Key2::Projection)
                 );
                 let tone = if self.projecting() { Tone::Primary(LIVE) } else { Tone::Secondary };
-                let r = widgets::button(ui, Some(Icon::Cast), &label, tone).on_hover_text(tip);
+                // Fenêtre étroite : l'icône seule (le libellé reste dans l'infobulle).
+                let shown = if shell.narrow() { "" } else { label.as_str() };
+                let r = widgets::button(ui, Some(Icon::Cast), shown, tone).on_hover_text(tip);
                 if r.clicked() {
                     self.toggle_projection();
                 }
@@ -2612,129 +2629,51 @@ impl App {
         }
     }
 
-    fn rail(&mut self, ui: &mut Ui) {
-        ui.add_space(10.0);
+    fn rail(&mut self, ui: &mut Ui, shell: Shell) {
+        ui.add_space(6.0);
+        let labels = shell.rail_labels;
+        // Une fenêtre basse : des lignes plus serrées, pour que les dix pages tiennent.
+        let row = if shell.height < 640.0 { 27.0 } else { 32.0 };
         for (i, page) in Page::ALL.into_iter().enumerate() {
-            let selected = self.page == page;
-            let (rect, r) = widgets::list_row(ui, selected, 38.0, page.label());
-            ui.add_space(2.0);
-            icons::paint(
-                ui.painter(),
-                egui::Rect::from_center_size(pos2(rect.min.x + 22.0, rect.center().y), vec2(17.0, 17.0)),
-                page.icon(),
-                if selected { ACCENT } else { MUTED },
-            );
-            widgets::paint_text(
-                ui,
-                pos2(rect.min.x + 40.0, rect.center().y),
-                Align2::LEFT_CENTER,
-                page.label(),
-                medium(13.5),
-                if selected { TEXT } else { MUTED },
-                rect.width() - 50.0,
-            );
-            if r.on_hover_text(format!("Ctrl+{}", i + 1)).clicked() {
+            let tip = format!("{} (Ctrl+{})", page.label(), i + 1);
+            if rail_row(ui, self.page == page, page, page.icon(), (labels, row), &tip) {
                 self.page = page;
             }
         }
-        ui.add_space(10.0);
+        ui.add_space(6.0);
         ui.separator();
-        let designs = self.page == Page::Designs;
-        let (rect, r) = widgets::list_row(ui, designs, 38.0, Page::Designs.label());
-        ui.add_space(2.0);
-        icons::paint(
-            ui.painter(),
-            egui::Rect::from_center_size(pos2(rect.min.x + 22.0, rect.center().y), vec2(17.0, 17.0)),
-            Icon::SwatchBook,
-            if designs { ACCENT } else { MUTED },
-        );
-        widgets::paint_text(
-            ui,
-            pos2(rect.min.x + 40.0, rect.center().y),
-            Align2::LEFT_CENTER,
-            Page::Designs.label(),
-            medium(13.5),
-            if designs { TEXT } else { MUTED },
-            rect.width() - 50.0,
-        );
-        if r.on_hover_text("Designs, lower thirds, sous-titres, NDI et HDMI (Ctrl+7)").clicked() {
-            self.page = Page::Designs;
-        }
-        let settings = self.page == Page::Settings;
-        let (rect, r) = widgets::list_row(ui, settings, 38.0, Page::Settings.label());
-        ui.add_space(2.0);
-        icons::paint(
-            ui.painter(),
-            egui::Rect::from_center_size(pos2(rect.min.x + 22.0, rect.center().y), vec2(17.0, 17.0)),
-            Icon::Settings,
-            if settings { ACCENT } else { MUTED },
-        );
-        widgets::paint_text(
-            ui,
-            pos2(rect.min.x + 40.0, rect.center().y),
-            Align2::LEFT_CENTER,
-            Page::Settings.label(),
-            medium(13.5),
-            if settings { TEXT } else { MUTED },
-            rect.width() - 50.0,
-        );
-        if r.on_hover_text("Réglages, sauvegardes, contrôle avant culte (Ctrl+8)").clicked() {
-            self.page = Page::Settings;
-        }
-        let media = self.page == Page::Media;
-        let (rect, r) = widgets::list_row(ui, media, 38.0, Page::Media.label());
-        ui.add_space(2.0);
-        icons::paint(
-            ui.painter(),
-            egui::Rect::from_center_size(pos2(rect.min.x + 22.0, rect.center().y), vec2(17.0, 17.0)),
-            Icon::Image,
-            if media { ACCENT } else { MUTED },
-        );
-        widgets::paint_text(
-            ui,
-            pos2(rect.min.x + 40.0, rect.center().y),
-            Align2::LEFT_CENTER,
-            Page::Media.label(),
-            medium(13.5),
-            if media { TEXT } else { MUTED },
-            rect.width() - 50.0,
-        );
-        if r.on_hover_text("Le diaporama d'un dossier d'images (Ctrl+9)").clicked() {
-            self.page = Page::Media;
-        }
-        let searching = self.page == Page::Search;
-        let (rect, r) = widgets::list_row(ui, searching, 38.0, Page::Search.label());
-        ui.add_space(2.0);
-        icons::paint(
-            ui.painter(),
-            egui::Rect::from_center_size(pos2(rect.min.x + 22.0, rect.center().y), vec2(17.0, 17.0)),
-            Icon::Search,
-            if searching { ACCENT } else { MUTED },
-        );
-        widgets::paint_text(
-            ui,
-            pos2(rect.min.x + 40.0, rect.center().y),
-            Align2::LEFT_CENTER,
-            Page::Search.label(),
-            medium(13.5),
-            if searching { TEXT } else { MUTED },
-            rect.width() - 50.0,
-        );
-        if r.on_hover_text("Chercher dans la Bible, les prédications, l'Exposé et les livres (Ctrl+K)").clicked() {
-            self.page = Page::Search;
-            self.global.focus = true;
+        let extra = [
+            (Page::Designs, Icon::SwatchBook, "Designs, lower thirds, sous-titres, NDI et HDMI (Ctrl+7)"),
+            (Page::Settings, Icon::Settings, "Réglages, sauvegardes, contrôle avant culte (Ctrl+8)"),
+            (Page::Media, Icon::Image, "Médias : le diaporama d'un dossier d'images (Ctrl+9)"),
+            (Page::Search, Icon::Search, "Chercher dans la Bible, les prédications, l'Exposé et les livres (Ctrl+K)"),
+        ];
+        for (page, icon, tip) in extra {
+            if rail_row(ui, self.page == page, page, icon, (labels, row), tip) {
+                self.page = page;
+                if page == Page::Search {
+                    self.global.focus = true;
+                }
+            }
         }
         ui.with_layout(Layout::bottom_up(Align::Min), |ui| {
-            ui.add_space(6.0);
-            if widgets::button(ui, Some(Icon::Info), "Raccourcis  F1", Tone::Secondary).clicked() {
+            ui.add_space(4.0);
+            let r = if labels {
+                widgets::button(ui, Some(Icon::Info), "Raccourcis  F1", Tone::Secondary)
+            } else {
+                widgets::icon_button(ui, Icon::Info, "Raccourcis clavier (F1)")
+            };
+            if r.clicked() {
                 self.help = !self.help;
             }
         });
     }
 
-    fn monitors(&mut self, ui: &mut Ui, now: f64) {
+    fn monitors(&mut self, ui: &mut Ui, now: f64, shell: Shell) {
         let width = ui.available_width();
         let height = width * 9.0 / 16.0;
+        // Une colonne étroite : les commandes sans leur raccourci (il reste dans l'infobulle).
+        let short = width < 380.0;
         // Aperçu.
         monitor_header(ui, "APERÇU", PREVIEW, self.preview.as_ref());
         let (rect, _) = ui.allocate_exact_size(vec2(width, height), Sense::hover());
@@ -2762,22 +2701,17 @@ impl App {
                 FAINT,
             );
         }
-        ui.add_space(8.0);
-        let take = format!("Envoyer au direct   {}", self.shortcuts.text(Key2::Take));
-        if widgets::button_sized(
-            ui,
-            width,
-            Size::Hero,
-            Some(Icon::Cast),
-            &take,
-            Tone::Primary(LIVE),
-            self.preview.is_some(),
-        )
-        .clicked()
+        ui.add_space(6.0);
+        let take_key = self.shortcuts.text(Key2::Take);
+        let take = if short { "Envoyer au direct".to_string() } else { format!("Envoyer au direct   {take_key}") };
+        let size = if shell.short() { Size::Large } else { Size::Hero };
+        if widgets::button_sized(ui, width, size, Some(Icon::Cast), &take, Tone::Primary(LIVE), self.preview.is_some())
+            .on_hover_text(format!("Envoyer l'Aperçu au direct ({take_key})"))
+            .clicked()
         {
             self.take();
         }
-        ui.add_space(14.0);
+        ui.add_space(if shell.short() { 6.0 } else { 10.0 });
         // Direct.
         monitor_header(ui, "DIRECT", LIVE, self.live.as_ref());
         let (rect, _) = ui.allocate_exact_size(vec2(width, height), Sense::hover());
@@ -2808,40 +2742,63 @@ impl App {
                 WARN,
             );
         }
-        ui.add_space(8.0);
+        ui.add_space(6.0);
         self.video_controls(ui);
         ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 6.0;
             let live = self.live.is_some();
-            if widgets::button_sized(ui, 44.0, Size::Large, Some(Icon::ChevronLeft), "", Tone::Secondary, live)
+            let arrow = Size::Large.height() + 8.0;
+            if widgets::button_sized(ui, arrow, Size::Large, Some(Icon::ChevronLeft), "", Tone::Secondary, live)
                 .on_hover_text("Slide précédent (Page précédente, ←)")
                 .clicked()
             {
                 self.step(-1);
             }
             let hide_label = if self.live_stage.hidden() { "Afficher" } else { "Masquer" };
-            let hide = format!("{hide_label}  {}", self.shortcuts.text(Key2::Hide));
+            let hide_key = self.shortcuts.text(Key2::Hide);
+            let hide = if short { hide_label.to_string() } else { format!("{hide_label}  {hide_key}") };
             let icon = if self.live_stage.hidden() { Icon::Eye } else { Icon::EyeOff };
-            let w = (ui.available_width() - 44.0 - 8.0) / 2.0;
-            if widgets::button_sized(ui, w, Size::Large, Some(icon), &hide, Tone::Secondary, true).clicked() {
+            let w = ((ui.available_width() - arrow * 2.0 - 18.0) / 2.0).max(36.0);
+            // Étroits : le libellé sans icône, puis l'icône seule (le libellé reste dans l'infobulle).
+            let tiny = w < 74.0;
+            let bare = w < 118.0;
+            let hide = if tiny { String::new() } else { hide };
+            let icon = (!bare || tiny).then_some(icon);
+            if widgets::button_sized(ui, w, Size::Large, icon, &hide, Tone::Secondary, true)
+                .on_hover_text(format!("{hide_label} le texte ({hide_key})"))
+                .clicked()
+            {
                 self.toggle_hidden();
             }
-            let proj = if self.projecting() { "Fermer la projection" } else { "Projection" };
-            let proj = format!("{proj}  {}", self.shortcuts.text(Key2::Projection));
+            let proj = match (self.projecting(), short) {
+                (true, true) => "Fermer",
+                (true, false) => "Fermer la projection",
+                (false, true) => "Projeter",
+                (false, false) => "Projection",
+            };
+            let proj = match (tiny, short) {
+                (true, _) => String::new(),
+                (false, true) => proj.to_string(),
+                (false, false) => format!("{proj}  {}", self.shortcuts.text(Key2::Projection)),
+            };
             let tone = if self.projecting() { Tone::Primary(LIVE) } else { Tone::Secondary };
-            let r = widgets::button_sized(ui, w, Size::Large, Some(Icon::Monitor), &proj, tone, true)
-                .on_hover_text("Clic droit : choisir les écrans");
+            let icon = (!bare || tiny).then_some(Icon::Monitor);
+            let r = widgets::button_sized(ui, w, Size::Large, icon, &proj, tone, true).on_hover_text(format!(
+                "Ouvrir ou fermer la projection ({}) ; clic droit : choisir les écrans",
+                self.shortcuts.text(Key2::Projection)
+            ));
             if r.clicked() {
                 self.toggle_projection();
             }
             self.screens_menu(&r);
-            if widgets::button_sized(ui, 44.0, Size::Large, Some(Icon::ChevronRight), "", Tone::Secondary, live)
+            if widgets::button_sized(ui, arrow, Size::Large, Some(Icon::ChevronRight), "", Tone::Secondary, live)
                 .on_hover_text("Slide suivant (Page suivante, →)")
                 .clicked()
             {
                 self.step(1);
             }
         });
-        ui.add_space(10.0);
+        ui.add_space(4.0);
         // Le programme au direct : chaque slide, cliquable.
         let Some(live) = self.live.as_ref() else { return };
         widgets::section(ui, &format!("Programme au direct · {} slides", live.program.len()));
@@ -2851,28 +2808,28 @@ impl App {
             live.program.slides.iter().map(|s| (s.reference.clone(), s.text.replace('\n', " "))).collect();
         let mut area = ScrollArea::vertical().id_salt("programme-direct").auto_shrink([false, false]);
         if std::mem::take(&mut self.follow_live) {
-            area = area.vertical_scroll_offset(crate::library::scroll_offset(ui, current, 40.0));
+            area = area.vertical_scroll_offset(crate::library::scroll_offset(ui, current, 36.0));
         }
-        area.show_rows(ui, 40.0, rows.len(), |ui, range| {
+        area.show_rows(ui, 36.0, rows.len(), |ui, range| {
             for i in range {
                 let (reference, text) = &rows[i];
-                let (rect, r) = widgets::list_row(ui, i == current, 38.0, reference);
+                let (rect, r) = widgets::list_row(ui, i == current, 34.0, reference);
                 ui.add_space(2.0);
                 widgets::paint_text(
                     ui,
-                    pos2(rect.min.x + 12.0, rect.min.y + 4.0),
+                    pos2(rect.min.x + 12.0, rect.min.y + 3.0),
                     Align2::LEFT_TOP,
                     reference,
-                    semibold(11.0),
+                    semibold(10.5),
                     if i == current { LIVE } else { ACCENT },
                     rect.width() - 20.0,
                 );
                 widgets::paint_text(
                     ui,
-                    pos2(rect.min.x + 12.0, rect.min.y + 20.0),
+                    pos2(rect.min.x + 12.0, rect.min.y + 18.0),
                     Align2::LEFT_TOP,
                     text,
-                    regular(11.5),
+                    regular(11.0),
                     MUTED,
                     rect.width() - 20.0,
                 );
@@ -2886,15 +2843,15 @@ impl App {
         }
     }
 
-    fn status_bar(&mut self, ui: &mut Ui) {
+    fn status_bar(&mut self, ui: &mut Ui, shell: Shell) {
         ui.horizontal_centered(|ui| {
             widgets::dot(ui, if self.live.is_some() { LIVE } else { PREVIEW });
-            ui.label(RichText::new(&self.status).font(medium(11.5)).color(MUTED));
+            ui.add(egui::Label::new(RichText::new(&self.status).font(medium(11.0)).color(MUTED)).truncate());
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                if let Some(l) = &self.locations {
+                if let Some(l) = self.locations.as_ref().filter(|_| !shell.narrow()) {
                     ui.label(
                         RichText::new(format!("Données : {}", l.beta.root().display()))
-                            .font(regular(11.0))
+                            .font(regular(10.5))
                             .color(FAINT),
                     )
                     .on_hover_text("La bêta travaille sur une copie : la 2.8 et ses données ne sont jamais modifiées.");
@@ -2942,9 +2899,9 @@ impl App {
 
 /// Le logo de Project-On dans la barre du haut, sur une ombre douce.
 fn logo_mark(ui: &mut Ui) {
-    let (rect, _) = ui.allocate_exact_size(vec2(30.0, 30.0), Sense::hover());
+    let (rect, _) = ui.allocate_exact_size(vec2(26.0, 26.0), Sense::hover());
     let painter = ui.painter();
-    crate::theme::paint_shadow(painter, rect, CornerRadius::same(8), 2, 10, Color32::from_black_alpha(140));
+    crate::theme::paint_shadow(painter, rect, CornerRadius::same(7), 2, 10, Color32::from_black_alpha(140));
     crate::theme::paint_glow(painter, rect, CornerRadius::same(8), ACCENT, 0.10);
     crate::theme::paint_logo(painter, rect);
 }
@@ -3035,7 +2992,85 @@ fn waiting(ui: &mut Ui, title: &str, message: &str) {
 
 /// Les barres du haut et du bas : posées sur le fond, sans carte.
 fn bar_frame() -> egui::Frame {
-    egui::Frame::new().inner_margin(Margin::symmetric(16, 6))
+    egui::Frame::new().inner_margin(Margin::symmetric(12, 4))
+}
+
+/// La disposition de la régie selon la taille de la fenêtre : en plein écran, sur un portable, ou
+/// dans une moitié d'écran à côté d'un autre logiciel (l'ancrage de Windows 11).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Shell {
+    /// La largeur de la fenêtre (points d'interface).
+    width: f32,
+    /// Sa hauteur.
+    height: f32,
+    /// La largeur du rail, et s'il montre les libellés (sinon les icônes seules).
+    rail: f32,
+    rail_labels: bool,
+    /// La largeur de la colonne Aperçu / Direct.
+    monitors: f32,
+}
+
+impl Shell {
+    const BAR: f32 = 42.0;
+    const STATUS: f32 = 24.0;
+    /// La marge intérieure des cartes, et celle du rail.
+    const INNER: f32 = 10.0;
+    const RAIL_INNER: f32 = 7.0;
+    /// L'espace entre les cartes, et au bord de la fenêtre.
+    const GAP: i8 = 3;
+    const EDGE: i8 = 6;
+
+    fn of(size: egui::Vec2) -> Self {
+        let (width, height) = (size.x, size.y);
+        let rail_labels = width >= 1280.0;
+        let rail = if rail_labels { 158.0 } else { 54.0 };
+        // Les deux moniteurs 16:9 et ce qui les entoure (en-têtes, envoi au direct, commandes,
+        // quelques lignes du programme) doivent tenir en hauteur : la colonne s'étrécit sinon.
+        let column = height - Self::BAR - Self::STATUS - 8.0;
+        let around = 2.0 * Self::INNER + 2.0 * 30.0 + 34.0 + 28.0 + 30.0 + 110.0;
+        let by_height = (column - around).max(0.0) * 16.0 / 18.0 + 2.0 * Self::INNER;
+        let by_width = (width * 0.32).clamp(250.0, 470.0);
+        // La bibliothèque garde au moins 320 points.
+        let room = width - rail - 2.0 * f32::from(Self::EDGE) - 4.0 * f32::from(Self::GAP) - 320.0;
+        let monitors = by_width.min(by_height).min(room).max(220.0);
+        Shell { width, height, rail, rail_labels, monitors }
+    }
+
+    /// Une fenêtre étroite (moitié d'un écran de portable) : barre réduite à l'essentiel.
+    fn narrow(self) -> bool {
+        self.width < 1000.0
+    }
+
+    /// Une fenêtre basse : boutons du direct moins hauts.
+    fn short(self) -> bool {
+        self.height < 820.0
+    }
+}
+
+/// Une ligne du rail : l'icône, et le libellé si la place le permet (sinon dans l'infobulle).
+/// Vrai si elle est cliquée.
+fn rail_row(ui: &mut Ui, selected: bool, page: Page, icon: Icon, (labels, height): (bool, f32), tip: &str) -> bool {
+    let (rect, r) = widgets::list_row(ui, selected, height, page.label());
+    ui.add_space(2.0);
+    let center = if labels { pos2(rect.min.x + 19.0, rect.center().y) } else { rect.center() };
+    icons::paint(
+        ui.painter(),
+        egui::Rect::from_center_size(center, vec2(16.0, 16.0)),
+        icon,
+        if selected { ACCENT } else { MUTED },
+    );
+    if labels {
+        widgets::paint_text(
+            ui,
+            pos2(rect.min.x + 36.0, rect.center().y),
+            Align2::LEFT_CENTER,
+            page.label(),
+            medium(12.5),
+            if selected { TEXT } else { MUTED },
+            rect.width() - 44.0,
+        );
+    }
+    r.on_hover_text(tip).clicked()
 }
 
 /// La date locale « 2026-11-11 ».
